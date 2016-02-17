@@ -69,7 +69,3 @@ class Utils(object):
         for k in dictionary:
             ret[k.title()] = dictionary[k]
         return ret
-
-    @staticmethod
-    def build_default_metadata(entity):
-        return {"Raven-Entity-Name": str(entity.__class__.__name__ + 's'), "Raven-Python-Type": str(entity.__class__)}

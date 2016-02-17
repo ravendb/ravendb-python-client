@@ -1,4 +1,4 @@
-from data.convention import Convention
+from data.document_convention import DocumentConvention
 import requests
 import sys
 
@@ -11,7 +11,7 @@ class HttpRequestsFactory(object):
         self.version_info = sys.version_info.major
         self.convention = convention
         if self.convention is None:
-            self.convention = Convention()
+            self.convention = DocumentConvention()
         self.headers = {"Accept": "application/json", "Has-Api-key": True if self.api_key is not None else False,
                         "Raven-Client-Version": "3.0.0.0"}
 
@@ -36,10 +36,12 @@ class HttpRequestsFactory(object):
     def call_hilo(self, hilo_id):
         get_url = "queries/?&id=Raven%2FHilo%2F{0}&id=Raven%2FServerPrefixForHilo".format(hilo_id)
         response = self.http_request_handler(get_url, "GET").json()
-        value = response["Results"][0]["Max"]
+        value = response["Results"][0]
         if value is None:
-            value
+            value = 0
+        else:
+            value = value["Max"]
         put_url = "docs/Raven%2FHilo%2F{0}".format(hilo_id)
         self.http_request_handler(put_url, "PUT", data={
-            "Max": value + self.convention.max_number_of_request_per_session})
-        return value + 1
+            "Max": value + self.convention.max_ids_to_catch})
+        return value

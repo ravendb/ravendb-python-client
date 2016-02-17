@@ -1,9 +1,9 @@
 from connection.requests_factory import HttpRequestsFactory
-from data.convention import Convention
-from store.hilo_generator import HiloGenerator
-from store.document_session import DocumentSession
-from d_commands import database_commands
 from custom_exceptions import exceptions
+from d_commands import database_commands
+from data.document_convention import DocumentConvention
+from hilo.hilo_generator import HiloGenerator
+from store.document_session import DocumentSession
 from tools.utils import Utils
 
 
@@ -11,7 +11,7 @@ class DocumentStore(object):
     def __init__(self, url=None, database=None):
         self.url = url
         self.database = database
-        self.conventions = Convention()
+        self.conventions = DocumentConvention()
         self.__requests_handler = HttpRequestsFactory(url, database, self.conventions)
         self.__database_commands = None
         self._initialize = False
@@ -46,5 +46,5 @@ class DocumentStore(object):
             database = self.database
         return DocumentSession(database, self)
 
-    def generate_max_id_for_session(self, entity):
+    def generate_id(self, entity):
         return self.generator.generate_document_id(entity, self.conventions, self.__requests_handler)

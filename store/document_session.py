@@ -21,7 +21,7 @@ class DocumentSession(object):
         self._original_entities = {}
         self._known_missing_ids = {}
         self.id_value = None
-        self.number_of_requests_in_session = 0
+        self.__number_of_requests_in_session = 0
 
     def __enter__(self):
         return self
@@ -36,6 +36,7 @@ class DocumentSession(object):
             return self._entities[key]
         if self._is_missing(key):
             return None
+        self.increment_requests_count()
         response = self.document_store.database_commands.get(key)["Results"]
         if None in response:
             self._known_missing_ids[key] = None
@@ -79,16 +80,20 @@ class DocumentSession(object):
             entity_id = key
 
         if not entity_id:
-            self.number_of_requests_in_session += 1
             entity_id = self.__create_id(entity)
         document = Utils.capitalize_dict_keys(vars(entity))
-        document["@metadata"] = Utils.build_default_metadata(entity)
+        document["@metadata"] = self.document_store.conventions.build_default_metadata(entity)
         self._entities[entity_id] = document
 
     def __create_id(self, entity):
-        return self.document_store.generate_max_id_for_session(entity)
+        # in generate_id we get 1 if we made a request to the server or 0 if not
+        entity_id, was_requests = self.document_store.generate_id(entity)
+        if was_requests:
+            self.increment_requests_count()
+        return entity_id
 
     def save_changes(self):
+        self.increment_requests_count()
         batch_commands = self.__make_batch_commands()
         self.document_store.database_commands.batch(batch_commands)
 
@@ -108,3 +113,16 @@ class DocumentSession(object):
         for key in self._deleted_entities:
             commands.append(commands_data.DeleteCommandData(key=key))
         return commands
+
+    def increment_requests_count(self):
+        self.__number_of_requests_in_session += 1
+        if self.__number_of_requests_in_session > self.document_store.conventions.max_number_of_request_per_session:
+            raise exceptions.InvalidOperationException(
+                "The maximum number of requests ({0}) allowed for this session has been reached. Raven limits the number \
+                of remote calls that a session is allowed to make as an early warning system. Sessions are expected to \
+                be short lived, and Raven provides facilities like batch saves (call save_changes() only once).\
+                You can increase the limit by setting DocumentConvention.\
+                MaxNumberOfRequestsPerSession or MaxNumberOfRequestsPerSession, but it is advisable \
+                that you'll look into reducing the number of remote calls first, \
+                since that will speed up your application significantly and result in a\
+                more responsive application.".format(self.document_store.conventions.max_number_of_request_per_session))
