@@ -53,19 +53,19 @@ class Utils(object):
         return path
 
     @staticmethod
-    def try_get_id_from_instance(entity):
-        if entity is None:
-            raise ValueError("None entity is invalid")
-        entity_vars = vars(entity)
-        if "id" in entity_vars:
-            return entity_vars["id"]
-        if "key" in entity_vars:
-            return entity_vars["key"]
+    def try_get_type_from_metadata(metadata):
+        if "Raven-Python-Type" in metadata:
+            return Utils.__my_import(str(metadata["Raven-Python-Type"]))
         return None
 
     @staticmethod
-    def capitalize_dict_keys(dictionary):
-        ret = {}
-        for k in dictionary:
-            ret[k.title()] = dictionary[k]
-        return ret
+    def object_equality(entity, other_entity):
+        return entity is other_entity
+
+    @staticmethod
+    def __my_import(name):
+        components = name.split('.')
+        mod = __import__(components[0])
+        for comp in components[1:]:
+            mod = getattr(mod, comp)
+        return mod

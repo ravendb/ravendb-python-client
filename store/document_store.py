@@ -3,8 +3,10 @@ from custom_exceptions import exceptions
 from d_commands import database_commands
 from data.document_convention import DocumentConvention
 from hilo.hilo_generator import HiloGenerator
+from data.database import DatabaseDocument
 from store.document_session import DocumentSession
 from tools.utils import Utils
+import traceback
 
 
 class DocumentStore(object):
@@ -12,25 +14,32 @@ class DocumentStore(object):
         self.url = url
         self.database = database
         self.conventions = DocumentConvention()
-        self.__requests_handler = HttpRequestsFactory(url, database, self.conventions)
-        self.__database_commands = None
+        self._requests_handler = HttpRequestsFactory(url, database, self.conventions)
+        self._database_commands = None
         self._initialize = False
         self.generator = None
 
     @property
     def database_commands(self):
         self._assert_initialize()
-        return self.__database_commands
+        return self._database_commands
 
     def initialize(self):
         if self.database is None:
             raise ValueError("None database Name is not valid")
-        path = "id=Raven/Databases/{0}".format(self.database)
-        response = self.__requests_handler.database_open_request(Utils.quote_key(path))
+        path = "Raven/Databases/{0}".format(self.database)
+        self._database_commands = database_commands.DatabaseCommands(self._requests_handler)
+        response = self._requests_handler.database_open_request("id=" + Utils.quote_key(path))
+        # here we unsure database exists if not create new one
         if response.status_code != 200:
-            error = "Could not open database named: {0}, database does not exists".format(self.database)
-            raise exceptions.ErrorResponseException(error)
-        self.__database_commands = database_commands.DatabaseCommands(self.__requests_handler)
+            try:
+                raise exceptions.ErrorResponseException(
+                    "Could not open database named: {0}, database does not exists".format(self.database))
+            except exceptions.ErrorResponseException:
+                print traceback.format_exc()
+                self._database_commands.admin_commands.create_database(
+                    DatabaseDocument(self.database, {"Raven/DataDir": "~\\{0}".format(self.database)}))
+
         self.generator = HiloGenerator(32)
         self._initialize = True
 
@@ -47,4 +56,4 @@ class DocumentStore(object):
         return DocumentSession(database, self)
 
     def generate_id(self, entity):
-        return self.generator.generate_document_id(entity, self.conventions, self.__requests_handler)
+        return self.generator.generate_document_id(entity, self.conventions, self._requests_handler)

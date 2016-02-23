@@ -12,3 +12,4 @@ class BulkOperationOption(object):
         self.allow_stale = allow_stale
         self.stale_timeout = stale_timeout
         self.retrieve_details = retrieve_details
+        self.max_ops_pers_sec = max_ops_per_sec

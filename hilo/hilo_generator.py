@@ -22,8 +22,8 @@ class HiloGenerator(object):
         :type Convention()
         @param request_handler: the handler for the requests
         :type HttpRequestsFactory
-        @return: the id and if use any request to server
-        :rtype: int and bool
+        @return: the id
+        :rtype: int
         """
         name = entity.__class__.__name__
         type_tag_name = convention.default_transform_type_tag_name(entity.__class__.__name__)
@@ -31,9 +31,9 @@ class HiloGenerator(object):
             with self.lock:
                 self.hilo_type[name].current += 1
             if not self.hilo_type[name].current > self.hilo_type[name].max_id:
-                return "{0}/{1}".format(type_tag_name, str(self.hilo_type[name].current)), False
+                return "{0}/{1}".format(type_tag_name, str(self.hilo_type[name].current))
 
         max_id_from_server = request_handler.call_hilo(type_tag_name)
         with self.lock:
             self.hilo_type[name] = Range(max_id_from_server + 1, max_id_from_server + convention.max_ids_to_catch)
-        return "{0}/{1}".format(type_tag_name, str(self.hilo_type[name].current)), True
+        return "{0}/{1}".format(type_tag_name, str(self.hilo_type[name].current))

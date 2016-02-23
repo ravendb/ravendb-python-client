@@ -12,4 +12,7 @@ class DocumentConvention(object):
 
     @staticmethod
     def build_default_metadata(entity):
-        return {"Raven-Entity-Name": str(entity.__class__.__name__ + 's'), "Raven-Python-Type": str(entity.__class__)}
+        if entity is None:
+            return {}
+        return {"Raven-Entity-Name": str(entity.__class__.__name__ + 's'),
+                "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
