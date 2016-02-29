@@ -36,7 +36,7 @@ class DocumentStore(object):
                 raise exceptions.ErrorResponseException(
                     "Could not open database named: {0}, database does not exists".format(self.database))
             except exceptions.ErrorResponseException:
-                print traceback.format_exc()
+                print(traceback.format_exc())
                 self._database_commands.admin_commands.create_database(
                     DatabaseDocument(self.database, {"Raven/DataDir": "~\\{0}".format(self.database)}))
 

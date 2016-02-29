@@ -4,6 +4,7 @@ from data.indexes import IndexDefinition
 from custom_exceptions import exceptions
 from data.indexes import IndexQuery
 from tools.utils import Utils
+import collections
 
 
 class DatabaseCommands(object):
@@ -26,14 +27,40 @@ class DatabaseCommands(object):
         async_result = pool.apply_async(func, func_parameter)
         return async_result.get()
 
-    def get(self, key):
-        if key is None:
+    def get(self, key_or_keys, includes=None, metadata_only=False):
+        """
+        @param key_or_keys: the key of the documents you want to retrieve (key can be a list of ids)
+        :type str or list
+        @param includes: array of paths in documents in which server should look for a 'referenced' document
+        :type list
+        @param metadata_only: specifies if only document metadata should be returned
+        :type bool
+        @return: A list of the id or ids we looked for (if they exists)
+        :rtype: dict
+        """
+        if key_or_keys is None:
             raise ValueError("None Key is not valid")
-        if not isinstance(key, str):
-            raise ValueError("key must be {0}".format(type("")))
-        key = Utils.quote_key(key)
-        path = "queries?id={0}".format(key)
-        response = self._requests_handler.http_request_handler(path, "GET").json()
+        path = "queries?"
+        method = "GET"
+        data = None
+        # make get method handle a multi document requests in a single request
+        if isinstance(key_or_keys, list):
+            key_or_keys = collections.OrderedDict.fromkeys(key_or_keys)
+            if metadata_only:
+                path += "&metadata-only=True"
+            if includes is not None and len(includes) > 0:
+                path += "".join("&include=" + Utils.quote_key(item) for item in key_or_keys)
+            # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
+            if (sum(len(x) for x in key_or_keys)) > 1024:
+                method = "POST"
+                data = list(key_or_keys)
+            else:
+                path += "".join("&id=" + Utils.quote_key(item) for item in key_or_keys)
+
+        else:
+            path += "&id={0}".format(Utils.quote_key(key_or_keys))
+
+        response = self._requests_handler.http_request_handler(path, method, data=data).json()
         if "Error" in response:
             raise exceptions.ErrorResponseException(response["Error"])
         return response

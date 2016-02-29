@@ -9,12 +9,13 @@ import re
 class Utils(object):
     @staticmethod
     def quote_key(key):
+        reserved = '%:=&?~#+!$,;\'@()*[]'
         if key:
             # To be able to work on python 2.x and 3.x
             if sys.version_info.major > 2:
-                return urllib.parse.quote(key, safe='')
+                return urllib.parse.quote(key, safe=reserved)
             else:
-                return urllib.quote(key, safe='')
+                return urllib.quote(key, safe=reserved)
         else:
             return ''
 
@@ -53,19 +54,17 @@ class Utils(object):
         return path
 
     @staticmethod
-    def try_get_type_from_metadata(metadata):
-        if "Raven-Python-Type" in metadata:
-            return Utils.__my_import(str(metadata["Raven-Python-Type"]))
-        return None
-
-    @staticmethod
     def object_equality(entity, other_entity):
         return entity is other_entity
 
     @staticmethod
-    def __my_import(name):
+    def import_class(name):
         components = name.split('.')
-        mod = __import__(components[0])
-        for comp in components[1:]:
-            mod = getattr(mod, comp)
-        return mod
+        try:
+            mod = __import__(components[0])
+            for comp in components[1:]:
+                mod = getattr(mod, comp)
+            return mod
+        except (ImportError, ValueError):
+            pass
+        return None

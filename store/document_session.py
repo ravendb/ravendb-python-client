@@ -2,6 +2,7 @@ from tools.generate_id import GenerateEntityIdOnTheClient
 from custom_exceptions import exceptions
 from d_commands import commands_data
 from tools.utils import Utils
+import inspect
 
 
 class _DynamicStructure(object):
@@ -53,38 +54,80 @@ class DocumentSession(object):
     def _convert_to_entity(self, key, document, object_type):
         self._known_missing_ids.discard(key)
         metadata = document.pop("@metadata")
-        object_from_metadata = Utils.try_get_type_from_metadata(metadata)
-        if object_from_metadata is not None:
-            if object_type is None:
-                object_type = _DynamicStructure
-            else:
-                if object_type != object_from_metadata:
-                    raise exceptions.InvalidOperationException(
-                        "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
-        self._entities_by_key[key] = object_type(**document)
+        original_metadata = metadata.copy()
+        type_from_metadata = self.document_store.conventions.try_get_type_from_metadata(metadata)
+        object_from_metadata = None
+        if type_from_metadata is not None:
+            object_from_metadata = Utils.import_class(type_from_metadata)
+        entity = _DynamicStructure(**document)
+        if object_from_metadata is None:
+            if object_type is not None:
+                entity.__class__ = object_type
+                metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
+        else:
+            if object_type and object_type != object_from_metadata and object_type != object_from_metadata.__base__:
+                raise exceptions.InvalidOperationException(
+                    "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
+            entity.__class__ = object_from_metadata
+
+            # To check if we miss some of the argument in the class (ex.use if the class has been changed)
+            args, varargs, keywords, defaults = inspect.getargspec(entity.__class__.__init__)
+            if (len(args) - 1) != len(document):
+                remainder = len(args) - len(defaults)
+                for i in range(1, remainder):
+                    if args[i] not in document:
+                        setattr(entity, args[i], None)
+                for i in range(remainder, len(args)):
+                    if args[i] not in document:
+                        setattr(entity, args[i], defaults[i - remainder])
+        self._entities_by_key[key] = entity
 
         self._entities_and_metadata[self._entities_by_key[key]] = {
             "original_value": document.copy(), "metadata": metadata,
-            "original_metadata": metadata.copy(), "etag": metadata.get("etag", None), "key": key}
+            "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key}
 
-    def load(self, key, object_type=None):
-        if key is None:
-            raise ValueError("None key is invalid")
-        if self._is_missing(key):
+    def _multi_load(self, keys, object_type):
+        if len(keys) == 0:
+            return []
+        ids_of_not_existing_object = [key for key in keys if
+                                      key not in self._known_missing_ids or key not in self._entities_by_key]
+
+        if len(ids_of_not_existing_object) > 0:
+            self._increment_requests_count()
+            response = self.document_store.database_commands.get(keys)["Results"]
+            for i in range(0, len(response)):
+                if response[i] is None:
+                    self._known_missing_ids.add(keys[i])
+                    continue
+                self._convert_to_entity(keys[i], response[i], object_type)
+        return [None if key in self._known_missing_ids else self._entities_by_key[key] for key in keys]
+
+    def load(self, key_or_keys, object_type=None):
+        """
+        @param key_or_keys: Identifier of a document that will be loaded.
+        :type str or list
+        @param object_type:the class we want to get
+        :type classObj:
+        @return: instance of object_type or None if document with given Id does not exist.
+        :rtype:object_type or None
+        """
+        if not key_or_keys:
+            raise ValueError("None or empty key is invalid")
+        if isinstance(key_or_keys, list):
+            return self._multi_load(key_or_keys, object_type)
+
+        if key_or_keys in self._known_missing_ids:
             return None
-        if key in self._entities_by_key:
-            return self._entities_by_key[key]
+        if key_or_keys in self._entities_by_key:
+            return self._entities_by_key[key_or_keys]
 
         self._increment_requests_count()
-        response = self.document_store.database_commands.get(key)["Results"]
+        response = self.document_store.database_commands.get(key_or_keys)["Results"]
         if len(response) == 0 or response[0] is None:
-            self._known_missing_ids.add(key)
+            self._known_missing_ids.add(key_or_keys)
             return None
-        self._convert_to_entity(key, response[0], object_type)
-        return self._entities_by_key[key]
-
-    def _is_missing(self, key):
-        return key in self._known_missing_ids
+        self._convert_to_entity(key_or_keys, response[0], object_type)
+        return self._entities_by_key[key_or_keys]
 
     def delete_by_entity(self, entity):
         if entity is None:

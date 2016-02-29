@@ -16,3 +16,9 @@ class DocumentConvention(object):
             return {}
         return {"Raven-Entity-Name": str(entity.__class__.__name__ + 's'),
                 "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
+
+    @staticmethod
+    def try_get_type_from_metadata(metadata):
+        if "Raven-Python-Type" in metadata:
+            return metadata["Raven-Python-Type"]
+        return None
