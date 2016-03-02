@@ -2,8 +2,17 @@ from data.operations import BulkOperationOption
 from data.indexes import IndexQuery
 from custom_exceptions import exceptions
 import urllib
+import inspect
 import sys
 import re
+
+
+class _DynamicStructure(object):
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+
+    def __str__(self):
+        return str(self.__dict__)
 
 
 class Utils(object):
@@ -54,10 +63,6 @@ class Utils(object):
         return path
 
     @staticmethod
-    def object_equality(entity, other_entity):
-        return entity is other_entity
-
-    @staticmethod
     def import_class(name):
         components = name.split('.')
         try:
@@ -68,3 +73,45 @@ class Utils(object):
         except (ImportError, ValueError):
             pass
         return None
+
+    @staticmethod
+    def is_inherit(parent, child):
+        if parent == child:
+            return True
+        if child is None:
+            return False
+        if parent != child:
+            return Utils.is_inherit(parent, child.__base__)
+
+    @staticmethod
+    def convert_to_entity(document, object_type, conventions):
+        metadata = document.pop("@metadata")
+        original_metadata = metadata.copy()
+        type_from_metadata = conventions.try_get_type_from_metadata(metadata)
+        object_from_metadata = None
+        if type_from_metadata is not None:
+            object_from_metadata = Utils.import_class(type_from_metadata)
+        entity = _DynamicStructure(**document)
+        if object_from_metadata is None:
+            if object_type is not None:
+                entity.__class__ = object_type
+                metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
+        else:
+            if object_type and not Utils.is_inherit(object_type, object_from_metadata):
+                raise exceptions.InvalidOperationException(
+                    "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
+            entity.__class__ = object_from_metadata
+
+        # Checking the class for initialize
+        entity_initialize_dict = {}
+        args, varargs, keywords, defaults = inspect.getargspec(entity.__class__.__init__)
+        if (len(args) - 1) != len(document):
+            remainder = len(args)
+            if defaults:
+                remainder -= len(defaults)
+            for i in range(1, remainder):
+                entity_initialize_dict[args[i]] = document.get(args[i], None)
+            for i in range(remainder, len(args)):
+                entity_initialize_dict[args[i]] = document.get(args[i], defaults[i - remainder])
+        entity.__init__(**entity_initialize_dict)
+        return entity, metadata, original_metadata
