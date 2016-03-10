@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*- #
+from data.indexes import IndexQuery
+from store.session_query import QueryOperator
 from data.patches import ScriptedPatchRequest
 from data.indexes import IndexDefinition
 from custom_exceptions import exceptions
-from data.indexes import IndexQuery
 from tools.utils import Utils
 import collections
 
@@ -217,11 +218,11 @@ class DatabaseCommands(object):
             raise exceptions.DocumentDoesNotExistsException("Document with key {0} does not exist.".format(key))
         return batch_result
 
-    def query(self, index_name, query, includes=None, metadata_only=False, index_entries_only=False):
+    def query(self, index_name, index_query, includes=None, metadata_only=False, index_entries_only=False):
         """
         @param index_name: A name of an index to query
         :type str
-        @param query: A query definition containing all information required to query a specified index.
+        @param index_query: A query definition containing all information required to query a specified index.
         :type IndexQuery
         @param includes: An array of relative paths that specify related documents ids
         which should be included in a query result.
@@ -235,23 +236,28 @@ class DatabaseCommands(object):
         """
         if not index_name:
             raise ValueError("index_name cannot be None or empty")
-        if query is None:
+        if index_query is None:
             raise ValueError("None query is invalid")
-        if not isinstance(query, IndexQuery):
+        if not isinstance(index_query, IndexQuery):
             raise ValueError("query must be IndexQuery type")
-        path = "indexes/{0}?&pageSize={1}".format(Utils.quote_key(index_name), query.page_size)
-        if query.query:
-            path += "&query={0}".format(Utils.quote_key(query.query))
+        path = "indexes/{0}?&pageSize={1}".format(Utils.quote_key(index_name), index_query.page_size)
+        if index_query.default_operator is QueryOperator.AND:
+            path += "&operator={0}".format(index_query.default_operator.value)
+        if index_query.query:
+            path += "&query={0}".format(Utils.quote_key(index_query.query))
+        if index_query.sort_hints:
+            for hint in index_query.sort_hints:
+                path += "&{0}".format(hint)
         if metadata_only:
             path += "&metadata-only=true"
         if index_entries_only:
             path += "&debug=entries"
         if includes and len(includes) > 0:
             path += "".join("&include=" + item for item in includes)
-        response = self._requests_handler.http_request_handler(path, "GET")
-        if response.status_code == 200:
-            return response.json()
-        return None
+        response = self._requests_handler.http_request_handler(path, "GET").json()
+        if "Error" in response:
+            raise exceptions.ErrorResponseException(response["Error"][:100])
+        return response
 
     # For Admin use only (create or delete databases)
     class Admin(object):

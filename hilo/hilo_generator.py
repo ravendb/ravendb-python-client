@@ -15,6 +15,7 @@ class HiloGenerator(object):
         self.lock = Lock()
 
     def generate_document_id(self, entity, convention, request_handler):
+        # TODO make it more thread safe
         """
         @param entity: the object we want to generate id for
         :type object
@@ -28,10 +29,14 @@ class HiloGenerator(object):
         name = entity.__class__.__name__
         type_tag_name = convention.default_transform_type_tag_name(entity.__class__.__name__)
         if name in self.hilo_type:
+            current_id = 0
+            current_max = 0
             with self.lock:
                 self.hilo_type[name].current += 1
-            if not self.hilo_type[name].current > self.hilo_type[name].max_id:
-                return "{0}/{1}".format(type_tag_name, str(self.hilo_type[name].current))
+                current_id = self.hilo_type[name].current
+                current_max = self.hilo_type[name].max_id
+            if not current_id > current_max:
+                return "{0}/{1}".format(type_tag_name, str(current_id))
 
         max_id_from_server = request_handler.call_hilo(type_tag_name)
         with self.lock:

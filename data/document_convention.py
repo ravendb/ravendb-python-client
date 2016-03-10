@@ -1,3 +1,6 @@
+from data.indexes import SortOptions
+
+
 class DocumentConvention(object):
     def __init__(self):
         self.max_number_of_request_per_session = 30
@@ -22,3 +25,20 @@ class DocumentConvention(object):
         if "Raven-Python-Type" in metadata:
             return metadata["Raven-Python-Type"]
         return None
+
+    @staticmethod
+    def uses_range_type(obj):
+        if obj is None:
+            return False
+
+        if isinstance(obj, int) or isinstance(obj, long) or isinstance(obj, float):
+            return True
+
+    @staticmethod
+    def get_default_sort_option(type_name):
+        if not type_name:
+            return None
+        if type_name == "int" or type_name == "float":
+            return SortOptions.float.value
+        if type_name == "long":
+            return SortOptions.long.value

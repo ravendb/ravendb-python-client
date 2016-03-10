@@ -18,7 +18,7 @@ class _DynamicStructure(object):
 class Utils(object):
     @staticmethod
     def quote_key(key):
-        reserved = '%:=&?~#+!$,;\'@()*[]'
+        reserved = '%:=&?~#+!$,;\'*[]'
         if key:
             # To be able to work on python 2.x and 3.x
             if sys.version_info.major > 2:
@@ -104,7 +104,7 @@ class Utils(object):
 
         # Checking the class for initialize
         entity_initialize_dict = {}
-        args, varargs, keywords, defaults = inspect.getargspec(entity.__class__.__init__)
+        args, __, __, defaults = inspect.getargspec(entity.__class__.__init__)
         if (len(args) - 1) != len(document):
             remainder = len(args)
             if defaults:
@@ -113,5 +113,56 @@ class Utils(object):
                 entity_initialize_dict[args[i]] = document.get(args[i], None)
             for i in range(remainder, len(args)):
                 entity_initialize_dict[args[i]] = document.get(args[i], defaults[i - remainder])
+        else:
+            entity_initialize_dict = document
         entity.__init__(**entity_initialize_dict)
         return entity, metadata, original_metadata
+
+    @staticmethod
+    def to_lucene(value, action):
+        query_text = ""
+        if action == "in":
+            if len(value) == 0:
+                return None
+            query_text += "("
+            first = True
+            for item in value:
+                if ' ' in item:
+                    item = "\"{0}\"".format(item)
+                item = Utils.quote_key(item)
+                if first:
+                    query_text += "{0}".format(item)
+                    first = False
+                else:
+                    query_text += ",{0}".format(item)
+            query_text += ")"
+            return query_text
+
+        elif action == "between":
+            query_text = "{{{0} TO {1}}}".format(Utils.numeric_to_lucene_syntax(value[0]) or "*",
+                                                 Utils.numeric_to_lucene_syntax(value[1]) or "NULL")
+        elif action == "equal_between":
+            query_text = "[{0} TO {1}]".format(Utils.numeric_to_lucene_syntax(value[0]) or "*",
+                                               Utils.numeric_to_lucene_syntax(value[1]) or "NULL")
+
+        else:
+            query_text = value
+            if value is None:
+                query_text = "[[NULL_VALUE]]"
+            elif ' ' in value:
+                query_text = "\"{0}\"".format(value)
+
+        return query_text
+
+    @staticmethod
+    def numeric_to_lucene_syntax(value):
+        if value is None:
+            value = "[[NULL_VALUE]]"
+        elif not value:
+            value = "[[EMPTY_STRING]]"
+
+        if isinstance(value, float) or isinstance(value, int):
+            value = "Dx{0}".format(value)
+        if isinstance(value, long):
+            value = "Lx{0}".format(value)
+        return value

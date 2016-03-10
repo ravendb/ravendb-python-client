@@ -1,5 +1,5 @@
 from tools.generate_id import GenerateEntityIdOnTheClient
-from store.advanced_session_operation import Advanced
+from store.session_query import Query
 from custom_exceptions import exceptions
 from d_commands import commands_data
 from tools.utils import Utils
@@ -32,7 +32,7 @@ class DocumentSession(object):
         self.id_value = None
         self._defer_commands = set()
         self._number_of_requests_in_session = 0
-        self._advanced = None
+        self._query = None
 
     def __enter__(self):
         return self
@@ -45,10 +45,10 @@ class DocumentSession(object):
         return self.document_store.conventions
 
     @property
-    def advanced(self):
-        if self._advanced is None:
-            self._advanced = Advanced(self)
-        return self._advanced
+    def query(self):
+        if self._query is None:
+            self._query = Query(self)
+        return self._query
 
     def save_entity(self, key, entity, original_metadata, metadata, document):
         self._known_missing_ids.discard(key)
@@ -59,8 +59,7 @@ class DocumentSession(object):
             "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key}
 
     def _convert_and_save_entity(self, key, document, object_type):
-        conventions = self.document_store.conventions
-        entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, conventions)
+        entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions)
         self.save_entity(key, entity, original_metadata, metadata, document)
 
     def _multi_load(self, keys, object_type):
@@ -70,7 +69,7 @@ class DocumentSession(object):
                                       key not in self._known_missing_ids or key not in self._entities_by_key]
 
         if len(ids_of_not_existing_object) > 0:
-            self._increment_requests_count()
+            self.increment_requests_count()
             response = self.document_store.database_commands.get(keys)["Results"]
             for i in range(0, len(response)):
                 if response[i] is None:
@@ -95,10 +94,9 @@ class DocumentSession(object):
 
         if key_or_keys in self._known_missing_ids:
             return None
-        if key_or_keys in self._entities_by_key:
             return self._entities_by_key[key_or_keys]
 
-        self._increment_requests_count()
+        self.increment_requests_count()
         response = self.document_store.database_commands.get(key_or_keys)["Results"]
         if len(response) == 0 or response[0] is None:
             self._known_missing_ids.add(key_or_keys)
@@ -202,7 +200,7 @@ class DocumentSession(object):
         self._prepare_for_puts_commands(data)
         if len(data.commands) == 0:
             return
-        self._increment_requests_count()
+        self.increment_requests_count()
         batch_result = self.document_store.database_commands.batch(data.commands)
         if batch_result is None:
             raise exceptions.InvalidOperationException(
@@ -263,7 +261,7 @@ class DocumentSession(object):
             return True
         return False
 
-    def _increment_requests_count(self):
+    def increment_requests_count(self):
         self._number_of_requests_in_session += 1
         if self._number_of_requests_in_session > self.conventions.max_number_of_request_per_session:
             raise exceptions.InvalidOperationException(
