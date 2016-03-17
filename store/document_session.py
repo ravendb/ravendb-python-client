@@ -1,6 +1,6 @@
 from tools.generate_id import GenerateEntityIdOnTheClient
-from store.session_query import Query
 from custom_exceptions import exceptions
+from store.session_query import Query
 from d_commands import commands_data
 from tools.utils import Utils
 
@@ -50,13 +50,14 @@ class DocumentSession(object):
             self._query = Query(self)
         return self._query
 
-    def save_entity(self, key, entity, original_metadata, metadata, document):
+    def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
         self._known_missing_ids.discard(key)
         self._entities_by_key[key] = entity
 
         self._entities_and_metadata[self._entities_by_key[key]] = {
             "original_value": document.copy(), "metadata": metadata,
-            "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key}
+            "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
+            "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type):
         entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions)
@@ -94,6 +95,7 @@ class DocumentSession(object):
 
         if key_or_keys in self._known_missing_ids:
             return None
+        if key_or_keys in self._entities_by_key:
             return self._entities_by_key[key_or_keys]
 
         self.increment_requests_count()
@@ -114,7 +116,6 @@ class DocumentSession(object):
             raise exceptions.InvalidOperationException(
                 "{0} is marked as read only and cannot be deleted".format(entity))
         self._deleted_entities.add(entity)
-        self._defer_commands.add(commands_data.DeleteCommandData(self._entities_and_metadata[entity]["key"]))
         self._known_missing_ids.add(self._entities_and_metadata[entity]["key"])
 
     def delete(self, key_or_entity):
@@ -124,10 +125,11 @@ class DocumentSession(object):
         """
         if key_or_entity is None:
             raise ValueError("None key is invalid")
+        if not isinstance(key_or_entity, str):
+            self.delete_by_entity(key_or_entity)
         self._known_missing_ids.add(key_or_entity)
-        if key_or_entity in self._entities_by_key or key_or_entity in self._entities_and_metadata:
-            entity = self._entities_by_key[
-                key_or_entity] if key_or_entity in self._entities_by_key else key_or_entity
+        if key_or_entity in self._entities_by_key:
+            entity = self._entities_by_key[key_or_entity]
             if self._has_change(entity):
                 raise exceptions.InvalidOperationException(
                     "Can't delete changed entity using identifier. Use delete_by_entity(entity) instead.")
@@ -137,7 +139,7 @@ class DocumentSession(object):
             if "Raven-Read-Only" in self._entities_and_metadata[entity]["original_metadata"]:
                 raise exceptions.InvalidOperationException(
                     "{0} is marked as read only and cannot be deleted".format(entity))
-            self._deleted_entities.add(entity)
+            self.delete_by_entity(entity)
             return
         self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity))
 
@@ -162,7 +164,8 @@ class DocumentSession(object):
             raise ValueError("None entity value is invalid")
         if entity in self._entities_and_metadata:
             if etag is not None:
-                self._entities_and_metadata["etag"] = etag
+                self._entities_and_metadata[entity]["etag"] = etag
+            self._entities_and_metadata[entity]["force_concurrency_check"] = force_concurrency_check
             return
 
         if key is None:
@@ -171,27 +174,26 @@ class DocumentSession(object):
             GenerateEntityIdOnTheClient.try_set_id_on_entity(entity, key)
             entity_id = key
 
-        if entity in self._deleted_entities:
-            raise exceptions.InvalidOperationException(
-                "Can't store object, it was already deleted in this session.  Document id: " + key)
         self.assert_no_non_unique_instance(entity, entity_id)
 
         if not entity_id:
             entity_id = self.document_store.generate_id(entity)
             GenerateEntityIdOnTheClient.try_set_id_on_entity(entity, entity_id)
 
+        for command in self._defer_commands:
+            if command.key == entity_id:
+                raise exceptions.InvalidOperationException(
+                    "Can't store document, there is a deferred command registered for this document in the session. "
+                    "Document id: " + entity_id)
+
+        if entity in self._deleted_entities:
+            raise exceptions.InvalidOperationException(
+                "Can't store object, it was already deleted in this session.  Document id: " + entity_id)
+
         metadata = self.conventions.build_default_metadata(entity)
         metadata["etag"] = etag
-
-        self._entities_by_key[entity_id] = entity
-        self._known_missing_ids.discard(entity_id)
-
         self._deleted_entities.discard(entity)
-        self._entities_and_metadata[entity] = {"original_value": {}, "metadata": metadata,
-                                               "original_metadata": {},
-                                               "etag": etag,
-                                               "key": entity_id,
-                                               "force_concurrency_check": force_concurrency_check}
+        self.save_entity(entity_id, entity, {}, metadata, {}, force_concurrency_check)
 
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
@@ -213,17 +215,15 @@ class DocumentSession(object):
         batch_result_length = len(batch_result)
         while i < batch_result_length:
             item = batch_result[i]
-            if item["Method"] != "PUT":
-                continue
-            entity = data.entities[i - data.deferred_command_count]
-            if entity not in self._entities_and_metadata:
-                continue
-            self._entities_by_key[item["Key"]] = entity
-            document_metadata = self._entities_and_metadata[entity]
-            document_metadata["etag"] = str(item["Etag"])
-            document_metadata["original_metadata"] = item["Metadata"].copy()
-            document_metadata["metadata"] = item["Metadata"]
-            document_metadata["original_value"] = entity.__dict__
+            if item["Method"] == "PUT":
+                entity = data.entities[i - data.deferred_command_count]
+                if entity in self._entities_and_metadata:
+                    self._entities_by_key[item["Key"]] = entity
+                    document_metadata = self._entities_and_metadata[entity]
+                    document_metadata["etag"] = str(item["Etag"])
+                    document_metadata["original_metadata"] = item["Metadata"].copy()
+                    document_metadata["metadata"] = item["Metadata"]
+                    document_metadata["original_value"] = entity.__dict__
             i += 1
 
     def _prepare_for_delete_commands(self, data):

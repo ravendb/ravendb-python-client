@@ -12,3 +12,7 @@ class DocumentDoesNotExistsException(Exception):
 
 class NonUniqueObjectException(Exception):
     pass
+
+
+class FetchConcurrencyException(Exception):
+    pass

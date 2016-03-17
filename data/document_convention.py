@@ -5,6 +5,8 @@ class DocumentConvention(object):
     def __init__(self):
         self.max_number_of_request_per_session = 30
         self.max_ids_to_catch = 32
+        # timeout for wait to server in seconds
+        self.timeout = 30
 
     @staticmethod
     def default_transform_type_tag_name(name):

@@ -122,14 +122,14 @@ class Utils(object):
     def to_lucene(value, action):
         query_text = ""
         if action == "in":
-            if len(value) == 0:
+            if not value or len(value) == 0:
                 return None
             query_text += "("
             first = True
             for item in value:
-                if ' ' in item:
+                if isinstance(item, str) and ' ' in item:
                     item = "\"{0}\"".format(item)
-                item = Utils.quote_key(item)
+                item = item
                 if first:
                     query_text += "{0}".format(item)
                     first = False
@@ -139,17 +139,20 @@ class Utils(object):
             return query_text
 
         elif action == "between":
-            query_text = "{{{0} TO {1}}}".format(Utils.numeric_to_lucene_syntax(value[0]) or "*",
-                                                 Utils.numeric_to_lucene_syntax(value[1]) or "NULL")
+            query_text = "{{{0} TO {1}}}".format(
+                Utils.numeric_to_lucene_syntax(value[0]) if value[0] is not None else "*",
+                Utils.numeric_to_lucene_syntax(value[1]) if value[1] is not None else "NULL")
         elif action == "equal_between":
-            query_text = "[{0} TO {1}]".format(Utils.numeric_to_lucene_syntax(value[0]) or "*",
-                                               Utils.numeric_to_lucene_syntax(value[1]) or "NULL")
+            query_text = "[{0} TO {1}]".format(
+                Utils.numeric_to_lucene_syntax(value[0]) if value[0] is not None else "*",
+                Utils.numeric_to_lucene_syntax(value[1]) if value[1] is not None else "NULL")
 
         else:
             query_text = value
             if value is None:
                 query_text = "[[NULL_VALUE]]"
-            elif ' ' in value:
+
+            if isinstance(value, str) and ' ' in value:
                 query_text = "\"{0}\"".format(value)
 
         return query_text

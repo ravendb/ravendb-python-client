@@ -1,4 +1,5 @@
 from data.document_convention import DocumentConvention
+from custom_exceptions import exceptions
 import requests
 import sys
 
@@ -33,15 +34,12 @@ class HttpRequestsFactory(object):
         with requests.session() as session:
             return session.request("GET", url)
 
-    def call_hilo(self, hilo_id):
-        get_url = "queries/?&id=Raven%2FHilo%2F{0}&id=Raven%2FServerPrefixForHilo".format(hilo_id)
-        response = self.http_request_handler(get_url, "GET").json()
-        value = response["Results"][0]
-        if value is None:
-            value = 0
-        else:
-            value = value["Max"]
-        put_url = "docs/Raven%2FHilo%2F{0}".format(hilo_id)
-        self.http_request_handler(put_url, "PUT", data={
-            "Max": value + self.convention.max_ids_to_catch})
-        return value
+    def call_hilo(self, type_tag_name, max_id, etag):
+        headers = {"if-None-Match": etag}
+        put_url = "docs/Raven%2FHilo%2F{0}".format(type_tag_name)
+        response = self.http_request_handler(put_url, "PUT", data={"Max": max_id},
+                                             headers=headers).json()
+        if "Error" in response:
+            if "ActualETag" in response:
+                raise exceptions.FetchConcurrencyException(response["Error"])
+            raise exceptions.ErrorResponseException(response["Error"][:85])

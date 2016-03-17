@@ -22,11 +22,19 @@ class SortOptions(Enum):
     custom = "Custom"
 
     def __str__(self):
-        return self.name
+        return self.value
 
 
 class IndexDefinition(object):
-    def __init__(self, maps, name=None, **kwargs):
+    def __init__(self, index_map, name=None, **kwargs):
+        """
+        @param index_maps: The map of the index
+        :type str
+        @param name: The name of the index
+        :type str
+        @param kwargs: Can be use to initialize the other option in the index definition
+        :type kwargs
+        """
         self.name = name
         self.reduce = kwargs.get("reduce", None)
         self.analyzers = kwargs.get("analyzers", {})
@@ -46,8 +54,8 @@ class IndexDefinition(object):
         self.stores = kwargs.get("stores", {})
         self.suggestions = kwargs.get("suggestions", {})
         self.term_vectors = kwargs.get("term_vectors", {})
-        self.maps = maps
-        self._map = ""
+        self.maps = kwargs.get("maps", set())
+        self.map = index_map
 
     @property
     def type(self):
@@ -77,7 +85,8 @@ class IndexDefinition(object):
                 "IsTestIndex": self.is_test_index, "LockMode": str(self.lock_mod), "Map": self.map,
                 "Maps": list(self.maps),
                 "MaxIndexOutputsPerDocument": self.max_index_outputs_per_document, "Name": self.name,
-                "Reduce": self.reduce, "SortOptions": self.sort_options, "SpatialIndexes": self.spatial_indexes,
+                "Reduce": self.reduce, "SortOptions": {key: str(self.sort_options[key]) for key in self.sort_options},
+                "SpatialIndexes": self.spatial_indexes,
                 "Stores": self.stores, "Suggestions": self.suggestions, "TermVectors": self.term_vectors,
                 "Type": self.type}
 
@@ -101,6 +110,8 @@ class IndexQuery(object):
         self.__page_size_set = False
         self.default_operator = default_operator
         self.sort_hints = kwargs.get("sort_hints", {})
+        self.sort_fields = kwargs.get("sort_fields", {})
+        self.wait_for_non_stale_results = kwargs.get("wait_for_non_stale_results", False)
 
     @property
     def page_size(self):

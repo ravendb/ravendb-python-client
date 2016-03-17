@@ -18,6 +18,7 @@ class DocumentStore(object):
         self._database_commands = None
         self._initialize = False
         self.generator = None
+        self.replication_topology = None
 
     @property
     def database_commands(self):
@@ -40,8 +41,10 @@ class DocumentStore(object):
                     print(traceback.format_exc())
                     self._database_commands.admin_commands.create_database(
                         DatabaseDocument(self.database, {"Raven/DataDir": "~\\{0}".format(self.database)}))
-
-            self.generator = HiloGenerator(32)
+            response = self._requests_handler.http_request_handler("replication/topology", "GET")
+            if "Error" not in response:
+                self.replication_topology = response.json()
+            self.generator = HiloGenerator(self.conventions.max_ids_to_catch, self._database_commands)
             self._initialize = True
 
     def _assert_initialize(self):

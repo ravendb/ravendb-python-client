@@ -41,7 +41,7 @@ class DatabaseCommands(object):
         """
         if key_or_keys is None:
             raise ValueError("None Key is not valid")
-        path = "queries?"
+        path = "queries/?"
         method = "GET"
         data = None
         # make get method handle a multi document requests in a single request
@@ -93,6 +93,7 @@ class DatabaseCommands(object):
         @return: json file
         :rtype: dict
         """
+        headers = None
         if document is None:
             document = {}
         if metadata is None:
@@ -103,8 +104,12 @@ class DatabaseCommands(object):
             raise ValueError("document and metadata must be dict")
         data = [{"Key": key, "Document": document, "Metadata": metadata, "AdditionalData": None,
                  "Method": "PUT", "Etag": etag}]
-        response = self._requests_handler.http_request_handler("bulk_docs", "POST", data=data).json()
+        if etag:
+            headers = {"if-None-Match": etag}
+        response = self._requests_handler.http_request_handler("bulk_docs", "POST", data=data, headers=headers).json()
         if "Error" in response:
+            if "ActualEtag" in response:
+                raise exceptions.FetchConcurrencyException(response["Error"])
             raise exceptions.ErrorResponseException(response["Error"][:85])
         return response
 
@@ -248,11 +253,15 @@ class DatabaseCommands(object):
         if index_query.sort_hints:
             for hint in index_query.sort_hints:
                 path += "&{0}".format(hint)
+        if index_query.sort_fields:
+            for field in index_query.sort_fields:
+                path += "&sort={0}".format(field)
         if metadata_only:
             path += "&metadata-only=true"
         if index_entries_only:
             path += "&debug=entries"
         if includes and len(includes) > 0:
+            raise NotImplementedError("Includs not yet implemented")
             path += "".join("&include=" + item for item in includes)
         response = self._requests_handler.http_request_handler(path, "GET").json()
         if "Error" in response:
