@@ -18,7 +18,6 @@ class DocumentStore(object):
         self._database_commands = None
         self._initialize = False
         self.generator = None
-        self.replication_topology = None
 
     @property
     def database_commands(self):
@@ -33,7 +32,7 @@ class DocumentStore(object):
             self._database_commands = database_commands.DatabaseCommands(self._requests_handler)
             response = self._requests_handler.database_open_request("id=" + Utils.quote_key(path))
             # here we unsure database exists if not create new one
-            if response.status_code != 200:
+            if response.status_code == 404:
                 try:
                     raise exceptions.ErrorResponseException(
                         "Could not open database named: {0}, database does not exists".format(self.database))
@@ -41,9 +40,7 @@ class DocumentStore(object):
                     print(traceback.format_exc())
                     self._database_commands.admin_commands.create_database(
                         DatabaseDocument(self.database, {"Raven/DataDir": "~\\{0}".format(self.database)}))
-            response = self._requests_handler.http_request_handler("replication/topology", "GET")
-            if "Error" not in response:
-                self.replication_topology = response.json()
+            self._requests_handler.get_replication_topology()
             self.generator = HiloGenerator(self.conventions.max_ids_to_catch, self._database_commands)
             self._initialize = True
 
