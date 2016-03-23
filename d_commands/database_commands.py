@@ -49,8 +49,9 @@ class DatabaseCommands(object):
             key_or_keys = collections.OrderedDict.fromkeys(key_or_keys)
             if metadata_only:
                 path += "&metadata-only=True"
-            if includes is not None and len(includes) > 0:
-                path += "".join("&include=" + Utils.quote_key(item) for item in key_or_keys)
+            if includes:
+                path += "".join("&include=" + Utils.quote_key(item) for item in includes)
+
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
                 method = "POST"

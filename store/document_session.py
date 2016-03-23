@@ -26,6 +26,7 @@ class DocumentSession(object):
         self.database = database
         self.document_store = document_store
         self._entities_by_key = {}
+        self._includes = {}
         self._deleted_entities = set()
         self._entities_and_metadata = {}
         self._known_missing_ids = set()
@@ -52,37 +53,55 @@ class DocumentSession(object):
 
     def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
         self._known_missing_ids.discard(key)
-        self._entities_by_key[key] = entity
+        if key not in self._entities_by_key:
+            self._entities_by_key[key] = entity
 
-        self._entities_and_metadata[self._entities_by_key[key]] = {
-            "original_value": document.copy(), "metadata": metadata,
-            "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
-            "force_concurrency_check": force_concurrency_check}
+            self._entities_and_metadata[self._entities_by_key[key]] = {
+                "original_value": document.copy(), "metadata": metadata,
+                "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
+                "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type):
         entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions)
         self.save_entity(key, entity, original_metadata, metadata, document)
 
-    def _multi_load(self, keys, object_type):
+    def _multi_load(self, keys, includes, object_type):
         if len(keys) == 0:
             return []
-        ids_of_not_existing_object = [key for key in keys if
-                                      key not in self._known_missing_ids or key not in self._entities_by_key]
+
+        ids_of_not_existing_object = keys
+        if not includes:
+            ids_in_includes = [key for key in keys if key in self._includes]
+            if len(ids_in_includes) > 0:
+                for include in ids_in_includes:
+                    self._convert_and_save_entity(include, self._includes[include], object_type)
+                    self._includes.pop(include)
+
+            ids_of_not_existing_object = [key for key in keys if
+                                          key not in self._known_missing_ids or key not in self._entities_by_key]
 
         if len(ids_of_not_existing_object) > 0:
             self.increment_requests_count()
-            response = self.document_store.database_commands.get(keys)["Results"]
-            for i in range(0, len(response)):
+            response = self.document_store.database_commands.get(ids_of_not_existing_object, includes)
+            if response.status_code == 200:
+                results = response["Results"]
+                response_includes = response["Includes"]
+                if response_includes:
+                    for include in response_includes:
+                        self._includes[include["@metadata"]["@id"]] = include
+            for i in range(0, len(results)):
                 if response[i] is None:
-                    self._known_missing_ids.add(keys[i])
+                    self._known_missing_ids.add(ids_of_not_existing_object[i])
                     continue
                 self._convert_and_save_entity(keys[i], response[i], object_type)
         return [None if key in self._known_missing_ids else self._entities_by_key[key] for key in keys]
 
-    def load(self, key_or_keys, object_type=None):
+    def load(self, key_or_keys, includes=None, object_type=None):
         """
         @param key_or_keys: Identifier of a document that will be loaded.
         :type str or list
+        @param includes: The path to a reference inside the loaded documents can be list (property name)
+        :type list or str
         @param object_type:the class we want to get
         :type classObj:
         @return: instance of object_type or None if document with given Id does not exist.
@@ -90,20 +109,34 @@ class DocumentSession(object):
         """
         if not key_or_keys:
             raise ValueError("None or empty key is invalid")
+        if includes and not isinstance(includes, list):
+            includes = [includes]
+
         if isinstance(key_or_keys, list):
-            return self._multi_load(key_or_keys, object_type)
+            return self._multi_load(key_or_keys, includes, object_type)
 
         if key_or_keys in self._known_missing_ids:
             return None
-        if key_or_keys in self._entities_by_key:
+        if key_or_keys in self._entities_by_key and not includes:
+            return self._entities_by_key[key_or_keys]
+
+        if key_or_keys in self._includes:
+            self._convert_and_save_entity(key_or_keys, self._includes[key_or_keys], object_type)
+            self._includes.pop(key_or_keys)
             return self._entities_by_key[key_or_keys]
 
         self.increment_requests_count()
-        response = self.document_store.database_commands.get(key_or_keys)["Results"]
-        if len(response) == 0 or response[0] is None:
+        response = self.document_store.database_commands.get(key_or_keys, includes=includes)
+        if response.status_code == 200:
+            result = response["Results"]
+            response_includes = response["Includes"]
+            if includes:
+                for include in response_includes:
+                    self._includes[include["@metadata"]["@id"]] = include
+        if len(result) == 0 or result[0] is None:
             self._known_missing_ids.add(key_or_keys)
             return None
-        self._convert_and_save_entity(key_or_keys, response[0], object_type)
+        self._convert_and_save_entity(key_or_keys, result[0], object_type)
         return self._entities_by_key[key_or_keys]
 
     def delete_by_entity(self, entity):

@@ -64,7 +64,7 @@ class HiloGenerator(object):
             document = None
             try:
                 document = self.database_commands.get(path)["Results"][0]
-            except exceptions.ErrorResponseException:
+            except (exceptions.ErrorResponseException, IndexError):
                 pass
             etag = ""
             min_id = 1
