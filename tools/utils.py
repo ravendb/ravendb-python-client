@@ -16,6 +16,11 @@ class _DynamicStructure(object):
 
 
 class Utils(object):
+
+    @staticmethod
+    def empty_etag():
+        return '00000000-0000-0000-0000-000000000000'
+
     @staticmethod
     def quote_key(key):
         reserved = '%:=&?~#+!$,;\'*[]'

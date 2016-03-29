@@ -28,7 +28,7 @@ class DatabaseCommands(object):
         async_result = pool.apply_async(func, func_parameter)
         return async_result.get()
 
-    def get(self, key_or_keys, includes=None, metadata_only=False):
+    def get(self, key_or_keys, includes=None, metadata_only=False, force_read_from_master=False):
         """
         @param key_or_keys: the key of the documents you want to retrieve (key can be a list of ids)
         :type str or list
@@ -38,19 +38,21 @@ class DatabaseCommands(object):
         :type bool
         @return: A list of the id or ids we looked for (if they exists)
         :rtype: dict
+        @param force_read_from_master: If True the reading also will be from the master
+        :type bool
         """
         if key_or_keys is None:
             raise ValueError("None Key is not valid")
         path = "queries/?"
         method = "GET"
         data = None
+        if includes:
+            path += "".join("&include=" + Utils.quote_key(item) for item in includes)
         # make get method handle a multi document requests in a single request
         if isinstance(key_or_keys, list):
             key_or_keys = collections.OrderedDict.fromkeys(key_or_keys)
             if metadata_only:
                 path += "&metadata-only=True"
-            if includes:
-                path += "".join("&include=" + Utils.quote_key(item) for item in includes)
 
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
@@ -62,9 +64,10 @@ class DatabaseCommands(object):
         else:
             path += "&id={0}".format(Utils.quote_key(key_or_keys))
 
-        response = self._requests_handler.http_request_handler(path, method, data=data).json()
-        if "Error" in response:
-            raise exceptions.ErrorResponseException(response["Error"])
+        response = self._requests_handler.http_request_handler(path, method, data=data,
+                                                               force_read_from_master=force_read_from_master)
+        if response.status_code == 200:
+            response = response.json()
         return response
 
     def delete(self, key, etag=None):
@@ -143,15 +146,18 @@ class DatabaseCommands(object):
         data = index_def.to_json()
         return self._requests_handler.http_request_handler(path, "PUT", data=data).json()
 
-    def get_index(self, index_name):
+    def get_index(self, index_name, force_read_from_master=False):
         """
         @param index_name: Name of the index you like to get or delete
         :type str
         @return: json or None
         :rtype: dict
+        @param force_read_from_master: If True the reading also will be from the master
+        :type bool
         """
         path = "indexes/{0}?definition=yes".format(Utils.quote_key(index_name))
-        response = self._requests_handler.http_request_handler(path, "GET")
+        response = self._requests_handler.http_request_handler(path, "GET",
+                                                               force_read_from_master=force_read_from_master)
         if response.status_code != 200:
             return None
         return response.json()
@@ -224,9 +230,12 @@ class DatabaseCommands(object):
             raise exceptions.DocumentDoesNotExistsException("Document with key {0} does not exist.".format(key))
         return batch_result
 
-    def query(self, index_name, index_query, includes=None, metadata_only=False, index_entries_only=False):
+    def query(self, index_name, index_query, includes=None, metadata_only=False, index_entries_only=False,
+              force_read_from_master=False):
         """
         @param index_name: A name of an index to query
+        @param force_read_from_master: If True the reading also will be from the master
+        :type bool
         :type str
         @param index_query: A query definition containing all information required to query a specified index.
         :type IndexQuery
@@ -262,9 +271,9 @@ class DatabaseCommands(object):
         if index_entries_only:
             path += "&debug=entries"
         if includes and len(includes) > 0:
-            raise NotImplementedError("Includs not yet implemented")
             path += "".join("&include=" + item for item in includes)
-        response = self._requests_handler.http_request_handler(path, "GET").json()
+        response = self._requests_handler.http_request_handler(path, "GET",
+                                                               force_read_from_master=force_read_from_master).json()
         if "Error" in response:
             raise exceptions.ErrorResponseException(response["Error"][:100])
         return response
@@ -284,8 +293,8 @@ class DatabaseCommands(object):
                 raise exceptions.InvalidOperationException("The Raven/DataDir setting is mandatory")
             db_name = database_document.database_id.replace("Rave/Databases/", "")
             Utils.name_validation(db_name)
-            db_name = Utils.quote_key(db_name)
-            response = self.requests_handler.http_request_handler(db_name, "PUT", database_document.to_json(),
+            path = "databases/{0}".format(Utils.quote_key(db_name))
+            response = self.requests_handler.http_request_handler(path, "PUT", database_document.to_json(),
                                                                   admin=True)
             if response.status_code != 200:
                 raise exceptions.ErrorResponseException(
@@ -294,10 +303,13 @@ class DatabaseCommands(object):
 
         def delete_database(self, db_name, hard_delete=False):
             db_name = db_name.replace("Rave/Databases/", "")
-            path = Utils.quote_key(db_name)
+            path = "databases/{0}".format(Utils.quote_key(db_name))
             if hard_delete:
                 path += "?hard-delete=true"
             response = self.requests_handler.http_request_handler(path, "DELETE", admin=True)
             if response.status_code != 200:
                 raise response.raise_for_status()
             return response
+
+        def get_store_statistics(self):
+            return self.requests_handler.http_request_handler("stats", "GET", admin=True)

@@ -7,6 +7,7 @@ from data.database import DatabaseDocument
 from store.document_session import DocumentSession
 from tools.utils import Utils
 import traceback
+import uuid
 
 
 class DocumentStore(object):
@@ -50,11 +51,12 @@ class DocumentStore(object):
                 "You cannot open a session or access the database commands before initializing the document store.\
                 Did you forget calling initialize()?")
 
-    def open_session(self, database=None):
+    def open_session(self, database=None, force_read_from_master=False):
         self._assert_initialize()
+        session_id = uuid.uuid4()
         if database is None:
             database = self.database
-        return DocumentSession(database, self)
+        return DocumentSession(database, self, session_id, force_read_from_master)
 
     def generate_id(self, entity):
         return self.generator.generate_document_id(entity, self.conventions, self._requests_handler)

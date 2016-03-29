@@ -41,17 +41,17 @@ class TestLoad(TestBase):
     def test_load_track_entity(self):
         with self.document_store.open_session() as session:
             product = session.load("products/101")
-            self.assertTrue(isinstance(product, Product))
+            self.assertTrue(isinstance(product,Product))
 
     def test_load_track_entity_with_object_type(self):
         with self.document_store.open_session() as session:
-            product = session.load("products/101", Product)
+            product = session.load("products/101", object_type=Product)
             self.assertTrue(isinstance(product, Product))
 
     def test_load_track_entity_with_object_type_fail(self):
         with self.document_store.open_session() as session:
             with self.assertRaises(exceptions.InvalidOperationException):
-                session.load("products/101", Foo)
+                session.load("products/101", object_type=Foo)
 
 if __name__ == "__main__":
     unittest.main

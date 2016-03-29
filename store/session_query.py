@@ -14,13 +14,15 @@ class Query(object):
         self._sort_fields = set()
 
     def __call__(self, object_type=None, index_name=None, using_default_operator=None,
-                 wait_for_non_stale_results=False):
+                 wait_for_non_stale_results=False, includes=None, with_statistics=False):
         """
         @param index_name: The index name we want to apply
         :type index_name: str
         @param object_type: The type of the object we want to track the entity too
         :type Type
         @param using_default_operator: If None, by default will use OR operator for the query (can use for OR or AND)
+        @param with_statistics: Make it True to get the query statistics as well
+        :type bool
         """
         if not index_name:
             index_name = "dynamic"
@@ -30,6 +32,10 @@ class Query(object):
         self.object_type = object_type
         self.using_default_operator = using_default_operator
         self.wait_for_non_stale_results = wait_for_non_stale_results
+        self.includes = includes
+        if includes and not isinstance(self.includes, list):
+            self.includes = [self.includes]
+        self._with_statistics = with_statistics
         return self
 
     def __iter__(self):
@@ -210,7 +216,6 @@ class Query(object):
             self.query_builder += " OR"
         return self
 
-    # TODO find a better name
     def add_not(self):
         self.negate = True
         return self
@@ -224,7 +229,8 @@ class Query(object):
             response = self.session.document_store.database_commands. \
                 query(self.index_name, IndexQuery(self.query_builder, default_operator=self.using_default_operator,
                                                   sort_hints=self._sort_hints, sort_fields=self._sort_fields,
-                                                  wait_for_non_stale_results=self.wait_for_non_stale_results))
+                                                  wait_for_non_stale_results=self.wait_for_non_stale_results),
+                      includes=self.includes)
             if response["IsStale"] and self.wait_for_non_stale_results:
                 if start_time > end_time:
                     raise ErrorResponseException("The index is still stale after reached the timeout")
@@ -233,11 +239,16 @@ class Query(object):
             break
 
         results = []
-        for result in response["Results"]:
+        response_results = response.pop("Results")
+        response_includes = response.pop("Includes")
+        for result in response_results:
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions)
             self.session.save_entity(key=original_metadata["@id"], entity=entity, original_metadata=original_metadata,
                                      metadata=metadata, document=result)
             results.append(entity)
+        self.session.save_includes(response_includes)
+        if self._with_statistics:
+            return results, response
         return results
 
 

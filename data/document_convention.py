@@ -50,12 +50,13 @@ class Failover(Enum):
 
 
 class DocumentConvention(object):
-    def __init__(self, failover_behavior=Failover.read_from_all_servers):
+    def __init__(self):
         self.max_number_of_request_per_session = 30
         self.max_ids_to_catch = 32
         # timeout for wait to server in seconds
         self.timeout = 30
-        self.failover_behavior = failover_behavior
+        self.failover_behavior = Failover.allow_reads_from_secondaries
+        self.default_use_optimistic_concurrency = True
 
     @staticmethod
     def default_transform_type_tag_name(name):

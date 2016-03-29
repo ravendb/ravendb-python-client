@@ -29,11 +29,11 @@ class TestSessionStore(TestBase):
     def test_store_with_key(self):
         foo = Foo("test", 20)
         with self.document_store.open_session() as session:
-            session.store(foo, "testingStore")
+            session.store(foo, "testingStore/1")
             session.save_changes()
 
         with self.document_store.open_session() as session:
-            self.assertEqual(session.load("testingStore").key, 20)
+            self.assertEqual(session.load("testingStore/1").key, 20)
 
     def test_store_after_delete_fail(self):
         foo = Foo("test", 20)

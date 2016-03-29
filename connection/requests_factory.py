@@ -6,12 +6,10 @@ import requests
 import sys
 import json
 import hashlib
-import os
 from threading import Timer, Lock
 
 
 class HttpRequestsFactory(object):
-    # TODO need to do fail over behavior and to check for the master
     def __init__(self, url, database, convention=None, api_key=None):
         self.url = url
         self._primary_url = url
@@ -31,53 +29,57 @@ class HttpRequestsFactory(object):
         self.topology = None
         self.request_count = 0
 
-    def http_request_handler(self, path, method, data=None, headers=None, admin=False):
+    def http_request_handler(self, path, method, data=None, headers=None, admin=False, force_read_from_master=False):
         if self.url == self._primary_url and self.database == self._primary_database and not self.primary:
             self.primary = True
 
-        return self._execute_with_replication(path, method, headers=headers, data=data, admin=admin)
+        return self._execute_with_replication(path, method, headers=headers, data=data, admin=admin,
+                                              force_read_from_master=force_read_from_master)
 
-    def _execute_with_replication(self, path, method, headers, data=None, admin=False):
+    def _execute_with_replication(self, path, method, headers, data=None, admin=False,
+                                  force_read_from_master=False):
         while True:
             index = None
-            url = ""
-            if not admin:
-                if method == "GET":
-                    if path == "replication/topology" or "Hilo" in path:
-                        if not self.primary:
+            url = None
+            if not force_read_from_master:
+                if admin:
+                    url = "{0}/admin/{1}".format(self._primary_url, path)
+                else:
+                    if method == "GET":
+                        if path == "replication/topology" or "Hilo" in path and not self.primary:
                             raise exceptions.InvalidOperationException(
                                 "Cant get access to {0} when {1}(primary) is Down".format(path, self._primary_database))
-                    elif self.convention.failover_behavior == Failover.read_from_all_servers:
-                        with self.lock:
-                            self.request_count += 1
-                            index = self.request_count % (len(self.replication_topology) + 1)
-                        if index != 0 or not self.primary:  # if 0 use the primary
-                            index -= 1
-                            destination = self.replication_topology.peek(index if index > 0 else 0)
-                            url = "{0}/databases/{1}/{2}".format(destination["url"], destination["database"], path)
-                    elif self.convention.failover_behavior == Failover.allow_reads_from_secondaries:
-                        url = "{0}/databases/{1}/{2}".format(self.url, self.database, path)
-                else:
-                    if not self.primary:
-                        if self.convention.failover_behavior == \
-                                Failover.allow_reads_from_secondaries_and_writes_to_secondaries:
+                        elif self.convention.failover_behavior == Failover.read_from_all_servers:
+                            with self.lock:
+                                self.request_count += 1
+                                index = self.request_count % (len(self.replication_topology) + 1)
+                            if index != 0 or not self.primary:  # if 0 use the primary
+                                index -= 1
+                                destination = self.replication_topology.peek(index if index > 0 else 0)
+                                url = "{0}/databases/{1}/{2}".format(destination["url"], destination["database"], path)
+                        elif not self.primary:
                             url = "{0}/databases/{1}/{2}".format(self.url, self.database, path)
-                        else:
-                            raise exceptions.InvalidOperationException(
-                                "Cant write to server when the primary is down when failover = {0}".format(
-                                    self.convention.failover_behavior.name))
+                    else:
+                        if not self.primary:
+                            if self.convention.failover_behavior == \
+                                    Failover.allow_reads_from_secondaries_and_writes_to_secondaries:
+                                url = "{0}/databases/{1}/{2}".format(self.url, self.database, path)
+                            else:
+                                raise exceptions.InvalidOperationException(
+                                    "Cant write to server when the primary is down when failover = {0}".format(
+                                        self.convention.failover_behavior.name))
 
-            else:
-                url = "{0}/admin/databases/{1}".format(self._primary_database, path)
-
-            if not url:
+            if url is None:
+                if not self.primary:
+                    raise exceptions.InvalidOperationException(
+                        "Cant read or write to the master because {0} is down".format(self._primary_database))
                 url = "{0}/databases/{1}/{2}".format(self._primary_url, self._primary_database, path)
             with requests.session() as session:
                 headers = headers.update(self.headers) if headers else self.headers
                 response = session.request(method, url=url, json=data, headers=headers)
                 if response.status_code == 503 and not self.replication_topology.empty():
                     if self.primary:
-                        if self.convention.failover_behavior == Failover.fail_immediately:
+                        if self.convention.failover_behavior == Failover.fail_immediately or force_read_from_master:
                             raise exceptions.ErrorResponseException("Failed to get response from server")
                         self.primary = False
                         self.is_alive({"url": self._primary_url, "database": self._primary_database}, primary=True)
@@ -107,7 +109,7 @@ class HttpRequestsFactory(object):
                 else:
                     self.replication_topology.put(destination)
                 return
-        Timer(5, self.is_alive, [destination, primary])
+            Timer(5, lambda: self.is_alive(destination, primary)).start()
 
     def database_open_request(self, path):
         url = "{0}/docs?{1}".format(self.url, path)
@@ -125,7 +127,7 @@ class HttpRequestsFactory(object):
             raise exceptions.ErrorResponseException("Something is wrong with the request")
 
     def update_replication(self, topology_file):
-        with open(topology_file, 'a+') as f:
+        with open(topology_file, 'w+') as f:
             f.write(json.dumps(self.topology))
         self.replication_topology.put((0, {"url": self._primary_url, "database": self._primary_database}))
         for destination in self.topology["Destinations"]:
@@ -134,18 +136,19 @@ class HttpRequestsFactory(object):
                                                            "domain": destination["Domain"]}})
 
     def check_replication_change(self, topology_file):
-        response = self.http_request_handler("replication/topology", "GET")
-        if response.status_code == 200:
-            topology = response.json()
-            if self.topology != topology:
-                self.topology = topology
-                self.update_replication(topology_file)
-            elif response.status_code == 400:
-                pass
-            else:
+        try:
+            response = self.http_request_handler("replication/topology", "GET")
+            if response.status_code == 200:
+                topology = response.json()
+                if self.topology != topology:
+                    self.topology = topology
+                    self.update_replication(topology_file)
+            elif response.status_code != 400:
                 raise exceptions.ErrorResponseException(
                     "Could not connect to the database {0} please check the problem".format(self._primary_database))
-            Timer(60 * 5, self.check_replication_change, [topology_file])
+        except exceptions.InvalidOperationException:
+            pass
+        Timer(60 * 5, lambda: self.check_replication_change(topology_file)).start()
 
     def get_replication_topology(self):
         with self.lock:
@@ -160,4 +163,6 @@ class HttpRequestsFactory(object):
                                                        "credentials": {"api_key": destination["ApiKey"],
                                                                        "domain": destination["Domain"]}})
             except IOError:
+                pass
+            finally:
                 self.check_replication_change(topology_file)

@@ -22,7 +22,8 @@ class DocumentSession(object):
       :type DocumentStore
       """
 
-    def __init__(self, database, document_store):
+    def __init__(self, database, document_store, session_id, force_read_from_master):
+        self.session_id = session_id
         self.database = database
         self.document_store = document_store
         self._entities_by_key = {}
@@ -34,12 +35,22 @@ class DocumentSession(object):
         self._defer_commands = set()
         self._number_of_requests_in_session = 0
         self._query = None
+        self.advanced = Advanced(self)
+        self._force_read_from_master = force_read_from_master
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
+
+    @property
+    def number_of_requests_in_session(self):
+        return self._number_of_requests_in_session
+
+    @property
+    def entities_and_metadata(self):
+        return self._entities_and_metadata
 
     @property
     def conventions(self):
@@ -51,8 +62,15 @@ class DocumentSession(object):
             self._query = Query(self)
         return self._query
 
+    def save_includes(self, includes=None):
+        if includes:
+            for include in includes:
+                if include["@metadata"]["@id"] not in self._entities_by_key:
+                    self._includes[include["@metadata"]["@id"]] = include
+
     def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
         self._known_missing_ids.discard(key)
+
         if key not in self._entities_by_key:
             self._entities_by_key[key] = entity
 
@@ -62,10 +80,11 @@ class DocumentSession(object):
                 "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type):
-        entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions)
-        self.save_entity(key, entity, original_metadata, metadata, document)
+        if key not in self._entities_by_key:
+            entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions)
+            self.save_entity(key, entity, original_metadata, metadata, document)
 
-    def _multi_load(self, keys, includes, object_type):
+    def _multi_load(self, keys, object_type, includes):
         if len(keys) == 0:
             return []
 
@@ -78,25 +97,26 @@ class DocumentSession(object):
                     self._includes.pop(include)
 
             ids_of_not_existing_object = [key for key in keys if
-                                          key not in self._known_missing_ids or key not in self._entities_by_key]
+                                          key not in self._entities_by_key]
+
+        ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._known_missing_ids]
 
         if len(ids_of_not_existing_object) > 0:
             self.increment_requests_count()
             response = self.document_store.database_commands.get(ids_of_not_existing_object, includes)
-            if response.status_code == 200:
+            if response:
                 results = response["Results"]
                 response_includes = response["Includes"]
-                if response_includes:
-                    for include in response_includes:
-                        self._includes[include["@metadata"]["@id"]] = include
-            for i in range(0, len(results)):
-                if response[i] is None:
-                    self._known_missing_ids.add(ids_of_not_existing_object[i])
-                    continue
-                self._convert_and_save_entity(keys[i], response[i], object_type)
-        return [None if key in self._known_missing_ids else self._entities_by_key[key] for key in keys]
+                for i in range(0, len(results)):
+                    if results[i] is None:
+                        self._known_missing_ids.add(ids_of_not_existing_object[i])
+                        continue
+                    self._convert_and_save_entity(keys[i], results[i], object_type)
+                self.save_includes(response_includes)
+        return [None if key in self._known_missing_ids else self._entities_by_key[
+            key] if key in self._entities_by_key else None for key in keys]
 
-    def load(self, key_or_keys, includes=None, object_type=None):
+    def load(self, key_or_keys, object_type=None, includes=None):
         """
         @param key_or_keys: Identifier of a document that will be loaded.
         :type str or list
@@ -113,7 +133,7 @@ class DocumentSession(object):
             includes = [includes]
 
         if isinstance(key_or_keys, list):
-            return self._multi_load(key_or_keys, includes, object_type)
+            return self._multi_load(key_or_keys, object_type, includes)
 
         if key_or_keys in self._known_missing_ids:
             return None
@@ -123,21 +143,20 @@ class DocumentSession(object):
         if key_or_keys in self._includes:
             self._convert_and_save_entity(key_or_keys, self._includes[key_or_keys], object_type)
             self._includes.pop(key_or_keys)
-            return self._entities_by_key[key_or_keys]
+            if not includes:
+                return self._entities_by_key[key_or_keys]
 
         self.increment_requests_count()
         response = self.document_store.database_commands.get(key_or_keys, includes=includes)
-        if response.status_code == 200:
+        if response:
             result = response["Results"]
             response_includes = response["Includes"]
-            if includes:
-                for include in response_includes:
-                    self._includes[include["@metadata"]["@id"]] = include
-        if len(result) == 0 or result[0] is None:
-            self._known_missing_ids.add(key_or_keys)
-            return None
-        self._convert_and_save_entity(key_or_keys, result[0], object_type)
-        return self._entities_by_key[key_or_keys]
+            if len(result) == 0 or result[0] is None:
+                self._known_missing_ids.add(key_or_keys)
+                return None
+            self._convert_and_save_entity(key_or_keys, result[0], object_type)
+            self.save_includes(response_includes)
+        return self._entities_by_key[key_or_keys] if key_or_keys in self._entities_by_key else None
 
     def delete_by_entity(self, entity):
         if entity is None:
@@ -226,7 +245,7 @@ class DocumentSession(object):
         metadata = self.conventions.build_default_metadata(entity)
         metadata["etag"] = etag
         self._deleted_entities.discard(entity)
-        self.save_entity(entity_id, entity, {}, metadata, {}, force_concurrency_check)
+        self.save_entity(entity_id, entity, {}, metadata, {}, force_concurrency_check=force_concurrency_check)
 
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
@@ -256,7 +275,7 @@ class DocumentSession(object):
                     document_metadata["etag"] = str(item["Etag"])
                     document_metadata["original_metadata"] = item["Metadata"].copy()
                     document_metadata["metadata"] = item["Metadata"]
-                    document_metadata["original_value"] = entity.__dict__
+                    document_metadata["original_value"] = entity.__dict__.copy()
             i += 1
 
     def _prepare_for_delete_commands(self, data):
@@ -270,7 +289,8 @@ class DocumentSession(object):
             if key in self._entities_by_key:
                 existing_entity = self._entities_by_key[key]
                 if existing_entity in self._entities_and_metadata:
-                    etag = self._entities_and_metadata[existing_entity]["etag"]
+                    etag = self._entities_and_metadata[existing_entity]["metadata"][
+                        "@etag"] if self.advanced.use_optimistic_concurrency else None
                 self._entities_and_metadata.pop(existing_entity, None)
                 self._entities_by_key.pop(key, None)
             data.entities.append(existing_entity)
@@ -282,7 +302,10 @@ class DocumentSession(object):
             if self._has_change(entity):
                 key = self._entities_and_metadata[entity]["key"]
                 metadata = self._entities_and_metadata[entity]["metadata"]
-                etag = self._entities_and_metadata[entity]["etag"]
+                etag = None
+                if self.advanced.use_optimistic_concurrency or self._entities_and_metadata[entity][
+                    "force_concurrency_check"]:
+                    etag = self._entities_and_metadata[entity]["etag"] or metadata.get("@etag", Utils.empty_etag())
                 data.entities.append(entity)
                 if key is not None:
                     self._entities_by_key.pop(key)
@@ -306,3 +329,18 @@ class DocumentSession(object):
                 that you'll look into reducing the number of remote calls first, \
                 since that will speed up your application significantly and result in a\
                 more responsive application.".format(self.conventions.max_number_of_request_per_session))
+
+
+class Advanced(object):
+    def __init__(self, session):
+        self.session = session
+        self.use_optimistic_concurrency = session.conventions.default_use_optimistic_concurrency
+
+    def number_of_requests_in_session(self):
+        return self.session.number_of_requests_in_session
+
+    def get_document_id(self, instance):
+        if instance is not None:
+            if instance in self.session.entities_and_metadata:
+                return self.session.entities_and_metadata[instance]["key"]
+        return None
