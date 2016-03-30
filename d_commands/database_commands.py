@@ -291,7 +291,7 @@ class DatabaseCommands(object):
             """
             if "Raven/DataDir" not in database_document.settings:
                 raise exceptions.InvalidOperationException("The Raven/DataDir setting is mandatory")
-            db_name = database_document.database_id.replace("Rave/Databases/", "")
+            db_name = database_document.database_id.replace("Raven/Databases/", "")
             Utils.name_validation(db_name)
             path = "databases/{0}".format(Utils.quote_key(db_name))
             response = self.requests_handler.http_request_handler(path, "PUT", database_document.to_json(),
@@ -312,4 +312,6 @@ class DatabaseCommands(object):
             return response
 
         def get_store_statistics(self):
-            return self.requests_handler.http_request_handler("stats", "GET", admin=True)
+            response = self.requests_handler.http_request_handler("stats", "GET", admin=True)
+            if response.status_code == 200:
+                return response.json()

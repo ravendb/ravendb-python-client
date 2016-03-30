@@ -7,5 +7,4 @@ class GenerateEntityIdOnTheClient(object):
     def try_get_id_from_instance(entity):
         if entity is None:
             raise ValueError("None entity is invalid")
-        id = getattr(entity, "id", None)
-        return id
+        return getattr(entity, "Id", None)

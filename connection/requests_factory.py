@@ -46,7 +46,7 @@ class HttpRequestsFactory(object):
                     url = "{0}/admin/{1}".format(self._primary_url, path)
                 else:
                     if method == "GET":
-                        if path == "replication/topology" or "Hilo" in path and not self.primary:
+                        if (path == "replication/topology" or "Hilo" in path) and not self.primary:
                             raise exceptions.InvalidOperationException(
                                 "Cant get access to {0} when {1}(primary) is Down".format(path, self._primary_database))
                         elif self.convention.failover_behavior == Failover.read_from_all_servers:
@@ -143,7 +143,7 @@ class HttpRequestsFactory(object):
                 if self.topology != topology:
                     self.topology = topology
                     self.update_replication(topology_file)
-            elif response.status_code != 400:
+            elif response.status_code != 400 and response.status_code != 404:
                 raise exceptions.ErrorResponseException(
                     "Could not connect to the database {0} please check the problem".format(self._primary_database))
         except exceptions.InvalidOperationException:
