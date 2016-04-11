@@ -13,6 +13,10 @@ class DatabaseCommands(object):
         self._requests_handler = request_handler
         self.admin_commands = self.Admin(self._requests_handler)
 
+    def change_database(self, database):
+        self._requests_handler.database = database
+        self._requests_handler.copy = True
+
     @staticmethod
     def run_async(func, func_parameter=()):
 

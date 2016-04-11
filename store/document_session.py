@@ -3,6 +3,7 @@ from custom_exceptions import exceptions
 from store.session_query import Query
 from d_commands import commands_data
 from tools.utils import Utils
+import copy
 
 
 class _SaveChangesData(object):
@@ -12,7 +13,7 @@ class _SaveChangesData(object):
         self.deferred_command_count = deferred_command_count
 
 
-class DocumentSession(object):
+class documentsession(object):
     """
       Implements Unit of Work for accessing the RavenDB server
 
@@ -22,10 +23,11 @@ class DocumentSession(object):
       :type DocumentStore
       """
 
-    def __init__(self, database, document_store, session_id, force_read_from_master):
+    def __init__(self, database, document_store, database_commands, session_id, force_read_from_master):
         self.session_id = session_id
         self.database = database
         self.document_store = document_store
+        self.database_commands = database_commands
         self._entities_by_key = {}
         self._includes = {}
         self._deleted_entities = set()
@@ -103,7 +105,7 @@ class DocumentSession(object):
 
         if len(ids_of_not_existing_object) > 0:
             self.increment_requests_count()
-            response = self.document_store.database_commands.get(ids_of_not_existing_object, includes)
+            response = self.database_commands.get(ids_of_not_existing_object, includes)
             if response:
                 results = response["Results"]
                 response_includes = response["Includes"]
@@ -147,7 +149,7 @@ class DocumentSession(object):
                 return self._entities_by_key[key_or_keys]
 
         self.increment_requests_count()
-        response = self.document_store.database_commands.get(key_or_keys, includes=includes)
+        response = self.database_commands.get(key_or_keys, includes=includes)
         if response:
             result = response["Results"]
             response_includes = response["Includes"]
@@ -255,7 +257,7 @@ class DocumentSession(object):
         if len(data.commands) == 0:
             return
         self.increment_requests_count()
-        batch_result = self.document_store.database_commands.batch(data.commands)
+        batch_result = self.database_commands.batch(data.commands)
         if batch_result is None:
             raise exceptions.InvalidOperationException(
                 "Cannot call Save Changes after the document store was disposed.")

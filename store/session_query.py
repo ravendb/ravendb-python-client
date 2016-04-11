@@ -226,7 +226,7 @@ class Query(object):
         start_time = time.time()
         end_time = start_time + conventions.timeout
         while True:
-            response = self.session.document_store.database_commands. \
+            response = self.session.database_commands. \
                 query(self.index_name, IndexQuery(self.query_builder, default_operator=self.using_default_operator,
                                                   sort_hints=self._sort_hints, sort_fields=self._sort_fields,
                                                   wait_for_non_stale_results=self.wait_for_non_stale_results),

@@ -1,6 +1,12 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(__file__ + "/../"))
+
 from tests.test_base import TestBase
-from store.document_store import DocumentStore
+from store.document_store import documentstore
 from custom_exceptions import exceptions
+import unittest
 
 
 class TestDelete(TestBase):
@@ -11,7 +17,7 @@ class TestDelete(TestBase):
         cls.db.put("products/10", {"name": "test"}, {})
         cls.db.put("products/106", {"name": "test"}, {})
         cls.db.put("products/107", {"name": "test"}, {})
-        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
+        cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_delete_with_key_with_save_session(self):
@@ -39,3 +45,7 @@ class TestDelete(TestBase):
             session.delete_by_entity(product)
             session.save_changes()
             self.assertIsNone(session.load("products/107"))
+
+
+if __name__ == "__main__":
+    unittest.main()

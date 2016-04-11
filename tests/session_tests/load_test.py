@@ -1,5 +1,5 @@
 from tests.test_base import TestBase
-from store.document_store import DocumentStore
+from store.document_store import documentstore
 from custom_exceptions import exceptions
 import unittest
 
@@ -21,7 +21,9 @@ class TestLoad(TestBase):
         super(TestLoad, cls).setUpClass()
         cls.db.put("products/101", {"name": "test"}, {"Raven-Python-Type": "load_test.Product"})
         cls.db.put("products/10", {"name": "test"}, {})
-        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
+        cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/101"},
+                   {"Raven-Entity-Name": "Orders"})
+        cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_load_success(self):
@@ -41,7 +43,7 @@ class TestLoad(TestBase):
     def test_load_track_entity(self):
         with self.document_store.open_session() as session:
             product = session.load("products/101")
-            self.assertTrue(isinstance(product,Product))
+            self.assertTrue(isinstance(product, Product))
 
     def test_load_track_entity_with_object_type(self):
         with self.document_store.open_session() as session:
@@ -53,5 +55,12 @@ class TestLoad(TestBase):
             with self.assertRaises(exceptions.InvalidOperationException):
                 session.load("products/101", object_type=Foo)
 
+    def test_load_with_include(self):
+        with self.document_store.open_session() as session:
+            session.load("orders/105", includes="product")
+            session.load("products/101")
+        self.assertEqual(session.number_of_requests_in_session, 1)
+
+
 if __name__ == "__main__":
-    unittest.main
+    unittest.main()

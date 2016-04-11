@@ -4,7 +4,6 @@ try:
     import Queue as queue  # < 3.0
 except ImportError:
     import queue as queue
-from Queue import Empty
 
 
 class IndexQueue(queue.Queue, object):
@@ -43,7 +42,7 @@ class IndexQueue(queue.Queue, object):
                 while not self._qsize():
                     remaining = endtime - _time()
                     if remaining <= 0.0:
-                        raise Empty
+                        raise queue.Empty
                     self.not_empty.wait(remaining)
             if not index or index == 0:
                 item = self._get()

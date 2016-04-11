@@ -1,6 +1,4 @@
 import unittest
-
-from custom_exceptions import exceptions
 from tests.test_base import TestBase
 
 

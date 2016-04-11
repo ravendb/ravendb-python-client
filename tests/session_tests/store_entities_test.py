@@ -1,20 +1,21 @@
 from tests.test_base import TestBase
-from store.document_store import DocumentStore
+from store.document_store import documentstore
 from custom_exceptions import exceptions
+import unittest
 
 
 class Foo(object):
     def __init__(self, name, key):
         self.name = name
         self.key = key
-        self.id = None
+        self.Id = None
 
 
 class TestSessionStore(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestSessionStore, cls).setUpClass()
-        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
+        cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_store_without_key(self):
@@ -24,7 +25,7 @@ class TestSessionStore(TestBase):
             session.save_changes()
 
         with self.document_store.open_session() as session:
-            self.assertIsNotNone(session.load(foo.id))
+            self.assertIsNotNone(session.load(foo.Id))
 
     def test_store_with_key(self):
         foo = Foo("test", 20)
@@ -45,3 +46,7 @@ class TestSessionStore(TestBase):
             session.delete("testingStore")
             with self.assertRaises(exceptions.InvalidOperationException):
                 session.store(foo)
+
+
+if __name__ == "__main__":
+    unittest.main()

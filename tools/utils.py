@@ -16,7 +16,6 @@ class _DynamicStructure(object):
 
 
 class Utils(object):
-
     @staticmethod
     def empty_etag():
         return '00000000-0000-0000-0000-000000000000'
@@ -174,3 +173,7 @@ class Utils(object):
         if isinstance(value, long):
             value = "Lx{0}".format(value)
         return value
+
+    @staticmethod
+    def dict_to_string(dictionary):
+        return ','.join('{0}={1}'.format(item, dictionary[item]) for item in dictionary)

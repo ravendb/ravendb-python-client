@@ -1,7 +1,7 @@
 class GenerateEntityIdOnTheClient(object):
     @staticmethod
     def try_set_id_on_entity(entity, key):
-        entity.id = key
+        entity.Id = key
 
     @staticmethod
     def try_get_id_from_instance(entity):

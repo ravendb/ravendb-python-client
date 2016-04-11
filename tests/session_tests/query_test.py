@@ -1,5 +1,5 @@
 from tests.test_base import TestBase
-from store.document_store import DocumentStore
+from store.document_store import documentstore
 from store.session_query import QueryOperator
 from custom_exceptions import exceptions
 from data.indexes import IndexDefinition, SortOptions
@@ -31,7 +31,9 @@ class TestQuery(TestBase):
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
         cls.db.put("products/108", {"name": "new_testing", "key": 90},
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
-        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
+        cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/108"},
+                   {"Raven-Entity-Name": "Orders"})
+        cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_where_equal_dynamic_index(self):
@@ -116,3 +118,9 @@ class TestQuery(TestBase):
                     found_none = True
                     break
             self.assertFalse(found_none)
+
+    def test_where_with_include(self):
+        with self.document_store.open_session() as session:
+            list(session.query(wait_for_non_stale_results=True, includes="product").where(key=92))
+            session.load("products/108")
+        self.assertEqual(session.number_of_requests_in_session, 1)

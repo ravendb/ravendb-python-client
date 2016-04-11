@@ -1,16 +1,23 @@
 from data.document_convention import DocumentConvention, Failover
-from custom_exceptions import exceptions
 from tools.indexqueue import IndexQueue
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+from Crypto.Util.number import bytes_to_long
+from custom_exceptions import exceptions
+from tools.pkcs7 import PKCS7Encoder
 import tempfile
 import requests
 import sys
 import json
 import hashlib
+import base64
+from tools.utils import Utils
 from threading import Timer, Lock
 
 
 class HttpRequestsFactory(object):
-    def __init__(self, url, database, convention=None, api_key=None):
+    def __init__(self, url, database, convention=None, api_key=None, force_get_topology=False):
         self.url = url
         self._primary_url = url
         self.database = database
@@ -28,16 +35,23 @@ class HttpRequestsFactory(object):
         self.lock = Lock()
         self.topology = None
         self.request_count = 0
+        self.force_get_topology = force_get_topology
+        self._token = None
 
-    def http_request_handler(self, path, method, data=None, headers=None, admin=False, force_read_from_master=False):
+    def http_request_handler(self, path, method, data=None, headers=None, admin=False, force_read_from_master=False,
+                             uri="databases"):
+        if self.force_get_topology:
+            self.force_get_topology = False
+            self.get_replication_topology()
+
         if self.url == self._primary_url and self.database == self._primary_database and not self.primary:
             self.primary = True
 
         return self._execute_with_replication(path, method, headers=headers, data=data, admin=admin,
-                                              force_read_from_master=force_read_from_master)
+                                              force_read_from_master=force_read_from_master, uri=uri)
 
     def _execute_with_replication(self, path, method, headers, data=None, admin=False,
-                                  force_read_from_master=False):
+                                  force_read_from_master=False, uri="databases"):
         while True:
             index = None
             url = None
@@ -56,14 +70,14 @@ class HttpRequestsFactory(object):
                             if index != 0 or not self.primary:  # if 0 use the primary
                                 index -= 1
                                 destination = self.replication_topology.peek(index if index > 0 else 0)
-                                url = "{0}/databases/{1}/{2}".format(destination["url"], destination["database"], path)
+                                url = "{0}/{1}/{2}/{3}".format(destination["url"], uri, destination["database"], path)
                         elif not self.primary:
-                            url = "{0}/databases/{1}/{2}".format(self.url, self.database, path)
+                            url = "{0}/{1}/{2}/{3}".format(self.url, uri, self.database, path)
                     else:
                         if not self.primary:
                             if self.convention.failover_behavior == \
                                     Failover.allow_reads_from_secondaries_and_writes_to_secondaries:
-                                url = "{0}/databases/{1}/{2}".format(self.url, self.database, path)
+                                url = "{0}/{1}/{2}/{3}".format(self.url, uri, self.database, path)
                             else:
                                 raise exceptions.InvalidOperationException(
                                     "Cant write to server when the primary is down when failover = {0}".format(
@@ -73,10 +87,19 @@ class HttpRequestsFactory(object):
                 if not self.primary:
                     raise exceptions.InvalidOperationException(
                         "Cant read or write to the master because {0} is down".format(self._primary_database))
-                url = "{0}/databases/{1}/{2}".format(self._primary_url, self._primary_database, path)
+                url = "{0}/{1}/{2}/{3}".format(self._primary_url, uri, self._primary_database, path)
+                if uri != "databases":
+                    url = "{0}/{1}".format(self._primary_url, path)
             with requests.session() as session:
-                headers = headers.update(self.headers) if headers else self.headers
+                if headers is None:
+                    headers = {}
+                headers.update(self.headers)
                 response = session.request(method, url=url, json=data, headers=headers)
+                if response.status_code == 412 or response.status_code == 401:
+                    oauth_source = response.headers.__getitem__("OAuth-Source")
+                    api_name, secret = self.api_key.split('/', 1)
+                    self.do_auth_request(api_name, secret, oauth_source)
+                    continue
                 if response.status_code == 503 and not self.replication_topology.empty():
                     if self.primary:
                         if self.convention.failover_behavior == Failover.fail_immediately or force_read_from_master:
@@ -109,12 +132,12 @@ class HttpRequestsFactory(object):
                 else:
                     self.replication_topology.put(destination)
                 return
-            Timer(5, lambda: self.is_alive(destination, primary)).start()
+            is_alive_timer = Timer(5, lambda: self.is_alive(destination, primary))
+            is_alive_timer.daemon = True
+            is_alive_timer.start()
 
-    def database_open_request(self, path):
-        url = "{0}/docs?{1}".format(self.url, path)
-        with requests.session() as session:
-            return session.request("GET", url)
+    def check_database_exists(self, path):
+        return self.http_request_handler(path, "GET", force_read_from_master=True, uri="docs")
 
     def call_hilo(self, type_tag_name, max_id, etag):
         headers = {"if-None-Match": etag}
@@ -148,7 +171,10 @@ class HttpRequestsFactory(object):
                     "Could not connect to the database {0} please check the problem".format(self._primary_database))
         except exceptions.InvalidOperationException:
             pass
-        Timer(60 * 5, lambda: self.check_replication_change(topology_file)).start()
+
+        timer = Timer(60 * 5, lambda: self.check_replication_change(topology_file))
+        timer.daemon = True
+        timer.start()
 
     def get_replication_topology(self):
         with self.lock:
@@ -166,3 +192,57 @@ class HttpRequestsFactory(object):
                 pass
             finally:
                 self.check_replication_change(topology_file)
+
+    def do_auth_request(self, api_name, secret, oauth_source):
+        tries = 0
+        headers = {"grant_type": "client_credentials"}
+        data = None
+        with requests.session() as session:
+            while True:
+                if tries >= 2:
+                    raise exceptions.ErrorResponseException("Unauthorized")
+                oath = session.request(method="POST", url=oauth_source,
+                                       headers=headers, data=data)
+                if oath.reason == "Precondition Failed":
+                    authenticate = oath.headers.__getitem__("www-authenticate")[len("Raven  "):]
+                    challenge_dict = dict(item.split("=", 1) for item in authenticate.split(','))
+
+                    exponent_str = challenge_dict.get("exponent", None)
+                    modulus_str = challenge_dict.get("modulus", None)
+                    challenge = challenge_dict.get("challenge", None)
+
+                    exponent = bytes_to_long(base64.standard_b64decode(exponent_str))
+                    modulus = bytes_to_long(base64.standard_b64decode(modulus_str))
+
+                    rsa = RSA.construct((modulus, exponent))
+                    cipher = PKCS1_OAEP.new(rsa)
+
+                    iv = get_random_bytes(16)
+                    key = get_random_bytes(32)
+                    encoder = PKCS7Encoder()
+
+                    cipher_text = cipher.encrypt(key + iv)
+                    results = []
+                    results.extend(cipher_text)
+
+                    aes = AES.new(key, AES.MODE_CBC, iv)
+                    sub_data = Utils.dict_to_string({"api key name": api_name, "challenge": challenge,
+                                                     "response": base64.b64encode(
+                                                         hashlib.sha1('{0};{1}'.format(challenge, secret)).digest())})
+
+                    results.extend(aes.encrypt(encoder.encode(sub_data)))
+                    data = Utils.dict_to_string({"exponent": exponent_str, "modulus": modulus_str,
+                                                 "data": base64.standard_b64encode(bytearray(results))})
+
+                    if exponent is None or modulus is None or challenge is None:
+                        raise exceptions.InvalidOperationException(
+                            "Invalid response from server, could not parse raven authentication information:{0} ".format(
+                                authenticate))
+                    tries += 1
+                elif oath.status_code == 200:
+                    oath_json = oath.json()
+                    body = oath_json["Body"].encode('utf-8')
+                    signature = oath_json["Signature"].encode('utf-8')
+                    self._token = "Bearer {0}".format({"Body": body, "Signature": signature})
+                    self.headers.update({"Authorization": self._token})
+                    break
