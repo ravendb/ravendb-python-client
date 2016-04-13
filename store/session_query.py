@@ -27,7 +27,7 @@ class Query(object):
         if not index_name:
             index_name = "dynamic"
             if object_type is not None:
-                index_name += "/{0}".format(object_type.__name__ + 's')
+                index_name += "/{0}".format(self.session.conventions.default_transform_plural(object_type.__name__))
         self.index_name = index_name
         self.object_type = object_type
         self.using_default_operator = using_default_operator

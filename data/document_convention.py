@@ -1,5 +1,6 @@
 from data.indexes import SortOptions
 from enum import Enum
+from inflector import Inflector
 
 
 class Failover(Enum):
@@ -49,6 +50,9 @@ class Failover(Enum):
     read_from_all_servers = 1024
 
 
+inflector = Inflector()
+
+
 class DocumentConvention(object):
     def __init__(self):
         self.max_number_of_request_per_session = 30
@@ -59,17 +63,21 @@ class DocumentConvention(object):
         self.default_use_optimistic_concurrency = True
 
     @staticmethod
+    def default_transform_plural(name):
+        return inflector.conditional_plural(2, name)
+
+    @staticmethod
     def default_transform_type_tag_name(name):
         count = sum(1 for c in name if c.isupper())
         if count <= 1:
-            return name.lower() + 's'
-        return name + 's'
+            return DocumentConvention.default_transform_plural(name.lower())
+        return DocumentConvention.default_transform_plural(name)
 
     @staticmethod
     def build_default_metadata(entity):
         if entity is None:
             return {}
-        return {"Raven-Entity-Name": str(entity.__class__.__name__ + 's'),
+        return {"Raven-Entity-Name": DocumentConvention.default_transform_plural(entity.__class__.__name__),
                 "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
 
     @staticmethod

@@ -37,6 +37,8 @@ class HttpRequestsFactory(object):
         self.request_count = 0
         self.force_get_topology = force_get_topology
         self._token = None
+        self._current_api_key = None
+        self._current_database = None
 
     def http_request_handler(self, path, method, data=None, headers=None, admin=False, force_read_from_master=False,
                              uri="databases"):
@@ -52,12 +54,14 @@ class HttpRequestsFactory(object):
 
     def _execute_with_replication(self, path, method, headers, data=None, admin=False,
                                   force_read_from_master=False, uri="databases"):
+        second_api_key = None
         while True:
             index = None
             url = None
             if not force_read_from_master:
                 if admin:
                     url = "{0}/admin/{1}".format(self._primary_url, path)
+                    second_api_key = self.api_key
                 else:
                     if method == "GET":
                         if (path == "replication/topology" or "Hilo" in path) and not self.primary:
@@ -71,8 +75,10 @@ class HttpRequestsFactory(object):
                                 index -= 1
                                 destination = self.replication_topology.peek(index if index > 0 else 0)
                                 url = "{0}/{1}/{2}/{3}".format(destination["url"], uri, destination["database"], path)
+                                second_api_key = destination["credentials"].get("api_key", None)
                         elif not self.primary:
                             url = "{0}/{1}/{2}/{3}".format(self.url, uri, self.database, path)
+
                     else:
                         if not self.primary:
                             if self.convention.failover_behavior == \
@@ -90,15 +96,19 @@ class HttpRequestsFactory(object):
                 url = "{0}/{1}/{2}/{3}".format(self._primary_url, uri, self._primary_database, path)
                 if uri != "databases":
                     url = "{0}/{1}".format(self._primary_url, path)
+                second_api_key = self.api_key
             with requests.session() as session:
                 if headers is None:
                     headers = {}
                 headers.update(self.headers)
                 response = session.request(method, url=url, json=data, headers=headers)
                 if response.status_code == 412 or response.status_code == 401:
-                    oauth_source = response.headers.__getitem__("OAuth-Source")
-                    api_name, secret = self.api_key.split('/', 1)
-                    self.do_auth_request(api_name, secret, oauth_source)
+                    try:
+                        oauth_source = response.headers.__getitem__("OAuth-Source")
+                    except KeyError:
+                        raise exceptions.InvalidOperationException(
+                            "Something is not right please check your server settings (do you use the right api_key)")
+                    self.do_auth_request(self.api_key, oauth_source, second_api_key)
                     continue
                 if response.status_code == 503 and not self.replication_topology.empty():
                     if self.primary:
@@ -119,19 +129,34 @@ class HttpRequestsFactory(object):
                     destination = self.replication_topology.peek()
                     self.database = destination["database"]
                     self.url = destination["url"]
+                    second_api_key = destination["credentials"].get("api_key", None)
                     continue
             return response
 
     def is_alive(self, destination, primary=False):
         with requests.session() as session:
-            response = session.request("GET", "{0}/databases/{1}/replication/topology?check-server-reachable".format(
-                destination["url"], destination["database"]))
-            if response.status_code == 200:
-                if primary:
-                    self.primary = True
+            while True:
+                response = session.request("GET",
+                                           "{0}/databases/{1}/replication/topology?check-server-reachable".format(
+                                               destination["url"], destination["database"]), headers=self.headers)
+                if response.status_code == 412 or response.status_code == 401:
+                    try:
+                        try:
+                            oauth_source = response.headers.__getitem__("OAuth-Source")
+                        except KeyError:
+                            raise exceptions.InvalidOperationException(
+                                "Something is not right please check your server settings")
+                        self.do_auth_request(self.api_key, oauth_source)
+                    except exceptions.ErrorResponseException:
+                        break
+                if response.status_code == 200:
+                    if primary:
+                        self.primary = True
+                    else:
+                        self.replication_topology.put(destination)
+                    return
                 else:
-                    self.replication_topology.put(destination)
-                return
+                    break
             is_alive_timer = Timer(5, lambda: self.is_alive(destination, primary))
             is_alive_timer.daemon = True
             is_alive_timer.start()
@@ -152,11 +177,11 @@ class HttpRequestsFactory(object):
     def update_replication(self, topology_file):
         with open(topology_file, 'w+') as f:
             f.write(json.dumps(self.topology))
-        self.replication_topology.put((0, {"url": self._primary_url, "database": self._primary_database}))
-        for destination in self.topology["Destinations"]:
-            self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
-                                           "credentials": {"api_key": destination["ApiKey"],
-                                                           "domain": destination["Domain"]}})
+            self.replication_topology.queue.clear()
+            for destination in self.topology["Destinations"]:
+                self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
+                                               "credentials": {"api_key": destination["ApiKey"],
+                                                               "domain": destination["Domain"]}})
 
     def check_replication_change(self, topology_file):
         try:
@@ -166,7 +191,7 @@ class HttpRequestsFactory(object):
                 if self.topology != topology:
                     self.topology = topology
                     self.update_replication(topology_file)
-            elif response.status_code != 400 and response.status_code != 404:
+            elif response.status_code != 400 and response.status_code != 404 and not self.topology:
                 raise exceptions.ErrorResponseException(
                     "Could not connect to the database {0} please check the problem".format(self._primary_database))
         except exceptions.InvalidOperationException:
@@ -193,17 +218,22 @@ class HttpRequestsFactory(object):
             finally:
                 self.check_replication_change(topology_file)
 
-    def do_auth_request(self, api_name, secret, oauth_source):
-        tries = 0
+    def do_auth_request(self, api_key, oauth_source, second_api_key=None):
+        api_name, secret = api_key.split('/', 1)
+        tries = 1
         headers = {"grant_type": "client_credentials"}
         data = None
         with requests.session() as session:
             while True:
-                if tries >= 2:
-                    raise exceptions.ErrorResponseException("Unauthorized")
                 oath = session.request(method="POST", url=oauth_source,
                                        headers=headers, data=data)
                 if oath.reason == "Precondition Failed":
+                    if tries > 1:
+                        if not (second_api_key and self.api_key != second_api_key and tries < 3):
+                            raise exceptions.ErrorResponseException("Unauthorized")
+                        api_name, secret = self.second_api_key.split('/', 1)
+                        tries += 1
+
                     authenticate = oath.headers.__getitem__("www-authenticate")[len("Raven  "):]
                     challenge_dict = dict(item.split("=", 1) for item in authenticate.split(','))
 
@@ -243,6 +273,7 @@ class HttpRequestsFactory(object):
                     oath_json = oath.json()
                     body = oath_json["Body"].encode('utf-8')
                     signature = oath_json["Signature"].encode('utf-8')
-                    self._token = "Bearer {0}".format({"Body": body, "Signature": signature})
-                    self.headers.update({"Authorization": self._token})
+                    with self.lock:
+                        self._token = "Bearer {0}".format({"Body": body, "Signature": signature})
+                        self.headers.update({"Authorization": self._token})
                     break

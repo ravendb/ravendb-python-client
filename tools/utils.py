@@ -105,7 +105,6 @@ class Utils(object):
                 raise exceptions.InvalidOperationException(
                     "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
             entity.__class__ = object_from_metadata
-
         # Checking the class for initialize
         entity_initialize_dict = {}
         args, __, __, defaults = inspect.getargspec(entity.__class__.__init__)
@@ -120,6 +119,8 @@ class Utils(object):
         else:
             entity_initialize_dict = document
         entity.__init__(**entity_initialize_dict)
+        if 'Id' in entity.__dict__:
+            entity.Id = metadata.get('@id', None)
         return entity, metadata, original_metadata
 
     @staticmethod

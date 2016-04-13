@@ -311,7 +311,9 @@ class documentsession(object):
                 data.entities.append(entity)
                 if key is not None:
                     self._entities_by_key.pop(key)
-                data.commands.append(commands_data.PutCommandData(key, etag, entity.__dict__, metadata))
+                    document = entity.__dict__
+                    document.pop('Id', None)
+                data.commands.append(commands_data.PutCommandData(key, etag, document, metadata))
 
     def _has_change(self, entity):
         if self._entities_and_metadata[entity]["original_metadata"] != self._entities_and_metadata[entity][
