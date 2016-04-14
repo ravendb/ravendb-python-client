@@ -231,7 +231,7 @@ class HttpRequestsFactory(object):
                     if tries > 1:
                         if not (second_api_key and self.api_key != second_api_key and tries < 3):
                             raise exceptions.ErrorResponseException("Unauthorized")
-                        api_name, secret = self.second_api_key.split('/', 1)
+                        api_name, secret = second_api_key.split('/', 1)
                         tries += 1
 
                     authenticate = oath.headers.__getitem__("www-authenticate")[len("Raven  "):]
