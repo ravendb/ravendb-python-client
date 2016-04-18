@@ -3,9 +3,9 @@ import os
 
 sys.path.append(os.path.abspath(__file__ + "/../"))
 
-from tests.test_base import TestBase
-from store.document_store import documentstore
-from custom_exceptions import exceptions
+from pyravendb.tests.test_base import TestBase
+from pyravendb.store.document_store import documentstore
+from pyravendb.custom_exceptions import exceptions
 import unittest
 
 

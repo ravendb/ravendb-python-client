@@ -225,7 +225,7 @@ class DatabaseCommands(object):
         return response.json()
 
     def patch(self, key, scripted_patch, etag=None, ignore_missing=True, default_metadata=None, patch_default=None):
-        from d_commands import commands_data
+        from pyravendb.d_commands import commands_data
         if default_metadata is None:
             default_metadata = {}
         batch_result = self.batch([

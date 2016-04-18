@@ -1,8 +1,8 @@
-from tests.test_base import TestBase
-from store.document_store import documentstore
-from store.session_query import QueryOperator
-from custom_exceptions import exceptions
-from data.indexes import IndexDefinition, SortOptions
+from pyravendb.tests.test_base import TestBase
+from pyravendb.store.document_store import documentstore
+from pyravendb.store.session_query import QueryOperator
+from pyravendb.custom_exceptions import exceptions
+from pyravendb.data.indexes import IndexDefinition, SortOptions
 
 
 class Product(object):
