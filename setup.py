@@ -9,12 +9,13 @@ setup(
     author_email='haimdude@gmail.com',
     url='https://github.com/IdanHaim/RavenDB-Python-Client',
     license='GNU',
+	keywords='pyravendb',
     install_requires=
     [
         "pycrypto >= 2.6.1",
         "requests >= 2.9.1",
         "inflector >= 2.0.11",
-		"enum >= 1.1.2",
+		"enum >= 0.4.6",
     ],
 	zip_safe=False
 )
