@@ -177,4 +177,9 @@ class Utils(object):
 
     @staticmethod
     def dict_to_string(dictionary):
-        return ','.join('{0}={1}'.format(item, dictionary[item]) for item in dictionary)
+        builder = []
+        for item in dictionary:
+            if sys.version_info.major > 2 and isinstance(dictionary[item], bytes):
+                dictionary[item] = dictionary[item].decode('utf-8')
+            builder.append('{0}={1}'.format(item, dictionary[item]))
+        return ','.join(item for item in builder)

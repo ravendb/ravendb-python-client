@@ -49,6 +49,10 @@ class HttpRequestsFactory(object):
         if self.url == self._primary_url and self.database == self._primary_database and not self.primary:
             self.primary = True
 
+        if self.database.lower() == self.convention.system_database:
+            force_read_from_master = True
+            uri = self.convention.system_database
+
         return self._execute_with_replication(path, method, headers=headers, data=data, admin=admin,
                                               force_read_from_master=force_read_from_master, uri=uri)
 
@@ -112,7 +116,7 @@ class HttpRequestsFactory(object):
                     continue
                 if (response.status_code == 503 or response.status_code == 502) and \
                         not self.replication_topology.empty() and not (
-                        path == "replication/topology" or "Hilo" in path):
+                                path == "replication/topology" or "Hilo" in path):
                     if self.primary:
                         if self.convention.failover_behavior == Failover.fail_immediately or force_read_from_master:
                             raise exceptions.ErrorResponseException("Failed to get response from server")
@@ -186,22 +190,24 @@ class HttpRequestsFactory(object):
                                                                "domain": destination["Domain"]}})
 
     def check_replication_change(self, topology_file):
+
         try:
             response = self.http_request_handler("replication/topology", "GET")
             if response.status_code == 200:
                 topology = response.json()
-                if self.topology != topology:
-                    self.topology = topology
-                    self.update_replication(topology_file)
+                with self.lock:
+                    if self.topology != topology:
+                        self.topology = topology
+                        self.update_replication(topology_file)
             elif response.status_code != 400 and response.status_code != 404 and not self.topology:
                 raise exceptions.ErrorResponseException(
                     "Could not connect to the database {0} please check the problem".format(self._primary_database))
         except exceptions.InvalidOperationException:
             pass
-
-        timer = Timer(60 * 5, lambda: self.check_replication_change(topology_file))
-        timer.daemon = True
-        timer.start()
+        if not self.database.lower() == self.convention.system_database:
+            timer = Timer(60 * 5, lambda: self.check_replication_change(topology_file))
+            timer.daemon = True
+            timer.start()
 
     def get_replication_topology(self):
         with self.lock:
@@ -217,8 +223,8 @@ class HttpRequestsFactory(object):
                                                                        "domain": destination["Domain"]}})
             except IOError:
                 pass
-            finally:
-                self.check_replication_change(topology_file)
+
+        self.check_replication_change(topology_file)
 
     def do_auth_request(self, api_key, oauth_source, second_api_key=None):
         api_name, secret = api_key.split('/', 1)
@@ -259,8 +265,9 @@ class HttpRequestsFactory(object):
 
                     aes = AES.new(key, AES.MODE_CBC, iv)
                     sub_data = Utils.dict_to_string({"api key name": api_name, "challenge": challenge,
-                                                     "response": base64.b64encode(
-                                                         hashlib.sha1('{0};{1}'.format(challenge, secret)).digest())})
+                                                     "response": base64.b64encode(hashlib.sha1(
+                                                         '{0};{1}'.format(challenge, secret).encode(
+                                                             'utf-8')).digest())})
 
                     results.extend(aes.encrypt(encoder.encode(sub_data)))
                     data = Utils.dict_to_string({"exponent": exponent_str, "modulus": modulus_str,
@@ -273,9 +280,15 @@ class HttpRequestsFactory(object):
                     tries += 1
                 elif oath.status_code == 200:
                     oath_json = oath.json()
-                    body = oath_json["Body"].encode('utf-8')
-                    signature = oath_json["Signature"].encode('utf-8')
+                    body = oath_json["Body"]
+                    signature = oath_json["Signature"]
+                    if not sys.version_info.major > 2:
+                        body = body.encode('utf-8')
+                        signature = signature.encode('utf-8')
                     with self.lock:
-                        self._token = "Bearer {0}".format({"Body": body, "Signature": signature})
+                        self._token = "Bearer {0}".format(
+                            {"Body": body, "Signature": signature})
                         self.headers.update({"Authorization": self._token})
                     break
+                else:
+                    raise exceptions.ErrorResponseException(oath.reason)

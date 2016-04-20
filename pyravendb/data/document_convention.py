@@ -61,6 +61,7 @@ class DocumentConvention(object):
         self.timeout = 30
         self.failover_behavior = Failover.allow_reads_from_secondaries
         self.default_use_optimistic_concurrency = True
+        self._system_database = "system"
 
     @staticmethod
     def default_transform_plural(name):
@@ -102,3 +103,7 @@ class DocumentConvention(object):
             return SortOptions.float.value
         if type_name == "long":
             return SortOptions.long.value
+
+    @property
+    def system_database(self):
+        return self._system_database
