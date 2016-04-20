@@ -1,5 +1,5 @@
-from connection.requests_factory import HttpRequestsFactory
-from data.indexes import IndexDefinition
+from pyravendb.connection.requests_factory import HttpRequestsFactory
+from pyravendb.data.indexes import IndexDefinition
 import unittest
 import sys
 import os
