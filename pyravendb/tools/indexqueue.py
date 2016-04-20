@@ -8,7 +8,7 @@ except ImportError:
 
 class IndexQueue(queue.Queue, object):
     def __init__(self):
-        super(IndexQueue, self).__init__(self)
+        super(IndexQueue, self).__init__()
 
     def peek(self, index=0):
         if not self.qsize():
@@ -31,7 +31,7 @@ class IndexQueue(queue.Queue, object):
         try:
             if not block:
                 if not self._qsize():
-                    raise Empty
+                    raise queue.Empty
             elif timeout is None:
                 while not self._qsize():
                     self.not_empty.wait()
@@ -57,6 +57,9 @@ class IndexQueue(queue.Queue, object):
         value = self.peek(index)
         self.queue.remove(value)
         return value
+
+    def __lt__(self, other):
+        return self.__key__() < other.__key__()
 
     def __len__(self):
         return self.queue.__len__()
