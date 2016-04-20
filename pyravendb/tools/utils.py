@@ -74,7 +74,7 @@ class Utils(object):
             for comp in components[1:]:
                 mod = getattr(mod, comp)
             return mod
-        except (ImportError, ValueError):
+        except (ImportError, ValueError, AttributeError):
             pass
         return None
 
