@@ -12,6 +12,7 @@ import sys
 import json
 import hashlib
 import base64
+import os
 from pyravendb.tools.utils import Utils
 from threading import Timer, Lock
 
@@ -213,7 +214,8 @@ class HttpRequestsFactory(object):
         with self.lock:
             hash_name = hashlib.md5(
                 "{0}/{1}".format(self._primary_url, self._primary_database).encode('utf-8')).hexdigest()
-            topology_file = "{0}\\RavenDB_Replication_Information_For - {1}".format(tempfile.gettempdir(), hash_name)
+            topology_file = "{0}{1}RavenDB_Replication_Information_For - {2}".format(tempfile.gettempdir(), os.path.sep,
+                                                                                     hash_name)
             try:
                 with open(topology_file, 'r') as f:
                     self.topology = json.loads(f.read())
