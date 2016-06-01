@@ -80,12 +80,13 @@ class documentsession(object):
                 "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
                 "force_concurrency_check": force_concurrency_check}
 
-    def _convert_and_save_entity(self, key, document, object_type):
+    def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
         if key not in self._entities_by_key:
-            entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions)
+            entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions,
+                                                                          nested_object_types)
             self.save_entity(key, entity, original_metadata, metadata, document)
 
-    def _multi_load(self, keys, object_type, includes):
+    def _multi_load(self, keys, object_type, includes, nested_object_types):
         if len(keys) == 0:
             return []
 
@@ -94,7 +95,7 @@ class documentsession(object):
             ids_in_includes = [key for key in keys if key in self._includes]
             if len(ids_in_includes) > 0:
                 for include in ids_in_includes:
-                    self._convert_and_save_entity(include, self._includes[include], object_type)
+                    self._convert_and_save_entity(include, self._includes[include], object_type, nested_object_types)
                     self._includes.pop(include)
 
             ids_of_not_existing_object = [key for key in keys if
@@ -112,19 +113,22 @@ class documentsession(object):
                     if results[i] is None:
                         self._known_missing_ids.add(ids_of_not_existing_object[i])
                         continue
-                    self._convert_and_save_entity(keys[i], results[i], object_type)
+                    self._convert_and_save_entity(keys[i], results[i], object_type, nested_object_types)
                 self.save_includes(response_includes)
         return [None if key in self._known_missing_ids else self._entities_by_key[
             key] if key in self._entities_by_key else None for key in keys]
 
-    def load(self, key_or_keys, object_type=None, includes=None):
+    def load(self, key_or_keys, object_type=None, includes=None, nested_object_types=None):
         """
         @param key_or_keys: Identifier of a document that will be loaded.
         :type str or list
         @param includes: The path to a reference inside the loaded documents can be list (property name)
         :type list or str
-        @param object_type:the class we want to get
+        @param object_type: The class we want to get
         :type classObj:
+        @param nested_object_types: A dict of classes for nested object the key will be the name of the class and the
+         value will be the object we want to get for that attribute
+        :type str
         @return: instance of object_type or None if document with given Id does not exist.
         :rtype:object_type or None
         """
@@ -134,7 +138,7 @@ class documentsession(object):
             includes = [includes]
 
         if isinstance(key_or_keys, list):
-            return self._multi_load(key_or_keys, object_type, includes)
+            return self._multi_load(key_or_keys, object_type, includes, nested_object_types)
 
         if key_or_keys in self._known_missing_ids:
             return None
@@ -142,7 +146,8 @@ class documentsession(object):
             return self._entities_by_key[key_or_keys]
 
         if key_or_keys in self._includes:
-            self._convert_and_save_entity(key_or_keys, self._includes[key_or_keys], object_type)
+            self._convert_and_save_entity(key_or_keys, self._includes[key_or_keys], object_type,
+                                          nested_object_types)
             self._includes.pop(key_or_keys)
             if not includes:
                 return self._entities_by_key[key_or_keys]
@@ -155,7 +160,7 @@ class documentsession(object):
             if len(result) == 0 or result[0] is None:
                 self._known_missing_ids.add(key_or_keys)
                 return None
-            self._convert_and_save_entity(key_or_keys, result[0], object_type)
+            self._convert_and_save_entity(key_or_keys, result[0], object_type, nested_object_types)
             self.save_includes(response_includes)
         return self._entities_by_key[key_or_keys] if key_or_keys in self._entities_by_key else None
 
@@ -310,13 +315,13 @@ class documentsession(object):
                 data.entities.append(entity)
                 if key is not None:
                     self._entities_by_key.pop(key)
-                    document = entity.__dict__
+                    document = entity.__dict__.copy()
                     document.pop('Id', None)
                 data.commands.append(commands_data.PutCommandData(key, etag, document, metadata))
 
     def _has_change(self, entity):
-        if self._entities_and_metadata[entity]["original_metadata"] != self._entities_and_metadata[entity][
-            "metadata"] or self._entities_and_metadata[entity]["original_value"] != entity.__dict__:
+        if self._entities_and_metadata[entity]["original_metadata"] != self._entities_and_metadata[entity]["metadata"] \
+                or self._entities_and_metadata[entity]["original_value"] != entity.__dict__:
             return True
         return False
 

@@ -1,4 +1,5 @@
 from pyravendb.data.indexes import SortOptions
+from datetime import datetime, timedelta
 from enum import Enum
 from inflector import Inflector
 
@@ -61,7 +62,19 @@ class DocumentConvention(object):
         self.timeout = 30
         self.failover_behavior = Failover.allow_reads_from_secondaries
         self.default_use_optimistic_concurrency = True
+        self.json_default_method = DocumentConvention.json_default
         self._system_database = "system"
+
+    @staticmethod
+    def json_default(o):
+        if isinstance(o, datetime):
+            return str(0)
+        elif isinstance(o, timedelta):
+            return str(0)
+        elif getattr(o, "__dict__"):
+            return o.__dict__
+        else:
+            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")
 
     @staticmethod
     def default_transform_plural(name):

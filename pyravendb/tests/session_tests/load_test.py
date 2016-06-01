@@ -9,6 +9,12 @@ class Product(object):
         self.name = name
 
 
+class Company(object):
+    def __init__(self, name, product):
+        self.name = name
+        self.product = product
+
+
 class Foo(object):
     def __init__(self, name, key):
         self.name = name
@@ -23,6 +29,7 @@ class TestLoad(TestBase):
         cls.db.put("products/10", {"name": "test"}, {})
         cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/101"},
                    {"Raven-Entity-Name": "Orders"})
+        cls.db.put("company/1", {"name": "test", "product": {"name": "testing_nested"}}, {})
         cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
@@ -49,6 +56,11 @@ class TestLoad(TestBase):
         with self.document_store.open_session() as session:
             product = session.load("products/101", object_type=Product)
             self.assertTrue(isinstance(product, Product))
+
+    def test_load_track_entity_with_object_type_and_nested_object(self):
+        with self.document_store.open_session() as session:
+            company = session.load("company/1", object_type=Company, nested_object_types={"product": Product})
+            self.assertTrue(isinstance(company, Company) and isinstance(company.product, Product))
 
     def test_load_track_entity_with_object_type_fail(self):
         with self.document_store.open_session() as session:

@@ -88,7 +88,7 @@ class Utils(object):
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions):
+    def convert_to_entity(document, object_type, conventions, nested_object_types=None):
         metadata = document.pop("@metadata")
         original_metadata = metadata.copy()
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
@@ -106,8 +106,29 @@ class Utils(object):
                     "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
             entity.__class__ = object_from_metadata
         # Checking the class for initialize
+        entity_initialize_dict = Utils.make_initialize_dict(document, entity.__class__.__init__)
+        entity.__init__(**entity_initialize_dict)
+        if nested_object_types:
+            for key in nested_object_types:
+                attr = getattr(entity, key)
+                if attr:
+                    try:
+                        setattr(entity, key, nested_object_types[key](
+                            **Utils.make_initialize_dict(attr, nested_object_types[key].__init__)))
+                    except TypeError:
+                        pass
+
+        if 'Id' in entity.__dict__:
+            entity.Id = metadata.get('@id', None)
+        return entity, metadata, original_metadata
+
+    @staticmethod
+    def make_initialize_dict(document, entity_init):
+        if entity_init is None:
+            return document
+
         entity_initialize_dict = {}
-        args, __, __, defaults = inspect.getargspec(entity.__class__.__init__)
+        args, __, __, defaults = inspect.getargspec(entity_init)
         if (len(args) - 1) != len(document):
             remainder = len(args)
             if defaults:
@@ -118,10 +139,8 @@ class Utils(object):
                 entity_initialize_dict[args[i]] = document.get(args[i], defaults[i - remainder])
         else:
             entity_initialize_dict = document
-        entity.__init__(**entity_initialize_dict)
-        if 'Id' in entity.__dict__:
-            entity.Id = metadata.get('@id', None)
-        return entity, metadata, original_metadata
+
+        return entity_initialize_dict
 
     @staticmethod
     def to_lucene(value, action):
@@ -171,7 +190,8 @@ class Utils(object):
 
         if isinstance(value, float) or isinstance(value, int):
             value = "Dx{0}".format(value)
-        if isinstance(value, long):
+
+        elif isinstance(value, long):
             value = "Lx{0}".format(value)
         return value
 

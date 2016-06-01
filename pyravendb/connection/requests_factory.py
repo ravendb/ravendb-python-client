@@ -106,7 +106,8 @@ class HttpRequestsFactory(object):
                 if headers is None:
                     headers = {}
                 headers.update(self.headers)
-                response = session.request(method, url=url, json=data, headers=headers)
+                data = json.dumps(data, default=self.convention.json_default_method)
+                response = session.request(method, url=url, data=data, headers=headers)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
                         oauth_source = response.headers.__getitem__("OAuth-Source")

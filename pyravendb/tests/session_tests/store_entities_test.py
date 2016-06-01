@@ -8,7 +8,7 @@ class Foo(object):
     def __init__(self, name, key):
         self.name = name
         self.key = key
-        self.Id = None
+        # self.Id = None
 
 
 class TestSessionStore(TestBase):

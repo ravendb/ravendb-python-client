@@ -41,11 +41,21 @@ There are three ways to install pyravendb.
     	foo = session.load("foos/1")
 ```
 
-load method have the option to track entity for you the only thing you need to do is add ```object_type```  when ou call to load 
-(load method will return a dynamic_stracture object by default).
+load method have the option to track entity for you the only thing you need to do is add ```object_type```  when you call to load 
+(load method will return a dynamic_stracture object by default) for class with nested object you can call load with ```nested_object_types``` dictionary for the other types. just put in the key the name of the object and in the value his class (without this option you will get the document as it is) .
 
 ```
 	foo = session.load("foos/1", object_type=Foo)
+```
+
+```
+	class FooBar(object):
+		def __init__(self,name,foo):
+			self.name = name
+			self.foo = foo
+	
+	foo_bar = session.load("FooBars/1", object_type=FooBar,nested_object_types={"foo":Foo})
+			
 ```
 To load several documents at once, supply a list of ids to session.load.
 
@@ -67,10 +77,15 @@ For storing with dict we will use database_commands the put command (see the sou
 
 ```
 class Foo(object):
-  def __init__(name,key = None):
-      self.name = name
-      self.key = key
+   def __init__(name,key = None):
+   	self.name = name
+      	self.key = key
       
+class FooBar(object):
+   def __init__(self,name,foo):
+	self.name = name
+	self.foo = foo
+
 with store.open_session() as session:
 	foo = Foo("PyRavenDB")
     session.store(foo)
@@ -87,12 +102,16 @@ with store.open_session() as session:
 * ```wait_for_non_stale_results``` - False by default if True the query will wait until the index will be non stale.
 * ```includes``` - A list of the properties we like to include in the query.
 * ``` with_statistics``` - when True the qury will return stats about the query.
+* ```nested_object_types``` - A dict of classes for nested object the key will be the name of the class and the value will be 
+&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&nbsp;the object we want to get for that attribute
 	
 ```
 with store.open_session() as session:
 	query_result = list(session.query().where_equals("name", "test101")
 	query_result = list(session.query(object_type=Foo).where_starts_with("name", "n"))
 	query_result = list(session.query(object_type=Foo).where_ends_with("name", "7"))
+	query_result = list(session.query(object_type=FooBar,nested_object_types={"foo":Foo}).where(name="foo_bar"))
+	
 ```
 
 You can also build the query with several options using the builder pattern.

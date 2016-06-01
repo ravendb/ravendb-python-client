@@ -11,6 +11,12 @@ class Product(object):
         self.key = key
 
 
+class Company(object):
+    def __init__(self, name, product):
+        self.name = name
+        self.product = product
+
+
 class TestQuery(TestBase):
     @classmethod
     def setUpClass(cls):
@@ -33,6 +39,8 @@ class TestQuery(TestBase):
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
         cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/108"},
                    {"Raven-Entity-Name": "Orders"})
+        cls.db.put("company/1", {"name": "withNesting", "product": {"name": "testing_order", "key": 150}},
+                   {"Raven-Entity-Name": "Companies"})
         cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
@@ -124,3 +132,10 @@ class TestQuery(TestBase):
             list(session.query(wait_for_non_stale_results=True, includes="product").where(key=92))
             session.load("products/108")
         self.assertEqual(session.number_of_requests_in_session, 1)
+
+    def test_query_with_nested_object(self):
+        with self.document_store.open_session() as session:
+            query_results = list(
+                session.query(object_type=Company, nested_object_types={"product": Product}).where_equals(
+                    "name", "withNesting"))
+            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))

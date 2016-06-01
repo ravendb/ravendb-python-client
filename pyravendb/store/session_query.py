@@ -14,12 +14,15 @@ class Query(object):
         self._sort_fields = set()
 
     def __call__(self, object_type=None, index_name=None, using_default_operator=None,
-                 wait_for_non_stale_results=False, includes=None, with_statistics=False):
+                 wait_for_non_stale_results=False, includes=None, with_statistics=False, nested_object_types=None):
         """
         @param index_name: The index name we want to apply
         :type index_name: str
         @param object_type: The type of the object we want to track the entity too
         :type Type
+        @param nested_object_types: A dict of classes for nested object the key will be the name of the class and the
+        value will be the object we want to get for that attribute
+        :type str
         @param using_default_operator: If None, by default will use OR operator for the query (can use for OR or AND)
         @param with_statistics: Make it True to get the query statistics as well
         :type bool
@@ -30,6 +33,7 @@ class Query(object):
                 index_name += "/{0}".format(self.session.conventions.default_transform_plural(object_type.__name__))
         self.index_name = index_name
         self.object_type = object_type
+        self.nested_object_types = nested_object_types
         self.using_default_operator = using_default_operator
         self.wait_for_non_stale_results = wait_for_non_stale_results
         self.includes = includes
@@ -242,7 +246,8 @@ class Query(object):
         response_results = response.pop("Results")
         response_includes = response.pop("Includes")
         for result in response_results:
-            entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions)
+            entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
+                                                                          self.nested_object_types)
             self.session.save_entity(key=original_metadata["@id"], entity=entity, original_metadata=original_metadata,
                                      metadata=metadata, document=result)
             results.append(entity)
