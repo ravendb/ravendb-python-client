@@ -21,6 +21,11 @@ class Foo(object):
         self.key = key
 
 
+class Time(object):
+    def __init__(self, td):
+        self.td = td
+
+
 class TestLoad(TestBase):
     @classmethod
     def setUpClass(cls):

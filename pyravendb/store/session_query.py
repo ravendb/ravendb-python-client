@@ -2,6 +2,8 @@ from enum import Enum
 from pyravendb.custom_exceptions.exceptions import ErrorResponseException
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tools.utils import Utils
+from datetime import timedelta
+import sys
 import time
 
 
@@ -42,9 +44,6 @@ class Query(object):
         self._with_statistics = with_statistics
         return self
 
-    def __iter__(self):
-        return self._execute_query().__iter__()
-
     def _lucene_builder(self, value, action=None):
         lucene_text = Utils.to_lucene(value, action=action)
 
@@ -55,6 +54,9 @@ class Query(object):
             self.query_builder += '-'
 
         return lucene_text
+
+    def __iter__(self):
+        return self._execute_query().__iter__()
 
     def where_equals(self, field_name, value):
         """
@@ -70,6 +72,10 @@ class Query(object):
         if value is not None and not isinstance(value, str) and field_name is not None:
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
+                field_name = "{0}_Range".format(field_name)
+                if sys.version_info.major > 2:
+                    if value > sys.maxsize:
+                        sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
         lucene_text = self._lucene_builder(value, action="equal")
@@ -106,6 +112,10 @@ class Query(object):
         if value is not None and not isinstance(value, str) and field_name is not None:
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
+                field_name = "{0}_Range".format(field_name)
+                if sys.version_info.major > 2:
+                    if value > sys.maxsize:
+                        sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
         lucene_text = self._lucene_builder(value, action="end_with")
@@ -127,6 +137,10 @@ class Query(object):
         if value is not None and not isinstance(value, str) and field_name is not None:
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
+                field_name = "{0}_Range".format(field_name)
+                if sys.version_info.major > 2:
+                    if value > sys.maxsize:
+                        sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
         lucene_text = self._lucene_builder(value, action="end_with")
@@ -152,23 +166,40 @@ class Query(object):
         return self
 
     def where_between(self, field_name, start, end):
+        if isinstance(start, timedelta):
+            start = Utils.timedelta_tick(start)
+        if isinstance(end, timedelta):
+            end = Utils.timedelta_tick(end)
+
         value = start or end
         if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
+                field_name = "{0}_Range".format(field_name)
+                if sys.version_info.major > 2:
+                    if value > sys.maxsize:
+                        sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
-            field_name = "{0}_Range".format(field_name)
+
         lucene_text = self._lucene_builder([start, end], action="between")
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
         return self
 
     def where_between_or_equal(self, field_name, start, end):
+        if isinstance(start, timedelta):
+            start = Utils.timedelta_tick(start)
+        if isinstance(end, timedelta):
+            end = Utils.timedelta_tick(end)
+
         value = start or end
         if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
+                field_name = "{0}_Range".format(field_name)
+                if sys.version_info.major > 2:
+                    if value > sys.maxsize:
+                        sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
-            field_name = "{0}_Range".format(field_name)
         lucene_text = self._lucene_builder([start, end], action="equal_between")
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
         return self

@@ -1,6 +1,7 @@
 from pyravendb.data.operations import BulkOperationOption
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.custom_exceptions import exceptions
+from datetime import datetime, timedelta
 import urllib
 import inspect
 import sys
@@ -113,8 +114,13 @@ class Utils(object):
                 attr = getattr(entity, key)
                 if attr:
                     try:
-                        setattr(entity, key, nested_object_types[key](
-                            **Utils.make_initialize_dict(attr, nested_object_types[key].__init__)))
+                        if nested_object_types[key] is datetime:
+                            setattr(entity, key, Utils.string_to_datetime(attr))
+                        elif nested_object_types[key] is timedelta:
+                            setattr(entity, key, Utils.string_to_timedelta(attr))
+                        else:
+                            setattr(entity, key, nested_object_types[key](
+                                **Utils.make_initialize_dict(attr, nested_object_types[key].__init__)))
                     except TypeError:
                         pass
 
@@ -188,11 +194,15 @@ class Utils(object):
         elif not value:
             value = "[[EMPTY_STRING]]"
 
-        if isinstance(value, float) or isinstance(value, int):
+        python_version = sys.version_info.major
+
+        if (python_version > 2 and value > sys.maxsize and isinstance(value,int)) \
+                or python_version <= 2 and isinstance(value, long):
+            value = "Lx{0}".format(int(value))
+
+        elif isinstance(value, float) or isinstance(value, int):
             value = "Dx{0}".format(value)
 
-        elif isinstance(value, long):
-            value = "Lx{0}".format(value)
         return value
 
     @staticmethod
@@ -203,3 +213,53 @@ class Utils(object):
                 dictionary[item] = dictionary[item].decode('utf-8')
             builder.append('{0}={1}'.format(item, dictionary[item]))
         return ','.join(item for item in builder)
+
+    @staticmethod
+    def datetime_to_string(datetime_obj):
+        return datetime_obj.strftime("%Y-%m-%dT%H:%M:%S.%f0")
+
+    @staticmethod
+    def string_to_datetime(datetime_str):
+        try:
+            datetime_s = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%f")
+        except ValueError:
+            datetime_s = datetime.strptime(datetime_str[:-1], "%Y-%m-%dT%H:%M:%S.%f")
+
+        return datetime_s
+
+    @staticmethod
+    def timedelta_tick(td):
+        return int(td.total_seconds() * 10000000)
+
+    @staticmethod
+    def string_to_timedelta(timedelta_str):
+        pattern = r'(?:(-?\d+)[.])?(\d{2}):(\d{2}):(\d{2})(?:.(\d+))?'
+        timedelta_initialize = None
+        m = re.match(pattern, timedelta_str, re.IGNORECASE)
+        if m:
+            timedelta_initialize = {"days": 0 if m.group(1) is None else int(m.group(1)),
+                                    "hours": 0 if m.group(2) is None else int(m.group(2)),
+                                    "minutes": 0 if m.group(3) is None else int(m.group(3)),
+                                    "seconds": 0 if m.group(4) is None else int(m.group(4)),
+                                    "microseconds": 0 if m.group(5) is None else int(m.group(5))
+                                    }
+        if timedelta_initialize:
+            return timedelta(**timedelta_initialize)
+        return None
+
+    @staticmethod
+    def timedelta_to_str(timedelta_obj):
+        timedelta_str = ""
+        if isinstance(timedelta_obj, timedelta):
+            total_seconds = timedelta_obj.seconds
+            days = timedelta_obj.days
+            hours = total_seconds // 3600
+            minutes = (total_seconds // 60) % 60
+            seconds = (total_seconds % 3600) % 60
+            microseconds = timedelta_obj.microseconds
+            if days > 0:
+                timedelta_str += "{0}.".format(days)
+            timedelta_str += "{:02}:{:02}:{:02}".format(hours, minutes, seconds)
+            if microseconds > 0:
+                timedelta_str += ".{0}".format(microseconds)
+        return timedelta_str

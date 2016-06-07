@@ -1,7 +1,9 @@
 from pyravendb.data.indexes import SortOptions
 from datetime import datetime, timedelta
+from pyravendb.tools.utils import Utils
 from enum import Enum
 from inflector import Inflector
+import sys
 
 
 class Failover(Enum):
@@ -68,9 +70,9 @@ class DocumentConvention(object):
     @staticmethod
     def json_default(o):
         if isinstance(o, datetime):
-            return str(0)
+            return Utils.datetime_to_string(o)
         elif isinstance(o, timedelta):
-            return str(0)
+            return Utils.timedelta_to_str(o)
         elif getattr(o, "__dict__"):
             return o.__dict__
         else:
@@ -104,9 +106,13 @@ class DocumentConvention(object):
     def uses_range_type(obj):
         if obj is None:
             return False
-
-        if isinstance(obj, int) or isinstance(obj, long) or isinstance(obj, float):
-            return True
+        if sys.version_info.major > 2:
+            if isinstance(obj, int) or isinstance(obj, float):
+                return True
+        else:
+            if isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, long):
+                return True
+        return False
 
     @staticmethod
     def get_default_sort_option(type_name):
