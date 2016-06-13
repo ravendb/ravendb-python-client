@@ -93,10 +93,11 @@ class Utils(object):
         metadata = document.pop("@metadata")
         original_metadata = metadata.copy()
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
+        entity = _DynamicStructure(**document)
         object_from_metadata = None
         if type_from_metadata is not None:
             object_from_metadata = Utils.import_class(type_from_metadata)
-        entity = _DynamicStructure(**document)
+
         if object_from_metadata is None:
             if object_type is not None:
                 entity.__class__ = object_type
@@ -108,7 +109,9 @@ class Utils(object):
             entity.__class__ = object_from_metadata
         # Checking the class for initialize
         entity_initialize_dict = Utils.make_initialize_dict(document, entity.__class__.__init__)
-        entity.__init__(**entity_initialize_dict)
+
+        entity = entity.__class__(**entity_initialize_dict)
+
         if nested_object_types:
             for key in nested_object_types:
                 attr = getattr(entity, key)
@@ -134,8 +137,8 @@ class Utils(object):
             return document
 
         entity_initialize_dict = {}
-        args, __, __, defaults = inspect.getargspec(entity_init)
-        if (len(args) - 1) != len(document):
+        args, __, keywords, defaults = inspect.getargspec(entity_init)
+        if (len(args) - 1) > len(document):
             remainder = len(args)
             if defaults:
                 remainder -= len(defaults)
@@ -144,7 +147,12 @@ class Utils(object):
             for i in range(remainder, len(args)):
                 entity_initialize_dict[args[i]] = document.get(args[i], defaults[i - remainder])
         else:
-            entity_initialize_dict = document
+            if keywords == "kwargs":
+                entity_initialize_dict = document
+            else:
+                for key in document:
+                    if key in args:
+                        entity_initialize_dict[key] = document[key]
 
         return entity_initialize_dict
 
@@ -196,7 +204,7 @@ class Utils(object):
 
         python_version = sys.version_info.major
 
-        if (python_version > 2 and value > sys.maxsize and isinstance(value,int)) \
+        if (python_version > 2 and value > sys.maxsize and isinstance(value, int)) \
                 or python_version <= 2 and isinstance(value, long):
             value = "Lx{0}".format(int(value))
 

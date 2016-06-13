@@ -70,15 +70,16 @@ class documentsession(object):
                     self._includes[include["@metadata"]["@id"]] = include
 
     def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
-        self._known_missing_ids.discard(key)
+        if key is not None:
+            self._known_missing_ids.discard(key)
 
-        if key not in self._entities_by_key:
-            self._entities_by_key[key] = entity
+            if key not in self._entities_by_key:
+                self._entities_by_key[key] = entity
 
-            self._entities_and_metadata[self._entities_by_key[key]] = {
-                "original_value": document.copy(), "metadata": metadata,
-                "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
-                "force_concurrency_check": force_concurrency_check}
+                self._entities_and_metadata[self._entities_by_key[key]] = {
+                    "original_value": document.copy(), "metadata": metadata,
+                    "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
+                    "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
         if key not in self._entities_by_key:

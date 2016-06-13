@@ -25,6 +25,15 @@ class SortOptions(Enum):
         return self.value
 
 
+class FieldIndexing(Enum):
+    # Do not index the field value.
+    no = "No"
+    # Index the tokens produced by running the field's value through an Analyzer
+    analyzed = "Analyzed"
+    # Index the field's value without using an Analyzer, so it can be searched.
+    not_analyzed = "NotAnalyzed"
+
+
 class IndexDefinition(object):
     def __init__(self, index_map, name=None, **kwargs):
         """

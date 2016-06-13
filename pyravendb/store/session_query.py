@@ -210,10 +210,10 @@ class Query(object):
     def where_greater_than_or_equal(self, field_name, value):
         return self.where_between_or_equal(field_name, value, None)
 
-    def where_less_then(self, field_name, value):
+    def where_less_than(self, field_name, value):
         return self.where_between(field_name, None, value)
 
-    def where_less_then_or_equal(self, field_name, value):
+    def where_less_than_or_equal(self, field_name, value):
         return self.where_between_or_equal(field_name, None, value)
 
     def where_not_none(self, field_name):
@@ -279,7 +279,8 @@ class Query(object):
         for result in response_results:
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
                                                                           self.nested_object_types)
-            self.session.save_entity(key=original_metadata["@id"], entity=entity, original_metadata=original_metadata,
+            self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
+                                     original_metadata=original_metadata,
                                      metadata=metadata, document=result)
             results.append(entity)
         self.session.save_includes(response_includes)
