@@ -33,6 +33,9 @@ class FieldIndexing(Enum):
     # Index the field's value without using an Analyzer, so it can be searched.
     not_analyzed = "NotAnalyzed"
 
+    def __str__(self):
+        return self.value
+
 
 class IndexDefinition(object):
     def __init__(self, index_map, name=None, **kwargs):
@@ -88,7 +91,8 @@ class IndexDefinition(object):
 
     def to_json(self):
         return {"Analyzers": self.analyzers, "DisableInMemoryIndexing": self.disable_in_memory_indexing,
-                "Fields": self.fields, "Indexes": self.indexes, "IndexId": self.index_id,
+                "Fields": self.fields, "Indexes": {key: str(self.indexes[key]) for key in self.indexes},
+                "IndexId": self.index_id,
                 "InternalFieldsMapping": self.internal_fields_mapping, "IsCompiled": self._is_compiled,
                 "IsMapReduce": self.is_map_reduce, "IsSideBySideIndex": self.is_side_by_side_index,
                 "IsTestIndex": self.is_test_index, "LockMode": str(self.lock_mod), "Map": self.map,

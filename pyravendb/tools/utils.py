@@ -147,7 +147,7 @@ class Utils(object):
             for i in range(remainder, len(args)):
                 entity_initialize_dict[args[i]] = document.get(args[i], defaults[i - remainder])
         else:
-            if keywords == "kwargs":
+            if keywords:
                 entity_initialize_dict = document
             else:
                 for key in document:
@@ -184,7 +184,8 @@ class Utils(object):
             query_text = "[{0} TO {1}]".format(
                 Utils.numeric_to_lucene_syntax(value[0]) if value[0] is not None else "*",
                 Utils.numeric_to_lucene_syntax(value[1]) if value[1] is not None else "NULL")
-
+        elif action == "search":
+            query_text = "({0})".format(value)
         else:
             query_text = value
             if value is None:

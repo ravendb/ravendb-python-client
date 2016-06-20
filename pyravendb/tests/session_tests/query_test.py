@@ -6,9 +6,10 @@ from pyravendb.data.indexes import IndexDefinition, SortOptions
 
 
 class Product(object):
-    def __init__(self, name, key):
+    def __init__(self, name, key, order):
         self.name = name
         self.key = key
+        self.order = order
 
 
 class Company(object):
@@ -35,11 +36,12 @@ class TestQuery(TestBase):
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
         cls.db.put("products/103", {"name": "test107", "key": 6},
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
-        cls.db.put("products/108", {"name": "new_testing", "key": 90},
+        cls.db.put("products/108", {"name": "new_testing", "key": 90, "order": "d"},
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
         cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/108"},
                    {"Raven-Entity-Name": "Orders"})
-        cls.db.put("company/1", {"name": "withNesting", "product": {"name": "testing_order", "key": 150}},
+        cls.db.put("company/1",
+                   {"name": "withNesting", "product": {"name": "testing_order", "key": 4, "order": None}},
                    {"Raven-Entity-Name": "Companies"})
         cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
@@ -115,7 +117,7 @@ class TestQuery(TestBase):
         with self.document_store.open_session() as session:
             query_results = list(
                 session.query(wait_for_non_stale_results=True).where_not_none("order").order_by_descending("order"))
-            self.assertEqual(query_results[0].order, "c")
+            self.assertEqual(query_results[0].order, "d")
 
     def test_where_not_None(self):
         found_none = False

@@ -1,5 +1,5 @@
 from enum import Enum
-from pyravendb.custom_exceptions.exceptions import ErrorResponseException
+from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
@@ -72,7 +72,6 @@ class Query(object):
         if value is not None and not isinstance(value, str) and field_name is not None:
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
-                field_name = "{0}_Range".format(field_name)
                 if sys.version_info.major > 2:
                     if value > sys.maxsize:
                         sort_hint = self.session.conventions.get_default_sort_option("long")
@@ -95,6 +94,20 @@ class Query(object):
                 self.where_in(field_name, kwargs[field_name])
             else:
                 self.where_equals(field_name, kwargs[field_name])
+        return self
+
+    def search(self, field_name, search_terms):
+        """
+        for more complex text searching
+
+        @param field_name:The field name in the index you want to query.
+        :type str
+        @param search_terms: the terms you want to query
+        :type str
+        """
+        search_terms = Utils.quote_key(str(search_terms))
+        search_terms = self._lucene_builder(search_terms, "search")
+        self.query_builder += "{0}:{1}".format(field_name, search_terms)
         return self
 
     def where_ends_with(self, field_name, value):
@@ -253,6 +266,16 @@ class Query(object):
 
     def add_not(self):
         self.negate = True
+        return self
+
+    def boost(self, value):
+        if len(self.query_builder) < 1:
+            raise InvalidOperationException("Missing where clause")
+        if value < 0:
+            raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
+        if value != 1:
+            # 1 is the default
+            self.query_builder += "^{0}".format(value)
         return self
 
     def _execute_query(self):

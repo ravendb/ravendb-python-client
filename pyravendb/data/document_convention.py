@@ -73,7 +73,7 @@ class DocumentConvention(object):
             return Utils.datetime_to_string(o)
         elif isinstance(o, timedelta):
             return Utils.timedelta_to_str(o)
-        elif getattr(o, "__dict__"):
+        elif getattr(o, "__dict__", None):
             return o.__dict__
         else:
             raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")

@@ -16,3 +16,7 @@ class NonUniqueObjectException(Exception):
 
 class FetchConcurrencyException(Exception):
     pass
+
+
+class ArgumentOutOfRangeException(Exception):
+    pass
