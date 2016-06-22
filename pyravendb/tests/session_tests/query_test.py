@@ -25,8 +25,10 @@ class TestQuery(TestBase):
         cls.index_map = ("from doc in docs "
                          "select new {"
                          "name = doc.name,"
-                         "key = doc.key}")
-        cls.index_sort = IndexDefinition(index_map=cls.index_map, sort_options={"key": SortOptions.float})
+                         "key = doc.key,"
+                         "doc_id = (doc.name + \" \") + doc.key}")
+        cls.index_sort = IndexDefinition(index_map=cls.index_map, sort_options={"key": SortOptions.float},
+                                         stores={"doc_id": "Yes"})
         cls.db.put_index("Testing_Sort", index_def=cls.index_sort, overwrite=True)
         cls.db.put("products/101", {"name": "test101", "key": 2, "order": "a"},
                    {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
@@ -141,3 +143,17 @@ class TestQuery(TestBase):
                 session.query(object_type=Company, nested_object_types={"product": Product}).where_equals(
                     "name", "withNesting"))
             self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
+
+    def test_query_with_fetch_terms(self):
+        with self.document_store.open_session() as session:
+            query_results = list(
+                session.query(index_name="Testing_Sort", wait_for_non_stale_results=True).where_between_or_equal
+                ("key", 2, 4).select("doc_id"))
+
+            found_in_all = True
+            for result in query_results:
+                if not hasattr(result,"doc_id"):
+                    found_in_all = False
+                    break
+
+            self.assertTrue(found_in_all)

@@ -147,6 +147,7 @@ class DatabaseCommands(object):
         response = self._requests_handler.http_request_handler(path, "GET")
         if not overwrite and response.status_code != 404:
             raise exceptions.InvalidOperationException("Cannot put index:{0},index already exists".format(index_name))
+
         data = index_def.to_json()
         return self._requests_handler.http_request_handler(path, "PUT", data=data).json()
 
@@ -200,7 +201,7 @@ class DatabaseCommands(object):
             scripted_patch = scripted_patch.to_json()
 
         response = self._requests_handler.http_request_handler(path, "EVAL", data=scripted_patch)
-        if response.status_code != 200:
+        if response.status_code != 200 and response.status_code != 202:
             raise response.raise_for_status()
         return response.json()
 
@@ -217,7 +218,7 @@ class DatabaseCommands(object):
         """
         path = Utils.build_path(index_name, query, options)
         response = self._requests_handler.http_request_handler(path, "DELETE")
-        if response.status_code != 200:
+        if response.status_code != 200 and response.status_code != 202:
             try:
                 raise exceptions.ErrorResponseException(response.json()["Error"][:100])
             except ValueError:
@@ -270,6 +271,9 @@ class DatabaseCommands(object):
         if index_query.sort_fields:
             for field in index_query.sort_fields:
                 path += "&sort={0}".format(field)
+        if index_query.fetch:
+            for item in index_query.fetch:
+                path += "&fetch={0}".format(item)
         if metadata_only:
             path += "&metadata-only=true"
         if index_entries_only:

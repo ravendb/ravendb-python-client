@@ -14,6 +14,7 @@ class Query(object):
         self.negate = False
         self._sort_hints = set()
         self._sort_fields = set()
+        self.fetch = None
 
     def __call__(self, object_type=None, index_name=None, using_default_operator=None,
                  wait_for_non_stale_results=False, includes=None, with_statistics=False, nested_object_types=None):
@@ -42,6 +43,17 @@ class Query(object):
         if includes and not isinstance(self.includes, list):
             self.includes = [self.includes]
         self._with_statistics = with_statistics
+        return self
+
+    def select(self, *args):
+        """
+        Fetch only the required fields from the server
+
+        @param args: The name of the terms you like to acquire
+
+        """
+        if args:
+            self.fetch = args
         return self
 
     def _lucene_builder(self, value, action=None):
@@ -287,6 +299,7 @@ class Query(object):
             response = self.session.database_commands. \
                 query(self.index_name, IndexQuery(self.query_builder, default_operator=self.using_default_operator,
                                                   sort_hints=self._sort_hints, sort_fields=self._sort_fields,
+                                                  fetch=self.fetch,
                                                   wait_for_non_stale_results=self.wait_for_non_stale_results),
                       includes=self.includes)
             if response["IsStale"] and self.wait_for_non_stale_results:
@@ -299,12 +312,15 @@ class Query(object):
         results = []
         response_results = response.pop("Results")
         response_includes = response.pop("Includes")
+
         for result in response_results:
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
-                                                                          self.nested_object_types)
-            self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
-                                     original_metadata=original_metadata,
-                                     metadata=metadata, document=result)
+                                                                          self.nested_object_types,
+                                                                          fetch=False if not self.fetch else True)
+            if not self.fetch:
+                self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
+                                         original_metadata=original_metadata,
+                                         metadata=metadata, document=result)
             results.append(entity)
         self.session.save_includes(response_includes)
         if self._with_statistics:

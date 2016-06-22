@@ -89,35 +89,43 @@ class Utils(object):
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions, nested_object_types=None):
+    def convert_to_entity(document, object_type, conventions, nested_object_types=None, fetch=False):
         metadata = document.pop("@metadata")
         original_metadata = metadata.copy()
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         entity = _DynamicStructure(**document)
-        object_from_metadata = None
-        if type_from_metadata is not None:
-            object_from_metadata = Utils.import_class(type_from_metadata)
+        if not fetch:
+            object_from_metadata = None
+            if type_from_metadata is not None:
+                object_from_metadata = Utils.import_class(type_from_metadata)
 
-        if object_from_metadata is None:
-            if object_type is not None:
-                entity.__class__ = object_type
-                metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
-        else:
-            if object_type and not Utils.is_inherit(object_type, object_from_metadata):
-                raise exceptions.InvalidOperationException(
-                    "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
-            entity.__class__ = object_from_metadata
-        # Checking the class for initialize
-        entity_initialize_dict = Utils.make_initialize_dict(document, entity.__class__.__init__)
+            if object_from_metadata is None:
+                if object_type is not None:
+                    entity.__class__ = object_type
+                    metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
+            else:
+                if object_type and not Utils.is_inherit(object_type, object_from_metadata):
+                    raise exceptions.InvalidOperationException(
+                        "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
+                entity.__class__ = object_from_metadata
+            # Checking the class for initialize
+            entity_initialize_dict = Utils.make_initialize_dict(document, entity.__class__.__init__)
 
-        entity = entity.__class__(**entity_initialize_dict)
+            entity = entity.__class__(**entity_initialize_dict)
 
         if nested_object_types:
             for key in nested_object_types:
                 attr = getattr(entity, key)
                 if attr:
                     try:
-                        if nested_object_types[key] is datetime:
+                        if isinstance(attr, list):
+                            nested_list = []
+                            for attribute in attr:
+                                nested_list.append(nested_object_types[key](
+                                    **Utils.make_initialize_dict(attribute, nested_object_types[key].__init__)))
+                            setattr(entity, key, nested_list)
+
+                        elif nested_object_types[key] is datetime:
                             setattr(entity, key, Utils.string_to_datetime(attr))
                         elif nested_object_types[key] is timedelta:
                             setattr(entity, key, Utils.string_to_timedelta(attr))

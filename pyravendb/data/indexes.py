@@ -40,8 +40,8 @@ class FieldIndexing(Enum):
 class IndexDefinition(object):
     def __init__(self, index_map, name=None, **kwargs):
         """
-        @param index_maps: The map of the index
-        :type str
+        @param index_map: The map of the index
+        :type str or tuple
         @param name: The name of the index
         :type str
         @param kwargs: Can be use to initialize the other option in the index definition
@@ -58,7 +58,6 @@ class IndexDefinition(object):
         self._is_compiled = False
         self.is_side_by_side_index = kwargs.get("is_side_by_side_index", False)
         self.is_test_index = kwargs.get("is_test_index", False)
-        self.is_map_reduce = kwargs.get("is_map_reduce", False)
         self.lock_mod = kwargs.get("lock_mod", IndexLockMode.Unlock)
         self.max_index_outputs_per_document = kwargs.get("max_index_outputs_per_document", None)
         self.sort_options = kwargs.get("sort_options", {})
@@ -66,8 +65,7 @@ class IndexDefinition(object):
         self.stores = kwargs.get("stores", {})
         self.suggestions = kwargs.get("suggestions", {})
         self.term_vectors = kwargs.get("term_vectors", {})
-        self.maps = kwargs.get("maps", set())
-        self.map = index_map
+        self.maps = (index_map,) if isinstance(index_map, str) else tuple(set(index_map, ))
 
     @property
     def type(self):
@@ -80,8 +78,14 @@ class IndexDefinition(object):
         return "Map"
 
     @property
+    def is_map_reduce(self):
+        return True if self.reduce else False
+
+    @property
     def map(self):
-        return list(self.maps)[0]
+        if not isinstance(self.maps, str):
+            return self.maps[0]
+        return self.maps
 
     @map.setter
     def map(self, value):
@@ -96,7 +100,7 @@ class IndexDefinition(object):
                 "InternalFieldsMapping": self.internal_fields_mapping, "IsCompiled": self._is_compiled,
                 "IsMapReduce": self.is_map_reduce, "IsSideBySideIndex": self.is_side_by_side_index,
                 "IsTestIndex": self.is_test_index, "LockMode": str(self.lock_mod), "Map": self.map,
-                "Maps": list(self.maps),
+                "Maps": self.maps,
                 "MaxIndexOutputsPerDocument": self.max_index_outputs_per_document, "Name": self.name,
                 "Reduce": self.reduce, "SortOptions": {key: str(self.sort_options[key]) for key in self.sort_options},
                 "SpatialIndexes": self.spatial_indexes,
@@ -115,6 +119,8 @@ class IndexQuery(object):
         :type int
         @param default_operator: The operator of the query (AND or OR) the default value is OR
         :type Enum.QueryOperator
+        @param fetch fetch only the terms you want from the index
+        :type list
     """
         self.query = query
         self.total_size = total_size
@@ -124,6 +130,7 @@ class IndexQuery(object):
         self.default_operator = default_operator
         self.sort_hints = kwargs.get("sort_hints", {})
         self.sort_fields = kwargs.get("sort_fields", {})
+        self.fetch = kwargs.get("fetch", [])
         self.wait_for_non_stale_results = kwargs.get("wait_for_non_stale_results", False)
 
     @property
