@@ -14,8 +14,7 @@ setup(
     [
         "pycrypto >= 2.6.1",
         "requests >= 2.9.1",
-        "inflector >= 2.0.11",
-        "enum >= 0.4.6",
+        "inflector >= 2.0.11"
     ],
     zip_safe=False
 )
