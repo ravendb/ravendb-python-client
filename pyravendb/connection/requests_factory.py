@@ -225,7 +225,7 @@ class HttpRequestsFactory(object):
 
     def load_topology(self):
         for destination in self.topology["Destinations"]:
-            if not destination["Disabled"]:
+            if not destination["Disabled"] and not destination["IgnoredClient"]:
                 self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
                                                "credentials": {"api_key": destination["ApiKey"],
                                                                "domain": destination["Domain"]}})
