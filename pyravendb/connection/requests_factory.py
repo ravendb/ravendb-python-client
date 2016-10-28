@@ -186,10 +186,7 @@ class HttpRequestsFactory(object):
         with open(topology_file, 'w+') as f:
             f.write(json.dumps(self.topology))
             self.replication_topology.queue.clear()
-            for destination in self.topology["Destinations"]:
-                self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
-                                               "credentials": {"api_key": destination["ApiKey"],
-                                                               "domain": destination["Domain"]}})
+            self.load_topology()
 
     def check_replication_change(self, topology_file):
 
@@ -220,14 +217,18 @@ class HttpRequestsFactory(object):
             try:
                 with open(topology_file, 'r') as f:
                     self.topology = json.loads(f.read())
-                    for destination in self.topology["Destinations"]:
-                        self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
-                                                       "credentials": {"api_key": destination["ApiKey"],
-                                                                       "domain": destination["Domain"]}})
+                    self.load_topology()
             except IOError:
                 pass
 
         self.check_replication_change(topology_file)
+
+    def load_topology(self):
+        for destination in self.topology["Destinations"]:
+            if not destination["Disabled"] and not destination["IgnoredClient"]:
+                self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
+                                               "credentials": {"api_key": destination["ApiKey"],
+                                                               "domain": destination["Domain"]}})
 
     def do_auth_request(self, api_key, oauth_source, second_api_key=None):
         api_name, secret = api_key.split('/', 1)
