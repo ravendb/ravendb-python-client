@@ -29,7 +29,7 @@ class HttpRequestsFactory(object):
         self.convention = convention
         if self.convention is None:
             self.convention = DocumentConvention()
-        self.headers = {"Accept": "application/json", "Has-Api-key": True if self.api_key is not None else False,
+        self.headers = {"Accept": "application/json", "Has-Api-key": "True" if self.api_key is not None else "False",
                         "Raven-Client-Version": "3.0.0.0"}
         self.replication_topology = IndexQueue()
         self.topology_change_counter = 0
