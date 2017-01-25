@@ -117,7 +117,7 @@ class documentsession(object):
                     if results[i] is None:
                         self._known_missing_ids.add(ids_of_not_existing_object[i])
                         continue
-                    self._convert_and_save_entity(keys[i], results[i], object_type, nested_object_types)
+                    self._convert_and_save_entity(ids_of_not_existing_object[i], results[i], object_type, nested_object_types)
                 self.save_includes(response_includes)
         return [None if key in self._known_missing_ids else self._entities_by_key[
             key] if key in self._entities_by_key else None for key in keys]
