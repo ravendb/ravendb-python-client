@@ -287,7 +287,10 @@ class Query(object):
             raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
         if value != 1:
             # 1 is the default
-            self.query_builder += "^{0}".format(value)
+            if self.query_builder.endswith(')'):
+                self.query_builder = "{0}^{1})".format(self.query_builder[:len(self.query_builder) - 1], value)
+            else:
+                self.query_builder += "^{0}".format(value)
         return self
 
     def _execute_query(self):

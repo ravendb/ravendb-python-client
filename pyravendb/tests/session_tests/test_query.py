@@ -3,6 +3,7 @@ from pyravendb.store.document_store import documentstore
 from pyravendb.store.session_query import QueryOperator
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition, SortOptions
+import unittest
 
 
 class Product(object):
@@ -31,15 +32,15 @@ class TestQuery(TestBase):
                                          stores={"doc_id": "Yes"})
         cls.db.put_index("Testing_Sort", index_def=cls.index_sort, overwrite=True)
         cls.db.put("products/101", {"name": "test101", "key": 2, "order": "a"},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
+                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
         cls.db.put("products/10", {"name": "test10", "key": 3, "order": "b"}, {})
         cls.db.put("products/106", {"name": "test106", "key": 4, "order": "c"}, {})
         cls.db.put("products/107", {"name": "test107", "key": 5, "order": None},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
+                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
         cls.db.put("products/103", {"name": "test107", "key": 6},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
+                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
         cls.db.put("products/108", {"name": "new_testing", "key": 90, "order": "d"},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": "query_test.Product"})
+                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
         cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/108"},
                    {"Raven-Entity-Name": "Orders"})
         cls.db.put("company/1",
@@ -152,8 +153,11 @@ class TestQuery(TestBase):
 
             found_in_all = True
             for result in query_results:
-                if not hasattr(result,"doc_id"):
+                if not hasattr(result, "doc_id"):
                     found_in_all = False
                     break
 
             self.assertTrue(found_in_all)
+
+if __name__ == "__main__":
+    unittest.main()

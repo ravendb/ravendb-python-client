@@ -304,9 +304,14 @@ class DatabaseCommands(object):
             path = "databases/{0}".format(Utils.quote_key(db_name))
             response = self.requests_handler.http_request_handler(path, "PUT", database_document.to_json(),
                                                                   admin=True)
+
+            if response.status_code == 502:
+                raise exceptions.ErrorResponseException(
+                    "Connection failed please check your connection to {0}".format(self.requests_handler.url))
             if response.status_code != 200:
                 raise exceptions.ErrorResponseException(
                     "Database with the name '{0}' already exists".format(database_document.database_id))
+
             return response
 
         def delete_database(self, db_name, hard_delete=False):
@@ -315,7 +320,7 @@ class DatabaseCommands(object):
             if hard_delete:
                 path += "?hard-delete=true"
             response = self.requests_handler.http_request_handler(path, "DELETE", admin=True)
-            if response.status_code != 200:
+            if response.content != '':
                 raise response.raise_for_status()
             return response
 

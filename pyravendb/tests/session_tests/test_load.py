@@ -30,7 +30,8 @@ class TestLoad(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestLoad, cls).setUpClass()
-        cls.db.put("products/101", {"name": "test"}, {"Raven-Python-Type": "load_test.Product"})
+        cls.db.put("products/101", {"name": "test"},
+                   {"Raven-Python-Type": Product.__module__+".Product"})
         cls.db.put("products/10", {"name": "test"}, {})
         cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/101"},
                    {"Raven-Entity-Name": "Orders"})
@@ -51,6 +52,13 @@ class TestLoad(TestBase):
         with self.document_store.open_session() as session:
             products = session.load(["products/101", "products/10"])
             self.assertEqual(len(products), 2)
+
+    def test_multi_load_with_duplicate_id(self):
+        with self.document_store.open_session() as session:
+            products = session.load(["products/101", "products/101", "products/10"])
+            self.assertEqual(len(products), 3)
+            for product in products:
+                self.assertIsNotNone(product)
 
     def test_load_track_entity(self):
         with self.document_store.open_session() as session:

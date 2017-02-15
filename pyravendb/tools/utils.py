@@ -70,14 +70,13 @@ class Utils(object):
     @staticmethod
     def import_class(name):
         components = name.split('.')
+        module_name = '.'.join(name.split('.')[:-1])
+        mod = None
         try:
-            mod = __import__(components[0])
-            for comp in components[1:]:
-                mod = getattr(mod, comp)
-            return mod
+            mod = getattr(__import__(module_name, fromlist=[components[-1]]), components[-1])
         except (ImportError, ValueError, AttributeError):
             pass
-        return None
+        return mod
 
     @staticmethod
     def is_inherit(parent, child):

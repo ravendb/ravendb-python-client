@@ -91,15 +91,15 @@ class documentsession(object):
         if len(keys) == 0:
             return []
 
-        ids_of_not_existing_object = keys
+        ids_of_not_existing_object = set(keys)
         if not includes:
-            ids_in_includes = [key for key in keys if key in self._includes]
+            ids_in_includes = [key for key in ids_of_not_existing_object if key in self._includes]
             if len(ids_in_includes) > 0:
                 for include in ids_in_includes:
                     self._convert_and_save_entity(include, self._includes[include], object_type, nested_object_types)
                     self._includes.pop(include)
 
-            ids_of_not_existing_object = [key for key in keys if
+            ids_of_not_existing_object = [key for key in ids_of_not_existing_object if
                                           key not in self._entities_by_key]
 
         ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._known_missing_ids]
@@ -114,7 +114,7 @@ class documentsession(object):
                     if results[i] is None:
                         self._known_missing_ids.add(ids_of_not_existing_object[i])
                         continue
-                    self._convert_and_save_entity(keys[i], results[i], object_type, nested_object_types)
+                    self._convert_and_save_entity(ids_of_not_existing_object[i], results[i], object_type, nested_object_types)
                 self.save_includes(response_includes)
         return [None if key in self._known_missing_ids else self._entities_by_key[
             key] if key in self._entities_by_key else None for key in keys]
