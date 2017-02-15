@@ -67,7 +67,7 @@ class FullTextSearchTest(TestBase):
                 "query", search_terms="Bobo"))
             self.assertEqual(len(query), 3)
 
-    def test_full_text_search_witg_boost(self):
+    def test_full_text_search_with_boost(self):
         with self.document_store.open_session() as session:
             query = list(session.query(object_type=LastFm, wait_for_non_stale_results=True,
                                        index_name=LastFmAnalyzed.__name__).search("query", search_terms="Me").boost(10).
