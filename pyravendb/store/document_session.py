@@ -3,6 +3,7 @@ from pyravendb.custom_exceptions import exceptions
 from pyravendb.store.session_query import Query
 from pyravendb.d_commands import commands_data
 from pyravendb.tools.utils import Utils
+from collections import OrderedDict
 
 
 class _SaveChangesData(object):
@@ -102,7 +103,9 @@ class documentsession(object):
             ids_of_not_existing_object = [key for key in ids_of_not_existing_object if
                                           key not in self._entities_by_key]
 
-        ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._known_missing_ids]
+        # We need to remove duplicate ids in here for our index lookup strategy below to work
+        # because RavenDB is smart enough to not return duplicate results
+        ids_of_not_existing_object = list(OrderedDict.fromkeys([key for key in ids_of_not_existing_object if key not in self._known_missing_ids]))
 
         if len(ids_of_not_existing_object) > 0:
             self.increment_requests_count()
