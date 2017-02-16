@@ -320,8 +320,8 @@ class DatabaseCommands(object):
             if hard_delete:
                 path += "?hard-delete=true"
             response = self.requests_handler.http_request_handler(path, "DELETE", admin=True)
-            if response.content != '':
-                raise response.raise_for_status()
+            if response.content != '' and response.content != b'':
+                raise exceptions.ErrorResponseException(response.content)
             return response
 
         def get_store_statistics(self):
