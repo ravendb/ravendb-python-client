@@ -114,7 +114,8 @@ class documentsession(object):
                     if results[i] is None:
                         self._known_missing_ids.add(ids_of_not_existing_object[i])
                         continue
-                    self._convert_and_save_entity(ids_of_not_existing_object[i], results[i], object_type, nested_object_types)
+                    self._convert_and_save_entity(ids_of_not_existing_object[i], results[i], object_type,
+                                                  nested_object_types)
                 self.save_includes(response_includes)
         return [None if key in self._known_missing_ids else self._entities_by_key[
             key] if key in self._entities_by_key else None for key in keys]
@@ -203,8 +204,8 @@ class documentsession(object):
         self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity))
 
     def assert_no_non_unique_instance(self, entity, key):
-        if not (key is None or key.endswith("/") or key not in self._entities_by_key or self._entities_by_key[
-            key] is entity):
+        if not (key is None or key.endswith("/") or key not in self._entities_by_key
+                or self._entities_by_key[key] is entity):
             raise exceptions.NonUniqueObjectException(
                 "Attempted to associate a different object with id '{0}'.".format(key))
 
@@ -310,8 +311,8 @@ class documentsession(object):
                 key = self._entities_and_metadata[entity]["key"]
                 metadata = self._entities_and_metadata[entity]["metadata"]
                 etag = None
-                if self.advanced.use_optimistic_concurrency or self._entities_and_metadata[entity][
-                    "force_concurrency_check"]:
+                if self.advanced.use_optimistic_concurrency \
+                        or self._entities_and_metadata[entity]["force_concurrency_check"]:
                     etag = self._entities_and_metadata[entity]["etag"] or metadata.get("@etag", Utils.empty_etag())
                 data.entities.append(entity)
                 if key is not None:
