@@ -38,12 +38,12 @@ class FieldIndexing(Enum):
 
 
 class IndexDefinition(object):
-    def __init__(self, index_map, name=None, **kwargs):
+    def __init__(self, name, index_map, **kwargs):
         """
-        @param index_map: The map of the index
-        :type str or tuple
         @param name: The name of the index
         :type str
+        @param index_map: The map of the index
+        :type str or tuple
         @param kwargs: Can be use to initialize the other option in the index definition
         :type kwargs
         """

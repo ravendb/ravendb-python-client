@@ -1,4 +1,4 @@
-class ScriptedPatchRequest(object):
+class PatchRequest(object):
     def __init__(self, script, values=None):
         if values is None:
             values = {}

@@ -1,4 +1,4 @@
-from pyravendb.connection.requests_factory import HttpRequestsFactory
+from pyravendb.connection.requests_handler import HttpRequestsHandler
 from pyravendb.data.indexes import IndexDefinition
 import unittest
 import sys
@@ -6,26 +6,28 @@ import os
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 
-from pyravendb.d_commands import database_commands
 from pyravendb.data.database import DatabaseDocument
+from pyravendb.d_commands.raven_commands import CreateDatabaseCommand, DeleteDatabaseCommand, PutIndexesCommand
 
 
 class TestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.default_url = "http://localhost:8081"
+        cls.default_url = "http://localhost.fiddler:8080"
         cls.default_database = "NorthWindTest"
-        cls.db = database_commands.DatabaseCommands(HttpRequestsFactory(cls.default_url, cls.default_database))
-        cls.db.admin_commands.create_database(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"}))
+        cls.requests_handler = HttpRequestsHandler(cls.default_url, cls.default_database)
+        CreateDatabaseCommand(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"}),
+                              cls.requests_handler).create_request()
+
         cls.index_map = ("from doc in docs "
                          "select new{"
                          "Tag = doc[\"@metadata\"][\"Raven-Entity-Name\"],"
                          "LastModified = (DateTime)doc[\"@metadata\"][\"Last-Modified\"],"
                          "LastModifiedTicks = ((DateTime)doc[\"@metadata\"][\"Last-Modified\"]).Ticks}"
                          )
-        cls.index = IndexDefinition(cls.index_map)
-        cls.db.put_index("Testing", cls.index, True)
+        cls.index = IndexDefinition("Testing", cls.index_map)
+        PutIndexesCommand(cls.requests_handler, cls.index)
 
     @classmethod
     def tearDownClass(cls):
-        cls.db.admin_commands.delete_database("NorthWindTest", True)
+        DeleteDatabaseCommand("NorthWindTest", cls.requests_handler, True)

@@ -65,6 +65,7 @@ class DocumentConvention(object):
         self.failover_behavior = Failover.allow_reads_from_secondaries
         self.default_use_optimistic_concurrency = True
         self.json_default_method = DocumentConvention.json_default
+        self.max_length_of_query_using_get_url = 1024 + 512
         self._system_database = "system"
 
     @staticmethod

@@ -1,7 +1,7 @@
 import unittest
 
 from pyravendb.d_commands import commands_data
-from pyravendb.data.patches import ScriptedPatchRequest
+from pyravendb.data.patches import PatchRequest
 from pyravendb.tests.test_base import TestBase
 
 
@@ -16,7 +16,7 @@ class TestDelete(TestBase):
                                                         document={"Name": "testsDelete", "Category": "testing"},
                                                         metadata={"Raven-Python-Type": "Products"})
         cls.delete_command = commands_data.DeleteCommandData("products/1000")
-        patch = ScriptedPatchRequest("this.Name = 'testing';")
+        patch = PatchRequest("this.Name = 'testing';")
         cls.scripted_patch_command = commands_data.ScriptedPatchCommandData("products/999", patch)
 
     def test_success_one_command(self):

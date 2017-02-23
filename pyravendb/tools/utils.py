@@ -19,7 +19,7 @@ class _DynamicStructure(object):
 class Utils(object):
     @staticmethod
     def empty_etag():
-        return '00000000-0000-0000-0000-000000000000'
+        return 0
 
     @staticmethod
     def quote_key(key):
@@ -46,7 +46,7 @@ class Utils(object):
     def build_path(index_name, query, options):
         if index_name is None:
             raise ValueError("None index_name is not valid")
-        path = "bulk_docs/{0}?".format(Utils.quote_key(index_name) if index_name else "")
+        path = "queries/{0}?".format(Utils.quote_key(index_name) if index_name else "")
         if query is None:
             raise ValueError("None query is not valid")
         if not isinstance(query, IndexQuery):

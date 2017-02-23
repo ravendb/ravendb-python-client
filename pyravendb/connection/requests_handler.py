@@ -17,7 +17,7 @@ from pyravendb.tools.utils import Utils
 from threading import Timer, Lock
 
 
-class HttpRequestsFactory(object):
+class HttpRequestsHandler(object):
     def __init__(self, url, database, convention=None, api_key=None, force_get_topology=False):
         self.url = url
         self._primary_url = url
@@ -30,7 +30,7 @@ class HttpRequestsFactory(object):
         if self.convention is None:
             self.convention = DocumentConvention()
         self.headers = {"Accept": "application/json", "Has-Api-key": 'true' if self.api_key is not None else 'false',
-                        "Raven-Client-Version": "3.0.0.0"}
+                        "Raven-Client-Version": "4.0.0.0"}
         self.replication_topology = IndexQueue()
         self.topology_change_counter = 0
         self.lock = Lock()
@@ -54,11 +54,11 @@ class HttpRequestsFactory(object):
             force_read_from_master = True
             uri = self.convention.system_database
 
-        return self._execute_with_replication(path, method, headers=headers, data=data, admin=admin,
-                                              force_read_from_master=force_read_from_master, uri=uri)
+        return self._execute(path, method, headers=headers, data=data, admin=admin,
+                             force_read_from_master=force_read_from_master, uri=uri)
 
-    def _execute_with_replication(self, path, method, headers, data=None, admin=False,
-                                  force_read_from_master=False, uri="databases"):
+    def _execute(self, path, method, headers, data=None, admin=False,
+                 force_read_from_master=False, uri="databases"):
         second_api_key = None
         while True:
             index = None
@@ -199,6 +199,9 @@ class HttpRequestsFactory(object):
                         self.topology = topology
                         self.update_replication(topology_file)
             elif response.status_code != 400 and response.status_code != 404 and not self.topology:
+                if response.status_code == 500:
+                    raise exceptions.DatabaseDoesNotExistException(
+                        "Database '{0}' was not found".format(self._primary_database))
                 raise exceptions.ErrorResponseException(
                     "Could not connect to the database {0} please check the problem".format(self._primary_database))
         except exceptions.InvalidOperationException:

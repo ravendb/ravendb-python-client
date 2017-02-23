@@ -2,7 +2,7 @@ import unittest
 
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexQuery
-from pyravendb.data.patches import ScriptedPatchRequest
+from pyravendb.data.patches import PatchRequest
 from pyravendb.tests.test_base import TestBase
 
 
@@ -10,7 +10,7 @@ class TestByIndexActions(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestByIndexActions, cls).setUpClass()
-        cls.patch = ScriptedPatchRequest("this.Name = 'testing';")
+        cls.patch = PatchRequest("this.Name = 'testing';")
         cls.db.put("testing/1", {"Name": "test"}, {"Raven-Entity-Name": "Testing"})
 
     def test_update_by_index_success(self):
