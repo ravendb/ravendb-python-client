@@ -13,7 +13,7 @@ class _SaveChangesData(object):
         self.deferred_command_count = deferred_command_count
 
 
-class documentsession(object):
+class DocumentSession(object):
     """
       Implements Unit of Work for accessing the RavenDB server
 

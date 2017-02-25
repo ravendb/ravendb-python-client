@@ -1,30 +1,24 @@
-from pyravendb.store.document_store import documentstore
+from pyravendb.store.document_store import DocumentStore
+from pyravendb.d_commands.commands_data import DeleteCommandData
+from pyravendb.d_commands.raven_commands import CreateDatabaseCommand, PutDocumentCommand, GetDocumentCommand
 from pyravendb.connection.requests_handler import HttpRequestsHandler
+from pyravendb.data.database import DatabaseDocument
 from pyravendb.d_commands.raven_commands import *
 
-
-class Test(object):
-    def __init__(self, Name):
-        self.Id = None
-        self.Name = Name
-
-
-class Person(object):
-    def __init__(self):
-        self.name = "testing"
-        self.Id = None
-
 if __name__ == "__main__":
-    with documentstore(url="http://localhost:8080", database="NorthWind") as store:
+    with DocumentStore("http://localhost.fiddler:8080", "NorthWind") as store:
         store.initialize()
-        # with store.open_session() as session:
-        #     person = Person()
-        #     session.store(person)
-        #     session.save_changes()
-        #     last_document_key = session.advanced.get_document_id(person)
-        request_handler = HttpRequestsHandler("http://localhost:8080", "NorthWind")
-        indexes = GetIndexCommand(None, requests_handler=request_handler).create_request()
-
-        for index in indexes:
-            print 1
-
+        handler = store.get_request_handler()
+        # create_database = CreateDatabaseCommand(DatabaseDocument("NorthWind", {"Raven/DataDir": "test"}))
+        # handler.http_request_handler(dd)
+        store = PutDocumentCommand("tests/2", {"name": "Idan"})
+        handler.http_request_handler(store)
+        store2 = PutDocumentCommand("tests/3", {"name": "ilay"})
+        handler.http_request_handler(store2)
+        get = GetDocumentCommand(["tests/2", "tests/3"])
+        c = handler.http_request_handler(get)
+        if isinstance(c, list):
+            for doc in c:
+                print(doc['name'])
+        else:
+            print(c[0]["name"])
