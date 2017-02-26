@@ -1,7 +1,7 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.data.indexes import FieldIndexing
-from pyravendb.store.document_store import documentstore
+from pyravendb.store.document_store import DocumentStore
 from datetime import datetime
 
 
@@ -50,7 +50,7 @@ class FullTextSearchTest(TestBase):
         cls.db.put("LastFms/3", {"artist": "Willie Bobo", "track_id": "TRAACNS128F14A2DF5", "title": "Spanish Grease",
                                  "datetime_time": datetime.now(), "tags": None},
                    {"Raven-Entity-Name": "LastFms", "Raven-Python-Type": "full_text_search_test.LastFm"})
-        cls.document_store = documentstore(cls.default_url, cls.default_database)
+        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
         LastFmAnalyzed().execute(cls.document_store)
 

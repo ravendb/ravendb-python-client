@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.abspath(__file__ + "/../"))
 
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import documentstore
+from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 import unittest
 
@@ -17,7 +17,7 @@ class TestDelete(TestBase):
         cls.db.put("products/10", {"name": "test"}, {})
         cls.db.put("products/106", {"name": "test"}, {})
         cls.db.put("products/107", {"name": "test"}, {})
-        cls.document_store = documentstore(cls.default_url, cls.default_database)
+        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_delete_with_key_with_save_session(self):

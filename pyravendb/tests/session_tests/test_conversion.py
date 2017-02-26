@@ -1,5 +1,5 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import documentstore
+from pyravendb.store.document_store import DocumentStore
 from datetime import datetime, timedelta
 from pyravendb.tools.utils import Utils
 import unittest
@@ -24,7 +24,7 @@ class TestConversion(TestBase):
                    {"td": Utils.timedelta_to_str(timedelta(minutes=23, seconds=59, milliseconds=254)),
                     "dt": Utils.datetime_to_string(datetime.now())}, {"Raven-Entity-Name": "Times"})
 
-        cls.document_store = documentstore(cls.default_url, cls.default_database)
+        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_load_timedelta_and_datetime(self):

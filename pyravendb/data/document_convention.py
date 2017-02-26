@@ -63,7 +63,7 @@ class DocumentConvention(object):
         # timeout for wait to server in seconds
         self.timeout = 30
         self.failover_behavior = Failover.allow_reads_from_secondaries
-        self.default_use_optimistic_concurrency = True
+        self.default_use_optimistic_concurrency = False
         self.json_default_method = DocumentConvention.json_default
         self.max_length_of_query_using_get_url = 1024 + 512
         self._system_database = "system"
@@ -94,7 +94,7 @@ class DocumentConvention(object):
     def build_default_metadata(entity):
         if entity is None:
             return {}
-        return {"Raven-Entity-Name": DocumentConvention.default_transform_plural(entity.__class__.__name__),
+        return {"@collection": DocumentConvention.default_transform_plural(entity.__class__.__name__),
                 "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
 
     @staticmethod

@@ -1,4 +1,5 @@
-from pyravendb.connection.requests_handler import HttpRequestsHandler
+from pyravendb.connection.requests_executor import RequestsExecutor
+from pyravendb.connection.server_node import ServerNode
 from pyravendb.data.indexes import IndexDefinition
 import unittest
 import sys
@@ -15,9 +16,10 @@ class TestBase(unittest.TestCase):
     def setUpClass(cls):
         cls.default_url = "http://localhost.fiddler:8080"
         cls.default_database = "NorthWindTest"
-        cls.requests_handler = HttpRequestsHandler(cls.default_url, cls.default_database)
-        CreateDatabaseCommand(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"}),
-                              cls.requests_handler).create_request()
+        server_node = ServerNode(cls.default_url, cls.default_database)
+        cls.requests_executor = RequestsExecutor(server_node)
+        cls.requests_executor.execute(
+            CreateDatabaseCommand(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"})))
 
         cls.index_map = ("from doc in docs "
                          "select new{"
@@ -26,8 +28,8 @@ class TestBase(unittest.TestCase):
                          "LastModifiedTicks = ((DateTime)doc[\"@metadata\"][\"Last-Modified\"]).Ticks}"
                          )
         cls.index = IndexDefinition("Testing", cls.index_map)
-        PutIndexesCommand(cls.requests_handler, cls.index)
+        # cls.requests_executor.execute(PutIndexesCommand(cls.index))
 
     @classmethod
     def tearDownClass(cls):
-        DeleteDatabaseCommand("NorthWindTest", cls.requests_handler, True)
+        cls.requests_executor.execute(DeleteDatabaseCommand("NorthWindTest", True))

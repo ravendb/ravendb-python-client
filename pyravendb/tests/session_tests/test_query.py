@@ -1,6 +1,6 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import documentstore
-from pyravendb.store.session_query import QueryOperator
+from pyravendb.store.document_store import DocumentStore
+from pyravendb.data.operations import QueryOperator
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition, SortOptions
 import unittest
@@ -46,7 +46,7 @@ class TestQuery(TestBase):
         cls.db.put("company/1",
                    {"name": "withNesting", "product": {"name": "testing_order", "key": 4, "order": None}},
                    {"Raven-Entity-Name": "Companies"})
-        cls.document_store = documentstore(cls.default_url, cls.default_database)
+        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_where_equal_dynamic_index(self):

@@ -1,4 +1,4 @@
-from enum import Enum
+from pyravendb.d_commands.raven_commands import QueryCommand
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tools.utils import Utils
@@ -8,8 +8,9 @@ import time
 
 
 class Query(object):
-    def __init__(self, session):
+    def __init__(self, session, requests_executor):
         self.session = session
+        self._requests_executor = requests_executor
         self.query_builder = ""
         self.negate = False
         self._sort_hints = set()
@@ -299,12 +300,14 @@ class Query(object):
         start_time = time.time()
         end_time = start_time + conventions.timeout
         while True:
-            response = self.session.database_commands. \
-                query(self.index_name, IndexQuery(self.query_builder, default_operator=self.using_default_operator,
-                                                  sort_hints=self._sort_hints, sort_fields=self._sort_fields,
-                                                  fetch=self.fetch,
-                                                  wait_for_non_stale_results=self.wait_for_non_stale_results),
-                      includes=self.includes)
+            query_command = QueryCommand(self.index_name,
+                                         IndexQuery(self.query_builder, default_operator=self.using_default_operator,
+                                                    sort_hints=self._sort_hints, sort_fields=self._sort_fields,
+                                                    fetch=self.fetch,
+                                                    wait_for_non_stale_results=self.wait_for_non_stale_results),
+                                         includes=self.includes)
+            response = _requests_executor(query_command)
+
             if response["IsStale"] and self.wait_for_non_stale_results:
                 if start_time > end_time:
                     raise ErrorResponseException("The index is still stale after reached the timeout")
@@ -329,8 +332,3 @@ class Query(object):
         if self._with_statistics:
             return results, response
         return results
-
-
-class QueryOperator(Enum):
-    OR = "OR"
-    AND = "AND"

@@ -1,5 +1,5 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import documentstore
+from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 import unittest
 
@@ -15,7 +15,7 @@ class TestSessionStore(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestSessionStore, cls).setUpClass()
-        cls.document_store = documentstore(cls.default_url, cls.default_database)
+        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_store_without_key(self):

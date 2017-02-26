@@ -21,12 +21,8 @@ class PutCommandData(_CommandData):
         self.document = document
 
     def to_json(self):
-        data = {"Method": self._method, "Key": self.key, "Document": self.document,
-                "Metadata": self.metadata, "AdditionalData": self.additionalData}
-        if self.etag is not None:
-            data["Etag"] = self.etag
-
-        return data
+        self.document["@metadata"] = self.metadata
+        return {"Method": self._method, "Key": self.key, "Document": self.document, "Etag": self.etag}
 
 
 class DeleteCommandData(_CommandData):
@@ -36,7 +32,7 @@ class DeleteCommandData(_CommandData):
         self.additionalData = None
 
     def to_json(self):
-        return {"Key": self.key, "Etag": self.etag, "Method": self._method, "AdditionalData": self.additionalData}
+        return {"Key": self.key, "Etag": self.etag, "Method": self._method}
 
 
 class ScriptedPatchCommandData(_CommandData):
@@ -75,7 +71,7 @@ class ScriptedPatchCommandData(_CommandData):
 
     def to_json(self):
         data = {"Key": self.key, "Method": self._method, "Patch": self.scripted_patch.to_json(),
-                "DebugMode": self.debug_Mode, "AdditionalData": self.additionalData, "Metadata": self.metadata}
+                "DebugMode": self.debug_Mode, "Metadata": self.metadata}
         if self.etag is not None:
             data["Etag"] = self.etag
         if self.patch_if_missing is not None:

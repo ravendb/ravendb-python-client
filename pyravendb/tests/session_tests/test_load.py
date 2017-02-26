@@ -1,5 +1,5 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import documentstore
+from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 import unittest
 
@@ -36,7 +36,7 @@ class TestLoad(TestBase):
         cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/101"},
                    {"Raven-Entity-Name": "Orders"})
         cls.db.put("company/1", {"name": "test", "product": {"name": "testing_nested"}}, {})
-        cls.document_store = documentstore(cls.default_url, cls.default_database)
+        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
     def test_load_success(self):

@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 class BulkOperationOption(object):
     """
       :param allow_stale Indicates whether operations are allowed on stale indexes.
@@ -13,3 +16,8 @@ class BulkOperationOption(object):
         self.stale_timeout = stale_timeout
         self.retrieve_details = retrieve_details
         self.max_ops_per_sec = max_ops_per_sec
+
+
+class QueryOperator(Enum):
+    OR = "OR"
+    AND = "AND"

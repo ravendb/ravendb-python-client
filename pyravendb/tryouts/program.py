@@ -1,24 +1,29 @@
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.d_commands.commands_data import DeleteCommandData
 from pyravendb.d_commands.raven_commands import CreateDatabaseCommand, PutDocumentCommand, GetDocumentCommand
-from pyravendb.connection.requests_handler import HttpRequestsHandler
+from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.data.database import DatabaseDocument
 from pyravendb.d_commands.raven_commands import *
+
+
+class Users(object):
+    def __init__(self, Name, Id=None):
+        self.Id = Id
+        self.Name = Name
+
 
 if __name__ == "__main__":
     with DocumentStore("http://localhost.fiddler:8080", "NorthWind") as store:
         store.initialize()
-        handler = store.get_request_handler()
-        # create_database = CreateDatabaseCommand(DatabaseDocument("NorthWind", {"Raven/DataDir": "test"}))
-        # handler.http_request_handler(dd)
-        store = PutDocumentCommand("tests/2", {"name": "Idan"})
-        handler.http_request_handler(store)
-        store2 = PutDocumentCommand("tests/3", {"name": "ilay"})
-        handler.http_request_handler(store2)
-        get = GetDocumentCommand(["tests/2", "tests/3"])
-        c = handler.http_request_handler(get)
-        if isinstance(c, list):
-            for doc in c:
-                print(doc['name'])
-        else:
-            print(c[0]["name"])
+
+        with store.open_session() as session:
+            session.store(Users("Ko", "users/6"))
+            session.save_changes()
+
+        with store.open_session() as session:
+            c = session.load("users/6", object_type=Users)
+            s = session.load("users/6", object_type=Users)
+
+            print(session.advanced.number_of_requests_in_session())
+            c.Name = "Go"
+            session.save_changes()

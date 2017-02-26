@@ -18,7 +18,7 @@ from pyravendb.tools.utils import Utils
 from threading import Timer, Lock
 
 
-class HttpRequestsHandler(object):
+class RequestsExecutor(object):
     def __init__(self, server_node, convention=None, force_get_topology=False):
         self.server_node = server_node
         self._primary_server_node = server_node
@@ -38,12 +38,11 @@ class HttpRequestsHandler(object):
         self.force_get_topology = force_get_topology
         self._token = None
 
-    def http_request_handler(self, raven_command, force_read_from_master=False):
+    def execute(self, raven_command, force_read_from_master=False):
         if not hasattr(raven_command, 'raven_command'):
             raise ValueError("Not a valid command")
 
-        raven_command.create_request()
-        location = "databases"
+        raven_command.create_request(self.server_node)
         if self.force_get_topology:
             self.force_get_topology = False
             self.get_replication_topology()
@@ -53,72 +52,50 @@ class HttpRequestsHandler(object):
 
         if self.server_node.database.lower() == self.convention.system_database:
             force_read_from_master = True
-            location = self.convention.system_database
 
-        return self._execute(raven_command, force_read_from_master=force_read_from_master, location=location)
+        return self._execute(raven_command, force_read_from_master=force_read_from_master)
 
-    def _execute(self, raven_command, force_read_from_master=False, location="databases"):
-        second_api_key = None
+    def _execute(self, raven_command, force_read_from_master=False):
         while True:
-            index = None
-            url = None
             if not force_read_from_master:
-                if raven_command.admin_command:
-                    url = "{0}/admin/{1}".format(self._primary_server_node.url, raven_command.path)
-                    second_api_key = self._primary_server_node.api_key
+                if raven_command.method == "GET":
+                    if (raven_command.url == "replication/topology" or "Hilo" in raven_command.url) \
+                            and not self.primary:
+                        raise exceptions.InvalidOperationException(
+                            "Cant get access to {0} when {1}(primary) is Down".format(raven_command.url,
+                                                                                      self._primary_database))
+                    elif self.convention.failover_behavior == Failover.read_from_all_servers:
+                        with self.lock:
+                            self.request_count += 1
+                            index = self.request_count % (len(self.replication_topology) + 1)
+                        if index != 0 or not self.primary:  # if 0 use the primary
+                            index -= 1
+                            self.server_node = self.replication_topology.peek(index if index > 0 else 0)
                 else:
-                    if raven_command.method == "GET":
-                        if (raven_command.path == "replication/topology" or "Hilo" in raven_command.path) \
-                                and not self.primary:
-                            raise exceptions.InvalidOperationException(
-                                "Cant get access to {0} when {1}(primary) is Down".format(raven_command.path,
-                                                                                          self._primary_database))
-                        elif self.convention.failover_behavior == Failover.read_from_all_servers:
-                            with self.lock:
-                                self.request_count += 1
-                                index = self.request_count % (len(self.replication_topology) + 1)
-                            if index != 0 or not self.primary:  # if 0 use the primary
-                                index -= 1
-                                destination = self.replication_topology.peek(index if index > 0 else 0)
-                                url = "{0}/{1}/{2}/{3}".format(destination["url"], location, destination["database"],
-                                                               raven_command.path)
-                                second_api_key = destination["credentials"].get("api_key", None)
-                        elif not self.primary:
-                            url = "{0}/{1}/{2}/{3}".format(self.url, location, self.database, raven_command.path)
+                    if not self.primary and self.convention.failover_behavior == \
+                            Failover.allow_reads_from_secondaries_and_writes_to_secondaries:
+                        raise exceptions.InvalidOperationException(
+                            "Cant write to server when the primary is down when failover = {0}".format(
+                                self.convention.failover_behavior.name))
 
-                    else:
-                        if not self.primary:
-                            if self.convention.failover_behavior == \
-                                    Failover.allow_reads_from_secondaries_and_writes_to_secondaries:
-                                url = "{0}/{1}/{2}/{3}".format(self.url, location, self.database, raven_command.path)
-                            else:
-                                raise exceptions.InvalidOperationException(
-                                    "Cant write to server when the primary is down when failover = {0}".format(
-                                        self.convention.failover_behavior.name))
-
-            if url is None:
+            if raven_command.url is None:
                 if not self.primary:
                     raise exceptions.InvalidOperationException(
                         "Cant read or write to the master because {0} is down".format(
                             self._primary_server_node.database))
-                url = "{0}/{1}/{2}/{3}".format(self._primary_server_node.url, location,
-                                               self._primary_server_node.database, raven_command.path)
-                if location != "databases":
-                    url = "{0}/{1}".format(self._primary_server_node.url, raven_command.path)
-                second_api_key = self.server_node.api_key
+
             with requests.session() as session:
-                if raven_command.headers is None:
-                    raven_command.headers = {}
                 raven_command.headers.update(self.headers)
                 data = json.dumps(raven_command.data, default=self.convention.json_default_method)
-                response = session.request(raven_command.method, url=url, data=data, headers=raven_command.headers)
+                response = session.request(raven_command.method, url=raven_command.url, data=data,
+                                           headers=raven_command.headers)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
                         oauth_source = response.headers.__getitem__("OAuth-Source")
                     except KeyError:
                         raise exceptions.InvalidOperationException(
                             "Something is not right please check your server settings (do you use the right api_key)")
-                    self.do_auth_request(self.api_key, oauth_source, second_api_key)
+                    self.do_auth_request(self.server_node.api_key, oauth_source)
                     continue
                 if (response.status_code == 503 or response.status_code == 502) and \
                         not self.replication_topology.empty() and not (
@@ -140,10 +117,7 @@ class HttpRequestsHandler(object):
                                 self.is_alive(self.replication_topology.get(index))
                     if self.replication_topology.empty():
                         raise exceptions.ErrorResponseException("Please check your databases")
-                    destination = self.replication_topology.peek()
-                    self.database = destination["database"]
-                    self.url = destination["url"]
-                    second_api_key = destination["credentials"].get("api_key", None)
+                    self.server_node = self.replication_topology.peek()
                     continue
             return raven_command.set_response(response)
 
@@ -176,13 +150,13 @@ class HttpRequestsHandler(object):
             is_alive_timer.start()
 
     def check_database_exists(self, path):
-        return self.http_request_handler(path, "GET", force_read_from_master=True, uri="docs")
+        return self.execute(path, "GET", force_read_from_master=True, uri="docs")
 
     def call_hilo(self, type_tag_name, max_id, etag):
         headers = {"if-None-Match": etag}
         put_url = "docs/Raven%2FHilo%2F{0}".format(type_tag_name)
-        response = self.http_request_handler(put_url, "PUT", data={"Max": max_id},
-                                             headers=headers)
+        response = self.execute(put_url, "PUT", data={"Max": max_id},
+                                headers=headers)
         if response.status_code == 409:
             raise exceptions.FetchConcurrencyException(response.json["Error"])
         if response.status_code != 201:
@@ -197,7 +171,7 @@ class HttpRequestsHandler(object):
     def check_replication_change(self, topology_file):
 
         try:
-            response = self.http_request_handler("replication/topology", "GET")
+            response = self.execute("replication/topology", "GET")
             if response.status_code == 200:
                 topology = response.json()
                 with self.lock:
