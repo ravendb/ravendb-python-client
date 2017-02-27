@@ -1,11 +1,9 @@
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.d_commands import raven_commands
 from pyravendb.connection.server_node import ServerNode
 from pyravendb.data.document_convention import DocumentConvention
-from pyravendb.hilo.hilo_generator import HiloGenerator
+from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
 from pyravendb.store.document_session import DocumentSession
-from pyravendb.tools.utils import Utils
 import uuid
 
 
@@ -23,7 +21,8 @@ class DocumentStore(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        if self.generator is not None:
+            self.generator.return_unused_range()
 
     def get_request_executor(self):
         return self._requests_executor
@@ -34,7 +33,7 @@ class DocumentStore(object):
                 raise exceptions.InvalidOperationException("None database is not valid")
 
             # self._requests_handler.get_replication_topology()
-            # self.generator = HiloGenerator(self.conventions.max_ids_to_catch, self._database_commands)
+            self.generator = MultiDatabaseHiLoKeyGenerator(self)
             self._initialize = True
 
     def _assert_initialize(self):
@@ -51,6 +50,6 @@ class DocumentStore(object):
             requests_executor = RequestsExecutor(self.url, database, self.conventions, force_get_topology=True)
         return DocumentSession(database, self, requests_executor, session_id, force_read_from_master)
 
-    def generate_id(self, entity):
+    def generate_id(self, db_name, entity):
         if self.generator:
-            return self.generator.generate_document_id(entity, self.conventions, self._requests_executor)
+            return self.generator.generate_document_key(db_name, entity)

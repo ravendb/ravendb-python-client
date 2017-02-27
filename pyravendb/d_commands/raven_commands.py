@@ -5,10 +5,11 @@ from pyravendb.data.patches import PatchRequest
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.utils import Utils
+from abc import abstractmethod
 import collections
 
 
-class __RavenCommand(object):
+class RavenCommand(object):
     def __init__(self, url=None, method=None, data=None, headers=None, admin_command=False):
         self.url = url
         self.method = method
@@ -19,9 +20,11 @@ class __RavenCommand(object):
         self.admin_command = admin_command
         self.__raven_command = True
 
+    @abstractmethod
     def create_request(self, server_node):
         raise NotImplementedError
 
+    @abstractmethod
     def set_response(self, response):
         raise NotImplementedError
 
@@ -30,7 +33,7 @@ class __RavenCommand(object):
         return self.__raven_command
 
 
-class GetDocumentCommand(__RavenCommand):
+class GetDocumentCommand(RavenCommand):
     def __init__(self, key_or_keys, includes=None, metadata_only=False, force_read_from_master=False):
         """
         @param key_or_keys: the key of the documents you want to retrieve (key can be a list of ids)
@@ -83,7 +86,7 @@ class GetDocumentCommand(__RavenCommand):
         return None
 
 
-class DeleteDocumentCommand(__RavenCommand):
+class DeleteDocumentCommand(RavenCommand):
     def __init__(self, key, etag=None):
         super(DeleteDocumentCommand, self).__init__(method="DELETE")
         self.key = key
@@ -106,7 +109,7 @@ class DeleteDocumentCommand(__RavenCommand):
             raise exceptions.ErrorResponseException(response.json()["Error"])
 
 
-class PutDocumentCommand(__RavenCommand):
+class PutDocumentCommand(RavenCommand):
     def __init__(self, key, document, etag=None):
         """
         @param key: unique key under which document will be stored
@@ -149,7 +152,7 @@ class PutDocumentCommand(__RavenCommand):
                 "Failed to put document in the database please check the connection to the server")
 
 
-class BatchCommand(__RavenCommand):
+class BatchCommand(RavenCommand):
     def __init__(self, commands_array):
         super(BatchCommand, self).__init__(method="POST")
         self.commands_array = commands_array
@@ -174,7 +177,7 @@ class BatchCommand(__RavenCommand):
             raise exceptions.InvalidOperationException(e.message)
 
 
-class PutIndexesCommand(__RavenCommand):
+class PutIndexesCommand(RavenCommand):
     def __init__(self, *indexes_to_add):
         """
         @param indexesToAdd:List of IndexDefinitions to add
@@ -203,7 +206,7 @@ class PutIndexesCommand(__RavenCommand):
         response.raise_for_status()
 
 
-class GetIndexCommand(__RavenCommand):
+class GetIndexCommand(RavenCommand):
     def __init__(self, index_name, force_read_from_master=False):
         """
        @param index_name: Name of the index you like to get or delete
@@ -225,7 +228,7 @@ class GetIndexCommand(__RavenCommand):
         return response.json()['Results']
 
 
-class DeleteIndexCommand(__RavenCommand):
+class DeleteIndexCommand(RavenCommand):
     def __init__(self, index_name):
         """
         @param index_name: Name of the index you like to get or delete
@@ -245,7 +248,7 @@ class DeleteIndexCommand(__RavenCommand):
         pass
 
 
-class PatchByIndexCommand(__RavenCommand):
+class PatchByIndexCommand(RavenCommand):
     def __init__(self, index_name, query_to_update, patch=None, options=None):
         """
         @param index_name: name of an index to perform a query on
@@ -284,7 +287,7 @@ class PatchByIndexCommand(__RavenCommand):
         return response.json()
 
 
-class DeleteByIndexCommand(__RavenCommand):
+class DeleteByIndexCommand(RavenCommand):
     def __init__(self, index_name, query, options=None):
         """
         @param index_name: name of an index to perform a query on
@@ -314,7 +317,7 @@ class DeleteByIndexCommand(__RavenCommand):
         return response.json()
 
 
-class PatchCommand(__RavenCommand):
+class PatchCommand(RavenCommand):
     def __init__(self, key, patch, etag=None, patch_if_missing=None,
                  skip_patch_if_etag_mismatch=False, return_debug_information=False):
         super(PatchCommand, self).__init__(method="PATCH")
@@ -352,7 +355,7 @@ class PatchCommand(__RavenCommand):
         return None
 
 
-class QueryCommand(__RavenCommand):
+class QueryCommand(RavenCommand):
     def __init__(self, index_name, index_query, includes=None, metadata_only=False, index_entries_only=False,
                  force_read_from_master=False):
         """
@@ -422,7 +425,7 @@ class QueryCommand(__RavenCommand):
         return response
 
 
-class GetStatisticsCommand(__RavenCommand):
+class GetStatisticsCommand(RavenCommand):
     def __init__(self):
         super(GetStatisticsCommand, self).__init__(method="GET")
 
@@ -435,8 +438,21 @@ class GetStatisticsCommand(__RavenCommand):
         return response
 
 
+class GetTopologyCommand(RavenCommand):
+    def __init__(self):
+        super(GetTopologyCommand, self).__init__("GET")
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}//topology?url={2}".format(server_node.url, server_node.database, server_node.url)
+
+    def set_response(self, response):
+        if response.status_code == 200:
+            response = response.json()
+        return response
+
+
 # For Admin use only (create or delete databases)
-class CreateDatabaseCommand(__RavenCommand):
+class CreateDatabaseCommand(RavenCommand):
     def __init__(self, database_document):
         """
         Creates a database
@@ -464,7 +480,7 @@ class CreateDatabaseCommand(__RavenCommand):
         return response
 
 
-class DeleteDatabaseCommand(__RavenCommand):
+class DeleteDatabaseCommand(RavenCommand):
     def __init__(self, name, hard_delete=False):
         """
         delete a database

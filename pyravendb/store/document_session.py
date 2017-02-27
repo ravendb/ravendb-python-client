@@ -96,7 +96,8 @@ class DocumentSession(object):
             ids_in_includes = [key for key in ids_of_not_existing_object if key in self._included_documents_by_key]
             if len(ids_in_includes) > 0:
                 for include in ids_in_includes:
-                    self._convert_and_save_entity(include, self._included_documents_by_key[include], object_type, nested_object_types)
+                    self._convert_and_save_entity(include, self._included_documents_by_key[include], object_type,
+                                                  nested_object_types)
                     self._included_documents_by_key.pop(include)
 
             ids_of_not_existing_object = [key for key in ids_of_not_existing_object if
@@ -239,7 +240,7 @@ class DocumentSession(object):
         self.assert_no_non_unique_instance(entity, entity_id)
 
         if not entity_id:
-            entity_id = self.document_store.generate_id(entity)
+            entity_id = self.document_store.generate_id(self.database, entity)
             GenerateEntityIdOnTheClient.try_set_id_on_entity(entity, entity_id)
 
         for command in self._defer_commands:

@@ -152,16 +152,6 @@ class RequestsExecutor(object):
     def check_database_exists(self, path):
         return self.execute(path, "GET", force_read_from_master=True, uri="docs")
 
-    def call_hilo(self, type_tag_name, max_id, etag):
-        headers = {"if-None-Match": etag}
-        put_url = "docs/Raven%2FHilo%2F{0}".format(type_tag_name)
-        response = self.execute(put_url, "PUT", data={"Max": max_id},
-                                headers=headers)
-        if response.status_code == 409:
-            raise exceptions.FetchConcurrencyException(response.json["Error"])
-        if response.status_code != 201:
-            raise exceptions.ErrorResponseException("Something is wrong with the request")
-
     def update_replication(self, topology_file):
         with open(topology_file, 'w+') as f:
             f.write(json.dumps(self.topology))
@@ -169,7 +159,6 @@ class RequestsExecutor(object):
             self._load_topology()
 
     def check_replication_change(self, topology_file):
-
         try:
             response = self.execute("replication/topology", "GET")
             if response.status_code == 200:
