@@ -5,6 +5,14 @@ from pyravendb.tools.utils import Utils
 from datetime import timedelta
 import sys
 import time
+import re
+
+
+class EscapeQueryOptions(Enum):
+    EscapeAll = 0
+    AllowPostfixWildcard = 1
+    AllowAllWildcards = 2
+    RawQuery = 3
 
 
 class Query(object):
@@ -56,7 +64,20 @@ class Query(object):
             self.fetch = args
         return self
 
-    def _lucene_builder(self, value, action=None):
+    def _lucene_builder(self, value, action=None, escape_query_options=EscapeQueryOptions.EscapeAll):
+
+        if isinstance(value, str):
+            if escape_query_options == EscapeQueryOptions.EscapeAll:
+                value = Utils.escape(value, False, False)
+
+            elif escape_query_options == EscapeQueryOptions.AllowPostfixWildcard:
+                value = Utils.escape(value, False, False)
+            elif escape_query_options == EscapeQueryOptions.AllowAllWildcards:
+                value = Utils.escape(value, False, False)
+                value = re.sub(r'"\\\*(\s|$)"', "*${1}", value)
+            elif escape_query_options == EscapeQueryOptions.RawQuery:
+                value = Utils.escape(value, False, False).replace("\\*", "*")
+
         lucene_text = Utils.to_lucene(value, action=action)
 
         if len(self.query_builder) > 0 and not self.query_builder.endswith(' '):
@@ -70,13 +91,15 @@ class Query(object):
     def __iter__(self):
         return self._execute_query().__iter__()
 
-    def where_equals(self, field_name, value):
+    def where_equals(self, field_name, value, escape_query_options=EscapeQueryOptions.EscapeAll):
         """
         To get all the document that equal to the value in the given field_name
 
         @param field_name:The field name in the index you want to query.
         :type str
         @param value: The value will be the fields value you want to query
+        @param escape_query_options: the way we should escape special characters
+        :type EscapeQueryOptions
         """
         if field_name is None:
             raise ValueError("None field_name is invalid")
@@ -89,7 +112,7 @@ class Query(object):
                         sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
-        lucene_text = self._lucene_builder(value, action="equal")
+        lucene_text = self._lucene_builder(value, action="equal", escape_query_options=escape_query_options)
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
         return self
 
@@ -108,7 +131,7 @@ class Query(object):
                 self.where_equals(field_name, kwargs[field_name])
         return self
 
-    def search(self, field_name, search_terms):
+    def search(self, field_name, search_terms, escape_query_options=EscapeQueryOptions.RawQuery):
         """
         for more complex text searching
 
@@ -116,9 +139,11 @@ class Query(object):
         :type str
         @param search_terms: the terms you want to query
         :type str
+        @param escape_query_options: the way we should escape special characters
+        :type EscapeQueryOptions
         """
         search_terms = Utils.quote_key(str(search_terms))
-        search_terms = self._lucene_builder(search_terms, "search")
+        search_terms = self._lucene_builder(search_terms, "search", escape_query_options)
         self.query_builder += "{0}:{1}".format(field_name, search_terms)
         return self
 
