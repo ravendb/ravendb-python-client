@@ -166,6 +166,8 @@ class Utils(object):
     @staticmethod
     def to_lucene(value, action):
         query_text = ""
+        if isinstance(value, str):
+            value = re.escape(value).replace('\*', '*')
         if action == "in":
             if not value or len(value) == 0:
                 return None

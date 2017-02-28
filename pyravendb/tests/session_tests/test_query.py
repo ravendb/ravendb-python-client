@@ -46,6 +46,7 @@ class TestQuery(TestBase):
         cls.db.put("company/1",
                    {"name": "withNesting", "product": {"name": "testing_order", "key": 4, "order": None}},
                    {"Raven-Entity-Name": "Companies"})
+        cls.db.put("specials/1", {"url": "https://ravendb.net/"})
         cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
@@ -85,6 +86,13 @@ class TestQuery(TestBase):
         with self.document_store.open_session() as session:
             with self.assertRaises(exceptions.ErrorResponseException):
                 list(session.query(index_name="s").where(Tag="Products"))
+
+    def test_query_with_special_characters(self):
+        with self.document_store.open_session() as session:
+            url = "https://ravendb.net/"
+            query_result = list(session.query().where_equals("url", url).select("url"))
+            self.assertTrue(len(query_result) > 0)
+            self.assertTrue(query_result[0].url == url)
 
     def test_query_success_with_where(self):
         with self.document_store.open_session() as session:
@@ -158,6 +166,7 @@ class TestQuery(TestBase):
                     break
 
             self.assertTrue(found_in_all)
+
 
 if __name__ == "__main__":
     unittest.main()
