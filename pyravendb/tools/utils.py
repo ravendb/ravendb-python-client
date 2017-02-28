@@ -166,8 +166,6 @@ class Utils(object):
     @staticmethod
     def to_lucene(value, action):
         query_text = ""
-        if isinstance(value, str):
-            value = re.escape(value).replace('\*', '*')
         if action == "in":
             if not value or len(value) == 0:
                 return None
@@ -281,3 +279,41 @@ class Utils(object):
             if microseconds > 0:
                 timedelta_str += ".{0}".format(microseconds)
         return timedelta_str
+
+    @staticmethod
+    def escape(term, allow_wild_cards, make_phrase):
+        wild_cards = ['-', '&', '|', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', ':', '\\']
+        if not term:
+            return "\"\""
+        start = 0
+        length = len(term)
+        builder = ""
+        if length >= 2 and term[0] == '/' and term[1] == '/':
+            builder += "//"
+            start = 2
+        i = start
+        while i < length:
+            ch = term[i]
+            if ch == '*' or ch == '?':
+                if allow_wild_cards:
+                    i += 1
+                    continue
+
+            if ch in wild_cards:
+                if i > start:
+                    builder += term[start:i - start]
+
+                builder += '\\{0}'.format(ch)
+                start = i + 1
+                i += 1
+                continue
+
+            if ch == ' ' or ch == '\t':
+                if make_phrase:
+                    return "\"{0}\"".format(Utils.escape(term, allow_wild_cards, False))
+
+            i += 1
+        if length > start:
+            builder += term[start: length]
+
+        return builder
