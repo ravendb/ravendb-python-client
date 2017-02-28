@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='pyravendb',
     packages=find_packages(),
-    version='1.3.1.1',
+    version='1.3.1.2',
     description='This is the official python client for RavenDB document database',
     author='Idan Haim Shalom',
     author_email='haimdude@gmail.com',
