@@ -47,6 +47,12 @@ class TestQuery(TestBase):
                    {"name": "withNesting", "product": {"name": "testing_order", "key": 4, "order": None}},
                    {"Raven-Entity-Name": "Companies"})
         cls.db.put("specials/1", {"url": "https://ravendb.net/"})
+        cls.db.put("specials/2",
+                   {"url": "http://www.example.com/ebx/LinkResolverServlet?classofcontent=Standard&id=63935",
+                    "date": "2017.03.05T00:00:00.000"})
+        cls.db.put("specials/3",
+                   {"wild_cards": "%~#+!$,;'*[]?*",
+                    "date": "2017.03.05T00:00:01.000"})
         cls.document_store = documentstore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
 
@@ -93,6 +99,21 @@ class TestQuery(TestBase):
             query_result = list(session.query().where_equals("url", url).select("url"))
             self.assertTrue(len(query_result) > 0)
             self.assertTrue(query_result[0].url == url)
+
+    def test_query_with_wild_cards_and_select(self):
+        with self.document_store.open_session() as session:
+            url = "http://www.example.com/ebx/LinkResolverServlet?classofcontent=Standard&id=63935"
+            query_result = list(session.query().where_equals("url", url).select("date"))
+            self.assertTrue(len(query_result) > 0)
+            self.assertIsNotNone(query_result[0].date)
+            self.assertFalse(hasattr(query_result[0], "url"))
+
+    def test_query_with_only_wild_cards(self):
+        with self.document_store.open_session() as session:
+            wild_cards = "%~#+!$,;'*[]?*"
+            query_result = list(session.query().where_equals("wild_cards", wild_cards))
+            self.assertTrue(len(query_result) > 0)
+            self.assertIsNotNone(query_result[0].wild_cards)
 
     def test_query_success_with_where(self):
         with self.document_store.open_session() as session:
