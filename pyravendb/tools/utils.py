@@ -23,13 +23,12 @@ class Utils(object):
 
     @staticmethod
     def quote_key(key):
-        reserved = '%:=&?~#+!$,;\'*[]'
         if key:
             # To be able to work on python 2.x and 3.x
             if sys.version_info.major > 2:
-                return urllib.parse.quote(key, safe=reserved)
+                return urllib.parse.quote(key)
             else:
-                return urllib.quote(key, safe=reserved)
+                return urllib.quote(key)
         else:
             return ''
 
@@ -282,7 +281,7 @@ class Utils(object):
 
     @staticmethod
     def escape(term, allow_wild_cards, make_phrase):
-        wild_cards = ['-', '&', '|', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', ':', '\\']
+        wild_cards = ['-', '&', '|', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', ':', '\\', '?', '*']
         if not term:
             return "\"\""
         start = 0
@@ -301,7 +300,7 @@ class Utils(object):
 
             if ch in wild_cards:
                 if i > start:
-                    builder += term[start:i - start]
+                    builder += term[start:i]
 
                 builder += '\\{0}'.format(ch)
                 start = i + 1

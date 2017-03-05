@@ -270,7 +270,7 @@ class Query(object):
         if len(self.query_builder) > 0:
             self.query_builder += ' '
         self.query_builder += '('
-        self.where_equals(field_name, '*').and_also().add_not().where_equals(field_name, None)
+        self.where_equals(field_name, '*', escape_query_options=EscapeQueryOptions.RawQuery).and_also().add_not().where_equals(field_name, None)
         self.query_builder += ')'
         return self
 
@@ -321,8 +321,7 @@ class Query(object):
     def _execute_query(self):
         self.session.increment_requests_count()
         conventions = self.session.conventions
-        start_time = time.time()
-        end_time = start_time + conventions.timeout
+        end_time = time.time() + conventions.timeout
         while True:
             response = self.session.database_commands. \
                 query(self.index_name, IndexQuery(self.query_builder, default_operator=self.using_default_operator,
@@ -331,7 +330,7 @@ class Query(object):
                                                   wait_for_non_stale_results=self.wait_for_non_stale_results),
                       includes=self.includes)
             if response["IsStale"] and self.wait_for_non_stale_results:
-                if start_time > end_time:
+                if time.time() > end_time:
                     raise ErrorResponseException("The index is still stale after reached the timeout")
                     time.sleep(0.1)
                 continue
