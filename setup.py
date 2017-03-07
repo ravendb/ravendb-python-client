@@ -8,7 +8,7 @@ setup(
     author='Idan Haim Shalom',
     author_email='haimdude@gmail.com',
     url='https://github.com/IdanHaim/RavenDB-Python-Client',
-    license='GNU',
+    license='MIT',
     keywords='pyravendb',
     install_requires=
     [
