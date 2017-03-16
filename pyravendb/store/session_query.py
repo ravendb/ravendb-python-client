@@ -3,8 +3,16 @@ from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
-import sys
+from enum import Enum
 import time
+import re
+
+
+class EscapeQueryOptions(Enum):
+    EscapeAll = 0
+    AllowPostfixWildcard = 1
+    AllowAllWildcards = 2
+    RawQuery = 3
 
 
 class Query(object):
@@ -57,7 +65,20 @@ class Query(object):
             self.fetch = args
         return self
 
-    def _lucene_builder(self, value, action=None):
+    def _lucene_builder(self, value, action=None, escape_query_options=EscapeQueryOptions.EscapeAll):
+
+        if isinstance(value, str):
+            if escape_query_options == EscapeQueryOptions.EscapeAll:
+                value = Utils.escape(value, False, False)
+
+            elif escape_query_options == EscapeQueryOptions.AllowPostfixWildcard:
+                value = Utils.escape(value, False, False)
+            elif escape_query_options == EscapeQueryOptions.AllowAllWildcards:
+                value = Utils.escape(value, False, False)
+                value = re.sub(r'"\\\*(\s|$)"', "*${1}", value)
+            elif escape_query_options == EscapeQueryOptions.RawQuery:
+                value = Utils.escape(value, False, False).replace("\\*", "*")
+
         lucene_text = Utils.to_lucene(value, action=action)
 
         if len(self.query_builder) > 0 and not self.query_builder.endswith(' '):
@@ -71,26 +92,20 @@ class Query(object):
     def __iter__(self):
         return self._execute_query().__iter__()
 
-    def where_equals(self, field_name, value):
+    def where_equals(self, field_name, value, escape_query_options=EscapeQueryOptions.EscapeAll):
         """
         To get all the document that equal to the value in the given field_name
 
         @param field_name:The field name in the index you want to query.
         :type str
         @param value: The value will be the fields value you want to query
+        @param escape_query_options: the way we should escape special characters
+        :type EscapeQueryOptions
         """
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        if value is not None and not isinstance(value, str) and field_name is not None:
-            sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
-            if sort_hint:
-                if sys.version_info.major > 2:
-                    if value > sys.maxsize:
-                        sort_hint = self.session.conventions.get_default_sort_option("long")
-                self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
-
-        lucene_text = self._lucene_builder(value, action="equal")
+        lucene_text = self._lucene_builder(value, action="equal", escape_query_options=escape_query_options)
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
         return self
 
@@ -109,18 +124,27 @@ class Query(object):
                 self.where_equals(field_name, kwargs[field_name])
         return self
 
-    def search(self, field_name, search_terms):
+    def search(self, field_name, search_terms, escape_query_options=EscapeQueryOptions.RawQuery, boost=1):
         """
         for more complex text searching
 
         @param field_name:The field name in the index you want to query.
         :type str
-        @param search_terms: the terms you want to query
+        @param search_terms: The terms you want to query
         :type str
+        @param escape_query_options: The way we should escape special characters
+        :type EscapeQueryOptions
+        @param boost: This feature gives user the ability to manually tune the relevance level of matching documents
+        :type numeric
         """
+        if boost < 0:
+            raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
+
         search_terms = Utils.quote_key(str(search_terms))
-        search_terms = self._lucene_builder(search_terms, "search")
+        search_terms = self._lucene_builder(search_terms, "search", escape_query_options)
         self.query_builder += "{0}:{1}".format(field_name, search_terms)
+        if boost != 1:
+            self.query_builder += "^{0}".format(boost)
         return self
 
     def where_ends_with(self, field_name, value):
@@ -136,13 +160,7 @@ class Query(object):
             raise ValueError("None field_name is invalid")
 
         if value is not None and not isinstance(value, str) and field_name is not None:
-            sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
-            if sort_hint:
-                field_name = "{0}_Range".format(field_name)
-                if sys.version_info.major > 2:
-                    if value > sys.maxsize:
-                        sort_hint = self.session.conventions.get_default_sort_option("long")
-                self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
+            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
 
         lucene_text = self._lucene_builder(value, action="end_with")
         self.query_builder += "{0}:*{1}".format(field_name, lucene_text)
@@ -161,13 +179,7 @@ class Query(object):
             raise ValueError("None field_name is invalid")
 
         if value is not None and not isinstance(value, str) and field_name is not None:
-            sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
-            if sort_hint:
-                field_name = "{0}_Range".format(field_name)
-                if sys.version_info.major > 2:
-                    if value > sys.maxsize:
-                        sort_hint = self.session.conventions.get_default_sort_option("long")
-                self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
+            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
 
         lucene_text = self._lucene_builder(value, action="end_with")
         self.query_builder += "{0}:{1}*".format(field_name, lucene_text)
@@ -199,13 +211,7 @@ class Query(object):
 
         value = start or end
         if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
-            sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
-            if sort_hint:
-                field_name = "{0}_Range".format(field_name)
-                if sys.version_info.major > 2:
-                    if value > sys.maxsize:
-                        sort_hint = self.session.conventions.get_default_sort_option("long")
-                self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
+            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
 
         lucene_text = self._lucene_builder([start, end], action="between")
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
@@ -219,13 +225,7 @@ class Query(object):
 
         value = start or end
         if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
-            sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
-            if sort_hint:
-                field_name = "{0}_Range".format(field_name)
-                if sys.version_info.major > 2:
-                    if value > sys.maxsize:
-                        sort_hint = self.session.conventions.get_default_sort_option("long")
-                self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
+            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
         lucene_text = self._lucene_builder([start, end], action="equal_between")
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
         return self
@@ -281,35 +281,23 @@ class Query(object):
         self.negate = True
         return self
 
-    def boost(self, value):
-        if len(self.query_builder) < 1:
-            raise InvalidOperationException("Missing where clause")
-        if value < 0:
-            raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
-        if value != 1:
-            # 1 is the default
-            if self.query_builder.endswith(')'):
-                self.query_builder = "{0}^{1})".format(self.query_builder[:len(self.query_builder) - 1], value)
-            else:
-                self.query_builder += "^{0}".format(value)
-        return self
-
     def _execute_query(self):
         self.session.increment_requests_count()
         conventions = self.session.conventions
-        start_time = time.time()
-        end_time = start_time + conventions.timeout
+        end_time = time.time() + conventions.timeout
         while True:
             query_command = QueryCommand(self.index_name,
                                          IndexQuery(self.query_builder, default_operator=self.using_default_operator,
                                                     sort_hints=self._sort_hints, sort_fields=self._sort_fields,
                                                     fetch=self.fetch,
                                                     wait_for_non_stale_results=self.wait_for_non_stale_results),
-                                         includes=self.includes)
-            response = _requests_executor(query_command)
+                                         conventions=conventions, includes=self.includes)
+            response = self._requests_executor.execute(query_command)
+            if response is None:
+                return []
 
             if response["IsStale"] and self.wait_for_non_stale_results:
-                if start_time > end_time:
+                if time.time() > end_time:
                     raise ErrorResponseException("The index is still stale after reached the timeout")
                     time.sleep(0.1)
                 continue

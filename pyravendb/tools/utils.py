@@ -22,8 +22,10 @@ class Utils(object):
         return 0
 
     @staticmethod
-    def quote_key(key):
+    def quote_key(key, reserved_slash=False):
         reserved = '%:=&?~#+!$,;\'*[]'
+        if reserved_slash:
+            reserved += '/'
         if key:
             # To be able to work on python 2.x and 3.x
             if sys.version_info.major > 2:
@@ -46,7 +48,7 @@ class Utils(object):
     def build_path(index_name, query, options):
         if index_name is None:
             raise ValueError("None index_name is not valid")
-        path = "queries/{0}?".format(Utils.quote_key(index_name) if index_name else "")
+        path = "queries/{0}?".format(Utils.quote_key(index_name, True) if index_name else "")
         if query is None:
             raise ValueError("None query is not valid")
         if not isinstance(query, IndexQuery):
@@ -210,15 +212,6 @@ class Utils(object):
         elif not value:
             value = "[[EMPTY_STRING]]"
 
-        python_version = sys.version_info.major
-
-        if (python_version > 2 and value > sys.maxsize and isinstance(value, int)) \
-                or python_version <= 2 and isinstance(value, long):
-            value = "Lx{0}".format(int(value))
-
-        elif isinstance(value, float) or isinstance(value, int):
-            value = "Dx{0}".format(value)
-
         return value
 
     @staticmethod
@@ -237,6 +230,8 @@ class Utils(object):
     @staticmethod
     def string_to_datetime(datetime_str):
         try:
+            if datetime_str.endswith('Z'):
+                datetime_str = datetime_str[:-1]
             datetime_s = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%f")
         except ValueError:
             datetime_s = datetime.strptime(datetime_str[:-1], "%Y-%m-%dT%H:%M:%S.%f")
@@ -279,3 +274,39 @@ class Utils(object):
             if microseconds > 0:
                 timedelta_str += ".{0}".format(microseconds)
         return timedelta_str
+
+    @staticmethod
+    def escape(term, allow_wild_cards, make_phrase):
+        wild_cards = ['-', '&', '|', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', ':', '\\']
+        if not term:
+            return "\"\""
+        start = 0
+        length = len(term)
+        buffer = ""
+        if length >= 2 and term[0] == '/' and term[1] == '/':
+            buffer += "//"
+            start = 2
+        i = start
+        while i < length:
+            ch = term[i]
+            if ch == '*' or ch == '?':
+                if allow_wild_cards:
+                    i += 1
+                    continue
+
+            if ch in wild_cards:
+                if i > start:
+                    buffer += term[start:i - start]
+
+                buffer += '\\{0}'.format(ch)
+                start = i + 1
+
+            elif ch == ' ' or ch == '\t':
+                if make_phrase:
+                    return "\"{0}\"".format(Utils.escape(term, allow_wild_cards, False))
+
+            i += 1
+        if length > start:
+            buffer += term[start: length - start]
+
+        return buffer

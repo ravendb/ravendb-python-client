@@ -1,11 +1,10 @@
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.connection.server_node import ServerNode
 from pyravendb.data.document_convention import DocumentConvention
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
 from pyravendb.store.document_session import DocumentSession
 import uuid
-
+import os
 
 class DocumentStore(object):
     def __init__(self, url=None, database=None, api_key=None):
@@ -13,9 +12,10 @@ class DocumentStore(object):
         self.database = database
         self.conventions = DocumentConvention()
         self.api_key = api_key
-        self._requests_executor = RequestsExecutor(ServerNode(url, database), self.conventions)
+        self._request_executors = {}
         self._initialize = False
         self.generator = None
+        print(os.getcwd())
 
     def __enter__(self):
         return self
@@ -24,8 +24,13 @@ class DocumentStore(object):
         if self.generator is not None:
             self.generator.return_unused_range()
 
-    def get_request_executor(self):
-        return self._requests_executor
+    def get_request_executor(self, db_name=None):
+        if db_name is None:
+            db_name = self.database
+
+        if db_name not in self._request_executors:
+            self._request_executors[db_name] = RequestsExecutor(self.url, db_name, self.api_key, self.conventions)
+        return self._request_executors[db_name]
 
     def initialize(self):
         if not self._initialize:
@@ -45,9 +50,7 @@ class DocumentStore(object):
     def open_session(self, database=None, force_read_from_master=False):
         self._assert_initialize()
         session_id = uuid.uuid4()
-        requests_executor = self.get_request_executor()
-        if database is not None:
-            requests_executor = RequestsExecutor(self.url, database, self.conventions, force_get_topology=True)
+        requests_executor = self.get_request_executor(database)
         return DocumentSession(database, self, requests_executor, session_id, force_read_from_master)
 
     def generate_id(self, db_name, entity):

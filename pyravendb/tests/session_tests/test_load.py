@@ -1,16 +1,19 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import DocumentStore
+from pyravendb.d_commands.raven_commands import PutDocumentCommand
 from pyravendb.custom_exceptions import exceptions
 import unittest
 
 
 class Product(object):
-    def __init__(self, name):
+    def __init__(self, Id=None, name=""):
+        self.Id = Id
         self.name = name
 
 
 class Company(object):
-    def __init__(self, name, product):
+    def __init__(self, Id=None, name="", product=None):
+        self.Id = Id
         self.name = name
         self.product = product
 
@@ -26,18 +29,28 @@ class Time(object):
         self.td = td
 
 
+class Order(object):
+    def __init__(self, Id=None, name="", key=None, product_id=None):
+        self.Id = Id
+        self.name = name
+        self.key = key
+        self.product_id = product_id
+
+
 class TestLoad(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestLoad, cls).setUpClass()
-        cls.db.put("products/101", {"name": "test"},
-                   {"Raven-Python-Type": Product.__module__+".Product"})
-        cls.db.put("products/10", {"name": "test"}, {})
-        cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/101"},
-                   {"Raven-Entity-Name": "Orders"})
-        cls.db.put("company/1", {"name": "test", "product": {"name": "testing_nested"}}, {})
+
         cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
+
+        with cls.document_store.open_session() as session:
+            session.store(Product("products/101", "test"))
+            session.store(Product("products/10", "test"))
+            session.store(Order("orders/105", "testing_order", 92, "products/101"))
+            session.store(Company("company/1", "test", Product(name="testing_nested")))
+            session.save_changes()
 
     def test_load_success(self):
         with self.document_store.open_session() as session:
@@ -82,7 +95,7 @@ class TestLoad(TestBase):
 
     def test_load_with_include(self):
         with self.document_store.open_session() as session:
-            session.load("orders/105", includes="product")
+            session.load("orders/105", includes="product_id")
             session.load("products/101")
         self.assertEqual(session.number_of_requests_in_session, 1)
 

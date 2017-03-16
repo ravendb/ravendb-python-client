@@ -1,25 +1,34 @@
+from datetime import timedelta
 from enum import Enum
 
 
 class IndexLockMode(Enum):
-    Unlock = 0
-    LockedIgnore = 1
-    LockedError = 2
-    SideBySide = 3
+    unlock = "Unlock"
+    locked_ignore = "LockedIgnore"
+    locked_error = "LockedError"
+    side_by_side = "SideBySide"
 
     def __str__(self):
-        return self.name
+        return self.value
 
 
-# For server
+class IndexPriority(Enum):
+    low = "Low"
+    normal = "Normal"
+    high = "High"
+
+    def __str__(self):
+        return self.value
+
+
+# The sort options to use for a particular field
 class SortOptions(Enum):
-    # Sort using term values as encoded Floats.  Sort values are Float and
-    # lower values are at the front.
-    long = "Long"
-    # Sort using term values as encoded Doubles.
-    # Sort values are Double and lower values are at the front.
-    float = "Double"
-    custom = "Custom"
+    # No sort options
+    none = "None"
+    # Sort using term values as Strings. Sort values are str and lower values are at the front.
+    str = "String"
+    # Sort using term values as encoded Doubles and Longs. Sort values are float or longs and lower values are at the front.
+    numeric = "Numeric"
 
     def __str__(self):
         return self.value
@@ -32,13 +41,44 @@ class FieldIndexing(Enum):
     analyzed = "Analyzed"
     # Index the field's value without using an Analyzer, so it can be searched.
     not_analyzed = "NotAnalyzed"
+    # Index this field using the default internal analyzer: LowerCaseKeywordAnalyzer
+    default = "Default"
+
+    def __str__(self):
+        return self.value
+
+
+class FieldTermVector(Enum):
+    # Do not store term vectors
+    no = "No"
+    # Store the term vectors of each document.
+    # A term vector is a list of the document's terms and their number of occurrences in that document.
+    yes = "Yes"
+    # store the term vector + token position information
+    with_positions = "WithPositions"
+    # Store the term vector + Token offset information
+    with_offsets = "WithOffsets"
+    # Store the term vector + Token position and offset information
+    with_positions_and_offsets = "WithPositionsAndOffsets"
+
+    def __str__(self):
+        return self.value
+
+
+class FieldStorage(Enum):
+    # Store the original field value in the index.
+    # This is useful for short texts like a document's title which should be displayed with the results.
+    # The value is stored in its original form, i.e. no analyzer is used before it is stored.
+    yes = "Yes"
+    # Do not store the field value in the index.
+    no = "No"
 
     def __str__(self):
         return self.value
 
 
 class IndexDefinition(object):
-    def __init__(self, name, index_map, **kwargs):
+    def __init__(self, name, index_map, configuration=None, **kwargs):
         """
         @param name: The name of the index
         :type str
@@ -48,34 +88,28 @@ class IndexDefinition(object):
         :type kwargs
         """
         self.name = name
+        self.configuration = configuration if configuration is not None else {}
         self.reduce = kwargs.get("reduce", None)
-        self.analyzers = kwargs.get("analyzers", {})
-        self.disable_in_memory_indexing = kwargs.get("disable_in_memory_indexing", False)
-        self.fields = kwargs.get("fields", [])
+
         self.index_id = kwargs.get("index_id", 0)
-        self.indexes = kwargs.get("indexes", {})
-        self.internal_fields_mapping = kwargs.get("internal_fields_mapping", {})
-        self._is_compiled = False
-        self.is_side_by_side_index = kwargs.get("is_side_by_side_index", False)
         self.is_test_index = kwargs.get("is_test_index", False)
-        self.lock_mod = kwargs.get("lock_mod", IndexLockMode.Unlock)
-        self.max_index_outputs_per_document = kwargs.get("max_index_outputs_per_document", None)
-        self.sort_options = kwargs.get("sort_options", {})
-        self.spatial_indexes = kwargs.get("spatial_indexes", {})
-        self.stores = kwargs.get("stores", {})
-        self.suggestions = kwargs.get("suggestions", {})
-        self.term_vectors = kwargs.get("term_vectors", {})
+        self.lock_mod = kwargs.get("lock_mod", None)
+        self.priority = kwargs.get("priority", None)
         self.maps = (index_map,) if isinstance(index_map, str) else tuple(set(index_map, ))
+
+        # fields is a key value dict. the key is the name of the field and the value is IndexFieldOptions
+        self.fields = kwargs.get("fields", {})
 
     @property
     def type(self):
+        value = "Map"
         if self.name and self.name.startswith('Auto/'):
-            return "Auto"
-        if self._is_compiled:
-            return "Compiled"
-        if self.is_map_reduce:
+            value = "AutoMap"
+            if self.reduce:
+                value += "Reduce"
+        elif self.reduce:
             return "MapReduce"
-        return "Map"
+        return value
 
     @property
     def is_map_reduce(self):
@@ -94,18 +128,52 @@ class IndexDefinition(object):
         self.maps.add(value)
 
     def to_json(self):
-        return {"Analyzers": self.analyzers, "DisableInMemoryIndexing": self.disable_in_memory_indexing,
-                "Fields": self.fields, "Indexes": {key: str(self.indexes[key]) for key in self.indexes},
+        return {"Configuration": self.configuration,
+                "Fields": {key: self.fields[key].to_json() for key in self.fields} if len(
+                    self.fields) > 0 else self.fields,
                 "IndexId": self.index_id,
-                "InternalFieldsMapping": self.internal_fields_mapping, "IsCompiled": self._is_compiled,
-                "IsMapReduce": self.is_map_reduce, "IsSideBySideIndex": self.is_side_by_side_index,
-                "IsTestIndex": self.is_test_index, "LockMode": str(self.lock_mod), "Map": self.map,
+                "IsTestIndex": self.is_test_index,
+                "LockMode": str(self.lock_mod) if self.lock_mod else None,
                 "Maps": self.maps,
-                "MaxIndexOutputsPerDocument": self.max_index_outputs_per_document, "Name": self.name,
-                "Reduce": self.reduce, "SortOptions": {key: str(self.sort_options[key]) for key in self.sort_options},
-                "SpatialIndexes": self.spatial_indexes,
-                "Stores": self.stores, "Suggestions": self.suggestions, "TermVectors": self.term_vectors,
+                "Name": self.name,
+                "Reduce": self.reduce,
+                "OutputReduceToCollection": None,
+                "Priority": str(self.priority) if self.priority else None,
                 "Type": self.type}
+
+
+class IndexFieldOptions(object):
+    def __init__(self, sort_options=None, indexing=None, storage=None, suggestions=None, term_vector=None,
+                 analyzer=None):
+        """
+        @param sort_options: Sort options to use for a particular field
+        :type SortOptions
+        @param indexing: Options for indexing a field
+        :type FieldIndexing
+        @param storage: Specifies whether and how a field should be stored
+        :type FieldStorage
+        @param suggestions: If to produce a suggestions in query
+        :type bool
+        @param term_vector: Specifies whether to include term vectors for a field
+        :type FieldTermVector
+        @param analyzer: To make an entity property indexed using a specific Analyzer,
+        :type str
+        """
+        self.sort_options = sort_options
+        self.indexing = indexing
+        self.storage = storage
+        self.suggestions = suggestions
+        self.term_vector = term_vector
+        self.analyzer = analyzer
+
+    def to_json(self):
+        return {"Analyzer": self.analyzer,
+                "Indexing": str(self.indexing) if self.indexing else None,
+                "Sort": str(self.sort_options) if self.sort_options else None,
+                "Spatial": None,
+                "Storage": str(self.storage) if self.storage else None,
+                "Suggestions": self.suggestions,
+                "TermVector": str(self.term_vector) if self.term_vector else None}
 
 
 class IndexQuery(object):
@@ -132,6 +200,9 @@ class IndexQuery(object):
         self.sort_fields = kwargs.get("sort_fields", {})
         self.fetch = kwargs.get("fetch", [])
         self.wait_for_non_stale_results = kwargs.get("wait_for_non_stale_results", False)
+        self.wait_for_non_stale_results_timeout = kwargs.get("wait_for_non_stale_results_timeout", None)
+        if self.wait_for_non_stale_results and not self.wait_for_non_stale_results_timeout:
+            self.wait_for_non_stale_results_timeout = timedelta(minutes=15)
 
     @property
     def page_size(self):
@@ -141,3 +212,8 @@ class IndexQuery(object):
     def page_size(self, value):
         self._page_size = value
         self.__page_size_set = True
+
+
+class QueryOperator(Enum):
+    OR = "OR"
+    AND = "AND"

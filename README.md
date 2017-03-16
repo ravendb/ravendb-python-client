@@ -210,32 +210,3 @@ Replication works using plain HTTP requests to replicate all changes from one se
 	store.conventions.failover_behavior = document_convention.Failover.fail_immediately
 	store.initialize()
 	```
-	
-##### API Key authentication
-PyRavenDB also supports API Keys authentication.</br>
-The ApiKey is a string in format apiKeyName/apiKeySecret.</br>
-To authenticate the user by using API keys we need to create a document with Raven/ApiKeys/apiKeyName as a key and a dict  as a content on the system database with the following structure:
-* <B>Name</B> : apiKeyName
-* <B>Secret</B> : ThisIsMySecret
-* <B>Enabled:</B> True or False
-* <B>Databases</B> = A list with one or several dicts with the following structure:
-	* <B>Admin</B>: True or False (False as a default, not a must)
-	* <B>TenantId</B>: The database Id (* for all, must)
-	* <B>ReadOnly</B>: True or False (False as a default, not a must)
-
-First we open a store to the system database (system database must be declared explicitly) and then use `database_commands.put()` to put the document into the system database:
-```
-with document_store.documentstore(url="http://localhost:8080", database = "system") as store:
-	store.initialize()
-    store.database_commands.put("Raven/ApiKeys/sample", {"Name": "sample", "Secret": "ThisIsMySecret", 
-    							"Enabled": True, "Databases":[{"TenantId": "*"}, {"TenantId": "<system>","ReadOnly": True}]})
-
-```
-
-Now, to perform any actions against specified database , we need to provide the API key</br>
-(in our example it will be `"sample/ThisIsMySecret"`).
-
-```
-store = document_store.documentstore(url="http://localhost:8080", database = "PyRavenDB", api_key = "sample/ThisIsMySecret")
-store.initialize()
-```

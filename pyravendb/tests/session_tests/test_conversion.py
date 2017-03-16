@@ -16,16 +16,15 @@ class TestConversion(TestBase):
     def setUpClass(cls):
         super(TestConversion, cls).setUpClass()
 
-        cls.db.put("times/3",
-                   {"td": Utils.timedelta_to_str(timedelta(days=20, minutes=23, seconds=59, milliseconds=254)),
-                    "dt": Utils.datetime_to_string(datetime.now())}, {"Raven-Entity-Name": "Times"})
-
-        cls.db.put("times/4",
-                   {"td": Utils.timedelta_to_str(timedelta(minutes=23, seconds=59, milliseconds=254)),
-                    "dt": Utils.datetime_to_string(datetime.now())}, {"Raven-Entity-Name": "Times"})
-
         cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
+
+        with cls.document_store.open_session() as session:
+            session.store(Time(Utils.timedelta_to_str(timedelta(days=20, minutes=23, seconds=59, milliseconds=254)),
+                                                      Utils.datetime_to_string(datetime.now())), "times/3")
+            session.store(Time(Utils.timedelta_to_str(timedelta(minutes=23, seconds=59, milliseconds=254)),
+                                                      Utils.datetime_to_string(datetime.now())), "times/4")
+            session.save_changes()
 
     def test_load_timedelta_and_datetime(self):
         with self.document_store.open_session() as session:

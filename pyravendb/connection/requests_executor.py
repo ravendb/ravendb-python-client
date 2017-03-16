@@ -1,132 +1,147 @@
-from pyravendb.data.document_convention import DocumentConvention, Failover
-from pyravendb.tools.indexqueue import IndexQueue
+from pyravendb.data.document_convention import ReadBehavior, WriteBehavior
+from pyravendb.d_commands.raven_commands import GetTopologyCommand
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Util.number import bytes_to_long
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.pkcs7 import PKCS7Encoder
-from pyravendb.connection.server_node import ServerNode
-import tempfile
+from pyravendb.connection.requests_helpers import ServerNode, Topology
+from pyravendb.tools.utils import Utils
+from threading import Timer, Lock
+import logging
+
+logging.basicConfig(filename='info.log', level=logging.DEBUG)
+log = logging.getLogger()
+import time
 import requests
 import sys
 import json
 import hashlib
 import base64
 import os
-from pyravendb.tools.utils import Utils
-from threading import Timer, Lock
 
 
 class RequestsExecutor(object):
-    def __init__(self, server_node, convention=None, force_get_topology=False):
-        self.server_node = server_node
-        self._primary_server_node = server_node
+    def __init__(self, url, database, api_key, convention):
+        self._api_key = api_key
+        server_node = ServerNode(url, database, api_key)
+        if sys.version_info.major > 2:
+            maxint = sys.maxsize
+        else:
+            maxint = sys.maxint
+        self._topology = Topology(etag=-maxint - 1, leader_node=server_node, read_behavior=ReadBehavior.leader_only,
+                                  write_behavior=WriteBehavior.leader_only)
+
         self.primary = False
+        self.first_time_try_load_from_topology_cache = True
         self.version_info = sys.version_info.major
-        self.convention = convention
-        if self.convention is None:
-            self.convention = DocumentConvention()
         self.headers = {"Accept": "application/json",
-                        "Has-Api-key": 'true' if self.server_node.api_key is not None else 'false',
+                        "Has-Api-key": 'true' if self._api_key is not None else 'false',
                         "Raven-Client-Version": "4.0.0.0"}
-        self.replication_topology = IndexQueue()
         self.topology_change_counter = 0
         self.lock = Lock()
-        self.topology = None
+        self.update_failing_node_status_lock = Lock()
         self.request_count = 0
-        self.force_get_topology = force_get_topology
         self._token = None
+        self.convention = convention
 
-    def execute(self, raven_command, force_read_from_master=False):
+        failing_nodes_timer = Timer(60, self.update_failing_nodes_status)
+        failing_nodes_timer.daemon = True
+        failing_nodes_timer.start()
+
+        self.hash_name = hashlib.md5(
+            "{0}{1}".format(self._topology.leader_node.url, self._topology.leader_node.database).encode(
+                'utf-8')).hexdigest()
+        self.topology_file = "{0}\{1}.raven-topology".format(os.getcwd(), self.hash_name)
+
+        try:
+            with open(self.topology_file, 'r') as f:
+                replication_topology = json.loads(f.read())
+                cache_topology = self.convert_json_topology_to_entity(replication_topology)
+                if cache_topology.etag > self._topology.etag:
+                    self._topology = cache_topology
+        except Exception:
+            pass
+        finally:
+            timer = Timer(1, self.get_replication_topology)
+            timer.daemon = True
+            timer.start()
+
+    def execute(self, raven_command):
         if not hasattr(raven_command, 'raven_command'):
             raise ValueError("Not a valid command")
 
-        raven_command.create_request(self.server_node)
-        if self.force_get_topology:
-            self.force_get_topology = False
-            self.get_replication_topology()
+        chosen_node = self.choose_node_for_request(raven_command)
 
-        if self.server_node is self._primary_server_node and not self.primary:
-            self.primary = True
-
-        if self.server_node.database.lower() == self.convention.system_database:
-            force_read_from_master = True
-
-        return self._execute(raven_command, force_read_from_master=force_read_from_master)
-
-    def _execute(self, raven_command, force_read_from_master=False):
         while True:
-            if not force_read_from_master:
-                if raven_command.method == "GET":
-                    if (raven_command.url == "replication/topology" or "Hilo" in raven_command.url) \
-                            and not self.primary:
-                        raise exceptions.InvalidOperationException(
-                            "Cant get access to {0} when {1}(primary) is Down".format(raven_command.url,
-                                                                                      self._primary_database))
-                    elif self.convention.failover_behavior == Failover.read_from_all_servers:
-                        with self.lock:
-                            self.request_count += 1
-                            index = self.request_count % (len(self.replication_topology) + 1)
-                        if index != 0 or not self.primary:  # if 0 use the primary
-                            index -= 1
-                            self.server_node = self.replication_topology.peek(index if index > 0 else 0)
-                else:
-                    if not self.primary and self.convention.failover_behavior == \
-                            Failover.allow_reads_from_secondaries_and_writes_to_secondaries:
-                        raise exceptions.InvalidOperationException(
-                            "Cant write to server when the primary is down when failover = {0}".format(
-                                self.convention.failover_behavior.name))
-
-            if raven_command.url is None:
-                if not self.primary:
-                    raise exceptions.InvalidOperationException(
-                        "Cant read or write to the master because {0} is down".format(
-                            self._primary_server_node.database))
+            raven_command.create_request(chosen_node["node"])
 
             with requests.session() as session:
                 raven_command.headers.update(self.headers)
-                data = json.dumps(raven_command.data, default=self.convention.json_default_method)
-                response = session.request(raven_command.method, url=raven_command.url, data=data,
-                                           headers=raven_command.headers)
+                data = None if raven_command.data is None else \
+                    json.dumps(raven_command.data, default=self.convention.json_default_method)
+                start_time = time.time() * 1000
+                end_time = None
+                try:
+                    response = session.request(raven_command.method, url=raven_command.url, data=data,
+                                               headers=raven_command.headers)
+                except exceptions.ErrorResponseException:
+                    end_time = time.time() * 1000
+                    chosen_node["node"].is_failed = True
+                    raven_command.failed_nodes.add(chosen_node["node"])
+                    chosen_node = self.choose_node_for_request(raven_command)
+                    continue
+
+                finally:
+                    if not end_time:
+                        end_time = time.time() * 1000
+                    elapsed_time = end_time - start_time
+                    chosen_node["node"].response_time = elapsed_time
+
+                if response is None:
+                    raise ValueError("response is invalid.")
+
+                if response.status_code == 404:
+                    return raven_command.set_response(None)
                 if response.status_code == 412 or response.status_code == 401:
+                    if not self._api_key:
+                        raise exceptions.AuthorizationException(
+                            "Got unauthorized response for {0}. Please specify an api-key.".format(
+                                chosen_node["node"].url))
+                    raven_command.authentication_retries += 1
+                    if raven_command.authentication_retries > 1:
+                        raise exceptions.AuthorizationException(
+                            "Got unauthorized response for {0} after trying to authenticate using specified api-key.".format(
+                                chosen_node["node"].url))
                     try:
                         oauth_source = response.headers.__getitem__("OAuth-Source")
                     except KeyError:
                         raise exceptions.InvalidOperationException(
                             "Something is not right please check your server settings (do you use the right api_key)")
-                    self.do_auth_request(self.server_node.api_key, oauth_source)
+                    self.handle_unauthorized(self._api_key, oauth_source)
                     continue
-                if (response.status_code == 503 or response.status_code == 502) and \
-                        not self.replication_topology.empty() and not (
-                                raven_command.path == "replication/topology" or "Hilo" in raven_command.path):
-                    if self.primary:
-                        if self.convention.failover_behavior == Failover.fail_immediately or force_read_from_master:
-                            raise exceptions.ErrorResponseException("Failed to get response from server")
-                        self.primary = False
-                        self.is_alive(
-                            {"url": self._primary_server_node.url, "database": self._primary_server_node.database},
-                            primary=True)
-
-                    else:
-                        with self.lock:
-                            if not index:
-                                index = 0
-                            peek_item = self.replication_topology.peek(index)
-                            if self.url == peek_item["url"] and self.database == peek_item["database"]:
-                                self.is_alive(self.replication_topology.get(index))
-                    if self.replication_topology.empty():
-                        raise exceptions.ErrorResponseException("Please check your databases")
-                    self.server_node = self.replication_topology.peek()
+                if response.status_code == 403:
+                    raise exceptions.AuthorizationException(
+                        "Forbidden access to {0}. Make sure you're using the correct api-key.".format(
+                            chosen_node["node"].url))
+                if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
+                    if raven_command.avoid_failover:
+                        return raven_command.set_response(None)
+                    chosen_node["node"].is_failed = True
+                    raven_command.failed_nodes.add(chosen_node["node"])
+                    chosen_node = self.choose_node_for_request(raven_command)
                     continue
-            return raven_command.set_response(response)
 
-    def is_alive(self, destination, primary=False):
-        with requests.session() as session:
-            while True:
-                response = session.request("GET",
-                                           "{0}/databases/{1}/replication/topology?check-server-reachable".format(
-                                               destination["url"], destination["database"]), headers=self.headers)
+                return raven_command.set_response(response)
+
+    def is_alive(self, node):
+        command = GetTopologyCommand()
+        command.create_request(node)
+        try:
+            with requests.session() as session:
+                start_time = time.time() * 1000
+                response = session.request("GET", command.url, headers=self.headers)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
                         try:
@@ -134,141 +149,205 @@ class RequestsExecutor(object):
                         except KeyError:
                             raise exceptions.InvalidOperationException(
                                 "Something is not right please check your server settings")
-                        self.do_auth_request(self.api_key, oauth_source)
-                    except exceptions.ErrorResponseException:
-                        break
+                        self.handle_unauthorized(self._api_key, oauth_source)
+                    except Exception as e:
+                        log.info("Tested if node alive but it's down: {0}".format(node.url), e)
+                        pass
                 if response.status_code == 200:
-                    if primary:
-                        self.primary = True
-                    else:
-                        self.replication_topology.put(destination)
-                    return
-                else:
-                    break
-            is_alive_timer = Timer(5, lambda: self.is_alive(destination, primary))
-            is_alive_timer.daemon = True
-            is_alive_timer.start()
-
-    def check_database_exists(self, path):
-        return self.execute(path, "GET", force_read_from_master=True, uri="docs")
-
-    def update_replication(self, topology_file):
-        with open(topology_file, 'w+') as f:
-            f.write(json.dumps(self.topology))
-            self.replication_topology.queue.clear()
-            self._load_topology()
-
-    def check_replication_change(self, topology_file):
-        try:
-            response = self.execute("replication/topology", "GET")
-            if response.status_code == 200:
-                topology = response.json()
-                with self.lock:
-                    if self.topology != topology:
-                        self.topology = topology
-                        self.update_replication(topology_file)
-            elif response.status_code != 400 and response.status_code != 404 and not self.topology:
-                if response.status_code == 500:
-                    raise exceptions.DatabaseDoesNotExistException(
-                        "Database '{0}' was not found".format(self._primary_server_node.database))
-                raise exceptions.ErrorResponseException(
-                    "Could not connect to the database {0} please check the problem".format(
-                        self._primary_server_node.database))
-        except exceptions.InvalidOperationException:
+                    node.is_failed = False
+        except exceptions.ErrorResponseException:
             pass
-        if not self.database.lower() == self.convention.system_database:
-            timer = Timer(60 * 5, lambda: self.check_replication_change(topology_file))
-            timer.daemon = True
-            timer.start()
+        finally:
+            elapsed_time = time.time() * 1000 - start_time
+            node.response_time = elapsed_time
+            if node.is_failed:
+                self._open_is_alive_timer(node)
+
+    def choose_node_for_request(self, command):
+        topology = self._topology
+        leader_node = topology.leader_node
+
+        if command.is_read_request:
+            if topology.read_behavior == ReadBehavior.leader_only:
+                if not command.is_failed_with_node(leader_node):
+                    return {"node": leader_node}
+                raise requests.RequestException(
+                    "Leader node failed to make this request. the current read_behavior is set to leader_only")
+
+            if topology.read_behavior == ReadBehavior.round_robin:
+                skipped_nodes = []
+                if topology.nodes:
+                    for node in topology.nodes:
+                        if not node.is_failed and not command.is_failed_with_node(node):
+                            return {"node": node, "skipped_nodes": skipped_nodes}
+                        skipped_nodes.append(node)
+                raise requests.RequestException(
+                    "Tried all nodes in the cluster but failed getting a response")
+
+            if topology.read_behavior == ReadBehavior.leader_with_failover_when_request_time_sla_threshold_is_reached:
+                if not leader_node.is_failed and not command.is_failed_with_node(
+                        leader_node) and leader_node.is_rate_surpassed(topology.sla):
+                    return {"node": leader_node}
+
+                nodes_with_leader = []
+                if not leader_node.is_failed:
+                    nodes_with_leader = [leader_node]
+
+                if topology.nodes:
+                    for node in topology.nodes:
+                        if not node.is_failed:
+                            nodes_with_leader.append(node)
+
+                if len(nodes_with_leader) > 0:
+                    nodes_with_leader = sorted(nodes_with_leader, key=lambda node: node.ewma())
+                    fastest_node = nodes_with_leader[0]
+                    nodes_with_leader.remove(fastest_node)
+
+                    return {"node": fastest_node, "skipped_nodes": nodes_with_leader}
+
+                raise requests.RequestException("Tried all nodes in the cluster but failed getting a response")
+
+            raise exceptions.InvalidOperationException("Invalid read_behavior value:{0}".format(topology.read_behavior))
+
+        if topology.write_behavior == WriteBehavior.leader_only:
+            if not command.is_failed_with_node(leader_node):
+                return {"node": leader_node}
+            raise requests.RequestException(
+                "Leader node failed to make this request. the current write_behavior is set to leader_only")
+
+        if topology.write_behavior == WriteBehavior.leader_with_failover:
+            if not leader_node.is_failed and command.is_failed_with_node(leader_node):
+                return {"node": leader_node}
+
+            for node in topology.nodes:
+                if not node.is_failed and command.is_failed_with_node(node):
+                    return {"node": node}
+
+            raise requests.RequestException("Tried all nodes in the cluster but failed getting a response")
+
+        raise exceptions.InvalidOperationException("Invalid write_behavior value: {0}".format(topology.write_behavior))
+
+    def update_failing_nodes_status(self):
+        with self.update_failing_node_status_lock:
+            try:
+                topology = self._topology
+
+                leader_node = topology.leader_node
+                if leader_node and leader_node.is_failed:
+                    self._open_is_alive_timer(leader_node)
+
+                server_nodes = topology.nodes
+                if server_nodes:
+                    for node in server_nodes:
+                        if node and node.is_failed:
+                            self._open_is_alive_timer(node)
+
+            except Exception as e:
+                log.info("Failed to check if failing server are down", e)
+            finally:
+                failing_nodes_timer = Timer(60, self.update_failing_nodes_status)
+                failing_nodes_timer.daemon = True
+                failing_nodes_timer.start()
+
+    def _open_is_alive_timer(self, node):
+        is_alive_timer = Timer(5, lambda: self.is_alive(node))
+        is_alive_timer.daemon = True
+        is_alive_timer.start()
 
     def get_replication_topology(self):
         with self.lock:
-            hash_name = hashlib.md5(
-                "{0}/{1}".format(self._primary_server_node.url, self._primary_server_node.database).encode(
-                    'utf-8')).hexdigest()
-            topology_file = "{0}{1}RavenDB_Replication_Information_For - {2}".format(tempfile.gettempdir(), os.path.sep,
-                                                                                     hash_name)
             try:
-                with open(topology_file, 'r') as f:
-                    self.topology = json.loads(f.read())
-                    self._load_topology()
-            except IOError:
-                pass
+                topology_command = GetTopologyCommand()
+                response = self.execute(topology_command)
+                if response is not None:
+                    response_replication_topology = self.convert_json_topology_to_entity(response)
+                    if self._topology.etag < response_replication_topology.etag:
+                        self._topology = response_replication_topology
+                        with open(self.topology_file, 'w+') as f:
+                            if "SLA" in response:
+                                response["SLA"]["RequestTimeThresholdInMilliseconds"] = float(
+                                    response["SLA"]["RequestTimeThresholdInMilliseconds"]) / 1000
+                            f.write(json.dumps(response))
+            except Exception as e:
+                log.info("Failed to update topology", e)
+            finally:
+                timer = Timer(60 * 5, self.get_replication_topology)
+                timer.daemon = True
+                timer.start()
 
-        self.check_replication_change(topology_file)
+    def convert_json_topology_to_entity(self, json_topology):
+        topology = Topology()
+        topology.etag = json_topology["Etag"]
+        topology.leader_node = ServerNode(json_topology["LeaderNode"]["Url"], json_topology["LeaderNode"]["Database"])
+        topology.nodes = [ServerNode(node["Url"], node["Database"], node["ApiKey"]) for node in json_topology["Nodes"]]
+        topology.read_behavior = ReadBehavior(json_topology["ReadBehavior"])
+        topology.write_behavior = WriteBehavior(json_topology["WriteBehavior"])
+        topology.sla = float(json_topology["SLA"]["RequestTimeThresholdInMilliseconds"]) / 1000
+        return topology
 
-    def _load_topology(self):
-        for destination in self.topology["Destinations"]:
-            if not destination["Disabled"] and not destination["IgnoredClient"]:
-                self.replication_topology.put(
-                    ServerNode(destination["Url"], destination["Database"], destination["ApiKey"]))
-                self.replication_topology.put({"url": destination["Url"], "database": destination["Database"],
-                                               "credentials": {"api_key": destination["ApiKey"],
-                                                               "domain": destination["Domain"]}})
-
-    def do_auth_request(self, api_key, oauth_source, second_api_key=None):
-        api_name, secret = api_key.split('/', 1)
-        tries = 1
-        headers = {"grant_type": "client_credentials"}
-        data = None
-        with requests.session() as session:
-            while True:
-                oath = session.request(method="POST", url=oauth_source,
-                                       headers=headers, data=data)
-                if oath.reason == "Precondition Failed":
-                    if tries > 1:
-                        if not (second_api_key and self.api_key != second_api_key and tries < 3):
-                            raise exceptions.ErrorResponseException("Unauthorized")
-                        api_name, secret = second_api_key.split('/', 1)
-                        tries += 1
-
-                    authenticate = oath.headers.__getitem__("www-authenticate")[len("Raven  "):]
-                    challenge_dict = dict(item.split("=", 1) for item in authenticate.split(','))
-
-                    exponent_str = challenge_dict.get("exponent", None)
-                    modulus_str = challenge_dict.get("modulus", None)
-                    challenge = challenge_dict.get("challenge", None)
-
-                    exponent = bytes_to_long(base64.standard_b64decode(exponent_str))
-                    modulus = bytes_to_long(base64.standard_b64decode(modulus_str))
-
-                    rsa = RSA.construct((modulus, exponent))
-                    cipher = PKCS1_OAEP.new(rsa)
-
-                    iv = get_random_bytes(16)
-                    key = get_random_bytes(32)
-                    encoder = PKCS7Encoder()
-
-                    cipher_text = cipher.encrypt(key + iv)
-                    results = []
-                    results.extend(cipher_text)
-
-                    aes = AES.new(key, AES.MODE_CBC, iv)
-                    sub_data = Utils.dict_to_string({"api key name": api_name, "challenge": challenge,
-                                                     "response": base64.b64encode(hashlib.sha1(
-                                                         '{0};{1}'.format(challenge, secret).encode(
-                                                             'utf-8')).digest())})
-
-                    results.extend(aes.encrypt(encoder.encode(sub_data)))
-                    data = Utils.dict_to_string({"exponent": exponent_str, "modulus": modulus_str,
-                                                 "data": base64.standard_b64encode(bytearray(results))})
-
-                    if exponent is None or modulus is None or challenge is None:
-                        raise exceptions.InvalidOperationException(
-                            "Invalid response from server, could not parse raven authentication information:{0} ".format(
-                                authenticate))
-                    tries += 1
-                elif oath.status_code == 200:
-                    oath_json = oath.json()
-                    body = oath_json["Body"]
-                    signature = oath_json["Signature"]
-                    if not sys.version_info.major > 2:
-                        body = body.encode('utf-8')
-                        signature = signature.encode('utf-8')
-                    with self.lock:
-                        self._token = "Bearer {0}".format(
-                            {"Body": body, "Signature": signature})
-                        self.headers.update({"Authorization": self._token})
-                    break
-                else:
-                    raise exceptions.ErrorResponseException(oath.reason)
+    def handle_unauthorized(self, api_key, oauth_source, second_api_key=None):
+        raise NotImplementedError("handle unauthorized requests invalid")
+        # api_name, secret = api_key.split('/', 1)
+        # tries = 1
+        # headers = {"grant_type": "client_credentials"}
+        # data = None
+        # with requests.session() as session:
+        #     while True:
+        #         oath = session.request(method="POST", url=oauth_source,
+        #                                headers=headers, data=data)
+        #         if oath.reason == "Precondition Failed":
+        #             if tries > 1:
+        #                 if not (second_api_key and self._api_key != second_api_key and tries < 3):
+        #                     raise exceptions.ErrorResponseException("Unauthorized")
+        #                 api_name, secret = second_api_key.split('/', 1)
+        #                 tries += 1
+        #
+        #             authenticate = oath.headers.__getitem__("www-authenticate")[len("Raven  "):]
+        #             challenge_dict = dict(item.split("=", 1) for item in authenticate.split(','))
+        #
+        #             exponent_str = challenge_dict.get("exponent", None)
+        #             modulus_str = challenge_dict.get("modulus", None)
+        #             challenge = challenge_dict.get("challenge", None)
+        #
+        #             exponent = bytes_to_long(base64.standard_b64decode(exponent_str))
+        #             modulus = bytes_to_long(base64.standard_b64decode(modulus_str))
+        #
+        #             rsa = RSA.construct((modulus, exponent))
+        #             cipher = PKCS1_OAEP.new(rsa)
+        #
+        #             iv = get_random_bytes(16)
+        #             key = get_random_bytes(32)
+        #             encoder = PKCS7Encoder()
+        #
+        #             cipher_text = cipher.encrypt(key + iv)
+        #             results = []
+        #             results.extend(cipher_text)
+        #
+        #             aes = AES.new(key, AES.MODE_CBC, iv)
+        #             sub_data = Utils.dict_to_string({"api key name": api_name, "challenge": challenge,
+        #                                              "response": base64.b64encode(hashlib.sha1(
+        #                                                  '{0};{1}'.format(challenge, secret).encode(
+        #                                                      'utf-8')).digest())})
+        #
+        #             results.extend(aes.encrypt(encoder.encode(sub_data)))
+        #             data = Utils.dict_to_string({"exponent": exponent_str, "modulus": modulus_str,
+        #                                          "data": base64.standard_b64encode(bytearray(results))})
+        #
+        #             if exponent is None or modulus is None or challenge is None:
+        #                 raise exceptions.InvalidOperationException(
+        #                     "Invalid response from server, could not parse raven authentication information:{0} ".format(
+        #                         authenticate))
+        #             tries += 1
+        #         elif oath.status_code == 200:
+        #             oath_json = oath.json()
+        #             body = oath_json["Body"]
+        #             signature = oath_json["Signature"]
+        #             if not sys.version_info.major > 2:
+        #                 body = body.encode('utf-8')
+        #                 signature = signature.encode('utf-8')
+        #                 self._token = "Bearer {0}".format(
+        #                     {"Body": body, "Signature": signature})
+        #                 self.headers.update({"Authorization": self._token})
+        #             break
+        #         else:
+        #             raise exceptions.ErrorResponseException(oath.reason)

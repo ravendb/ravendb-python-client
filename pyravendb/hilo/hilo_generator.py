@@ -1,5 +1,6 @@
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.d_commands.raven_commands import RavenCommand
+from pyravendb.tools.utils import Utils
 from datetime import datetime
 from threading import Lock
 
@@ -46,9 +47,10 @@ class NextHiLoCommand(RavenCommand):
             return {"prefix": response["Prefix"], "low": response["Low"], "high": response["High"],
                     "last_size": response["LastSize"],
                     "last_range_at": response["LastRangeAt"]}
-
-        if response.status_code == 409 or response.status_code == 500:
-            raise exceptions.FetchConcurrencyException(response.json["Error"])
+        if response.status_code == 500:
+            raise exceptions.DatabaseDoesNotExistException(response.json()["Error"])
+        if response.status_code == 409:
+            raise exceptions.FetchConcurrencyException(response.json()["Error"])
 
         raise exceptions.ErrorResponseException("Something is wrong with the request")
 
@@ -149,7 +151,7 @@ class HiLoKeyGenerator(object):
                                        self._identity_parts_separator, self._range.max_id)
         result = self._store.get_request_executor().execute(hilo_command)
         self._prefix = result["prefix"]
-        self._last_range_at = datetime.strptime(result["last_range_at"][:-2], '%Y-%m-%dT%H:%M:%S.%f')
+        self._last_range_at = Utils.string_to_datetime(result["last_range_at"])
         self._last_batch_size = result["last_size"]
         self._range = RangeValue(result["low"], result["high"])
 

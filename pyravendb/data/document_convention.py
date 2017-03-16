@@ -6,51 +6,18 @@ from inflector import Inflector
 import sys
 
 
-class Failover(Enum):
-    """
-    Allow to read from the secondary server(s), but immediately fail writes
-    to the secondary server(s).
+class ReadBehavior(Enum):
+    leader_only = "LeaderOnly"
+    leader_with_failover = "LeaderWithFailover"
+    leader_with_failover_when_request_time_sla_threshold_is_reached = "LeaderWithFailoverWhenRequestTimeSlaThresholdIsReached"
+    round_robin = "RoundRobin"
+    round_robin_failover_when_request_time_sla_threshold_is_reached = "RoundRobinWithFailoverWhenRequestTimeSlaThresholdIsReached"
+    fastest_node = "FastestNode"
 
-    This is usually the safest approach, because it means that you can still serve
-    read requests when the primary node is down, but don't have to deal with replication
-    conflicts if there are writes to the secondary when the primary node is down.
-    """
-    allow_reads_from_secondaries = 1,
 
-    """
-    Allow reads from and writes to secondary server(s).
-    Choosing this option requires that you'll have some way of propagating changes
-    made to the secondary server(s) to the primary node when the primary goes back
-    up.
-    A typical strategy to handle this is to make sure that the replication is setup
-    in a master/master relationship, so any writes to the secondary server will be
-    replicated to the master server.
-    Please note, however, that this means that your code must be prepared to handle
-    conflicts in case of different writes to the same document across nodes.
-    """
-
-    allow_reads_from_secondaries_and_writes_to_secondaries = 3,
-
-    """
-    Immediately fail the request, without attempting any failover. This is true for both
-    reads and writes. The RavenDB client will not even check that you are using replication.
-    This is mostly useful when your replication setup is meant to be used for backups / external
-    needs, and is not meant to be a failover storage.
-    """
-
-    fail_immediately = 0,
-
-    """
-    Read requests will be spread across all the servers, instead of doing all the work against the master.
-    Write requests will always go to the master.
-    This is useful for striping, spreading the read load among multiple servers. The idea is that this will give us
-    better read performance overall.
-    A single session will always use the same server, we don't do read striping within a single session.
-    Note that using this means that you cannot set UserOptimisticConcurrency to true,
-    because that would generate concurrency exceptions.
-    If you want to use that, you have to open the session with ForceReadFromMaster set to true.
-    """
-    read_from_all_servers = 1024
+class WriteBehavior(Enum):
+    leader_only = "LeaderOnly"
+    leader_with_failover = "LeaderWithFailover"
 
 
 inflector = Inflector()
@@ -62,7 +29,6 @@ class DocumentConvention(object):
         self.max_ids_to_catch = 32
         # timeout for wait to server in seconds
         self.timeout = 30
-        self.failover_behavior = Failover.allow_reads_from_secondaries
         self.default_use_optimistic_concurrency = False
         self.json_default_method = DocumentConvention.json_default
         self.max_length_of_query_using_get_url = 1024 + 512
@@ -71,6 +37,8 @@ class DocumentConvention(object):
 
     @staticmethod
     def json_default(o):
+        if o is None:
+            return None
         if isinstance(o, datetime):
             return Utils.datetime_to_string(o)
         elif isinstance(o, timedelta):
@@ -120,11 +88,18 @@ class DocumentConvention(object):
     def get_default_sort_option(type_name):
         if not type_name:
             return None
-        if type_name == "int" or type_name == "float":
-            return SortOptions.float.value
-        if type_name == "long":
-            return SortOptions.long.value
+        if type_name == "int" or type_name == "float" or type_name == "long":
+            return SortOptions.numeric
 
     @property
     def system_database(self):
         return self._system_database
+
+    @staticmethod
+    def range_field_name(field_name, type_name):
+        if type_name == "long":
+            field_name = "{0}_L_Range".format(field_name)
+        else:
+            field_name = "{0}_D_Range".format(field_name)
+
+        return field_name

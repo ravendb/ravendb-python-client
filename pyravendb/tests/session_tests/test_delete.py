@@ -9,16 +9,25 @@ from pyravendb.custom_exceptions import exceptions
 import unittest
 
 
+class Product(object):
+    def __init__(self, Id=None, name=None):
+        self.Id = Id
+        self.name = name
+
+
 class TestDelete(TestBase):
     @classmethod
     def setUpClass(cls):
         super(TestDelete, cls).setUpClass()
-        cls.db.put("products/101", {"name": "test"}, {"Raven-Python-Type": "delete_test.Product"})
-        cls.db.put("products/10", {"name": "test"}, {})
-        cls.db.put("products/106", {"name": "test"}, {})
-        cls.db.put("products/107", {"name": "test"}, {})
         cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
+
+        with cls.document_store.open_session() as session:
+            session.store(Product("products/101", "test"))
+            session.store(Product("products/10", "test"))
+            session.store(Product("products/106", "test"))
+            session.store(Product("products/107", "test"))
+            session.save_changes()
 
     def test_delete_with_key_with_save_session(self):
         with self.document_store.open_session() as session:

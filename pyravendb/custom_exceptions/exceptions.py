@@ -24,3 +24,9 @@ class ArgumentOutOfRangeException(Exception):
 
 class DatabaseDoesNotExistException(Exception):
     pass
+
+class AuthorizationException(Exception):
+    pass
+
+class IndexDoesNotExistException(Exception):
+    pass

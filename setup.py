@@ -1,19 +1,19 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='pyravendb',
+    name='pyravendbV4.0',
     packages=find_packages(),
-    version='1.3.1.1',
-    description='This is the official python client for RavenDB document database',
+    version='4.0.1',
+    description='This is the official python client for RavenDB v4.0 document database, this is Alpha version',
     author='Idan Haim Shalom',
     author_email='haimdude@gmail.com',
     url='https://github.com/IdanHaim/RavenDB-Python-Client',
-    license='GNU',
+    license='MIT',
     keywords='pyravendb',
     install_requires=
     [
         "pycrypto >= 2.6.1",
-        "requests >= 2.9.1",
+        "requests >= 2.13.0",
         "inflector >= 2.0.11",
     ],
     zip_safe=False

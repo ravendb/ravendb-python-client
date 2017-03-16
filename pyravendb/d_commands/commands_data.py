@@ -35,7 +35,7 @@ class DeleteCommandData(_CommandData):
         return {"Key": self.key, "Etag": self.etag, "Method": self._method}
 
 
-class ScriptedPatchCommandData(_CommandData):
+class PatchCommandData(_CommandData):
     def __init__(self, key, scripted_patch, etag=None, metadata=None, patch_if_missing=None, additional_data=None,
                  debug_mode=False):
         """
@@ -57,12 +57,12 @@ class ScriptedPatchCommandData(_CommandData):
 
         """
 
-        super(ScriptedPatchCommandData, self).__init__(key, etag)
+        super(PatchCommandData, self).__init__(key, etag)
         if additional_data is None:
             additional_data = {}
         if metadata is None:
             metadata = {}
-        self._method = "EVAL"
+        self._method = "PATCH"
         self.scripted_patch = scripted_patch
         self.metadata = metadata
         self.patch_if_missing = patch_if_missing

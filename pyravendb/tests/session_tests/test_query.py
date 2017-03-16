@@ -1,8 +1,8 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import DocumentStore
-from pyravendb.data.operations import QueryOperator
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexDefinition, SortOptions
+from pyravendb.data.indexes import IndexDefinition, SortOptions, QueryOperator, IndexFieldOptions, FieldStorage
+from pyravendb.d_commands.raven_commands import PutDocumentCommand, PutIndexesCommand
 import unittest
 
 
@@ -19,6 +19,13 @@ class Company(object):
         self.product = product
 
 
+class Order(object):
+    def __init__(self, name="", key=None, product_id=None):
+        self.name = name
+        self.key = key
+        self.product_id = product_id
+
+
 class TestQuery(TestBase):
     @classmethod
     def setUpClass(cls):
@@ -27,27 +34,27 @@ class TestQuery(TestBase):
                          "select new {"
                          "name = doc.name,"
                          "key = doc.key,"
-                         "doc_id = (doc.name + \" \") + doc.key}")
-        cls.index_sort = IndexDefinition(index_map=cls.index_map, sort_options={"key": SortOptions.float},
-                                         stores={"doc_id": "Yes"})
-        cls.db.put_index("Testing_Sort", index_def=cls.index_sort, overwrite=True)
-        cls.db.put("products/101", {"name": "test101", "key": 2, "order": "a"},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
-        cls.db.put("products/10", {"name": "test10", "key": 3, "order": "b"}, {})
-        cls.db.put("products/106", {"name": "test106", "key": 4, "order": "c"}, {})
-        cls.db.put("products/107", {"name": "test107", "key": 5, "order": None},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
-        cls.db.put("products/103", {"name": "test107", "key": 6},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
-        cls.db.put("products/108", {"name": "new_testing", "key": 90, "order": "d"},
-                   {"Raven-Entity-Name": "Products", "Raven-Python-Type": Product.__module__ + ".Product"})
-        cls.db.put("orders/105", {"name": "testing_order", "key": 92, "product": "products/108"},
-                   {"Raven-Entity-Name": "Orders"})
-        cls.db.put("company/1",
-                   {"name": "withNesting", "product": {"name": "testing_order", "key": 4, "order": None}},
-                   {"Raven-Entity-Name": "Companies"})
+                         "doc_id = doc.key+\"_\"+doc.name}")
+        cls.index_sort = IndexDefinition(name="Testing_Sort", index_map=cls.index_map,
+                                         fields={"key": IndexFieldOptions(sort_options=SortOptions.numeric),
+                                                 "doc_id": IndexFieldOptions(storage=FieldStorage.yes)})
+
         cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()
+        requests_executor = cls.document_store.get_request_executor()
+
+        requests_executor.execute(PutIndexesCommand(cls.index_sort))
+
+        with cls.document_store.open_session() as session:
+            session.store(Product("test101", 2, "a"), "products/101")
+            session.store(Product("test10", 3, "b"), "products/10")
+            session.store(Product("test106", 4, "c"), "products/106")
+            session.store(Product("test107", 5, None), "products/107")
+            session.store(Product("test107", 6, None), "products/103")
+            session.store(Product("new_testing", 90, "d"), "products/108")
+            session.store(Order("testing_order", 92, "products/108"), "orders/105")
+            session.store(Company("withNesting", Product(name="testing_order", key=4, order=None)), "company/1")
+            session.save_changes()
 
     def test_where_equal_dynamic_index(self):
         with self.document_store.open_session() as session:
@@ -134,7 +141,7 @@ class TestQuery(TestBase):
 
     def test_where_with_include(self):
         with self.document_store.open_session() as session:
-            list(session.query(wait_for_non_stale_results=True, includes="product").where(key=92))
+            list(session.query(wait_for_non_stale_results=True, includes="product_id").where(key=92))
             session.load("products/108")
         self.assertEqual(session.number_of_requests_in_session, 1)
 
@@ -158,6 +165,7 @@ class TestQuery(TestBase):
                     break
 
             self.assertTrue(found_in_all)
+
 
 if __name__ == "__main__":
     unittest.main()

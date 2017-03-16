@@ -6,6 +6,10 @@ from pyravendb.data.database import DatabaseDocument
 from pyravendb.d_commands.raven_commands import *
 from pyravendb.tools.indexqueue import IndexQueue
 from datetime import datetime
+from threading import Timer
+import requests
+import time
+import os
 
 
 class Dog(object):
@@ -19,8 +23,14 @@ class Child(object):
         self.Id = Id
         self.Name = Name
 
+
+class Node(object):
+    def __init__(self, changed):
+        self.changed = changed
+
+
 if __name__ == "__main__":
-    with DocumentStore("http://localhost.fiddler:8080", "NorthWind") as store:
+    with DocumentStore("http://localhost.fiddler:8080", "LeaderNode") as store:
         store.initialize()
 
         with store.open_session() as session:
@@ -29,3 +39,10 @@ if __name__ == "__main__":
             session.store(dog)
             session.store(child)
             session.save_changes()
+
+        with store.open_session() as session:
+            child = session.load("children/1")
+            dog = session.load("dogs/1")
+
+            print("Child:{0}".format(child.Name))
+            print("Dog:{0}".format(dog.Name))
