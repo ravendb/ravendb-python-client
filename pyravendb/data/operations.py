@@ -1,3 +1,7 @@
+from pyravendb.custom_exceptions import exceptions
+import time
+
+
 class BulkOperationOption(object):
     """
       :param allow_stale Indicates whether operations are allowed on stale indexes.
@@ -13,3 +17,30 @@ class BulkOperationOption(object):
         self.stale_timeout = stale_timeout
         self.retrieve_details = retrieve_details
         self.max_ops_per_sec = max_ops_per_sec
+
+
+class Operations(object):
+    def __init__(self, request_handler):
+        self.request_handler = request_handler
+
+    def wait_for_operation_complete(self, operation_id, timeout=None):
+        start_time = time.time()
+        try:
+            path = "operation/status?id={0}".format(operation_id)
+            while True:
+                response = self.request_handler.http_request_handler(path, "GET")
+                if response.status_code == 200:
+                    response = response.json()
+                if timeout and time.time() - start_time > timeout:
+                    raise exceptions.TimeoutException("The operation did not finish before the timeout end")
+                if response["Faulted"]:
+                    if "Error" in response["State"]:
+                        error = response["State"]["Error"]
+                    else:
+                        error = "Something went wrong with the operation"
+                    raise exceptions.InvalidOperationException(error)
+                if response["Completed"]:
+                    return response
+                time.sleep(0.5)
+        except ValueError as e:
+            raise exceptions.InvalidOperationException(e)
