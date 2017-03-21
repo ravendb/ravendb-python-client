@@ -15,7 +15,8 @@ class TestBase(unittest.TestCase):
     def setUpClass(cls):
         cls.default_url = "http://localhost:8081"
         cls.default_database = "NorthWindTest"
-        cls.db = database_commands.DatabaseCommands(HttpRequestsFactory(cls.default_url, cls.default_database))
+        cls.request_handler = HttpRequestsFactory(cls.default_url, cls.default_database)
+        cls.db = database_commands.DatabaseCommands(cls.request_handler)
         cls.db.admin_commands.create_database(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"}))
         cls.index_map = ("from doc in docs "
                          "select new{"

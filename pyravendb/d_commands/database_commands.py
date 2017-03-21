@@ -194,7 +194,7 @@ class DatabaseCommands(object):
         """
         if not isinstance(query, IndexQuery):
             raise ValueError("query must be IndexQuery Type")
-        path = Utils.build_path(index_name, query, options)
+        path = Utils.build_path(index_name, query, options, with_page_size=False)
         if scripted_patch:
             if not isinstance(scripted_patch, ScriptedPatchRequest):
                 raise ValueError("scripted_patch must be ScriptedPatchRequest Type")
@@ -216,7 +216,7 @@ class DatabaseCommands(object):
         @return: json
         :rtype: dict
         """
-        path = Utils.build_path(index_name, query, options)
+        path = Utils.build_path(index_name, query, options, with_page_size=False)
         response = self._requests_handler.http_request_handler(path, "DELETE")
         if response.status_code != 200 and response.status_code != 202:
             try:
@@ -234,6 +234,9 @@ class DatabaseCommands(object):
         if not ignore_missing and batch_result[0]["PatchResult"] == "DocumentDoesNotExists" and patch_default is None:
             raise exceptions.DocumentDoesNotExistsException("Document with key {0} does not exist.".format(key))
         return batch_result
+
+    def get_operation_status(self, operation_id):
+        pass
 
     def query(self, index_name, index_query, includes=None, metadata_only=False, index_entries_only=False,
               force_read_from_master=False):

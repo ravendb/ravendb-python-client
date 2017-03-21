@@ -42,7 +42,7 @@ class Utils(object):
                 "Database name can only contain only A-Z, a-z, \"_\", \".\" or \"-\" but was: " + name)
 
     @staticmethod
-    def build_path(index_name, query, options):
+    def build_path(index_name, query, options, with_page_size=True):
         if index_name is None:
             raise ValueError("None index_name is not valid")
         path = "bulk_docs/{0}?".format(Utils.quote_key(index_name) if index_name else "")
@@ -57,8 +57,11 @@ class Utils(object):
         if not isinstance(options, BulkOperationOption):
             raise ValueError("options must be BulkOperationOption type")
 
-        path += "&pageSize={0}&allowStale={1}&details={2}".format(query.page_size, options.allow_stale,
-                                                                  options.retrieve_details)
+        path += "&allowStale={0}&details={1}".format(options.allow_stale, options.retrieve_details)
+
+        if with_page_size:
+            path += "&pageSize={0}".format(query.page_size)
+
         if options.max_ops_per_sec:
             path += "&maxOpsPerSec={0}".format(options.max_ops_per_sec)
         if options.stale_timeout:

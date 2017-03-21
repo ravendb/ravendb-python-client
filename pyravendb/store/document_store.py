@@ -6,6 +6,7 @@ from pyravendb.hilo.hilo_generator import HiloGenerator
 from pyravendb.data.database import DatabaseDocument
 from pyravendb.store.document_session import documentsession
 from pyravendb.tools.utils import Utils
+from pyravendb.data.operations import Operations
 import traceback
 import uuid
 
@@ -20,6 +21,7 @@ class documentstore(object):
         self._database_commands = None
         self._initialize = False
         self.generator = None
+        self._operations = None
 
     def __enter__(self):
         return self
@@ -28,12 +30,18 @@ class documentstore(object):
         pass
 
     @property
+    def operations(self):
+        self._assert_initialize()
+        return self._operations
+
+    @property
     def database_commands(self):
         self._assert_initialize()
         return self._database_commands
 
     def initialize(self):
         if not self._initialize:
+            self._operations = Operations(self._requests_handler)
             self._database_commands = database_commands.DatabaseCommands(self._requests_handler)
             if self.database is None:
                 raise exceptions.InvalidOperationException("None database is not valid")
