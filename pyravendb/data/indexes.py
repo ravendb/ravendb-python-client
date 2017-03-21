@@ -65,18 +65,6 @@ class FieldTermVector(Enum):
         return self.value
 
 
-class FieldStorage(Enum):
-    # Store the original field value in the index.
-    # This is useful for short texts like a document's title which should be displayed with the results.
-    # The value is stored in its original form, i.e. no analyzer is used before it is stored.
-    yes = "Yes"
-    # Do not store the field value in the index.
-    no = "No"
-
-    def __str__(self):
-        return self.value
-
-
 class IndexDefinition(object):
     def __init__(self, name, index_map, configuration=None, **kwargs):
         """
@@ -97,7 +85,7 @@ class IndexDefinition(object):
         self.priority = kwargs.get("priority", None)
         self.maps = (index_map,) if isinstance(index_map, str) else tuple(set(index_map, ))
 
-        # fields is a key value dict. the key is the name of the field and the value is IndexFieldOptions
+        # fields is a  key value dict. the key is the name of the field and the value is IndexFieldOptions
         self.fields = kwargs.get("fields", {})
 
     @property
@@ -150,8 +138,8 @@ class IndexFieldOptions(object):
         :type SortOptions
         @param indexing: Options for indexing a field
         :type FieldIndexing
-        @param storage: Specifies whether and how a field should be stored
-        :type FieldStorage
+        @param storage: Specifies whether a field should be stored
+        :type bool
         @param suggestions: If to produce a suggestions in query
         :type bool
         @param term_vector: Specifies whether to include term vectors for a field
@@ -171,7 +159,7 @@ class IndexFieldOptions(object):
                 "Indexing": str(self.indexing) if self.indexing else None,
                 "Sort": str(self.sort_options) if self.sort_options else None,
                 "Spatial": None,
-                "Storage": str(self.storage) if self.storage else None,
+                "Storage": None if self.storage is None else "Yes" if self.storage == True else "No",
                 "Suggestions": self.suggestions,
                 "TermVector": str(self.term_vector) if self.term_vector else None}
 

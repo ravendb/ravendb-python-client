@@ -1,8 +1,8 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexDefinition, SortOptions, QueryOperator, IndexFieldOptions, FieldStorage
-from pyravendb.d_commands.raven_commands import PutDocumentCommand, PutIndexesCommand
+from pyravendb.data.indexes import IndexDefinition, SortOptions, QueryOperator, IndexFieldOptions
+from pyravendb.d_commands.raven_commands import PutIndexesCommand
 import unittest
 
 
@@ -37,7 +37,7 @@ class TestQuery(TestBase):
                          "doc_id = doc.key+\"_\"+doc.name}")
         cls.index_sort = IndexDefinition(name="Testing_Sort", index_map=cls.index_map,
                                          fields={"key": IndexFieldOptions(sort_options=SortOptions.numeric),
-                                                 "doc_id": IndexFieldOptions(storage=FieldStorage.yes)})
+                                                 "doc_id": IndexFieldOptions(storage=True)})
 
         cls.document_store = DocumentStore(cls.default_url, cls.default_database)
         cls.document_store.initialize()

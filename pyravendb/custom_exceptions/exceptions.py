@@ -30,3 +30,6 @@ class AuthorizationException(Exception):
 
 class IndexDoesNotExistException(Exception):
     pass
+
+class TimeoutException(Exception):
+    pass

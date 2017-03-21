@@ -270,7 +270,7 @@ class DocumentSession(object):
         if batch_result is None:
             raise exceptions.InvalidOperationException(
                 "Cannot call Save Changes after the document store was disposed.")
-        self._update_batch_result(batch_result["Results"], data)
+        self._update_batch_result(batch_result, data)
 
     def _update_batch_result(self, batch_result, data):
 

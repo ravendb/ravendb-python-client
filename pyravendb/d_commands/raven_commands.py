@@ -277,7 +277,7 @@ class PatchByIndexCommand(RavenCommand):
         @param query_to_update: query that will be performed
         :type IndexQuery
         @param options: various operation options e.g. AllowStale or MaxOpsPerSec
-        :type BulkOperationOptions
+        :type QueryOperationOptions
         @param patch: JavaScript patch that will be executed on query results( Used only when update)
         :type PatchRequest
         @return: json
@@ -319,7 +319,7 @@ class DeleteByIndexCommand(RavenCommand):
         @param query: query that will be performed
         :type IndexQuery
         @param options: various operation options e.g. AllowStale or MaxOpsPerSec
-        :type BulkOperationOptions
+        :type QueryOperationOptions
         @return: json
         :rtype: dict
         """
@@ -504,9 +504,6 @@ class GetOperationStateCommand(RavenCommand):
     def set_response(self, response):
         try:
             response = response.json()
-            if response["Status"] == "Faulted":
-                f = response["Result"]["Error"]
-                raise exceptions.IndexDoesNotExistException(response["Result"]["Error"])
         except ValueError:
             raise response.raise_for_status()
         return response

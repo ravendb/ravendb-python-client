@@ -1,10 +1,12 @@
 from pyravendb.connection.requests_executor import RequestsExecutor
+from pyravendb.data.operations import Operations
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.document_convention import DocumentConvention
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
 from pyravendb.store.document_session import DocumentSession
 import uuid
 import os
+
 
 class DocumentStore(object):
     def __init__(self, url=None, database=None, api_key=None):
@@ -15,7 +17,14 @@ class DocumentStore(object):
         self._request_executors = {}
         self._initialize = False
         self.generator = None
+        self._operations = None
         print(os.getcwd())
+
+    @property
+    def operations(self):
+        if self._operations is None:
+            self._operations = Operations(self.get_request_executor())
+        return self._operations
 
     def __enter__(self):
         return self

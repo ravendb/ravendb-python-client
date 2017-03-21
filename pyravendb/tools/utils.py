@@ -1,4 +1,4 @@
-from pyravendb.data.operations import BulkOperationOption
+from pyravendb.data.operations import QueryOperationOptions
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.custom_exceptions import exceptions
 from datetime import datetime, timedelta
@@ -56,9 +56,9 @@ class Utils(object):
         if query.query:
             path += "&query={0}".format(Utils.quote_key(query.query))
         if options is None:
-            options = BulkOperationOption()
-        if not isinstance(options, BulkOperationOption):
-            raise ValueError("options must be BulkOperationOption type")
+            options = QueryOperationOptions()
+        if not isinstance(options, QueryOperationOptions):
+            raise ValueError("options must be QueryOperationOptions type")
 
         path += "&pageSize={0}&allowStale={1}&details={2}".format(query.page_size, options.allow_stale,
                                                                   options.retrieve_details)
