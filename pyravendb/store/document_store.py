@@ -22,8 +22,7 @@ class DocumentStore(object):
 
     @property
     def operations(self):
-        if self._operations is None:
-            self._operations = Operations(self.get_request_executor())
+        self._assert_initialize()
         return self._operations
 
     def __enter__(self):
@@ -46,7 +45,8 @@ class DocumentStore(object):
             if self.database is None:
                 raise exceptions.InvalidOperationException("None database is not valid")
 
-            # self._requests_handler.get_replication_topology()
+            self._operations = Operations(self.get_request_executor())
+            self._requests_handler.get_replication_topology()
             self.generator = MultiDatabaseHiLoKeyGenerator(self)
             self._initialize = True
 
