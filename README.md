@@ -13,16 +13,7 @@ foo = session.load("foos/1")
 ## Installation
 There are three ways to install pyravendb.
 
-1. Install from [PyPi](https://pypi.python.org/pypi), as [pyravendb](https://pypi.python.org/pypi/pyravendb).
-	```
-	pip install pyravendb
-	```
-
-2. Install from source, via PyPi. From pyravendb, download, open the source (pyravendb-x.x.x.zip) and run setup.py.
-	```
-    python setup.py install
-	```
-3. Install from source via [GitHub](https://github.com/IdanHaim/RavenDB-Python-Client).
+1. Install from source via [GitHub](https://github.com/ravendb/RavenDB-Python-Client).
  
 	```
     git clone https://github.com/IdanHaim/RavenDB-Python-Client.git
