@@ -109,7 +109,7 @@ class IndexDefinition(object):
 
 
 class IndexQuery(object):
-    def __init__(self, query="", total_size=0, skipped_results=0, default_operator=None, **kwargs):
+    def __init__(self, query="", total_size=0, skipped_results=0, default_operator=None, start=None, **kwargs):
         """
         @param query: Actual query that will be performed (Lucene syntax).
         :type str
@@ -125,13 +125,16 @@ class IndexQuery(object):
         self.query = query
         self.total_size = total_size
         self.skipped_results = skipped_results
-        self._page_size = 128
         self.__page_size_set = False
+        self._page_size = 128
+        if "page_size" in kwargs:
+            self.page_size = kwargs["page_size"]
         self.default_operator = default_operator
         self.sort_hints = kwargs.get("sort_hints", {})
         self.sort_fields = kwargs.get("sort_fields", {})
         self.fetch = kwargs.get("fetch", [])
         self.wait_for_non_stale_results = kwargs.get("wait_for_non_stale_results", False)
+        self.start = start
 
     @property
     def page_size(self):

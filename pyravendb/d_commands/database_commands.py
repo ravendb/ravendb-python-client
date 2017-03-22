@@ -263,7 +263,7 @@ class DatabaseCommands(object):
             raise ValueError("None query is invalid")
         if not isinstance(index_query, IndexQuery):
             raise ValueError("query must be IndexQuery type")
-        path = "indexes/{0}?&pageSize={1}".format(Utils.quote_key(index_name), index_query.page_size)
+        path = "indexes/{0}?".format(Utils.quote_key(index_name))
         if index_query.default_operator is QueryOperator.AND:
             path += "&operator={0}".format(index_query.default_operator.value)
         if index_query.query:
@@ -283,6 +283,10 @@ class DatabaseCommands(object):
             path += "&debug=entries"
         if includes and len(includes) > 0:
             path += "".join("&include=" + item for item in includes)
+        if index_query.start:
+            path += "&start={0}".format(index_query.start)
+
+        path += "&pageSize={0}".format(index_query.page_size)
         response = self._requests_handler.http_request_handler(path, "GET",
                                                                force_read_from_master=force_read_from_master).json()
         if "Error" in response:

@@ -8,6 +8,8 @@ class TestQuery(TestBase):
     def setUpClass(cls):
         super(TestQuery, cls).setUpClass()
         cls.db.put("products/10", {"Name": "test"}, {"Raven-Entity-Name": "Products", "Raven-Python-Type": "object"})
+        cls.db.put("products/11", {"Name": "test2"}, {"Raven-Entity-Name": "Products", "Raven-Python-Type": "object"})
+        cls.db.put("products/12", {"Name": "test3"}, {"Raven-Entity-Name": "Products", "Raven-Python-Type": "object"})
 
     def test_only_query(self):
         self.db.put_index("Testing", self.index, True)
@@ -31,3 +33,8 @@ class TestQuery(TestBase):
     def test_fail_none_response(self):
         with self.assertRaises(exceptions.ErrorResponseException):
             self.db.query("IndexIsNotExists", IndexQuery("Tag:Products"))
+
+    def test_only_query_change_page_size_and_add_start(self):
+        self.db.put_index("Testing", self.index, True)
+        response = self.db.query("Testing", IndexQuery("Tag:Products", page_size=1, start=1))
+        self.assertEqual(response["Results"][0]["Name"], "test2")
