@@ -23,6 +23,8 @@ class Query(object):
         self._sort_hints = set()
         self._sort_fields = set()
         self.fetch = None
+        self._page_size = None
+        self._start = None
 
     def __call__(self, object_type=None, index_name=None, using_default_operator=None,
                  wait_for_non_stale_results=False, includes=None, with_statistics=False, nested_object_types=None):
@@ -254,6 +256,16 @@ class Query(object):
         self.query_builder += "{0}:{1}".format(field_name, lucene_text)
         return self
 
+    def take(self, count):
+        # This method control on the number of the server return results
+        self._page_size = count
+        return self
+
+    def skip(self, count):
+        # This method tell the server to return the results from count and on
+        self._start = count
+        return self
+
     def where_greater_than(self, field_name, value):
         return self.where_between(field_name, value, None)
 
@@ -270,7 +282,9 @@ class Query(object):
         if len(self.query_builder) > 0:
             self.query_builder += ' '
         self.query_builder += '('
-        self.where_equals(field_name, '*', escape_query_options=EscapeQueryOptions.RawQuery).and_also().add_not().where_equals(field_name, None)
+        self.where_equals(field_name, '*',
+                          escape_query_options=EscapeQueryOptions.RawQuery).and_also().add_not().where_equals(
+            field_name, None)
         self.query_builder += ')'
         return self
 
@@ -323,12 +337,14 @@ class Query(object):
         conventions = self.session.conventions
         end_time = time.time() + conventions.timeout
         while True:
-            response = self.session.database_commands. \
-                query(self.index_name, IndexQuery(self.query_builder, default_operator=self.using_default_operator,
-                                                  sort_hints=self._sort_hints, sort_fields=self._sort_fields,
-                                                  fetch=self.fetch,
-                                                  wait_for_non_stale_results=self.wait_for_non_stale_results),
-                      includes=self.includes)
+            index_query = IndexQuery(self.query_builder, default_operator=self.using_default_operator,
+                                     sort_hints=self._sort_hints, sort_fields=self._sort_fields,
+                                     fetch=self.fetch,
+                                     wait_for_non_stale_results=self.wait_for_non_stale_results,
+                                     start=self._start)
+            if self._page_size is not None:
+                index_query.page_size = self._page_size
+            response = self.session.database_commands.query(self.index_name, index_query, includes=self.includes)
             if response["IsStale"] and self.wait_for_non_stale_results:
                 if time.time() > end_time:
                     raise ErrorResponseException("The index is still stale after reached the timeout")

@@ -188,6 +188,10 @@ class TestQuery(TestBase):
 
             self.assertTrue(found_in_all)
 
+    def test_where_starts_with_skip_take(self):
+        with self.document_store.open_session() as session:
+            query_result = list(session.query().where_starts_with("name", "test").take(4).skip("2"))
+            self.assertEqual(len(query_result), 4)
 
 if __name__ == "__main__":
     unittest.main()
