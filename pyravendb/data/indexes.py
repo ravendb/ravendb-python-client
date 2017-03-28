@@ -109,22 +109,18 @@ class IndexDefinition(object):
 
 
 class IndexQuery(object):
-    def __init__(self, query="", total_size=0, skipped_results=0, default_operator=None, start=None, **kwargs):
+    def __init__(self, query="", default_operator=None, start=None, **kwargs):
         """
         @param query: Actual query that will be performed (Lucene syntax).
         :type str
-        @param total_size: For internal use only.
-        :type int
-        @param skipped_results: For internal use only.
-        :type int
         @param default_operator: The operator of the query (AND or OR) the default value is OR
         :type Enum.QueryOperator
-        @param fetch fetch only the terms you want from the index
+        @param start : offset used to skip a number of results from a query
         :type list
-    """
+        @param page_size : only using for query 
+        :type str
+        """
         self.query = query
-        self.total_size = total_size
-        self.skipped_results = skipped_results
         self.__page_size_set = False
         self._page_size = 128
         if "page_size" in kwargs:
