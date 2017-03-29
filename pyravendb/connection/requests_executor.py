@@ -1,25 +1,20 @@
 from pyravendb.data.document_convention import ReadBehavior, WriteBehavior
 from pyravendb.d_commands.raven_commands import GetTopologyCommand
-from Crypto.Cipher import AES, PKCS1_OAEP
-from Crypto.PublicKey import RSA
-from Crypto.Random import get_random_bytes
-from Crypto.Util.number import bytes_to_long
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.tools.pkcs7 import PKCS7Encoder
+from pyravendb.tools.authenticator import ApiKeyAuthenticator
 from pyravendb.connection.requests_helpers import ServerNode, Topology
-from pyravendb.tools.utils import Utils
 from threading import Timer, Lock
-import logging
-
-logging.basicConfig(filename='info.log', level=logging.DEBUG)
-log = logging.getLogger()
 import time
 import requests
 import sys
 import json
 import hashlib
-import base64
 import os
+
+import logging
+
+logging.basicConfig(filename='info.log', level=logging.DEBUG)
+log = logging.getLogger()
 
 
 class RequestsExecutor(object):
@@ -43,8 +38,9 @@ class RequestsExecutor(object):
         self.lock = Lock()
         self.update_failing_node_status_lock = Lock()
         self.request_count = 0
-        self._token = None
         self.convention = convention
+        self._authenticator = ApiKeyAuthenticator()
+        self._unauthorized_timer_initialize = False
 
         failing_nodes_timer = Timer(60, self.update_failing_nodes_status)
         failing_nodes_timer.daemon = True
@@ -84,6 +80,8 @@ class RequestsExecutor(object):
                 start_time = time.time() * 1000
                 end_time = None
                 try:
+                    if chosen_node["node"].current_token is not None:
+                        raven_command.headers["Raven-Authorization"] = chosen_node["node"].current_token
                     response = session.request(raven_command.method, url=raven_command.url, data=data,
                                                headers=raven_command.headers)
                 except exceptions.ErrorResponseException:
@@ -114,12 +112,8 @@ class RequestsExecutor(object):
                         raise exceptions.AuthorizationException(
                             "Got unauthorized response for {0} after trying to authenticate using specified api-key.".format(
                                 chosen_node["node"].url))
-                    try:
-                        oauth_source = response.headers.__getitem__("OAuth-Source")
-                    except KeyError:
-                        raise exceptions.InvalidOperationException(
-                            "Something is not right please check your server settings (do you use the right api_key)")
-                    self.handle_unauthorized(self._api_key, oauth_source)
+
+                    self.handle_unauthorized(chosen_node["node"])
                     continue
                 if response.status_code == 403:
                     raise exceptions.AuthorizationException(
@@ -144,12 +138,7 @@ class RequestsExecutor(object):
                 response = session.request("GET", command.url, headers=self.headers)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
-                        try:
-                            oauth_source = response.headers.__getitem__("OAuth-Source")
-                        except KeyError:
-                            raise exceptions.InvalidOperationException(
-                                "Something is not right please check your server settings")
-                        self.handle_unauthorized(self._api_key, oauth_source)
+                        self.handle_unauthorized(node, False)
                     except Exception as e:
                         log.info("Tested if node alive but it's down: {0}".format(node.url), e)
                         pass
@@ -249,6 +238,23 @@ class RequestsExecutor(object):
                 failing_nodes_timer.daemon = True
                 failing_nodes_timer.start()
 
+    def update_current_token(self):
+        if self._unauthorized_timer_initialize:
+            topology = self._topology
+            leader_node = topology.leader_node
+
+            if leader_node is not None:
+                self.handle_unauthorized(leader_node, False)
+
+            for node in topology.nodes:
+                self.handle_unauthorized(node, False)
+        else:
+            self._unauthorized_timer_initialize = True
+
+        update_current_token_timer = Timer(60 * 20, self.update_current_token)
+        update_current_token_timer.daemon = True
+        update_current_token_timer.start()
+
     def _open_is_alive_timer(self, node):
         is_alive_timer = Timer(5, lambda: self.is_alive(node))
         is_alive_timer.daemon = True
@@ -285,69 +291,15 @@ class RequestsExecutor(object):
         topology.sla = float(json_topology["SLA"]["RequestTimeThresholdInMilliseconds"]) / 1000
         return topology
 
-    def handle_unauthorized(self, api_key, oauth_source, second_api_key=None):
-        raise NotImplementedError("handle unauthorized requests invalid")
-        # api_name, secret = api_key.split('/', 1)
-        # tries = 1
-        # headers = {"grant_type": "client_credentials"}
-        # data = None
-        # with requests.session() as session:
-        #     while True:
-        #         oath = session.request(method="POST", url=oauth_source,
-        #                                headers=headers, data=data)
-        #         if oath.reason == "Precondition Failed":
-        #             if tries > 1:
-        #                 if not (second_api_key and self._api_key != second_api_key and tries < 3):
-        #                     raise exceptions.ErrorResponseException("Unauthorized")
-        #                 api_name, secret = second_api_key.split('/', 1)
-        #                 tries += 1
-        #
-        #             authenticate = oath.headers.__getitem__("www-authenticate")[len("Raven  "):]
-        #             challenge_dict = dict(item.split("=", 1) for item in authenticate.split(','))
-        #
-        #             exponent_str = challenge_dict.get("exponent", None)
-        #             modulus_str = challenge_dict.get("modulus", None)
-        #             challenge = challenge_dict.get("challenge", None)
-        #
-        #             exponent = bytes_to_long(base64.standard_b64decode(exponent_str))
-        #             modulus = bytes_to_long(base64.standard_b64decode(modulus_str))
-        #
-        #             rsa = RSA.construct((modulus, exponent))
-        #             cipher = PKCS1_OAEP.new(rsa)
-        #
-        #             iv = get_random_bytes(16)
-        #             key = get_random_bytes(32)
-        #             encoder = PKCS7Encoder()
-        #
-        #             cipher_text = cipher.encrypt(key + iv)
-        #             results = []
-        #             results.extend(cipher_text)
-        #
-        #             aes = AES.new(key, AES.MODE_CBC, iv)
-        #             sub_data = Utils.dict_to_string({"api key name": api_name, "challenge": challenge,
-        #                                              "response": base64.b64encode(hashlib.sha1(
-        #                                                  '{0};{1}'.format(challenge, secret).encode(
-        #                                                      'utf-8')).digest())})
-        #
-        #             results.extend(aes.encrypt(encoder.encode(sub_data)))
-        #             data = Utils.dict_to_string({"exponent": exponent_str, "modulus": modulus_str,
-        #                                          "data": base64.standard_b64encode(bytearray(results))})
-        #
-        #             if exponent is None or modulus is None or challenge is None:
-        #                 raise exceptions.InvalidOperationException(
-        #                     "Invalid response from server, could not parse raven authentication information:{0} ".format(
-        #                         authenticate))
-        #             tries += 1
-        #         elif oath.status_code == 200:
-        #             oath_json = oath.json()
-        #             body = oath_json["Body"]
-        #             signature = oath_json["Signature"]
-        #             if not sys.version_info.major > 2:
-        #                 body = body.encode('utf-8')
-        #                 signature = signature.encode('utf-8')
-        #                 self._token = "Bearer {0}".format(
-        #                     {"Body": body, "Signature": signature})
-        #                 self.headers.update({"Authorization": self._token})
-        #             break
-        #         else:
-        #             raise exceptions.ErrorResponseException(oath.reason)
+    def handle_unauthorized(self, server_node, should_raise=True):
+        try:
+            current_token = self._authenticator.authenticate(server_node.url, self._api_key, self.headers)
+            server_node.current_token = current_token
+        except Exception as e:
+            log.info("Failed to authorize using api key", exc_info=str(e))
+
+            if should_raise:
+                raise
+
+        if not self._unauthorized_timer_initialize:
+            self.update_current_token()

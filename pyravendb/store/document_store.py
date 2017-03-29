@@ -46,7 +46,6 @@ class DocumentStore(object):
                 raise exceptions.InvalidOperationException("None database is not valid")
 
             self._operations = Operations(self.get_request_executor())
-            self._requests_handler.get_replication_topology()
             self.generator = MultiDatabaseHiLoKeyGenerator(self)
             self._initialize = True
 

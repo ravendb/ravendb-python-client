@@ -14,10 +14,16 @@ class ReadBehavior(Enum):
     round_robin_failover_when_request_time_sla_threshold_is_reached = "RoundRobinWithFailoverWhenRequestTimeSlaThresholdIsReached"
     fastest_node = "FastestNode"
 
+    def __str__(self):
+        return self.value
+
 
 class WriteBehavior(Enum):
     leader_only = "LeaderOnly"
     leader_with_failover = "LeaderWithFailover"
+
+    def __str__(self):
+        return self.value
 
 
 inflector = Inflector()

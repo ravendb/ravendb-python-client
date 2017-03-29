@@ -3,6 +3,7 @@ from pyravendb.data.indexes import IndexQuery, QueryOperator
 from pyravendb.data.patches import PatchRequest
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.data.database import ApiKeyDefinition
 from pyravendb.tools.utils import Utils
 from abc import abstractmethod
 import collections
@@ -499,7 +500,7 @@ class GetOperationStateCommand(RavenCommand):
         self.id = id
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database,self.id)
+        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database, self.id)
 
     def set_response(self, response):
         try:
@@ -509,7 +510,58 @@ class GetOperationStateCommand(RavenCommand):
         return response
 
 
-# For Admin use only (create or delete databases)
+# For Admin use only (create or delete databases, Api-Key commands)
+class PutApiKeyCommand(RavenCommand):
+    def __init__(self, name, api_key):
+        """
+        @param name: the name of  the api_key
+        :type str
+        @param api_key: the api_key
+        :type ApiKeyDefinition
+        """
+        super(CreateDatabaseCommand, self).__init__(method="PUT")
+        if name is None:
+            raise ValueError("{0} name is Invalid".format(name))
+        if api_key is None or not isinstance(api_key, ApiKeyDefinition):
+            raise ValueError("{0} name is Invalid".format(api_key))
+
+        self.name = name
+        self.api_key = api_key
+
+    def create_request(self, server_node):
+        self.url = "{0}/admin/api-keys?name={1}".format(server_node.url, Utils.quote_key(self.name))
+        self.data = self.api_key.to_json()
+
+    def set_response(self, response):
+        pass
+
+class GetApiKeyCommand(RavenCommand):
+    def __init__(self, name):
+        """
+        @param name: the name of  the api_key
+        :type str
+        """
+        super(GetApiKeyCommand, self).__init__(method="GET")
+        if name is None:
+            raise ValueError("{0} name is Invalid".format(name))
+
+        self.name = name
+
+    def create_request(self, server_node):
+        self.url = "{0}/admin/api-keys?name={1}".format(server_node.url, Utils.quote_key(self.name))
+
+    def set_response(self, response):
+        if response is None:
+            return None
+
+        try:
+            response = response.json()
+        except ValueError:
+            raise response.raise_for_status()
+
+        return response["Results"]
+
+
 class CreateDatabaseCommand(RavenCommand):
     def __init__(self, database_document):
         """
