@@ -1,3 +1,6 @@
+import enum
+
+
 class DatabaseDocument(object):
     __slots__ = ["database_id", "settings", "secured_settings", "disabled"]
 
@@ -43,3 +46,29 @@ class ReplicationDestination(object):
 
     def to_json(self):
         return self.destination
+
+
+class ApiKeyDefinition(object):
+    def __init__(self, enabled=True, secret=None, server_admin=False, resources_access_mode=None):
+        '''
+        @param enabled: The api_key is enabled in the database
+        :type bool
+        @param secret: the secret key
+        :type str
+        @param resources_access_mode: resources is a dict with str as key (db/{Name oF the database}) and Access mods as value
+        None
+        ReadOnly
+        ReadWrite
+        Admin
+        just put as str one of the above option
+        '''
+        self.enabled = enabled
+        self.secret = secret
+        self.server_admin = server_admin
+        self.resources_access_mode = resources_access_mode
+
+    def to_json(self):
+        return {"Enabled": self.enabled,
+                "ResourcessAccessMode": self.resources_access_mode if self.resources_access_mode is not None else {},
+                "Secret": self.secret,
+                "ServerAdmin": self.server_admin}

@@ -10,6 +10,7 @@ from threading import Timer
 import requests
 import time
 import os
+import ctypes
 
 
 class Dog(object):
@@ -30,11 +31,12 @@ class Node(object):
 
 
 if __name__ == "__main__":
-    with DocumentStore("http://localhost.fiddler:8080", "LeaderNode") as store:
+
+    with DocumentStore("http://localhost.fiddler:8089", "NorthWind", api_key="super/secret") as store:
         store.initialize()
 
         with store.open_session() as session:
-            dog = Dog("rex")
+            dog = Dog("Faz")
             child = Child("Ilay")
             session.store(dog)
             session.store(child)

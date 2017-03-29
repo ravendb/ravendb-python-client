@@ -40,6 +40,7 @@ class RequestsExecutor(object):
         self.request_count = 0
         self.convention = convention
         self._authenticator = ApiKeyAuthenticator()
+        self._unauthorized_timer_initialize = False
 
         failing_nodes_timer = Timer(60, self.update_failing_nodes_status)
         failing_nodes_timer.daemon = True
@@ -79,8 +80,8 @@ class RequestsExecutor(object):
                 start_time = time.time() * 1000
                 end_time = None
                 try:
-                    if chosen_node.current_token is not None:
-                        raven_command.headers["Raven-Authorization"] = chosen_node.current_token
+                    if chosen_node["node"].current_token is not None:
+                        raven_command.headers["Raven-Authorization"] = chosen_node["node"].current_token
                     response = session.request(raven_command.method, url=raven_command.url, data=data,
                                                headers=raven_command.headers)
                 except exceptions.ErrorResponseException:
@@ -112,10 +113,7 @@ class RequestsExecutor(object):
                             "Got unauthorized response for {0} after trying to authenticate using specified api-key.".format(
                                 chosen_node["node"].url))
 
-                    oauth_source = None
-                    if "OAuth_Source" in response.headers:
-                        oauth_source = response.headers["OAuth_Source"]
-                    self.handle_unauthorized(oauth_source, chosen_node["node"])
+                    self.handle_unauthorized(chosen_node["node"])
                     continue
                 if response.status_code == 403:
                     raise exceptions.AuthorizationException(
@@ -140,10 +138,7 @@ class RequestsExecutor(object):
                 response = session.request("GET", command.url, headers=self.headers)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
-                        oauth_source = None
-                        if "OAuth_Source" in response.headers:
-                            oauth_source = response.headers["OAuth_Source"]
-                        self.handle_unauthorized(oauth_source, node, False)
+                        self.handle_unauthorized(node, False)
                     except Exception as e:
                         log.info("Tested if node alive but it's down: {0}".format(node.url), e)
                         pass
@@ -244,16 +239,19 @@ class RequestsExecutor(object):
                 failing_nodes_timer.start()
 
     def update_current_token(self):
-        topology = self._topology
-        leader_node = topology.leader_node
+        if self._unauthorized_timer_initialize:
+            topology = self._topology
+            leader_node = topology.leader_node
 
-        if leader_node is not None:
-            self.handle_unauthorized(None, leader_node, False)
+            if leader_node is not None:
+                self.handle_unauthorized(leader_node, False)
 
-        for node in topology.nodes:
-            self.handle_unauthorized(None, node, False)
+            for node in topology.nodes:
+                self.handle_unauthorized(node, False)
+        else:
+            self._unauthorized_timer_initialize = True
 
-        update_current_token_timer = Timer(60 * 20, self.update_current_token())
+        update_current_token_timer = Timer(60 * 20, self.update_current_token)
         update_current_token_timer.daemon = True
         update_current_token_timer.start()
 
@@ -293,12 +291,9 @@ class RequestsExecutor(object):
         topology.sla = float(json_topology["SLA"]["RequestTimeThresholdInMilliseconds"]) / 1000
         return topology
 
-    def handle_unauthorized(self, oauth_source, server_node, should_raise=True):
+    def handle_unauthorized(self, server_node, should_raise=True):
         try:
-            if oauth_source:
-                oauth_source = "{0}/OAuth/API-Key".format(server_node.url)
-
-            current_token = self._authenticator.authenticate(oauth_source, self._api_key)
+            current_token = self._authenticator.authenticate(server_node.url, self._api_key, self.headers)
             server_node.current_token = current_token
         except Exception as e:
             log.info("Failed to authorize using api key", exc_info=str(e))
@@ -306,6 +301,5 @@ class RequestsExecutor(object):
             if should_raise:
                 raise
 
-        update_current_token_timer = Timer(60 * 20, self.update_current_token())
-        update_current_token_timer.daemon = True
-        update_current_token_timer.start()
+        if not self._unauthorized_timer_initialize:
+            self.update_current_token()

@@ -33,3 +33,6 @@ class IndexDoesNotExistException(Exception):
 
 class TimeoutException(Exception):
     pass
+
+class AuthenticationException(Exception):
+    pass
