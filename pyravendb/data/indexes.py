@@ -116,9 +116,11 @@ class IndexQuery(object):
         @param default_operator: The operator of the query (AND or OR) the default value is OR
         :type Enum.QueryOperator
         @param start : offset used to skip a number of results from a query
+        :type int
+        @param page_size : the number of the results in the query response
+        :type int
+        @param fetch : fetch only the terms you want from the index
         :type list
-        @param page_size : only using for query 
-        :type str
         """
         self.query = query
         self.__page_size_set = False
