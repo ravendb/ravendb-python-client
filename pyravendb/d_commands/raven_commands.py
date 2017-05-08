@@ -535,6 +535,7 @@ class PutApiKeyCommand(RavenCommand):
     def set_response(self, response):
         pass
 
+
 class GetApiKeyCommand(RavenCommand):
     def __init__(self, name):
         """
@@ -614,8 +615,10 @@ class DeleteDatabaseCommand(RavenCommand):
             self.url += "&hard-delete=true"
 
     def set_response(self, response):
-        if response.status_code == 200:
+        try:
             response = response.json()
-            if not response[0]["Deleted"]:
-                raise Exception(response[0]["Reason"])
+            if "Error" in response:
+                raise exceptions.DatabaseDoesNotExistException(response["Message"])
+        except ValueError:
+            raise response.raise_for_status()
         return None

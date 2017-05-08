@@ -281,11 +281,12 @@ class DocumentSession(object):
             if item["Method"] == "PUT":
                 entity = data.entities[i - data.deferred_command_count]
                 if entity in self._documents_by_entity:
-                    self._documents_by_id[item["Key"]] = entity
+                    self._documents_by_id[item["@id"]] = entity
                     document_info = self._documents_by_entity[entity]
-                    document_info["etag"] = str(item["Etag"])
-                    document_info["original_metadata"] = item["Metadata"].copy()
-                    document_info["metadata"] = item["Metadata"]
+                    document_info["etag"] = str(item["@etag"])
+                    item.pop("Method", None)
+                    document_info["original_metadata"] = item.copy()
+                    document_info["metadata"] = item
                     document_info["original_value"] = entity.__dict__.copy()
             i += 1
 
