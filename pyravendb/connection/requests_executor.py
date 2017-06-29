@@ -1,9 +1,10 @@
-from pyravendb.data.document_convention import ReadBehavior, WriteBehavior
-from pyravendb.d_commands.raven_commands import GetTopologyCommand
+from pyravendb.d_commands.raven_commands import GetTopologyCommand, GetStatisticsCommand
+from pyravendb.connection.requests_helpers import NodeSelector, Topology, ServerNode, NodeStatus
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.authenticator import ApiKeyAuthenticator
-from pyravendb.connection.requests_helpers import ServerNode, Topology
-from threading import Timer, Lock
+from pyravendb.data.document_convention import DocumentConvention
+from threading import Timer, Lock, Thread
+from datetime import datetime
 import time
 import requests
 import sys
@@ -18,76 +19,95 @@ log = logging.getLogger()
 
 
 class RequestsExecutor(object):
-    def __init__(self, url, database, api_key, convention):
+    def __init__(self, database_name, api_key, **kwargs):
+        self._database_name = database_name
         self._api_key = api_key
-        server_node = ServerNode(url, database, api_key)
-        if sys.version_info.major > 2:
-            maxint = sys.maxsize
-        else:
-            maxint = sys.maxint
-        self._topology = Topology(etag=-maxint - 1, leader_node=server_node, read_behavior=ReadBehavior.leader_only,
-                                  write_behavior=WriteBehavior.leader_only)
+        self.topology_etag = kwargs.get("topology_etag", 0)
+        self._last_return_response = datetime.utcnow()
+        self.convention = None
+        self._node_selector = kwargs.get("node_selector", None)
+        self._last_known_urls = []
 
-        self.primary = False
-        self.first_time_try_load_from_topology_cache = True
-        self.version_info = sys.version_info.major
         self.headers = {"Accept": "application/json",
                         "Has-Api-key": 'true' if self._api_key is not None else 'false',
                         "Raven-Client-Version": "4.0.0.0"}
-        self.topology_change_counter = 0
+
+        self.update_topology_lock = Lock()
+        self.update_timer_lock = Lock()
         self.lock = Lock()
-        self.update_failing_node_status_lock = Lock()
-        self.request_count = 0
-        self.convention = convention
+        self._without_topology = kwargs.get("without_topology", False)
+
+        self._failed_nodes_timers = {}
+        self._first_topology_update = None
         self._authenticator = ApiKeyAuthenticator()
-        self._unauthorized_timer_initialize = False
+        self.cluster_token = None
 
-        failing_nodes_timer = Timer(60, self.update_failing_nodes_status)
-        failing_nodes_timer.daemon = True
-        failing_nodes_timer.start()
+    @classmethod
+    def create(cls, urls, database_name, api_key, convention=None):
+        executor = cls(database_name, api_key)
+        executor.convention = convention if convention is not None else DocumentConvention()
+        executor._first_topology_update = Thread(target=cls.first_topology_update, args=(urls,))
+        return executor
 
-        self.hash_name = hashlib.md5(
-            "{0}{1}".format(self._topology.leader_node.url, self._topology.leader_node.database).encode(
-                'utf-8')).hexdigest()
-        self.topology_file = "{0}\{1}.raven-topology".format(os.getcwd(), self.hash_name)
+    @classmethod
+    def create_for_single_node(cls, url, database_name, api_key):
+        topology = Topology(etag=-1, nodes=[ServerNode(url, database_name)])
+        return cls(database_name, api_key, node_selector=NodeSelector(topology), topology_etag=-2,
+                   without_topology=True)
 
-        try:
-            with open(self.topology_file, 'r') as f:
-                replication_topology = json.loads(f.read())
-                cache_topology = self.convert_json_topology_to_entity(replication_topology)
-                if cache_topology.etag > self._topology.etag:
-                    self._topology = cache_topology
-        except Exception:
-            pass
-        finally:
-            timer = Timer(1, self.get_replication_topology)
-            timer.daemon = True
-            timer.start()
-
-    def execute(self, raven_command):
+    def execute(self, raven_command, should_retry=True):
         if not hasattr(raven_command, 'raven_command'):
             raise ValueError("Not a valid command")
 
-        chosen_node = self.choose_node_for_request(raven_command)
+        try:
+            topology_update = self._first_topology_update
+            if topology_update is None:
+                with self.lock:
+                    if self._first_topology_update is None:
+                        if self._last_known_urls is None:
+                            raise exceptions.InvalidOperationException(
+                                "No known topology and no previously known one, cannot proceed, likely a bug")
+                        self._first_topology_update = self.first_topology_update(self._last_known_urls)
+                    topology_update = self._first_topology_update
+                topology_update.join()
+        except:
+            with self.lock:
+                if self._first_topology_update == topology_update:
+                    self._first_topology_update = None
+            raise
+
+        chosen_node = self._node_selector.get_current_node()
 
         while True:
-            raven_command.create_request(chosen_node["node"])
+            raven_command.create_request(chosen_node)
+            if self.cluster_token is not None:
+                raven_command.headers["Raven-Authorization", self.cluster_token]
+            node_index = self._node_selector.current_node_index
 
             with requests.session() as session:
                 raven_command.headers.update(self.headers)
+                if not self._without_topology:
+                    raven_command.headers["Topology-Etag"] = "\"{0}\"".format(self.topology_etag)
+
                 data = None if raven_command.data is None else \
                     json.dumps(raven_command.data, default=self.convention.json_default_method)
                 start_time = time.time() * 1000
                 end_time = None
                 try:
-                    if chosen_node["node"].current_token is not None:
-                        raven_command.headers["Raven-Authorization"] = chosen_node["node"].current_token
+                    if self.cluster_token is not None:
+                        raven_command.headers["Raven-Authorization"] = chosen_node.current_token
                     response = session.request(raven_command.method, url=raven_command.url, data=data,
                                                headers=raven_command.headers)
-                except exceptions.ErrorResponseException:
+                except exceptions.ErrorResponseException as e:
                     end_time = time.time() * 1000
-                    chosen_node["node"].is_failed = True
-                    raven_command.failed_nodes.add(chosen_node["node"])
+                    if not should_retry:
+                        raise
+                    if not self.handle_server_down(chosen_node, node_index, raven_command, response, e):
+                        raise exceptions.AllTopologyNodesDownException(
+                            "Tried to send request to all configured nodes in the topology, "
+                            "all of them seem to be down or not responding.", e)
+
+                    raven_command.failed_nodes.add(chosen_node)
                     chosen_node = self.choose_node_for_request(raven_command)
                     continue
 
@@ -95,7 +115,7 @@ class RequestsExecutor(object):
                     if not end_time:
                         end_time = time.time() * 1000
                     elapsed_time = end_time - start_time
-                    chosen_node["node"].response_time = elapsed_time
+                    chosen_node.response_time = elapsed_time
 
                 if response is None:
                     raise ValueError("response is invalid.")
@@ -106,137 +126,123 @@ class RequestsExecutor(object):
                     if not self._api_key:
                         raise exceptions.AuthorizationException(
                             "Got unauthorized response for {0}. Please specify an api-key.".format(
-                                chosen_node["node"].url))
+                                chosen_node.url))
                     raven_command.authentication_retries += 1
                     if raven_command.authentication_retries > 1:
                         raise exceptions.AuthorizationException(
                             "Got unauthorized response for {0} after trying to authenticate using specified api-key.".format(
-                                chosen_node["node"].url))
+                                chosen_node.url))
 
-                    self.handle_unauthorized(chosen_node["node"])
+                    self.handle_unauthorized(chosen_node)
                     continue
                 if response.status_code == 403:
                     raise exceptions.AuthorizationException(
                         "Forbidden access to {0}. Make sure you're using the correct api-key.".format(
-                            chosen_node["node"].url))
+                            chosen_node.url))
                 if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
-                    if raven_command.avoid_failover:
-                        return raven_command.set_response(None)
-                    chosen_node["node"].is_failed = True
-                    raven_command.failed_nodes.add(chosen_node["node"])
+                    self.handle_server_down(chosen_node, node_index, raven_command, response, None)
                     chosen_node = self.choose_node_for_request(raven_command)
                     continue
+                if response.status_code == 409:
+                    # TODO: Conflict resolution
+                    # current implementation is temporary
+                    raise NotImplementedError(response.status_code)
 
+                if "Refresh-Topology" in response.headers:
+                    self.update_topology(ServerNode(chosen_node.url, self._database_name))
+                self._last_return_response = datetime.utcnow()
                 return raven_command.set_response(response)
 
-    def is_alive(self, node):
-        command = GetTopologyCommand()
+    def first_topology_update(self, initial_urls):
+        list = []
+        for url in initial_urls:
+            try:
+                self.update_topology(ServerNode(url, self._database_name))
+            except:
+                e = sys.exc_info()[0]
+                if len(initial_urls) == 0:
+                    raise exceptions.InvalidOperationException("Cannot get topology from server: " + url, e)
+                list.append((url, e))
+
+    def update_topology(self, node, timeout):
+        if self.update_topology_lock(False):
+            with self.update_topology_lock:
+                command = GetTopologyCommand()
+                response = self.execute(node, command, should_retry=False)
+
+                hash_name = hashlib.md5(
+                    "{0}{1}".format(node.url, node.database).encode(
+                        'utf-8')).hexdigest()
+
+                topology_file = "{0}\{1}.raven-topology".format(os.getcwd(), hash_name)
+                try:
+                    with open(topology_file, 'w') as outfile:
+                        json.dump(response, outfile, ensure_ascii=False)
+                except:
+                    pass
+
+                if self._node_selector is None:
+                    self._node_selector = NodeSelector(response)
+
+                elif self._node_selector.on_update_topology(response):
+                    self.cancel_all_failed_nodes_timers()
+
+                self.topology_etag = self._node_selector.topology.etag
+
+        else:
+            return False
+
+    def handle_server_down(self, chosen_node, node_index, command, response, e):
+        command.failed_nodes.update({chosen_node: {"url": command.url, "error": str(e), "type": type(e).__name__}})
+        node_selector = self._node_selector
+
+        node_status = NodeStatus(self, node_index, chosen_node)
+        with self.update_timer_lock:
+            self._failed_nodes_timers.update({chosen_node, node_status})
+            node_status.start_timer()
+
+        if node_selector is not None:
+            node_selector.on_failed_request(node_index)
+            current_node = node_selector.get_current_node()
+            if command.is_failed_with_node(current_node):
+                return True
+        return False
+
+    def cancel_all_failed_nodes_timers(self):
+        failed_nodes_timers = self._failed_nodes_timers
+        self._failed_nodes_timers.clear()
+        for _, timer in failed_nodes_timers.items():
+            timer.cancel()
+            timer.join()
+
+    def check_node_status(self, node_status):
+        nodes = self._node_selector.topology.nodes
+        server_node = nodes[node_status.node_index]
+        if not (node_status.node_index >= len(nodes) or server_node is not node_status.node):
+            self.perform_health_check(server_node, node_status)
+
+    def perform_health_check(self, node, node_status):
+        command = GetStatisticsCommand(debug_tag="failure=check")
         command.create_request(node)
         try:
             with requests.session() as session:
-                start_time = time.time() * 1000
                 response = session.request("GET", command.url, headers=self.headers)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
-                        self.handle_unauthorized(node, False)
+                        self.handle_unauthorized(node)
                     except Exception as e:
-                        log.info("Tested if node alive but it's down: {0}".format(node.url), e)
+                        log.info("{0} is still down".format(node.cluster_tag), e)
+                        failed_node_timer = self._failed_nodes_timers.get(node_status.node, None)
+                        if failed_node_timer is not None:
+                            failed_node_timer.start_timer()
                         pass
                 if response.status_code == 200:
-                    node.is_failed = False
+                    failed_node_timer = self._failed_nodes_timers.pop(node_status.node, None)
+                    if failed_node_timer:
+                        del failed_node_timer
+                    # TODO restore node_index
         except exceptions.ErrorResponseException:
             pass
-        finally:
-            elapsed_time = time.time() * 1000 - start_time
-            node.response_time = elapsed_time
-            if node.is_failed:
-                self._open_is_alive_timer(node)
-
-    def choose_node_for_request(self, command):
-        topology = self._topology
-        leader_node = topology.leader_node
-
-        if command.is_read_request:
-            if topology.read_behavior == ReadBehavior.leader_only:
-                if not command.is_failed_with_node(leader_node):
-                    return {"node": leader_node}
-                raise requests.RequestException(
-                    "Leader node failed to make this request. the current read_behavior is set to leader_only")
-
-            if topology.read_behavior == ReadBehavior.round_robin:
-                skipped_nodes = []
-                if topology.nodes:
-                    for node in topology.nodes:
-                        if not node.is_failed and not command.is_failed_with_node(node):
-                            return {"node": node, "skipped_nodes": skipped_nodes}
-                        skipped_nodes.append(node)
-                raise requests.RequestException(
-                    "Tried all nodes in the cluster but failed getting a response")
-
-            if topology.read_behavior == ReadBehavior.leader_with_failover_when_request_time_sla_threshold_is_reached:
-                if not leader_node.is_failed and not command.is_failed_with_node(
-                        leader_node) and leader_node.is_rate_surpassed(topology.sla):
-                    return {"node": leader_node}
-
-                nodes_with_leader = []
-                if not leader_node.is_failed:
-                    nodes_with_leader = [leader_node]
-
-                if topology.nodes:
-                    for node in topology.nodes:
-                        if not node.is_failed:
-                            nodes_with_leader.append(node)
-
-                if len(nodes_with_leader) > 0:
-                    nodes_with_leader = sorted(nodes_with_leader, key=lambda node: node.ewma())
-                    fastest_node = nodes_with_leader[0]
-                    nodes_with_leader.remove(fastest_node)
-
-                    return {"node": fastest_node, "skipped_nodes": nodes_with_leader}
-
-                raise requests.RequestException("Tried all nodes in the cluster but failed getting a response")
-
-            raise exceptions.InvalidOperationException("Invalid read_behavior value:{0}".format(topology.read_behavior))
-
-        if topology.write_behavior == WriteBehavior.leader_only:
-            if not command.is_failed_with_node(leader_node):
-                return {"node": leader_node}
-            raise requests.RequestException(
-                "Leader node failed to make this request. the current write_behavior is set to leader_only")
-
-        if topology.write_behavior == WriteBehavior.leader_with_failover:
-            if not leader_node.is_failed and command.is_failed_with_node(leader_node):
-                return {"node": leader_node}
-
-            for node in topology.nodes:
-                if not node.is_failed and command.is_failed_with_node(node):
-                    return {"node": node}
-
-            raise requests.RequestException("Tried all nodes in the cluster but failed getting a response")
-
-        raise exceptions.InvalidOperationException("Invalid write_behavior value: {0}".format(topology.write_behavior))
-
-    def update_failing_nodes_status(self):
-        with self.update_failing_node_status_lock:
-            try:
-                topology = self._topology
-
-                leader_node = topology.leader_node
-                if leader_node and leader_node.is_failed:
-                    self._open_is_alive_timer(leader_node)
-
-                server_nodes = topology.nodes
-                if server_nodes:
-                    for node in server_nodes:
-                        if node and node.is_failed:
-                            self._open_is_alive_timer(node)
-
-            except Exception as e:
-                log.info("Failed to check if failing server are down", e)
-            finally:
-                failing_nodes_timer = Timer(60, self.update_failing_nodes_status)
-                failing_nodes_timer.daemon = True
-                failing_nodes_timer.start()
 
     def update_current_token(self):
         if self._unauthorized_timer_initialize:
@@ -255,46 +261,19 @@ class RequestsExecutor(object):
         update_current_token_timer.daemon = True
         update_current_token_timer.start()
 
-    def _open_is_alive_timer(self, node):
-        is_alive_timer = Timer(5, lambda: self.is_alive(node))
-        is_alive_timer.daemon = True
-        is_alive_timer.start()
-
-    def get_replication_topology(self):
-        with self.lock:
-            try:
-                topology_command = GetTopologyCommand()
-                response = self.execute(topology_command)
-                if response is not None:
-                    response_replication_topology = self.convert_json_topology_to_entity(response)
-                    if self._topology.etag < response_replication_topology.etag:
-                        self._topology = response_replication_topology
-                        with open(self.topology_file, 'w+') as f:
-                            if "SLA" in response:
-                                response["SLA"]["RequestTimeThresholdInMilliseconds"] = float(
-                                    response["SLA"]["RequestTimeThresholdInMilliseconds"]) / 1000
-                            f.write(json.dumps(response))
-            except Exception as e:
-                log.info("Failed to update topology", e)
-            finally:
-                timer = Timer(60 * 5, self.get_replication_topology)
-                timer.daemon = True
-                timer.start()
-
     def convert_json_topology_to_entity(self, json_topology):
         topology = Topology()
         topology.etag = json_topology["Etag"]
-        topology.leader_node = ServerNode(json_topology["LeaderNode"]["Url"], json_topology["LeaderNode"]["Database"])
-        topology.nodes = [ServerNode(node["Url"], node["Database"], node["ApiKey"]) for node in json_topology["Nodes"]]
-        topology.read_behavior = ReadBehavior(json_topology["ReadBehavior"])
-        topology.write_behavior = WriteBehavior(json_topology["WriteBehavior"])
-        topology.sla = float(json_topology["SLA"]["RequestTimeThresholdInMilliseconds"]) / 1000
+        topology.nodes = []
+        # TODO make sure we make a new serverNode list
+        for node in json_topology["Nodes"]:
+            topology.nodes.append("")
         return topology
 
     def handle_unauthorized(self, server_node, should_raise=True):
         try:
-            current_token = self._authenticator.authenticate(server_node.url, self._api_key, self.headers)
-            server_node.current_token = current_token
+            cluster_token = self._authenticator.authenticate(server_node.url, self._api_key, self.headers)
+            self.cluster_token = cluster_token
         except Exception as e:
             log.info("Failed to authorize using api key", exc_info=str(e))
 

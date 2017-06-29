@@ -22,9 +22,8 @@ class RavenCommand(object):
             self.headers = {}
         self.__raven_command = True
         self.is_read_request = is_read_request
-        self.failed_nodes = set()
+        self.failed_nodes = {}
         self.authentication_retries = 0
-        self.avoid_failover = False
 
     @abstractmethod
     def create_request(self, server_node):
@@ -466,11 +465,14 @@ class QueryCommand(RavenCommand):
 
 
 class GetStatisticsCommand(RavenCommand):
-    def __init__(self):
+    def __init__(self, debug_tag = None):
         super(GetStatisticsCommand, self).__init__(method="GET")
+        self.debug_tag = debug_tag
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/stats".format(server_node.url, server_node.database)
+        if self.debug_tag:
+            self.url += "?{0}".format(self.debug_tag)
 
     def set_response(self, response):
         if response and response.status_code == 200:
@@ -479,12 +481,14 @@ class GetStatisticsCommand(RavenCommand):
 
 
 class GetTopologyCommand(RavenCommand):
-    def __init__(self):
+    def __init__(self, force_url=None):
         super(GetTopologyCommand, self).__init__(method="GET", is_read_request=True)
-        self.avoid_failover = True
+        self._force_url = force_url
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/topology?url={2}".format(server_node.url, server_node.database, server_node.url)
+        self.url = "{0}/topology?name={1}".format(server_node.url, server_node.database)
+        if self._force_url is not None and not self._force_url == "":
+            self.url += "&url={0}".format(self._force_url)
 
     def set_response(self, response):
         if response.status_code == 200:

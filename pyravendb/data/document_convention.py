@@ -18,14 +18,6 @@ class ReadBehavior(Enum):
         return self.value
 
 
-class WriteBehavior(Enum):
-    leader_only = "LeaderOnly"
-    leader_with_failover = "LeaderWithFailover"
-
-    def __str__(self):
-        return self.value
-
-
 inflector = Inflector()
 
 
