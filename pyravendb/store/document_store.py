@@ -9,8 +9,10 @@ import os
 
 
 class DocumentStore(object):
-    def __init__(self, url=None, database=None, api_key=None):
-        self.url = url
+    def __init__(self, urls=None, database=None, api_key=None):
+        if not isinstance(urls, list):
+            urls = [urls]
+        self.urls = urls
         self.database = database
         self.conventions = DocumentConvention()
         self.api_key = api_key
@@ -37,7 +39,7 @@ class DocumentStore(object):
             db_name = self.database
 
         if db_name not in self._request_executors:
-            self._request_executors[db_name] = RequestsExecutor(self.url, db_name, self.api_key, self.conventions)
+            self._request_executors[db_name] = RequestsExecutor.create(self.urls, db_name, self.api_key, self.conventions)
         return self._request_executors[db_name]
 
     def initialize(self):

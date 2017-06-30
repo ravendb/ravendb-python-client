@@ -181,7 +181,7 @@ class BatchCommand(RavenCommand):
             data.append(command.to_json())
 
         self.url = "{0}/databases/{1}/bulk_docs".format(server_node.url, server_node.database)
-        self.data = data
+        self.data = {"Commands", data}
 
     def set_response(self, response):
         try:
@@ -465,7 +465,7 @@ class QueryCommand(RavenCommand):
 
 
 class GetStatisticsCommand(RavenCommand):
-    def __init__(self, debug_tag = None):
+    def __init__(self, debug_tag=None):
         super(GetStatisticsCommand, self).__init__(method="GET")
         self.debug_tag = debug_tag
 

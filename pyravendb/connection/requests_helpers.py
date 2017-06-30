@@ -41,6 +41,15 @@ class Topology(object):
         self.etag = etag
         self.nodes = nodes
 
+    @staticmethod
+    def convert_json_topology_to_entity(json_topology):
+        topology = Topology()
+        topology.etag = json_topology["Etag"]
+        topology.nodes = []
+        for node in json_topology["Nodes"]:
+            topology.nodes.append(ServerNode(node['Url'], node['Database'], node['ClusterTag']))
+        return topology
+
 
 class NodeSelector(object):
     def __init__(self, topology):

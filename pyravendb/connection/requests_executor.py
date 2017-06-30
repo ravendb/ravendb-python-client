@@ -42,47 +42,57 @@ class RequestsExecutor(object):
         self._authenticator = ApiKeyAuthenticator()
         self.cluster_token = None
 
-    @classmethod
-    def create(cls, urls, database_name, api_key, convention=None):
-        executor = cls(database_name, api_key)
+    @staticmethod
+    def create(urls, database_name, api_key, convention=None):
+        executor = RequestsExecutor(database_name, api_key)
         executor.convention = convention if convention is not None else DocumentConvention()
-        executor._first_topology_update = Thread(target=cls.first_topology_update, args=(urls,))
+        executor.start_first_topology_thread(urls)
         return executor
 
-    @classmethod
-    def create_for_single_node(cls, url, database_name, api_key):
+    @staticmethod
+    def create_for_single_node(url, database_name, api_key):
         topology = Topology(etag=-1, nodes=[ServerNode(url, database_name)])
-        return cls(database_name, api_key, node_selector=NodeSelector(topology), topology_etag=-2,
-                   without_topology=True)
+        return RequestsExecutor(database_name, api_key, node_selector=NodeSelector(topology), topology_etag=-2,
+                                without_topology=True)
+
+    def start_first_topology_thread(self, urls):
+        self._first_topology_update = Thread(target=self.first_topology_update, args=(urls,), daemon=True)
+        self._first_topology_update.start()
 
     def execute(self, raven_command, should_retry=True):
         if not hasattr(raven_command, 'raven_command'):
             raise ValueError("Not a valid command")
+        topology_update = self._first_topology_update
+        if not self._without_topology:
+            if topology_update is None or topology_update.is_alive():
+                try:
+                    if topology_update is None:
+                        with self.lock:
+                            if self._first_topology_update is None:
+                                if self._last_known_urls is None:
+                                    raise exceptions.InvalidOperationException(
+                                        "No known topology and no previously known one, cannot proceed, likely a bug")
+                                self.start_first_topology_thread(self._last_known_urls)
+                            topology_update = self._first_topology_update
+                    topology_update.join()
+                except:
+                    with self.lock:
+                        if self._first_topology_update == topology_update:
+                            self._first_topology_update = None
+                    raise
 
-        try:
-            topology_update = self._first_topology_update
-            if topology_update is None:
-                with self.lock:
-                    if self._first_topology_update is None:
-                        if self._last_known_urls is None:
-                            raise exceptions.InvalidOperationException(
-                                "No known topology and no previously known one, cannot proceed, likely a bug")
-                        self._first_topology_update = self.first_topology_update(self._last_known_urls)
-                    topology_update = self._first_topology_update
-                topology_update.join()
-        except:
-            with self.lock:
-                if self._first_topology_update == topology_update:
-                    self._first_topology_update = None
-            raise
-
+        if self._node_selector is None:
+            raise exceptions.InvalidOperationException(
+                "node_selector cannot be None, please check your connection or supply a valid node_selector")
         chosen_node = self._node_selector.get_current_node()
+        return self.execute_with_node(chosen_node, raven_command, should_retry)
 
+    def execute_with_node(self, chosen_node, raven_command, should_retry):
         while True:
             raven_command.create_request(chosen_node)
             if self.cluster_token is not None:
                 raven_command.headers["Raven-Authorization", self.cluster_token]
-            node_index = self._node_selector.current_node_index
+            node_index = 0 if self._node_selector is None else self._node_selector.current_node_index
 
             with requests.session() as session:
                 raven_command.headers.update(self.headers)
@@ -102,7 +112,7 @@ class RequestsExecutor(object):
                     end_time = time.time() * 1000
                     if not should_retry:
                         raise
-                    if not self.handle_server_down(chosen_node, node_index, raven_command, response, e):
+                    if not self.handle_server_down(chosen_node, node_index, raven_command, e):
                         raise exceptions.AllTopologyNodesDownException(
                             "Tried to send request to all configured nodes in the topology, "
                             "all of them seem to be down or not responding.", e)
@@ -140,7 +150,7 @@ class RequestsExecutor(object):
                         "Forbidden access to {0}. Make sure you're using the correct api-key.".format(
                             chosen_node.url))
                 if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
-                    self.handle_server_down(chosen_node, node_index, raven_command, response, None)
+                    self.handle_server_down(chosen_node, node_index, raven_command, None)
                     chosen_node = self.choose_node_for_request(raven_command)
                     continue
                 if response.status_code == 409:
@@ -154,21 +164,22 @@ class RequestsExecutor(object):
                 return raven_command.set_response(response)
 
     def first_topology_update(self, initial_urls):
-        list = []
+        error_list = []
         for url in initial_urls:
             try:
                 self.update_topology(ServerNode(url, self._database_name))
-            except:
-                e = sys.exc_info()[0]
+            except Exception as e:
                 if len(initial_urls) == 0:
                     raise exceptions.InvalidOperationException("Cannot get topology from server: " + url, e)
-                list.append((url, e))
+                error_list.append((url, e))
+        # TODO load from cache
+        self._last_known_urls = initial_urls
 
-    def update_topology(self, node, timeout):
-        if self.update_topology_lock(False):
-            with self.update_topology_lock:
+    def update_topology(self, node):
+        if self.update_topology_lock.acquire(False):
+            try:
                 command = GetTopologyCommand()
-                response = self.execute(node, command, should_retry=False)
+                response = self.execute_with_node(node, command, should_retry=False)
 
                 hash_name = hashlib.md5(
                     "{0}{1}".format(node.url, node.database).encode(
@@ -181,18 +192,20 @@ class RequestsExecutor(object):
                 except:
                     pass
 
+                topology = Topology.convert_json_topology_to_entity(response)
                 if self._node_selector is None:
-                    self._node_selector = NodeSelector(response)
+                    self._node_selector = NodeSelector(topology)
 
-                elif self._node_selector.on_update_topology(response):
+                elif self._node_selector.on_update_topology(topology):
                     self.cancel_all_failed_nodes_timers()
 
                 self.topology_etag = self._node_selector.topology.etag
-
+            finally:
+                self.update_topology_lock.release()
         else:
             return False
 
-    def handle_server_down(self, chosen_node, node_index, command, response, e):
+    def handle_server_down(self, chosen_node, node_index, command, e):
         command.failed_nodes.update({chosen_node: {"url": command.url, "error": str(e), "type": type(e).__name__}})
         node_selector = self._node_selector
 
@@ -240,7 +253,7 @@ class RequestsExecutor(object):
                     failed_node_timer = self._failed_nodes_timers.pop(node_status.node, None)
                     if failed_node_timer:
                         del failed_node_timer
-                    # TODO restore node_index
+                        # TODO restore node_index
         except exceptions.ErrorResponseException:
             pass
 
@@ -260,15 +273,6 @@ class RequestsExecutor(object):
         update_current_token_timer = Timer(60 * 20, self.update_current_token)
         update_current_token_timer.daemon = True
         update_current_token_timer.start()
-
-    def convert_json_topology_to_entity(self, json_topology):
-        topology = Topology()
-        topology.etag = json_topology["Etag"]
-        topology.nodes = []
-        # TODO make sure we make a new serverNode list
-        for node in json_topology["Nodes"]:
-            topology.nodes.append("")
-        return topology
 
     def handle_unauthorized(self, server_node, should_raise=True):
         try:
