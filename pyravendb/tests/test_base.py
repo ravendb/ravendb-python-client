@@ -13,7 +13,7 @@ from pyravendb.data.database import DatabaseDocument
 class TestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.default_url = "http://localhost:8081"
+        cls.default_url = "http://localhost:8080"
         cls.default_database = "NorthWindTest"
         cls.request_handler = HttpRequestsFactory(cls.default_url, cls.default_database)
         cls.db = database_commands.DatabaseCommands(cls.request_handler)
