@@ -177,6 +177,7 @@ class documentsession(object):
                 "{0} is marked as read only and cannot be deleted".format(entity))
         self._deleted_entities.add(entity)
         self._known_missing_ids.add(self._entities_and_metadata[entity]["key"])
+        self._includes.pop(self._entities_and_metadata[entity]["key"], None)
 
     def delete(self, key_or_entity):
         """
@@ -187,7 +188,7 @@ class documentsession(object):
             raise ValueError("None key is invalid")
         if not isinstance(key_or_entity, str):
             self.delete_by_entity(key_or_entity)
-        self._known_missing_ids.add(key_or_entity)
+            return
         if key_or_entity in self._entities_by_key:
             entity = self._entities_by_key[key_or_entity]
             if self._has_change(entity):
@@ -201,6 +202,8 @@ class documentsession(object):
                     "{0} is marked as read only and cannot be deleted".format(entity))
             self.delete_by_entity(entity)
             return
+        self._known_missing_ids.add(key_or_entity)
+        self._includes.pop(key_or_entity, None)
         self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity))
 
     def assert_no_non_unique_instance(self, entity, key):
