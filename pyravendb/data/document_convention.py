@@ -27,7 +27,7 @@ class DocumentConvention(object):
         self.max_ids_to_catch = 32
         # timeout for wait to server in seconds
         self.timeout = 30
-        self.default_use_optimistic_concurrency = False
+        self.default_use_optimistic_concurrency = True
         self.json_default_method = DocumentConvention.json_default
         self.max_length_of_query_using_get_url = 1024 + 512
         self._system_database = "system"

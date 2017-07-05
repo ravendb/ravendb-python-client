@@ -1,5 +1,5 @@
 from pyravendb.d_commands.raven_commands import GetTopologyCommand, GetStatisticsCommand
-from pyravendb.connection.requests_helpers import NodeSelector, Topology, ServerNode, NodeStatus
+from pyravendb.connection.requests_helpers import *
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.authenticator import ApiKeyAuthenticator
 from pyravendb.data.document_convention import DocumentConvention
@@ -7,14 +7,13 @@ from threading import Timer, Lock, Thread
 from datetime import datetime
 import time
 import requests
-import sys
 import json
 import hashlib
 import os
 
 import logging
 
-logging.basicConfig(filename='info.log', level=logging.DEBUG)
+logging.basicConfig(filename='requests_executor_info.log', level=logging.DEBUG)
 log = logging.getLogger()
 
 
@@ -26,7 +25,7 @@ class RequestsExecutor(object):
         self._last_return_response = datetime.utcnow()
         self.convention = None
         self._node_selector = kwargs.get("node_selector", None)
-        self._last_known_urls = []
+        self._last_known_urls = None
 
         self.headers = {"Accept": "application/json",
                         "Has-Api-key": 'true' if self._api_key is not None else 'false',
@@ -118,7 +117,7 @@ class RequestsExecutor(object):
                             "all of them seem to be down or not responding.", e)
 
                     raven_command.failed_nodes.add(chosen_node)
-                    chosen_node = self.choose_node_for_request(raven_command)
+                    chosen_node = self._node_selector.get_current_node()
                     continue
 
                 finally:
@@ -150,13 +149,16 @@ class RequestsExecutor(object):
                         "Forbidden access to {0}. Make sure you're using the correct api-key.".format(
                             chosen_node.url))
                 if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
+                    if len(raven_command.failed_nodes) == 1:
+                        node = list(raven_command.failed_nodes.keys())[0]
+                        raise exceptions.UnsuccessfulRequestException(node.url, raven_command.failed_nodes[node])
                     self.handle_server_down(chosen_node, node_index, raven_command, None)
-                    chosen_node = self.choose_node_for_request(raven_command)
+                    chosen_node = self._node_selector.get_current_node()
                     continue
                 if response.status_code == 409:
                     # TODO: Conflict resolution
                     # current implementation is temporary
-                    raise NotImplementedError(response.status_code)
+                    raise response.raise_for_status()
 
                 if "Refresh-Topology" in response.headers:
                     self.update_topology(ServerNode(chosen_node.url, self._database_name))
@@ -168,12 +170,38 @@ class RequestsExecutor(object):
         for url in initial_urls:
             try:
                 self.update_topology(ServerNode(url, self._database_name))
+                # TODO set topology Timer
+                return
             except Exception as e:
                 if len(initial_urls) == 0:
+                    self._last_known_urls = initial_urls
                     raise exceptions.InvalidOperationException("Cannot get topology from server: " + url, e)
                 error_list.append((url, e))
-        # TODO load from cache
+
+        # Failed to update topology trying update from cache
+        for url in initial_urls:
+            if self.try_load_from_cache(url):
+                return
+
         self._last_known_urls = initial_urls
+        raise exceptions.AggregateException("Failed to retrieve cluster topology from all known nodes", error_list)
+
+    def try_load_from_cache(self, url):
+        server_hash = hashlib.md5(
+            "{0}{1}".format(url, self._database_name).encode(
+                'utf-8')).hexdigest()
+        topology_file_path = "{0}\{1}.raven-topology".format(os.getcwd(), server_hash)
+        try:
+            with open(topology_file_path, 'r') as topology_file:
+                json_file = json.load(topology_file)
+                self._node_selector = NodeSelector(
+                    Topology.convert_json_topology_to_entity(json_file))
+                self.topology_etag = -2
+                # TODO set topology Timer
+                return True
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            log.info(e)
+        return False
 
     def update_topology(self, node):
         if self.update_topology_lock.acquire(False):
@@ -211,7 +239,7 @@ class RequestsExecutor(object):
 
         node_status = NodeStatus(self, node_index, chosen_node)
         with self.update_timer_lock:
-            self._failed_nodes_timers.update({chosen_node, node_status})
+            self._failed_nodes_timers.update({chosen_node: node_status})
             node_status.start_timer()
 
         if node_selector is not None:

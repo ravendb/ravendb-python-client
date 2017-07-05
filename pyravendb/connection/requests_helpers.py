@@ -3,7 +3,7 @@ from threading import Lock, Timer
 
 
 class ServerNode(object):
-    def __init__(self, url, database, cluster_tag=None):
+    def __init__(self, url, database=None, cluster_tag=None):
         self.url = url
         self.database = database
         self.cluster_tag = cluster_tag
@@ -39,13 +39,12 @@ class ServerNode(object):
 class Topology(object):
     def __init__(self, etag=0, nodes=None):
         self.etag = etag
-        self.nodes = nodes
+        self.nodes = nodes if nodes is not None else []
 
     @staticmethod
     def convert_json_topology_to_entity(json_topology):
         topology = Topology()
         topology.etag = json_topology["Etag"]
-        topology.nodes = []
         for node in json_topology["Nodes"]:
             topology.nodes.append(ServerNode(node['Url'], node['Database'], node['ClusterTag']))
         return topology

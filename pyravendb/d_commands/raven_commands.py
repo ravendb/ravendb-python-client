@@ -181,7 +181,7 @@ class BatchCommand(RavenCommand):
             data.append(command.to_json())
 
         self.url = "{0}/databases/{1}/bulk_docs".format(server_node.url, server_node.database)
-        self.data = {"Commands", data}
+        self.data = {"Commands": data}
 
     def set_response(self, response):
         try:
@@ -498,6 +498,21 @@ class GetTopologyCommand(RavenCommand):
         return None
 
 
+class GetClusterTopologyCommand(RavenCommand):
+    def __init__(self, force_url=None):
+        super(GetClusterTopologyCommand, self).__init__(method="GET", is_read_request=True)
+
+    def create_request(self, server_node):
+        self.url = "{0}/admin/cluster/topology".format(server_node.url)
+
+    def set_response(self, response):
+        if response.status_code == 200:
+            return response.json()
+        if response.status_code == 400:
+            log.debug(response.json()["Error"])
+        return None
+
+
 class GetOperationStateCommand(RavenCommand):
     def __init__(self, id):
         super(GetOperationStateCommand, self).__init__(method="GET")
@@ -523,7 +538,7 @@ class PutApiKeyCommand(RavenCommand):
         @param api_key: the api_key
         :type ApiKeyDefinition
         """
-        super(CreateDatabaseCommand, self).__init__(method="PUT")
+        super(PutApiKeyCommand, self).__init__(method="PUT")
         if name is None:
             raise ValueError("{0} name is Invalid".format(name))
         if api_key is None or not isinstance(api_key, ApiKeyDefinition):

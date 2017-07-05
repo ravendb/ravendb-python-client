@@ -178,8 +178,10 @@ class DocumentSession(object):
         if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
             raise exceptions.InvalidOperationException(
                 "{0} is marked as read only and cannot be deleted".format(entity))
-        self._deleted_entities.add(entity)
+        self._included_documents_by_key.pop(self._documents_by_entity[entity]["key"], None)
         self._known_missing_ids.add(self._documents_by_entity[entity]["key"])
+        self._deleted_entities.add(entity)
+
 
     def delete(self, key_or_entity):
         """
@@ -190,7 +192,7 @@ class DocumentSession(object):
             raise ValueError("None key is invalid")
         if not isinstance(key_or_entity, str):
             self.delete_by_entity(key_or_entity)
-        self._known_missing_ids.add(key_or_entity)
+            return
         if key_or_entity in self._documents_by_id:
             entity = self._documents_by_id[key_or_entity]
             if self._has_change(entity):
@@ -204,6 +206,8 @@ class DocumentSession(object):
                     "{0} is marked as read only and cannot be deleted".format(entity))
             self.delete_by_entity(entity)
             return
+        self._known_missing_ids.add(key_or_entity)
+        self._included_documents_by_key.pop(key_or_entity, None)
         self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity))
 
     def assert_no_non_unique_instance(self, entity, key):
@@ -212,7 +216,7 @@ class DocumentSession(object):
             raise exceptions.NonUniqueObjectException(
                 "Attempted to associate a different object with id '{0}'.".format(key))
 
-    def store(self, entity, key=None, etag=None, force_concurrency_check=False):
+    def store(self, entity, key="", etag=""):
         """
         @param entity: Entity that will be stored
         :type object:
@@ -220,18 +224,19 @@ class DocumentSession(object):
         :type str:
         @param etag: Current entity etag, used for concurrency checks (null to skip check)
         :type str
-        @param force_concurrency_check:
-        :type bool
         """
+
         if entity is None:
             raise ValueError("None entity value is invalid")
+
+        force_concurrency_check = self._get_concurrency_check_mode(entity, key, etag)
         if entity in self._documents_by_entity:
-            if etag is not None:
+            if etag:
                 self._documents_by_entity[entity]["etag"] = etag
             self._documents_by_entity[entity]["force_concurrency_check"] = force_concurrency_check
             return
 
-        if key is None:
+        if not key:
             entity_id = GenerateEntityIdOnTheClient.try_get_id_from_instance(entity)
         else:
             GenerateEntityIdOnTheClient.try_set_id_on_entity(entity, key)
@@ -257,6 +262,18 @@ class DocumentSession(object):
         self._deleted_entities.discard(entity)
         self.save_entity(entity_id, entity, {}, metadata, {}, force_concurrency_check=force_concurrency_check)
 
+    def _get_concurrency_check_mode(self, entity, key="", etag=""):
+        if key == "":
+            return "disabled" if etag is None else "forced"
+        if etag == "":
+            if key is None:
+                entity_key = GenerateEntityIdOnTheClient.try_get_id_from_instance(entity)
+                return "forced" if entity_key is None else "auto"
+            return "auto"
+        return
+
+        return "disabled" if etag is None else "forced"
+
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
         self._defer_commands.clear()
@@ -278,13 +295,13 @@ class DocumentSession(object):
         batch_result_length = len(batch_result)
         while i < batch_result_length:
             item = batch_result[i]
-            if item["Method"] == "PUT":
+            if item["Type"] == "PUT":
                 entity = data.entities[i - data.deferred_command_count]
                 if entity in self._documents_by_entity:
                     self._documents_by_id[item["@id"]] = entity
                     document_info = self._documents_by_entity[entity]
                     document_info["etag"] = str(item["@etag"])
-                    item.pop("Method", None)
+                    item.pop("Type", None)
                     document_info["original_metadata"] = item.copy()
                     document_info["metadata"] = item
                     document_info["original_value"] = entity.__dict__.copy()
@@ -315,11 +332,12 @@ class DocumentSession(object):
                 key = self._documents_by_entity[entity]["key"]
                 metadata = self._documents_by_entity[entity]["metadata"]
                 etag = None
-                if self.advanced.use_optimistic_concurrency \
-                        or self._documents_by_entity[entity]["force_concurrency_check"]:
+                if self.advanced.use_optimistic_concurrency and self._documents_by_entity[entity][
+                    "force_concurrency_check"] != "disabled" or self._documents_by_entity[entity][
+                    "force_concurrency_check"] == "forced":
                     etag = self._documents_by_entity[entity]["etag"] or metadata.get("@etag", Utils.empty_etag())
                 data.entities.append(entity)
-                if key is not None:
+                if key:
                     self._documents_by_id.pop(key)
                     document = entity.__dict__.copy()
                     document.pop('Id', None)

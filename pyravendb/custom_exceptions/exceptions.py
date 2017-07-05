@@ -41,5 +41,14 @@ class TimeoutException(Exception):
 class AuthenticationException(Exception):
     pass
 
+
 class AllTopologyNodesDownException(Exception):
+    pass
+
+
+class UnsuccessfulRequestException(Exception):
+    pass
+
+
+class AggregateException(Exception):
     pass
