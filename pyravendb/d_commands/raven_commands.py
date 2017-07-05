@@ -22,9 +22,8 @@ class RavenCommand(object):
             self.headers = {}
         self.__raven_command = True
         self.is_read_request = is_read_request
-        self.failed_nodes = set()
+        self.failed_nodes = {}
         self.authentication_retries = 0
-        self.avoid_failover = False
 
     @abstractmethod
     def create_request(self, server_node):
@@ -182,7 +181,7 @@ class BatchCommand(RavenCommand):
             data.append(command.to_json())
 
         self.url = "{0}/databases/{1}/bulk_docs".format(server_node.url, server_node.database)
-        self.data = data
+        self.data = {"Commands": data}
 
     def set_response(self, response):
         try:
@@ -466,11 +465,14 @@ class QueryCommand(RavenCommand):
 
 
 class GetStatisticsCommand(RavenCommand):
-    def __init__(self):
+    def __init__(self, debug_tag=None):
         super(GetStatisticsCommand, self).__init__(method="GET")
+        self.debug_tag = debug_tag
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/stats".format(server_node.url, server_node.database)
+        if self.debug_tag:
+            self.url += "?{0}".format(self.debug_tag)
 
     def set_response(self, response):
         if response and response.status_code == 200:
@@ -479,12 +481,29 @@ class GetStatisticsCommand(RavenCommand):
 
 
 class GetTopologyCommand(RavenCommand):
-    def __init__(self):
+    def __init__(self, force_url=None):
         super(GetTopologyCommand, self).__init__(method="GET", is_read_request=True)
-        self.avoid_failover = True
+        self._force_url = force_url
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/topology?url={2}".format(server_node.url, server_node.database, server_node.url)
+        self.url = "{0}/topology?name={1}".format(server_node.url, server_node.database)
+        if self._force_url is not None and not self._force_url == "":
+            self.url += "&url={0}".format(self._force_url)
+
+    def set_response(self, response):
+        if response.status_code == 200:
+            return response.json()
+        if response.status_code == 400:
+            log.debug(response.json()["Error"])
+        return None
+
+
+class GetClusterTopologyCommand(RavenCommand):
+    def __init__(self, force_url=None):
+        super(GetClusterTopologyCommand, self).__init__(method="GET", is_read_request=True)
+
+    def create_request(self, server_node):
+        self.url = "{0}/admin/cluster/topology".format(server_node.url)
 
     def set_response(self, response):
         if response.status_code == 200:
@@ -519,7 +538,7 @@ class PutApiKeyCommand(RavenCommand):
         @param api_key: the api_key
         :type ApiKeyDefinition
         """
-        super(CreateDatabaseCommand, self).__init__(method="PUT")
+        super(PutApiKeyCommand, self).__init__(method="PUT")
         if name is None:
             raise ValueError("{0} name is Invalid".format(name))
         if api_key is None or not isinstance(api_key, ApiKeyDefinition):

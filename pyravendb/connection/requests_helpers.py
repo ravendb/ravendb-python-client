@@ -1,14 +1,12 @@
-from pyravendb.data.document_convention import WriteBehavior, ReadBehavior
-from datetime import timedelta
+from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from threading import Lock, Timer
 
 
 class ServerNode(object):
-    def __init__(self, url, database, api_key=None, current_token=None, is_failed=False):
+    def __init__(self, url, database=None, cluster_tag=None):
         self.url = url
         self.database = database
-        self.api_key = api_key
-        self.current_token = current_token
-        self.is_failed = is_failed
+        self.cluster_tag = cluster_tag
         self._response_time = []
         self._is_rate_surpassed = None
 
@@ -39,11 +37,84 @@ class ServerNode(object):
 
 
 class Topology(object):
-    def __init__(self, etag=0, leader_node=None, read_behavior=ReadBehavior.leader_only,
-                 write_behavior=WriteBehavior.leader_only, nodes=None, sla=None):
+    def __init__(self, etag=0, nodes=None):
         self.etag = etag
-        self.leader_node = leader_node
-        self.read_behavior = read_behavior
-        self.write_behavior = write_behavior
-        self.nodes = [] if nodes is None else nodes
-        self.sla = 100 / 1000 if sla is None else sla
+        self.nodes = nodes if nodes is not None else []
+
+    @staticmethod
+    def convert_json_topology_to_entity(json_topology):
+        topology = Topology()
+        topology.etag = json_topology["Etag"]
+        for node in json_topology["Nodes"]:
+            topology.nodes.append(ServerNode(node['Url'], node['Database'], node['ClusterTag']))
+        return topology
+
+
+class NodeSelector(object):
+    def __init__(self, topology):
+        self.topology = topology
+        self._current_node_index = 0
+        self.lock = Lock()
+
+    @property
+    def current_node_index(self):
+        return self._current_node_index
+
+    def on_failed_request(self, node_index):
+        topology_nodes_len = len(self.topology.nodes)
+        if topology_nodes_len == 0:
+            raise InvalidOperationException("Empty database topology, this shouldn't happen.")
+
+        if node_index < topology_nodes_len - 1:
+            next_node_index = node_index + 1
+        else:
+            next_node_index = 0
+
+        self._current_node_index = next_node_index
+
+    def on_update_topology(self, topology, force_update=False):
+        if topology is None:
+            return False
+
+        old_topology = self.topology
+        while True:
+            if old_topology.etag >= topology.etag and not force_update:
+                return False
+
+            with self.lock:
+                if not force_update:
+                    self._current_node_index = 0
+
+                if old_topology is self.topology:
+                    self.topology = topology
+                    return True
+
+            old_topology = self.topology
+
+    def get_current_node(self):
+        if len(self.topology.nodes) == 0:
+            raise InvalidOperationException("Empty database topology, this shouldn't happen.")
+
+        return self.topology.nodes[self._current_node_index]
+
+
+class NodeStatus(object):
+    def __init__(self, request_executor, node_index, node):
+        self._request_executor = request_executor
+        self.node_index = node_index
+        self.node = node
+        self._timer_period = 0
+        self._timer = None
+
+    def _next_timer_period(self):
+        if not self._timer_period >= 60 * 5:
+            self._timer_period += 0.1
+
+        return 60 * 5 if self._timer_period >= 60 * 5 else self._timer_period
+
+    def start_timer(self):
+        self._timer = Timer(self._next_timer_period, self._request_executor.check_node_status, args=(self,))
+
+    def __del__(self):
+        if self._timer is not None:
+            self._timer.cancel()

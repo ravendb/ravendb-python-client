@@ -25,14 +25,30 @@ class ArgumentOutOfRangeException(Exception):
 class DatabaseDoesNotExistException(Exception):
     pass
 
+
 class AuthorizationException(Exception):
     pass
+
 
 class IndexDoesNotExistException(Exception):
     pass
 
+
 class TimeoutException(Exception):
     pass
 
+
 class AuthenticationException(Exception):
+    pass
+
+
+class AllTopologyNodesDownException(Exception):
+    pass
+
+
+class UnsuccessfulRequestException(Exception):
+    pass
+
+
+class AggregateException(Exception):
     pass

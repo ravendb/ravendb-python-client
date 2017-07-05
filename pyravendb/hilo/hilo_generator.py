@@ -35,6 +35,7 @@ class NextHiLoCommand(RavenCommand):
         self.last_range_at = last_range_at
         self.identity_parts_separator = identity_parts_separator
         self.last_range_max = last_range_max
+        self.server_tag = None
 
     def create_request(self, server_node):
         path = "hilo/next?tag={0}&lastBatchSize={1}&lastRangeAt={2}&identityPartsSeparator={3}&lastMax={4}".format(
@@ -44,7 +45,8 @@ class NextHiLoCommand(RavenCommand):
     def set_response(self, response):
         if response.status_code == 201:
             response = response.json()
-            return {"prefix": response["Prefix"], "low": response["Low"], "high": response["High"],
+            return {"prefix": response["Prefix"], "server_tag": response["ServerTag"], "low": response["Low"],
+                    "high": response["High"],
                     "last_size": response["LastSize"],
                     "last_range_at": response["LastRangeAt"]}
         if response.status_code == 500:
@@ -113,13 +115,14 @@ class HiLoKeyGenerator(object):
         self._last_batch_size = 0
         self._range = RangeValue()
         self._prefix = None
+        self._server_tag = None
         self.conventions = store.conventions
         self._identity_parts_separator = self.conventions.identity_parts_separator
         self.collection_ranges = {}
         self.lock = Lock()
 
     def get_document_key_from_id(self, next_id):
-        return "{0}{1}".format(self._prefix, next_id)
+        return "{0}{1}-{2}".format(self._prefix, next_id, self._server_tag)
 
     def generate_document_key(self):
         ranges = {self._tag: RangeValue()}
@@ -151,6 +154,7 @@ class HiLoKeyGenerator(object):
                                        self._identity_parts_separator, self._range.max_id)
         result = self._store.get_request_executor().execute(hilo_command)
         self._prefix = result["prefix"]
+        self._server_tag = result["server_tag"]
         self._last_range_at = Utils.string_to_datetime(result["last_range_at"])
         self._last_batch_size = result["last_size"]
         self._range = RangeValue(result["low"], result["high"])
