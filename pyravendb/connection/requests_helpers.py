@@ -97,6 +97,13 @@ class NodeSelector(object):
 
         return self.topology.nodes[self._current_node_index]
 
+    def restore_node_index(self, node_index):
+        current_node_index = self._current_node_index
+        if current_node_index > node_index:
+            with self.lock:
+                if current_node_index == self._current_node_index:
+                    self._current_node_index = node_index
+
 
 class NodeStatus(object):
     def __init__(self, request_executor, node_index, node):

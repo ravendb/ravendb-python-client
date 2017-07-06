@@ -4,7 +4,7 @@ from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.authenticator import ApiKeyAuthenticator
 from pyravendb.data.document_convention import DocumentConvention
 from threading import Timer, Lock, Thread
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import requests
 import json
@@ -21,7 +21,7 @@ class RequestsExecutor(object):
     def __init__(self, database_name, api_key, **kwargs):
         self._database_name = database_name
         self._api_key = api_key
-        self.topology_etag = kwargs.get("topology_etag", 0)
+        self.topology_etag = kwargs.get("topology_etag", -1)
         self._last_return_response = datetime.utcnow()
         self.convention = None
         self._node_selector = kwargs.get("node_selector", None)
@@ -158,7 +158,12 @@ class RequestsExecutor(object):
                 if response.status_code == 409:
                     # TODO: Conflict resolution
                     # current implementation is temporary
-                    raise response.raise_for_status()
+                    try:
+                        response = response.json()
+                        if "Error" in response:
+                            raise Exception(response["Error"], response["Type"])
+                    except ValueError:
+                        raise response.raise_for_status()
 
                 if "Refresh-Topology" in response.headers:
                     self.update_topology(ServerNode(chosen_node.url, self._database_name))
@@ -170,7 +175,7 @@ class RequestsExecutor(object):
         for url in initial_urls:
             try:
                 self.update_topology(ServerNode(url, self._database_name))
-                # TODO set topology Timer
+                Timer(60 * 5, self.update_topology_callback, daemon=True).start()
                 return
             except Exception as e:
                 if len(initial_urls) == 0:
@@ -197,7 +202,7 @@ class RequestsExecutor(object):
                 self._node_selector = NodeSelector(
                     Topology.convert_json_topology_to_entity(json_file))
                 self.topology_etag = -2
-                # TODO set topology Timer
+                Timer(60 * 5, self.update_topology_callback, daemon=True).start()
                 return True
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log.info(e)
@@ -264,26 +269,21 @@ class RequestsExecutor(object):
 
     def perform_health_check(self, node, node_status):
         command = GetStatisticsCommand(debug_tag="failure=check")
-        command.create_request(node)
         try:
-            with requests.session() as session:
-                response = session.request("GET", command.url, headers=self.headers)
-                if response.status_code == 412 or response.status_code == 401:
-                    try:
-                        self.handle_unauthorized(node)
-                    except Exception as e:
-                        log.info("{0} is still down".format(node.cluster_tag), e)
-                        failed_node_timer = self._failed_nodes_timers.get(node_status.node, None)
-                        if failed_node_timer is not None:
-                            failed_node_timer.start_timer()
-                        pass
-                if response.status_code == 200:
-                    failed_node_timer = self._failed_nodes_timers.pop(node_status.node, None)
-                    if failed_node_timer:
-                        del failed_node_timer
-                        # TODO restore node_index
-        except exceptions.ErrorResponseException:
-            pass
+            self.execute_with_node(node, command, should_retry=False)
+
+        except Exception as e:
+            log.info("{0} is still down".format(node.cluster_tag), e)
+            failed_node_timer = self._failed_nodes_timers.get(node_status.node, None)
+            if failed_node_timer is not None:
+                failed_node_timer.start_timer()
+            return
+
+        failed_node_timer = self._failed_nodes_timers.pop(node_status.node, None)
+        if failed_node_timer:
+            del failed_node_timer
+
+        self._node_selector.restore_node_index(node_status.node_index)
 
     def update_current_token(self):
         if self._unauthorized_timer_initialize:
@@ -314,3 +314,13 @@ class RequestsExecutor(object):
 
         if not self._unauthorized_timer_initialize:
             self.update_current_token()
+
+    def update_topology_callback(self):
+        time = datetime.utcnow()
+        if time - self._last_return_response <= timedelta(minutes=5):
+            return
+
+        try:
+            self.update_topology(self._node_selector.get_current_node())
+        except Exception as e:
+            log.info("Couldn't Update Topology from _updateTopologyTimer task", e)
