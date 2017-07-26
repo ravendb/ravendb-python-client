@@ -1,5 +1,5 @@
 from pyravendb.connection.requests_executor import RequestsExecutor
-from pyravendb.data.operations import Operations
+from pyravendb.connection.operation_executor import OperationExecutor
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.document_convention import DocumentConvention
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
@@ -47,7 +47,7 @@ class DocumentStore(object):
             if self.database is None:
                 raise exceptions.InvalidOperationException("None database is not valid")
 
-            self._operations = Operations(self.get_request_executor())
+            self._operations = OperationExecutor(self)
             self.generator = MultiDatabaseHiLoKeyGenerator(self)
             self._initialize = True
 
@@ -57,11 +57,11 @@ class DocumentStore(object):
                 "You cannot open a session or access the database commands before initializing the document store.\
                 Did you forget calling initialize()?")
 
-    def open_session(self, database=None, force_read_from_master=False):
+    def open_session(self, database=None):
         self._assert_initialize()
         session_id = uuid.uuid4()
         requests_executor = self.get_request_executor(database)
-        return DocumentSession(database, self, requests_executor, session_id, force_read_from_master)
+        return DocumentSession(database, self, requests_executor, session_id)
 
     def generate_id(self, db_name, entity):
         if self.generator:

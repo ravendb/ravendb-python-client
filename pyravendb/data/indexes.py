@@ -1,5 +1,6 @@
 from datetime import timedelta
 from enum import Enum
+import sys
 
 
 class IndexLockMode(Enum):
@@ -139,7 +140,7 @@ class IndexFieldOptions(object):
         @param indexing: Options for indexing a field
         :type FieldIndexing
         @param storage: Specifies whether a field should be stored
-        :type bool
+        :type boolFq
         @param suggestions: If to produce a suggestions in query
         :type bool
         @param term_vector: Specifies whether to include term vectors for a field
@@ -165,13 +166,13 @@ class IndexFieldOptions(object):
 
 
 class IndexQuery(object):
-    def __init__(self, query="", total_size=0, skipped_results=0, default_operator=None, **kwargs):
+    def __init__(self, query="", total_size=0, start=0, default_operator=None, **kwargs):
         """
         @param query: Actual query that will be performed (Lucene syntax).
         :type str
         @param total_size: For internal use only.
         :type int
-        @param skipped_results: For internal use only.
+        @param start:  Number of records that should be skipped.
         :type int
         @param default_operator: The operator of the query (AND or OR) the default value is OR
         :type Enum.QueryOperator
@@ -180,8 +181,8 @@ class IndexQuery(object):
     """
         self.query = query
         self.total_size = total_size
-        self.skipped_results = skipped_results
-        self._page_size = 128
+        self.start = start
+        self._page_size = sys.maxsize
         self.__page_size_set = False
         self.default_operator = default_operator
         self.sort_hints = kwargs.get("sort_hints", {})
