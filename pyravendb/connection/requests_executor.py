@@ -325,3 +325,4 @@ class RequestsExecutor(object):
             self.update_topology(self._node_selector.get_current_node())
         except Exception as e:
             log.info("Couldn't Update Topology from _updateTopologyTimer task", e)
+

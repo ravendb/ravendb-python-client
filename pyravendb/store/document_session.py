@@ -36,7 +36,7 @@ class DocumentSession(object):
         self._defer_commands = set()
         self._number_of_requests_in_session = 0
         self._query = None
-        self.advanced = Advanced(self, document_store)
+        self.advanced = Advanced(self)
 
     def __enter__(self):
         return self
@@ -93,8 +93,8 @@ class DocumentSession(object):
 
                 self._documents_by_entity[self._documents_by_id[key]] = {
                     "original_value": document.copy(), "metadata": metadata,
-                    "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
-                    "force_concurrency_check": force_concurrency_check}
+                    "original_metadata": original_metadata, "change_vector": metadata.get("change_vector", None),
+                    "key": key, "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
         if key not in self._documents_by_id:
@@ -230,23 +230,23 @@ class DocumentSession(object):
             raise exceptions.NonUniqueObjectException(
                 "Attempted to associate a different object with id '{0}'.".format(key))
 
-    def store(self, entity, key="", etag=""):
+    def store(self, entity, key="", change_vector=""):
         """
         @param entity: Entity that will be stored
         :type object:
         @param key: Entity will be stored under this key, (None to generate automatically)
         :type str:
-        @param etag: Current entity etag, used for concurrency checks (null to skip check)
+        @param change_vector: Current entity change_vector, used for concurrency checks (null to skip check)
         :type str
         """
 
         if entity is None:
             raise ValueError("None entity value is invalid")
 
-        force_concurrency_check = self._get_concurrency_check_mode(entity, key, etag)
+        force_concurrency_check = self._get_concurrency_check_mode(entity, key, change_vector)
         if entity in self._documents_by_entity:
-            if etag:
-                self._documents_by_entity[entity]["etag"] = etag
+            if change_vector:
+                self._documents_by_entity[entity]["change_vector"] = change_vector
             self._documents_by_entity[entity]["force_concurrency_check"] = force_concurrency_check
             return
 
@@ -276,17 +276,16 @@ class DocumentSession(object):
         self._deleted_entities.discard(entity)
         self.save_entity(entity_id, entity, {}, metadata, {}, force_concurrency_check=force_concurrency_check)
 
-    def _get_concurrency_check_mode(self, entity, key="", etag=""):
+    def _get_concurrency_check_mode(self, entity, key="", change_vector=""):
         if key == "":
-            return "disabled" if etag is None else "forced"
-        if etag == "":
+            return "disabled" if change_vector is None else "forced"
+        if change_vector == "":
             if key is None:
                 entity_key = GenerateEntityIdOnTheClient.try_get_id_from_instance(entity)
                 return "forced" if entity_key is None else "auto"
             return "auto"
-        return
 
-        return "disabled" if etag is None else "forced"
+        return "disabled" if change_vector is None else "forced"
 
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
@@ -314,7 +313,7 @@ class DocumentSession(object):
                 if entity in self._documents_by_entity:
                     self._documents_by_id[item["@id"]] = entity
                     document_info = self._documents_by_entity[entity]
-                    document_info["etag"] = str(item["@etag"])
+                    document_info["change_vector"] = ["change_vector"]
                     item.pop("Type", None)
                     document_info["original_metadata"] = item.copy()
                     document_info["metadata"] = item
@@ -328,16 +327,16 @@ class DocumentSession(object):
 
         for key in keys_to_delete:
             existing_entity = None
-            etag = None
+            change_vector = None
             if key in self._documents_by_id:
                 existing_entity = self._documents_by_id[key]
                 if existing_entity in self._documents_by_entity:
-                    etag = self._documents_by_entity[existing_entity]["metadata"][
-                        "@etag"] if self.advanced.use_optimistic_concurrency else None
+                    change_vector = self._documents_by_entity[existing_entity][
+                        "change_vector"] if self.advanced.use_optimistic_concurrency else None
                 self._documents_by_entity.pop(existing_entity, None)
                 self._documents_by_id.pop(key, None)
             data.entities.append(existing_entity)
-            data.commands.append(commands_data.DeleteCommandData(key, etag))
+            data.commands.append(commands_data.DeleteCommandData(key, change_vector))
         self._deleted_entities.clear()
 
     def _prepare_for_puts_commands(self, data):
@@ -345,17 +344,17 @@ class DocumentSession(object):
             if self._has_change(entity):
                 key = self._documents_by_entity[entity]["key"]
                 metadata = self._documents_by_entity[entity]["metadata"]
-                etag = None
+                change_vector = None
                 if self.advanced.use_optimistic_concurrency and self._documents_by_entity[entity][
                     "force_concurrency_check"] != "disabled" or self._documents_by_entity[entity][
                     "force_concurrency_check"] == "forced":
-                    etag = self._documents_by_entity[entity]["etag"] or metadata.get("@etag", Utils.empty_etag())
+                    change_vector = self._documents_by_entity[entity]["change_vector"]
                 data.entities.append(entity)
                 if key:
                     self._documents_by_id.pop(key)
                     document = entity.__dict__.copy()
                     document.pop('Id', None)
-                data.commands.append(commands_data.PutCommandData(key, etag, document, metadata))
+                data.commands.append(commands_data.PutCommandData(key, change_vector, document, metadata))
 
     def _has_change(self, entity):
         if self._documents_by_entity[entity]["original_metadata"] != self._documents_by_entity[entity]["metadata"] \
@@ -394,6 +393,7 @@ class Advanced(object):
     """
     The document store associated with this session
     """
+
     @property
     def document_store(self):
         return self.session._document_store
@@ -404,4 +404,3 @@ class Advanced(object):
         self.session.deleted_entities.clear()
         self.session.included_documents_by_id.clear()
         self.session.known_missing_ids.clear()
-

@@ -27,11 +27,7 @@ class Utils(object):
         if reserved_slash:
             reserved += '/'
         if key:
-            # To be able to work on python 2.x and 3.x
-            if sys.version_info.major > 2:
-                return urllib.parse.quote(key, safe=reserved)
-            else:
-                return urllib.quote(key, safe=reserved)
+            return urllib.parse.quote(key, safe=reserved)
         else:
             return ''
 

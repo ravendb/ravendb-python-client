@@ -26,5 +26,12 @@ class OperationExecutor(object):
             raise exceptions.InvalidOperationException(e)
 
     def send(self, operation):
+        try:
+            operation_type = getattr(operation, 'operation')
+            if operation_type != "Operation":
+                raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
+        except AttributeError:
+            raise ValueError("Invalid operation")
+
         command = operation.get_command(self._document_store, self._request_executor.convention)
         return self._request_executor.execute(command)

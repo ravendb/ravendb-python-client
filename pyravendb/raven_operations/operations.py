@@ -26,6 +26,13 @@ class QueryOperationOptions(object):
 
 
 class Operation():
+    def __init__(self):
+        self.__operation = "Operation"
+
+    @property
+    def operation(self):
+        return self.__operation
+
     @abstractmethod
     def get_command(self, store, convention, cache=None):
         raise NotImplementedError
@@ -33,6 +40,7 @@ class Operation():
 
 class DeleteAttachmentOperation(Operation):
     def __init__(self, document_id, name, change_vector=None):
+        super(DeleteAttachmentOperation, self).__init__()
         self._document_id = document_id
         self._name = name
         self._change_vector = change_vector
@@ -72,7 +80,7 @@ class PatchByIndexOperation(Operation):
             raise ValueError("Invalid query")
         if patch is None:
             raise ValueError("Invalid patch")
-
+        super(PatchByIndexOperation, self).__init__()
         self._index_name = index_name
         self._query_to_update = query_to_update
         self._patch = patch
@@ -130,7 +138,8 @@ class DeleteByIndexOperation(Operation):
             raise ValueError("Invalid query")
         if not index_name:
             raise ValueError("Invalid index_name")
-
+        
+        super(DeleteByIndexOperation, self).__init__()
         self._index_name = index_name
         self._query = query
         self._options = options if options is not None else QueryOperationOptions()
@@ -177,7 +186,8 @@ class PatchCollectionOperation(Operation):
             raise ValueError("Invalid collection_name")
         if patch is None:
             raise ValueError("Invalid patch")
-
+        
+        super(PatchCollectionOperation, self).__init__()
         self._collection_name = collection_name
         self._patch = patch
 
@@ -219,6 +229,7 @@ class PatchCollectionOperation(Operation):
 
 class DeleteCollectionOperation(Operation):
     def __init__(self, collection_name):
+        super(DeleteCollectionOperation, self).__init__()
         self.collection_name = collection_name
 
     def get_command(self, store, convention, cache=None):
@@ -255,7 +266,8 @@ class GetAttachmentOperation(Operation):
         if attachment_type != AttachmentType.document and change_vector is None:
             raise ValueError("change_vector",
                              "Change Vector cannot be null for attachment type {0}".format(attachment_type))
-
+        
+        super(GetAttachmentOperation, self).__init__()
         self._document_id = document_id
         self._name = name
         self._attachment_type = attachment_type
@@ -306,6 +318,7 @@ class GetAttachmentOperation(Operation):
 class PatchOperation(Operation):
     def __init__(self, document_id, change_vector, patch, patch_if_missing=None,
                  skip_patch_if_change_vector_mismatch=False):
+        super(PatchOperation, self).__init__()
         self._document_id = document_id
         self._change_vector = change_vector
         self._patch = patch
@@ -342,7 +355,39 @@ class GetFacetsOperation(Operation):
     def __init__(self, query):
         if query is None:
             raise ValueError("Invalid query")
+        
+        super(GetFacetsOperation, self).__init__()
         self._query = query
 
     def get_command(self, store, convention, cache=None):
         return GetFacetsCommand(self._query)
+
+
+class GetMultiFacetsOperation(Operation):
+    def __init__(self, queries):
+        if queries is None or len(queries) == 0:
+            raise ValueError("Invalid queries")
+        
+        super(GetMultiFacetsOperation, self).__init__()
+        self._queries = queries
+
+    def get_command(self, store, convention, cache=None):
+        return self._GetMultiFacetsCommand(self._queries)
+
+    class _GetMultiFacetsCommand(RavenCommand):
+        def __init__(self, queries):
+            super(GetMultiFacetsOperation._GetMultiFacetsCommand, self).__init__(is_read_request=True)
+            self._command = None
+            commands = {}
+            for q in queries:
+                method = q.calculate_http_method()
+                commands.update(
+                    {"url": "/queries" + q.index_name, "query": "?" + q.get_query_string(method), "method": method,
+                     "data": q.serialize_facets_to_json() if method == "POST" else None})
+
+        def create_request(self, server_node):
+            return self._command.create_request(server_node)
+
+        def set_response(self, response):
+            results = self._command.set_response(response)
+            return [result for result in results["Result"]]

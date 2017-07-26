@@ -5,6 +5,7 @@ from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.database import ApiKeyDefinition
 from pyravendb.tools.utils import Utils
 from abc import abstractmethod
+from datetime import timedelta
 import collections
 import logging
 
@@ -24,6 +25,7 @@ class RavenCommand(object):
         self.use_stream = use_stream
         self.failed_nodes = {}
         self.authentication_retries = 0
+        self.timeout = None
 
     @abstractmethod
     def create_request(self, server_node):
@@ -611,11 +613,65 @@ class PutAttachmentCommand(RavenCommand):
 
 class GetFacetsCommand(RavenCommand):
     def __init__(self, query):
-        super(GetFacetsCommand, self).__init__()
+        if not query:
+            raise ValueError("Invalid query")
+        super(GetFacetsCommand, self).__init__(method=query.calculate_http_method(), is_read_request=True)
         self._query = query
+        if query.wait_for_non_stale_results_timeout and query.wait_for_non_stale_results_timeout != timedelta.max:
+            self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta.seconds(10)
 
     def create_request(self, server_node):
-        pass
+        if self._query.facet_setup_doc and len(self._query.facets) > 0:
+            raise exceptions.InvalidOperationException("You cannot specify both 'facet_setup_doc' and 'facets'.")
+
+        self.url = "{0}/databases/{1}/queries/{2}?{3}".format(server_node.url, server_node.database,
+                                                              self._query.index_name,
+                                                              self._query.get_query_string(self.method))
 
     def set_response(self, response):
-        pass
+        if response.status_code == 200:
+            return response.json()
+
+
+class MultiGetCommand(RavenCommand):
+    def __init__(self, requests):
+        """
+        @param requests: The requests for the server
+        :type list of dict
+        dict keys:
+            url = Request url (relative).
+            headers =  Request headers.
+            query = Query information e.g. "?pageStart=10&amp;pageSize=20".
+            data = The data for the requests body
+            method = The requests method e.g.
+        """
+        super(MultiGetCommand, self).__init__(method="POST")
+        self._requests = requests
+        self._base_url = None
+
+    def create_request(self, server_node):
+        self._base_url = "{0}/databases/{1}".format(server_node.url, server_node.database)
+        commands = []
+        for request in self._requests:
+            # Todo cache
+            # if self.change_vector is not None:
+            #     headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
+            headers = {}
+            for key, value in request.get("headers", {}).items():
+                headers[key] = value
+            commands.append(
+                {"Url": "/databases/{0}{1}".format(server_node.database, request["url"]),
+                 "Query": request.get("query", None), "Method": request.get("method", None),
+                 "Content": request.get("data", None), "Headers": headers})
+
+        self.data = {"Requests": commands}
+        self.url = "{0}/multi_get".format(self._base_url)
+
+    def set_response(self, response):
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response["Results"]
+        except:
+            raise exceptions.ErrorResponseException("Invalid response")
