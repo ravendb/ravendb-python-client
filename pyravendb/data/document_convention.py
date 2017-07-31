@@ -22,16 +22,16 @@ inflector = Inflector()
 
 
 class DocumentConvention(object):
-    def __init__(self):
-        self.max_number_of_request_per_session = 30
-        self.max_ids_to_catch = 32
+    def __init__(self, **kwargs):
+        self.max_number_of_request_per_session = kwargs.get("max_number_of_request_per_session", 30)
+        self.max_ids_to_catch = kwargs.get("max_ids_to_catch", 32)
         # timeout for wait to server in seconds
-        self.timeout = 30
-        self.default_use_optimistic_concurrency = True
+        self.timeout = kwargs.get("timeout", 30)
+        self.default_use_optimistic_concurrency = kwargs.get("default_use_optimistic_concurrency", True)
         self.json_default_method = DocumentConvention.json_default
-        self.max_length_of_query_using_get_url = 1024 + 512
-        self._system_database = "system"
+        self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
         self.identity_parts_separator = "/";
+        self.disable_topology_update = kwargs.get("disable_topology_update", False)
 
     @staticmethod
     def json_default(o):
@@ -74,12 +74,9 @@ class DocumentConvention(object):
     def uses_range_type(obj):
         if obj is None:
             return False
-        if sys.version_info.major > 2:
-            if isinstance(obj, int) or isinstance(obj, float):
-                return True
-        else:
-            if isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, long):
-                return True
+
+        if isinstance(obj, int) or isinstance(obj, float):
+            return True
         return False
 
     @staticmethod
@@ -88,10 +85,6 @@ class DocumentConvention(object):
             return None
         if type_name == "int" or type_name == "float" or type_name == "long":
             return SortOptions.numeric
-
-    @property
-    def system_database(self):
-        return self._system_database
 
     @staticmethod
     def range_field_name(field_name, type_name):

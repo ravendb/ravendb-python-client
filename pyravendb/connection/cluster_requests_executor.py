@@ -1,4 +1,4 @@
-from pyravendb.d_commands.raven_commands import GetClusterTopologyCommand
+from pyravendb.commands.raven_commands import GetClusterTopologyCommand
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.connection.requests_helpers import *
 import hashlib
@@ -12,20 +12,20 @@ log = logging.getLogger()
 
 
 class ClusterRequestExecutor(RequestsExecutor):
-    def __init__(self, api_key, convention, **kwargs):
-        super(ClusterRequestExecutor, self).__init__(None, api_key, convention, **kwargs)
+    def __init__(self, certificate, convention=None, **kwargs):
+        super(ClusterRequestExecutor, self).__init__(None, certificate, convention, **kwargs)
         self.update_cluster_topology_lock = Lock()
 
     @staticmethod
-    def create(urls, api_key, convention, **kwargs):
-        executor = ClusterRequestExecutor(api_key, convention, **kwargs)
+    def create(urls, certificate, convention=None, **kwargs):
+        executor = ClusterRequestExecutor(certificate, convention, **kwargs)
         executor.start_first_topology_thread(urls)
         return executor
 
     @staticmethod
-    def create_for_single_node(url, api_key, convention):
+    def create_for_single_node(url, certificate, convention=None):
         topology = Topology(etag=-1, nodes=[ServerNode(url)])
-        return ClusterRequestExecutor(api_key, convention, node_selector=NodeSelector(topology), topology_etag=-2,
+        return ClusterRequestExecutor(certificate, convention, node_selector=NodeSelector(topology), topology_etag=-2,
                                       disable_topology_updates=True)
 
     def update_topology(self, node):

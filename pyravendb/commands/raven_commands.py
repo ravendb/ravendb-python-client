@@ -433,7 +433,7 @@ class GetClusterTopologyCommand(RavenCommand):
         super(GetClusterTopologyCommand, self).__init__(method="GET", is_read_request=True)
 
     def create_request(self, server_node):
-        self.url = "{0}/admin/cluster/topology".format(server_node.url)
+        self.url = "{0}/cluster/topology".format(server_node.url)
 
     def set_response(self, response):
         if response.status_code == 200:

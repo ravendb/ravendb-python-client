@@ -9,7 +9,7 @@ class OperationExecutor(object):
         self._request_executor = document_store.get_request_executor(db_name=database_name)
 
     def wait_for_operation_complete(self, operation_id, timeout=None):
-        from pyravendb.d_commands.raven_commands import GetOperationStateCommand
+        from pyravendb.commands.raven_commands import GetOperationStateCommand
         start_time = time.time()
         try:
             get_operation_command = GetOperationStateCommand(operation_id)

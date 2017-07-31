@@ -1,5 +1,5 @@
 import unittest
-from pyravendb.d_commands.raven_commands import PutDocumentCommand, PatchCommand
+from pyravendb.commands.raven_commands import PutDocumentCommand, PatchCommand
 from pyravendb.custom_exceptions.exceptions import DocumentDoesNotExistsException
 from pyravendb.data.patches import PatchRequest
 from pyravendb.tests.test_base import TestBase

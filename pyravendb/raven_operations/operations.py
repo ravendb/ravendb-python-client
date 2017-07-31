@@ -1,4 +1,4 @@
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands.raven_commands import *
 from pyravendb.data.patches import PatchRequest
 from abc import abstractmethod
 from pyravendb.tools.utils import Utils
@@ -25,7 +25,9 @@ class QueryOperationOptions(object):
         self.max_ops_per_sec = max_ops_per_sec
 
 
-class Operation():
+class Operation(object):
+    __slots__ = ['__operation']
+
     def __init__(self):
         self.__operation = "Operation"
 

@@ -1,7 +1,7 @@
 import unittest
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.d_commands.raven_commands import PutIndexesCommand, GetIndexCommand, DeleteIndexCommand
+from pyravendb.commands.raven_commands import PutIndexesCommand, GetIndexCommand, DeleteIndexCommand
 from pyravendb.tests.test_base import TestBase
 
 

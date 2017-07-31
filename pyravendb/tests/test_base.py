@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(__file__ + "/../../"))
 
 from pyravendb.data.database import DatabaseDocument
 from pyravendb.data.document_convention import DocumentConvention
-from pyravendb.d_commands.raven_commands import CreateDatabaseCommand, DeleteDatabaseCommand, PutIndexesCommand
+from pyravendb.commands.raven_commands import CreateDatabaseCommand, DeleteDatabaseCommand, PutIndexesCommand
 
 
 class TestBase(unittest.TestCase):

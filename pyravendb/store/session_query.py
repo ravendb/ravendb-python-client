@@ -1,4 +1,4 @@
-from pyravendb.d_commands.raven_commands import QueryCommand
+from pyravendb.commands.raven_commands import QueryCommand
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tools.utils import Utils

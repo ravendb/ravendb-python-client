@@ -1,7 +1,7 @@
 from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
 from pyravendb.store.session_query import Query
-from pyravendb.d_commands import commands_data
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands import commands_data
+from pyravendb.commands.raven_commands import *
 from pyravendb.tools.utils import Utils
 
 

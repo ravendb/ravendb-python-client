@@ -1,6 +1,6 @@
 import unittest
 from pyravendb.tests.test_base import TestBase
-from pyravendb.d_commands.raven_commands import PutDocumentCommand, GetDocumentCommand
+from pyravendb.commands.raven_commands import PutDocumentCommand, GetDocumentCommand
 
 
 class TestDelete(TestBase):

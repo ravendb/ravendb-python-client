@@ -1,4 +1,4 @@
-from pyravendb.d_commands.raven_commands import GetTopologyCommand, GetStatisticsCommand
+from pyravendb.commands.raven_commands import GetTopologyCommand, GetStatisticsCommand
 from pyravendb.connection.requests_helpers import *
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.authenticator import ApiKeyAuthenticator
@@ -19,9 +19,9 @@ log = logging.getLogger()
 
 
 class RequestsExecutor(object):
-    def __init__(self, database_name, api_key, convention, **kwargs):
+    def __init__(self, database_name, certificate, convention=None, **kwargs):
         self._database_name = database_name
-        self._api_key = api_key
+        self._certificate = certificate
         self.topology_etag = kwargs.get("topology_etag", -1)
         self._last_return_response = datetime.utcnow()
         self.convention = convention if convention is not None else DocumentConvention()
@@ -29,7 +29,6 @@ class RequestsExecutor(object):
         self._last_known_urls = None
 
         self.headers = {"Accept": "application/json",
-                        "Has-Api-key": 'true' if self._api_key is not None else 'false',
                         "Raven-Client-Version": "4.0.0.0"}
 
         self.update_topology_lock = Lock()
@@ -43,15 +42,15 @@ class RequestsExecutor(object):
         self.cluster_token = None
 
     @staticmethod
-    def create(urls, database_name, api_key, convention):
-        executor = RequestsExecutor(database_name, api_key, convention)
+    def create(urls, database_name, certificate, convention=None):
+        executor = RequestsExecutor(database_name, certificate, convention)
         executor.start_first_topology_thread(urls)
         return executor
 
     @staticmethod
-    def create_for_single_node(url, database_name, api_key):
+    def create_for_single_node(url, database_name, certificate):
         topology = Topology(etag=-1, nodes=[ServerNode(url, database_name)])
-        return RequestsExecutor(database_name, api_key, node_selector=NodeSelector(topology), topology_etag=-2,
+        return RequestsExecutor(database_name, certificate, node_selector=NodeSelector(topology), topology_etag=-2,
                                 disable_topology_updates=True)
 
     def start_first_topology_thread(self, urls):

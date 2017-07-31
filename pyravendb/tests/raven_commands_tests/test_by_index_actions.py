@@ -1,6 +1,6 @@
 import unittest
 from pyravendb.data.document_convention import DocumentConvention
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexQuery, IndexFieldOptions, SortOptions
 from pyravendb.data.patches import PatchRequest
