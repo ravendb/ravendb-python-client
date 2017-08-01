@@ -36,7 +36,7 @@ class Operation(object):
         return self.__operation
 
     @abstractmethod
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         raise NotImplementedError
 
 
@@ -47,7 +47,7 @@ class DeleteAttachmentOperation(Operation):
         self._name = name
         self._change_vector = change_vector
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self._DeleteAttachmentCommand(self._document_id, self._name, self._change_vector)
 
     class _DeleteAttachmentCommand(RavenCommand):
@@ -88,7 +88,7 @@ class PatchByIndexOperation(Operation):
         self._patch = patch
         self._options = options
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self.PatchByIndexCommand(self._index_name, self._query_to_update, self._patch, self._options)
 
     class PatchByIndexCommand(RavenCommand):
@@ -146,7 +146,7 @@ class DeleteByIndexOperation(Operation):
         self._query = query
         self._options = options if options is not None else QueryOperationOptions()
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self._DeleteByIndexCommand(self._index_name, self._query, self._options)
 
     class _DeleteByIndexCommand(RavenCommand):
@@ -193,7 +193,7 @@ class PatchCollectionOperation(Operation):
         self._collection_name = collection_name
         self._patch = patch
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self.PatchByCollectionCommand(self._collection_name, self._patch)
 
     class _PatchByCollectionCommand(RavenCommand):
@@ -234,7 +234,7 @@ class DeleteCollectionOperation(Operation):
         super(DeleteCollectionOperation, self).__init__()
         self.collection_name = collection_name
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self._DeleteCollectionCommand(self.collection_name)
 
     class _DeleteCollectionCommand(RavenCommand):
@@ -275,7 +275,7 @@ class GetAttachmentOperation(Operation):
         self._attachment_type = attachment_type
         self._change_vector = change_vector
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self._GetAttachmentCommand(self._document_id, self._name, self._type, self._change_vector)
 
     class _GetAttachmentCommand(RavenCommand):
@@ -327,7 +327,7 @@ class PatchOperation(Operation):
         self._patch_if_missing = patch_if_missing
         self._skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return PatchCommand(self._document_id, self._change_vector, self._patch, self._patch_if_missing,
                             self._skip_patch_if_change_vector_mismatch)
 
@@ -348,7 +348,7 @@ class PutAttachmentOperation(Operation):
         self._content_type = content_type
         self._change_vector = change_vector
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return PutAttachmentCommand(self._document_id, self._name, self._stream, self._content_type,
                                     self._change_vector)
 
@@ -361,7 +361,7 @@ class GetFacetsOperation(Operation):
         super(GetFacetsOperation, self).__init__()
         self._query = query
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return GetFacetsCommand(self._query)
 
 
@@ -373,7 +373,7 @@ class GetMultiFacetsOperation(Operation):
         super(GetMultiFacetsOperation, self).__init__()
         self._queries = queries
 
-    def get_command(self, store, convention, cache=None):
+    def get_command(self, store, conventions, cache=None):
         return self._GetMultiFacetsCommand(self._queries)
 
     class _GetMultiFacetsCommand(RavenCommand):

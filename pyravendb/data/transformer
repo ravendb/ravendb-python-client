@@ -1,0 +1,39 @@
+from enum import Enum
+
+
+class TransformerDefinition:
+    def __init__(self, name, transformer_result, etag, lock_mode):
+        """
+        @param name:  Transformer name.
+        :type str
+        @param transformer_result: Projection function.
+        :type str
+        @param etag: Transformer etag (internal).
+        :type int
+        @param lock_mode: Transformer lock
+        :type TransformerLockMode
+        """
+        self.name = name
+        self.transformer_result = transformer_result
+        self.etag = etag
+        self.lock_mode = lock_mode
+
+    def __str__(self):
+        return self.transformer_result
+
+class TransformerLockMode(Enum):
+    unlock = "Unlock"
+    locked_ignore = "LockedIgnore"
+    locked_error = "LockedError"
+
+    def __str__(self):
+        return self.value
+
+
+class TransformerDefinitionCompareDifferences(Enum):
+    none = 0x0000
+    etag = 0x0001 << 0x0000
+    transform_results = 0x0001 << 0x0001,
+    lock_mode = 0x0001 << 0x0002,
+
+    All = etag | transform_results | lock_mode

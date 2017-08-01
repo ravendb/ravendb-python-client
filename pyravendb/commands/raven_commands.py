@@ -195,39 +195,6 @@ class BatchCommand(RavenCommand):
             raise exceptions.InvalidOperationException(e)
 
 
-class PutIndexesCommand(RavenCommand):
-    def __init__(self, *indexes_to_add):
-        """
-        @param indexesToAdd:List of IndexDefinitions to add
-        :type args
-        @param overwrite: if set to True overwrite
-        """
-        super(PutIndexesCommand, self).__init__(method="PUT")
-        if indexes_to_add is None:
-            raise ValueError("None indexes_to_add is not valid")
-
-        self.indexes_to_add = []
-        for index_definition in indexes_to_add:
-            if not isinstance(index_definition, IndexDefinition):
-                raise ValueError("index_definition in indexes_to_add must be IndexDefinition type")
-            if index_definition.name is None:
-                raise ValueError("None Index name is not valid")
-            self.indexes_to_add.append(index_definition.to_json())
-
-    def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/indexes".format(server_node.url, server_node.database)
-        self.data = self.indexes_to_add
-
-    def set_response(self, response):
-        try:
-            response = response.json()
-            if "Error" in response:
-                raise exceptions.ErrorResponseException(response["Error"])
-            return response
-        except ValueError:
-            response.raise_for_status()
-
-
 class GetIndexCommand(RavenCommand):
     def __init__(self, index_name, force_read_from_master=False):
         """

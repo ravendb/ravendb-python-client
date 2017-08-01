@@ -1,5 +1,6 @@
 from pyravendb.commands.raven_commands import RavenCommand
 from pyravendb.custom_exceptions import exceptions
+from requests.exceptions import RequestException
 from abc import abstractmethod
 
 
@@ -14,7 +15,7 @@ class ServerOperation(object):
         return self.__operation
 
     @abstractmethod
-    def get_command(self, convention):
+    def get_command(self, conventions):
         raise NotImplementedError
 
 
@@ -29,8 +30,8 @@ class CreateDatabaseOperation(ServerOperation):
         if secure_settings:
             self.database_record["SecuredSettings"] = secure_settings
 
-    def get_command(self, convention):
-        return self._CreateDatabaseCommand(self, convention)
+    def get_command(self, conventions):
+        return self._CreateDatabaseCommand(self.database_record, self.replication_factor, conventions)
 
     def get_default_database_record(self):
         return {"DatabaseName": None, "Disabled": False, "Encrypted": False, "DeletionInProgress": None,
@@ -43,18 +44,20 @@ class CreateDatabaseOperation(ServerOperation):
                 "PeriodicBackups": None, "Client": None, "CustomFunctions": None}
 
     class _CreateDatabaseCommand(RavenCommand):
-        def __init__(self, create_database_operation, convention):
+        def __init__(self, database_record, replication_factor, convention):
             if convention is None:
                 raise ValueError("Invalid convention")
             super(CreateDatabaseOperation._CreateDatabaseCommand, self).__init__(method="PUT")
-            self._create_database_operation = create_database_operation
+
+            self._database_record = database_record
+            self._replication_factor = replication_factor
             self.convention = convention
 
         def create_request(self, server_node):
-            self.url = "{0}/admin/databases?name={1}".format(server_node.url, server_node.database)
-            self.url += "&replication-factor=" + self._create_database_operation.replication_factor
+            self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_record["DatabaseName"])
+            self.url += "&replication-factor=" + str(self._replication_factor)
 
-            self.data = self._create_database_operation.database_record
+            self.data = self._database_record
 
         def set_response(self, response):
             if response is None:
@@ -62,6 +65,11 @@ class CreateDatabaseOperation(ServerOperation):
 
             if response.status_code == 201:
                 return response.json()
+
+            if response.status_code == 400:
+                response = response.json()
+                if "Error" in response:
+                    raise RequestException(response["Error"])
 
 
 class DeleteDatabaseOperation(ServerOperation):
@@ -74,7 +82,7 @@ class DeleteDatabaseOperation(ServerOperation):
         self._hard_delete = hard_delete
         self._from_node = from_node
 
-    def get_command(self, convention):
+    def get_command(self, conventions):
         return self._DeleteDatabaseCommand(self._database_name, self._hard_delete, self._from_node)
 
     class _DeleteDatabaseCommand(RavenCommand):
@@ -88,7 +96,7 @@ class DeleteDatabaseOperation(ServerOperation):
             self._from_node = from_node
 
         def create_request(self, server_node):
-            self.url = "{0}/admin/databases?name={1}".format(server_node.url, server_node.database)
+            self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_name)
             if self._hard_delete:
                 self.url += "&hard-delete=true"
             if self._from_node:
@@ -109,7 +117,7 @@ class GetDatabaseNamesOperation(ServerOperation):
         self._start = start
         self._page_size = page_size
 
-    def get_command(self, convention):
+    def get_command(self, conventions):
         return self._GetDatabaseNamesCommand(self._start, self._page_size)
 
     class _GetDatabaseNamesCommand(RavenCommand):
@@ -126,9 +134,11 @@ class GetDatabaseNamesOperation(ServerOperation):
             if response is None:
                 raise ValueError("Invalid response")
 
-            if response.status_code == 200:
-                response = response.json()
-                if "Databases" not in response:
-                    raise ValueError("Invalid response")
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+
+            if "Databases" not in response:
+                raise ValueError("Invalid response")
 
                 return response["Databases"]
