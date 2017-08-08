@@ -1,5 +1,5 @@
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.d_commands.raven_commands import RavenCommand
+from pyravendb.commands.raven_commands import RavenCommand
 from pyravendb.tools.utils import Utils
 from datetime import datetime
 from threading import Lock

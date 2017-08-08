@@ -1,5 +1,6 @@
 from datetime import timedelta
 from enum import Enum
+import sys
 
 
 class IndexLockMode(Enum):
@@ -139,7 +140,7 @@ class IndexFieldOptions(object):
         @param indexing: Options for indexing a field
         :type FieldIndexing
         @param storage: Specifies whether a field should be stored
-        :type bool
+        :type boolFq
         @param suggestions: If to produce a suggestions in query
         :type bool
         @param term_vector: Specifies whether to include term vectors for a field
@@ -162,46 +163,3 @@ class IndexFieldOptions(object):
                 "Storage": None if self.storage is None else "Yes" if self.storage == True else "No",
                 "Suggestions": self.suggestions,
                 "TermVector": str(self.term_vector) if self.term_vector else None}
-
-
-class IndexQuery(object):
-    def __init__(self, query="", total_size=0, skipped_results=0, default_operator=None, **kwargs):
-        """
-        @param query: Actual query that will be performed (Lucene syntax).
-        :type str
-        @param total_size: For internal use only.
-        :type int
-        @param skipped_results: For internal use only.
-        :type int
-        @param default_operator: The operator of the query (AND or OR) the default value is OR
-        :type Enum.QueryOperator
-        @param fetch fetch only the terms you want from the index
-        :type list
-    """
-        self.query = query
-        self.total_size = total_size
-        self.skipped_results = skipped_results
-        self._page_size = 128
-        self.__page_size_set = False
-        self.default_operator = default_operator
-        self.sort_hints = kwargs.get("sort_hints", {})
-        self.sort_fields = kwargs.get("sort_fields", {})
-        self.fetch = kwargs.get("fetch", [])
-        self.wait_for_non_stale_results = kwargs.get("wait_for_non_stale_results", False)
-        self.wait_for_non_stale_results_timeout = kwargs.get("wait_for_non_stale_results_timeout", None)
-        if self.wait_for_non_stale_results and not self.wait_for_non_stale_results_timeout:
-            self.wait_for_non_stale_results_timeout = timedelta(minutes=15)
-
-    @property
-    def page_size(self):
-        return self._page_size
-
-    @page_size.setter
-    def page_size(self, value):
-        self._page_size = value
-        self.__page_size_set = True
-
-
-class QueryOperator(Enum):
-    OR = "OR"
-    AND = "AND"

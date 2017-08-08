@@ -1,6 +1,6 @@
 import unittest
-from pyravendb.d_commands.raven_commands import BatchCommand, GetDocumentCommand
-from pyravendb.d_commands import commands_data
+from pyravendb.commands.raven_commands import BatchCommand, GetDocumentCommand
+from pyravendb.commands import commands_data
 from pyravendb.data.patches import PatchRequest
 from pyravendb.tests.test_base import TestBase
 

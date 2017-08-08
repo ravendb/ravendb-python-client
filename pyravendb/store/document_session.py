@@ -1,7 +1,7 @@
 from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
 from pyravendb.store.session_query import Query
-from pyravendb.d_commands import commands_data
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands import commands_data
+from pyravendb.commands.raven_commands import *
 from pyravendb.tools.utils import Utils
 
 
@@ -22,13 +22,13 @@ class DocumentSession(object):
       :type DocumentStore
       """
 
-    def __init__(self, database, document_store, requests_executor, session_id, force_read_from_master):
+    def __init__(self, database, document_store, requests_executor, session_id, **kwargs):
         self.session_id = session_id
         self.database = database
-        self.document_store = document_store
+        self._document_store = document_store
         self._requests_executor = requests_executor
         self._documents_by_id = {}
-        self._included_documents_by_key = {}
+        self._included_documents_by_id = {}
         self._deleted_entities = set()
         self._documents_by_entity = {}
         self._known_missing_ids = set()
@@ -37,7 +37,6 @@ class DocumentSession(object):
         self._number_of_requests_in_session = 0
         self._query = None
         self.advanced = Advanced(self)
-        self._force_read_from_master = force_read_from_master
 
     def __enter__(self):
         return self
@@ -50,12 +49,28 @@ class DocumentSession(object):
         return self._number_of_requests_in_session
 
     @property
-    def entities_and_metadata(self):
+    def documents_by_entity(self):
         return self._documents_by_entity
 
     @property
+    def deleted_entities(self):
+        return self._deleted_entities
+
+    @property
+    def documents_by_id(self):
+        return self._documents_by_id
+
+    @property
+    def known_missing_ids(self):
+        return self._known_missing_ids
+
+    @property
+    def included_documents_by_id(self):
+        return self._included_documents_by_id
+
+    @property
     def conventions(self):
-        return self.document_store.conventions
+        return self._document_store.conventions
 
     @property
     def query(self):
@@ -67,7 +82,7 @@ class DocumentSession(object):
         if includes:
             for include in includes:
                 if include["@metadata"]["@id"] not in self._documents_by_id:
-                    self._included_documents_by_key[include["@metadata"]["@id"]] = include
+                    self._included_documents_by_id[include["@metadata"]["@id"]] = include
 
     def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
         if key is not None:
@@ -78,8 +93,8 @@ class DocumentSession(object):
 
                 self._documents_by_entity[self._documents_by_id[key]] = {
                     "original_value": document.copy(), "metadata": metadata,
-                    "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
-                    "force_concurrency_check": force_concurrency_check}
+                    "original_metadata": original_metadata, "change_vector": metadata.get("change_vector", None),
+                    "key": key, "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
         if key not in self._documents_by_id:
@@ -93,12 +108,12 @@ class DocumentSession(object):
 
         ids_of_not_existing_object = set(keys)
         if not includes:
-            ids_in_includes = [key for key in ids_of_not_existing_object if key in self._included_documents_by_key]
+            ids_in_includes = [key for key in ids_of_not_existing_object if key in self._included_documents_by_id]
             if len(ids_in_includes) > 0:
                 for include in ids_in_includes:
-                    self._convert_and_save_entity(include, self._included_documents_by_key[include], object_type,
+                    self._convert_and_save_entity(include, self._included_documents_by_id[include], object_type,
                                                   nested_object_types)
-                    self._included_documents_by_key.pop(include)
+                    self._included_documents_by_id.pop(include)
 
             ids_of_not_existing_object = [key for key in ids_of_not_existing_object if
                                           key not in self._documents_by_id]
@@ -149,10 +164,10 @@ class DocumentSession(object):
         if key_or_keys in self._documents_by_id and not includes:
             return self._documents_by_id[key_or_keys]
 
-        if key_or_keys in self._included_documents_by_key:
-            self._convert_and_save_entity(key_or_keys, self._included_documents_by_key[key_or_keys], object_type,
+        if key_or_keys in self._included_documents_by_id:
+            self._convert_and_save_entity(key_or_keys, self._included_documents_by_id[key_or_keys], object_type,
                                           nested_object_types)
-            self._included_documents_by_key.pop(key_or_keys)
+            self._included_documents_by_id.pop(key_or_keys)
             if not includes:
                 return self._documents_by_id[key_or_keys]
 
@@ -178,10 +193,9 @@ class DocumentSession(object):
         if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
             raise exceptions.InvalidOperationException(
                 "{0} is marked as read only and cannot be deleted".format(entity))
-        self._included_documents_by_key.pop(self._documents_by_entity[entity]["key"], None)
+        self._included_documents_by_id.pop(self._documents_by_entity[entity]["key"], None)
         self._known_missing_ids.add(self._documents_by_entity[entity]["key"])
         self._deleted_entities.add(entity)
-
 
     def delete(self, key_or_entity):
         """
@@ -207,7 +221,7 @@ class DocumentSession(object):
             self.delete_by_entity(entity)
             return
         self._known_missing_ids.add(key_or_entity)
-        self._included_documents_by_key.pop(key_or_entity, None)
+        self._included_documents_by_id.pop(key_or_entity, None)
         self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity))
 
     def assert_no_non_unique_instance(self, entity, key):
@@ -216,23 +230,23 @@ class DocumentSession(object):
             raise exceptions.NonUniqueObjectException(
                 "Attempted to associate a different object with id '{0}'.".format(key))
 
-    def store(self, entity, key="", etag=""):
+    def store(self, entity, key="", change_vector=""):
         """
         @param entity: Entity that will be stored
         :type object:
         @param key: Entity will be stored under this key, (None to generate automatically)
         :type str:
-        @param etag: Current entity etag, used for concurrency checks (null to skip check)
+        @param change_vector: Current entity change_vector, used for concurrency checks (null to skip check)
         :type str
         """
 
         if entity is None:
             raise ValueError("None entity value is invalid")
 
-        force_concurrency_check = self._get_concurrency_check_mode(entity, key, etag)
+        force_concurrency_check = self._get_concurrency_check_mode(entity, key, change_vector)
         if entity in self._documents_by_entity:
-            if etag:
-                self._documents_by_entity[entity]["etag"] = etag
+            if change_vector:
+                self._documents_by_entity[entity]["change_vector"] = change_vector
             self._documents_by_entity[entity]["force_concurrency_check"] = force_concurrency_check
             return
 
@@ -245,7 +259,7 @@ class DocumentSession(object):
         self.assert_no_non_unique_instance(entity, entity_id)
 
         if not entity_id:
-            entity_id = self.document_store.generate_id(self.database, entity)
+            entity_id = self._document_store.generate_id(self.database, entity)
             GenerateEntityIdOnTheClient.try_set_id_on_entity(entity, entity_id)
 
         for command in self._defer_commands:
@@ -262,17 +276,16 @@ class DocumentSession(object):
         self._deleted_entities.discard(entity)
         self.save_entity(entity_id, entity, {}, metadata, {}, force_concurrency_check=force_concurrency_check)
 
-    def _get_concurrency_check_mode(self, entity, key="", etag=""):
+    def _get_concurrency_check_mode(self, entity, key="", change_vector=""):
         if key == "":
-            return "disabled" if etag is None else "forced"
-        if etag == "":
+            return "disabled" if change_vector is None else "forced"
+        if change_vector == "":
             if key is None:
                 entity_key = GenerateEntityIdOnTheClient.try_get_id_from_instance(entity)
                 return "forced" if entity_key is None else "auto"
             return "auto"
-        return
 
-        return "disabled" if etag is None else "forced"
+        return "disabled" if change_vector is None else "forced"
 
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
@@ -300,7 +313,7 @@ class DocumentSession(object):
                 if entity in self._documents_by_entity:
                     self._documents_by_id[item["@id"]] = entity
                     document_info = self._documents_by_entity[entity]
-                    document_info["etag"] = str(item["@etag"])
+                    document_info["change_vector"] = ["change_vector"]
                     item.pop("Type", None)
                     document_info["original_metadata"] = item.copy()
                     document_info["metadata"] = item
@@ -314,16 +327,16 @@ class DocumentSession(object):
 
         for key in keys_to_delete:
             existing_entity = None
-            etag = None
+            change_vector = None
             if key in self._documents_by_id:
                 existing_entity = self._documents_by_id[key]
                 if existing_entity in self._documents_by_entity:
-                    etag = self._documents_by_entity[existing_entity]["metadata"][
-                        "@etag"] if self.advanced.use_optimistic_concurrency else None
+                    change_vector = self._documents_by_entity[existing_entity][
+                        "change_vector"] if self.advanced.use_optimistic_concurrency else None
                 self._documents_by_entity.pop(existing_entity, None)
                 self._documents_by_id.pop(key, None)
             data.entities.append(existing_entity)
-            data.commands.append(commands_data.DeleteCommandData(key, etag))
+            data.commands.append(commands_data.DeleteCommandData(key, change_vector))
         self._deleted_entities.clear()
 
     def _prepare_for_puts_commands(self, data):
@@ -331,17 +344,17 @@ class DocumentSession(object):
             if self._has_change(entity):
                 key = self._documents_by_entity[entity]["key"]
                 metadata = self._documents_by_entity[entity]["metadata"]
-                etag = None
+                change_vector = None
                 if self.advanced.use_optimistic_concurrency and self._documents_by_entity[entity][
                     "force_concurrency_check"] != "disabled" or self._documents_by_entity[entity][
                     "force_concurrency_check"] == "forced":
-                    etag = self._documents_by_entity[entity]["etag"] or metadata.get("@etag", Utils.empty_etag())
+                    change_vector = self._documents_by_entity[entity]["change_vector"]
                 data.entities.append(entity)
                 if key:
                     self._documents_by_id.pop(key)
                     document = entity.__dict__.copy()
                     document.pop('Id', None)
-                data.commands.append(commands_data.PutCommandData(key, etag, document, metadata))
+                data.commands.append(commands_data.PutCommandData(key, change_vector, document, metadata))
 
     def _has_change(self, entity):
         if self._documents_by_entity[entity]["original_metadata"] != self._documents_by_entity[entity]["metadata"] \
@@ -366,13 +379,28 @@ class DocumentSession(object):
 class Advanced(object):
     def __init__(self, session):
         self.session = session
-        self.use_optimistic_concurrency = session.conventions.default_use_optimistic_concurrency
+        self.use_optimistic_concurrency = False
 
     def number_of_requests_in_session(self):
         return self.session.number_of_requests_in_session
 
     def get_document_id(self, instance):
         if instance is not None:
-            if instance in self.session.entities_and_metadata:
-                return self.session.entities_and_metadata[instance]["key"]
+            if instance in self.session.documents_by_entity:
+                return self.session.documents_by_entity[instance]["key"]
         return None
+
+    """
+    The document store associated with this session
+    """
+
+    @property
+    def document_store(self):
+        return self.session._document_store
+
+    def clear(self):
+        self.session.documents_by_entity.clear()
+        self.session.documents_by_id.clear()
+        self.session.deleted_entities.clear()
+        self.session.included_documents_by_id.clear()
+        self.session.known_missing_ids.clear()

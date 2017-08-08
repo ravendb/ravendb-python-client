@@ -1,5 +1,5 @@
 import unittest
-from pyravendb.d_commands.raven_commands import PutDocumentCommand, GetDocumentCommand
+from pyravendb.commands.raven_commands import PutDocumentCommand, GetDocumentCommand
 from pyravendb.tests.test_base import TestBase
 
 

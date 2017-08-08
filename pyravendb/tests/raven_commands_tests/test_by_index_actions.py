@@ -1,11 +1,11 @@
 import unittest
 from pyravendb.data.document_convention import DocumentConvention
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexQuery, IndexFieldOptions, SortOptions
 from pyravendb.data.patches import PatchRequest
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.operations import Operations, QueryOperationOptions
+from pyravendb.data.operation import OperationExecutor, QueryOperationOptions
 
 
 class TestByIndexActions(TestBase):
@@ -21,7 +21,7 @@ class TestByIndexActions(TestBase):
                                          fields={"DocNumber": IndexFieldOptions(sort_options=SortOptions.numeric)})
         cls.patch = PatchRequest("this.Name = 'Patched';")
         cls.requests_executor.execute(PutIndexesCommand(cls.index_sort))
-        cls.operations = Operations(cls.requests_executor)
+        cls.operations = OperationExecutor(cls.requests_executor)
         for i in range(100):
             put_command = PutDocumentCommand("testing/" + str(i),
                                              {"Name": "test" + str(i), "DocNumber": i,

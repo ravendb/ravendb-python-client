@@ -1,5 +1,5 @@
 import unittest
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tests.test_base import TestBase
 

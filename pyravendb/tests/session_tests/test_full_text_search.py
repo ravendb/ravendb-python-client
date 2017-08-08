@@ -1,7 +1,7 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.data.indexes import FieldIndexing, IndexFieldOptions
-from pyravendb.d_commands.raven_commands import PutIndexesCommand
+from pyravendb.commands.raven_commands import PutIndexesCommand
 from pyravendb.store.document_store import DocumentStore
 from datetime import datetime
 

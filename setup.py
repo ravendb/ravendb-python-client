@@ -13,7 +13,7 @@ setup(
     install_requires=
     [
         "pysodium >= 0.6.9.1",
-        "requests >= 2.13.0",
+        "requests >= 2.18.2",
         "inflector >= 2.0.11",
     ],
     zip_safe=False

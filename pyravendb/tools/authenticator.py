@@ -1,7 +1,4 @@
-from pysodium import crypto_generichash_blake2b_BYTES_MAX
-
 from pyravendb.custom_exceptions import exceptions
-import pysodium
 import base64
 import requests
 import json
@@ -15,7 +12,8 @@ class ApiKeyAuthenticator(object):
         with requests.session() as session:
             response = session.request("GET", url=url + "/api-key/public-key")
             if response.status_code != 200:
-                raise exceptions.AuthenticationException("Bad response from server {0} when trying to get public key".format(response.status_code))
+                raise exceptions.AuthenticationException(
+                    "Bad response from server {0} when trying to get public key".format(response.status_code))
 
             result = response.json()
             binary = base64.standard_b64decode(result["PublicKey"])
@@ -35,7 +33,8 @@ class ApiKeyAuthenticator(object):
         data, sk = self.build_server_request(secret, server_pk)
 
         with requests.session() as session:
-            response = session.request("POST", url=url +"/api-key/validate?apiKey=" + name, data=json.dumps(data), headers=headers)
+            response = session.request("POST", url=url + "/api-key/validate?apiKey=" + name, data=json.dumps(data),
+                                       headers=headers)
 
             if response.status_code == 417:
                 # server pk changed, need to retry, once
@@ -47,7 +46,6 @@ class ApiKeyAuthenticator(object):
 
             if response.status_code != 200 and response.status_code != 403 and response.status_code != 500:
                 raise exceptions.AuthenticationException("Bad response from server {0}".format(response.status_code))
-
 
         result = response.json()
         if "Error" in result:

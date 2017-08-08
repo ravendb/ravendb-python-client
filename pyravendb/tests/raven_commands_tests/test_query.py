@@ -1,7 +1,7 @@
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tests.test_base import TestBase
-from pyravendb.d_commands.raven_commands import *
+from pyravendb.commands.raven_commands import *
 from pyravendb.data.document_convention import DocumentConvention
 
 

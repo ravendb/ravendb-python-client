@@ -1,5 +1,6 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from threading import Lock, Timer
+from pyravendb.tools.utils import Utils
 
 
 class ServerNode(object):
@@ -97,6 +98,13 @@ class NodeSelector(object):
 
         return self.topology.nodes[self._current_node_index]
 
+    def restore_node_index(self, node_index):
+        current_node_index = self._current_node_index
+        if current_node_index > node_index:
+            with self.lock:
+                if current_node_index == self._current_node_index:
+                    self._current_node_index = node_index
+
 
 class NodeStatus(object):
     def __init__(self, request_executor, node_index, node):
@@ -113,7 +121,8 @@ class NodeStatus(object):
         return 60 * 5 if self._timer_period >= 60 * 5 else self._timer_period
 
     def start_timer(self):
-        self._timer = Timer(self._next_timer_period, self._request_executor.check_node_status, args=(self,))
+        Utils.start_a_timer(self._next_timer_period(), self._request_executor.check_node_status, (self,),
+                            name="check_node_status", daemon=True)
 
     def __del__(self):
         if self._timer is not None:

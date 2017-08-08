@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*- #
-from pyravendb.data.indexes import IndexQuery, QueryOperator
-from pyravendb.data.patches import PatchRequest
-from pyravendb.data.indexes import IndexDefinition
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.database import ApiKeyDefinition
 from pyravendb.tools.utils import Utils
 from abc import abstractmethod
+from datetime import timedelta
 import collections
 import logging
 
@@ -13,7 +10,7 @@ log = logging.basicConfig(filename='responses.log', level=logging.DEBUG)
 
 
 class RavenCommand(object):
-    def __init__(self, url=None, method=None, data=None, headers=None, is_read_request=False):
+    def __init__(self, url=None, method=None, data=None, headers=None, is_read_request=False, use_stream=False):
         self.url = url
         self.method = method
         self.data = data
@@ -22,8 +19,10 @@ class RavenCommand(object):
             self.headers = {}
         self.__raven_command = True
         self.is_read_request = is_read_request
+        self.use_stream = use_stream
         self.failed_nodes = {}
         self.authentication_retries = 0
+        self.timeout = None
 
     @abstractmethod
     def create_request(self, server_node):
@@ -126,13 +125,13 @@ class DeleteDocumentCommand(RavenCommand):
 
 
 class PutDocumentCommand(RavenCommand):
-    def __init__(self, key, document, etag=None):
+    def __init__(self, key, document, change_vector=None):
         """
         @param key: unique key under which document will be stored
         :type str
         @param document: document data
         :type dict
-        @param etag: current document etag, used for concurrency checks (null to skip check)
+        @param change_vector: current document change_vector, used for concurrency checks (null to skip check)
         :type str
         @return: json file
         :rtype: dict
@@ -140,20 +139,21 @@ class PutDocumentCommand(RavenCommand):
         super(PutDocumentCommand, self).__init__(method="PUT")
         self.key = key
         self.document = document
-        self.etag = etag
+        self.change_vector = change_vector
 
     def create_request(self, server_node):
         if self.document is None:
             self.document = {}
-        if self.etag is not None:
-            self.headers = {"If-Match": "\"{etag}\"".format(self.etag)}
+        if self.change_vector is not None:
+            self.headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
         if not isinstance(self.key, str):
             raise ValueError("key must be {0}".format(type("")))
         if not isinstance(self.document, dict):
             raise ValueError("document and metadata must be dict")
 
         self.data = self.document
-        self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database, self.key)
+        self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database,
+                                                          Utils.quote_key(self.key))
 
     def set_response(self, response):
         try:
@@ -191,39 +191,6 @@ class BatchCommand(RavenCommand):
             return response["Results"]
         except ValueError as e:
             raise exceptions.InvalidOperationException(e)
-
-
-class PutIndexesCommand(RavenCommand):
-    def __init__(self, *indexes_to_add):
-        """
-        @param indexesToAdd:List of IndexDefinitions to add
-        :type args
-        @param overwrite: if set to True overwrite
-        """
-        super(PutIndexesCommand, self).__init__(method="PUT")
-        if indexes_to_add is None:
-            raise ValueError("None indexes_to_add is not valid")
-
-        self.indexes_to_add = []
-        for index_definition in indexes_to_add:
-            if not isinstance(index_definition, IndexDefinition):
-                raise ValueError("index_definition in indexes_to_add must be IndexDefinition type")
-            if index_definition.name is None:
-                raise ValueError("None Index name is not valid")
-            self.indexes_to_add.append(index_definition.to_json())
-
-    def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/indexes".format(server_node.url, server_node.database)
-        self.data = self.indexes_to_add
-
-    def set_response(self, response):
-        try:
-            response = response.json()
-            if "Error" in response:
-                raise exceptions.ErrorResponseException(response["Error"])
-            return response
-        except ValueError:
-            response.raise_for_status()
 
 
 class GetIndexCommand(RavenCommand):
@@ -269,117 +236,47 @@ class DeleteIndexCommand(RavenCommand):
         pass
 
 
-class PatchByIndexCommand(RavenCommand):
-    def __init__(self, index_name, query_to_update, patch=None, options=None):
-        """
-        @param index_name: name of an index to perform a query on
-        :type str
-        @param query_to_update: query that will be performed
-        :type IndexQuery
-        @param options: various operation options e.g. AllowStale or MaxOpsPerSec
-        :type QueryOperationOptions
-        @param patch: JavaScript patch that will be executed on query results( Used only when update)
-        :type PatchRequest
-        @return: json
-        :rtype: dict
-        """
-        super(PatchByIndexCommand, self).__init__(method="PATCH")
-        self.index_name = index_name
-        self.query_to_update = query_to_update
-        self.patch = patch
-        self.options = options
-
-    def create_request(self, server_node):
-        if not isinstance(self.query_to_update, IndexQuery):
-            raise ValueError("query must be IndexQuery Type")
-
-        if self.patch:
-            if not isinstance(self.patch, PatchRequest):
-                raise ValueError("scripted_patch must be ScriptedPatchRequest Type")
-            self.patch = self.patch.to_json()
-
-        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database,
-                                                  Utils.build_path(self.index_name, self.query_to_update, self.options))
-        self.data = self.patch
-
-    def set_response(self, response):
-        if response is None:
-            raise exceptions.ErrorResponseException("Could not find index {0}".format(self.index_name))
-
-        if response.status_code != 200 and response.status_code != 202:
-            raise response.raise_for_status()
-        return response.json()
-
-
-class DeleteByIndexCommand(RavenCommand):
-    def __init__(self, index_name, query, options=None):
-        """
-        @param index_name: name of an index to perform a query on
-        :type str
-        @param query: query that will be performed
-        :type IndexQuery
-        @param options: various operation options e.g. AllowStale or MaxOpsPerSec
-        :type QueryOperationOptions
-        @return: json
-        :rtype: dict
-        """
-        super(DeleteByIndexCommand, self).__init__(method="DELETE")
-        self.index_name = index_name
-        self.query = query
-        self.options = options
-
-    def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database,
-                                                  Utils.build_path(self.index_name, self.query, self.options))
-
-    def set_response(self, response):
-        if response is None:
-            raise exceptions.ErrorResponseException("Could not find index {0}".format(self.index_name))
-
-        if response.status_code != 200 and response.status_code != 202:
-            try:
-                raise exceptions.ErrorResponseException(response.json()["Error"])
-            except ValueError:
-                raise response.raise_for_status()
-        return response.json()
-
-
 class PatchCommand(RavenCommand):
-    def __init__(self, key, patch, etag=None, patch_if_missing=None,
-                 skip_patch_if_etag_mismatch=False, return_debug_information=False):
-        super(PatchCommand, self).__init__(method="PATCH")
-        self.key = key
-        self.patch = patch
-        self.etag = etag
-        self.patch_if_missing = patch_if_missing
-        self._skip_patch_if_etag_mismatch = skip_patch_if_etag_mismatch
-        self._return_debug_information = return_debug_information
-
-    def create_request(self, server_node):
-
-        if self.key is None:
+    def __init__(self, document_id, change_vector, patch, patch_if_missing,
+                 skip_patch_if_change_vector_mismatch=False, return_debug_information=False, test=False):
+        if document_id is None:
             raise ValueError("None key is invalid")
-        if self.patch is None:
+        if patch is None:
             raise ValueError("None patch is invalid")
-        if self.patch_if_missing and not self.patch_if_missing.script:
+        if patch_if_missing and not patch_if_missing.script:
             raise ValueError("None or Empty script is invalid")
 
-        path = "docs?id={0}".format(Utils.quote_key(self.key))
-        if self._skip_patch_if_etag_mismatch:
-            path += "&skipPatchIfEtagMismatch=true"
+        super(PatchCommand, self).__init__(method="PATCH")
+        self._document_id = document_id
+        self._change_vector = change_vector
+        self._patch = patch
+        self._patch_if_missing = patch_if_missing
+        self._skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
+        self._return_debug_information = return_debug_information
+        self._test = test
+
+    def create_request(self, server_node):
+        path = "docs?id={0}".format(Utils.quote_key(self._document_id))
+        if self._skip_patch_if_change_vector_mismatch:
+            path += "&skipPatchIfChangeVectorMismatch=true"
         if self._return_debug_information:
             path += "&debug=true"
-        if self.etag is not None:
-            self.headers = {"If-Match": "\"{etag}\"".format(self.etag)}
+        if self._test:
+            path += "&test=true"
+
+        if self._change_vector is not None:
+            self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
 
         self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
-        self.data = {"Patch": self.patch.to_json(),
-                     "PatchIfMissing": self.patch_if_missing.to_json() if self.patch_if_missing else None}
+        self.data = {"Patch": self._patch.to_json(),
+                     "PatchIfMissing": self._patch_if_missing.to_json() if self._patch_if_missing else None}
 
     def set_response(self, response):
+        if response is None:
+            return None
+
         if response and response.status_code == 200:
             return response.json()
-        return None
 
 
 class QueryCommand(RavenCommand):
@@ -503,7 +400,7 @@ class GetClusterTopologyCommand(RavenCommand):
         super(GetClusterTopologyCommand, self).__init__(method="GET", is_read_request=True)
 
     def create_request(self, server_node):
-        self.url = "{0}/admin/cluster/topology".format(server_node.url)
+        self.url = "{0}/cluster/topology".format(server_node.url)
 
     def set_response(self, response):
         if response.status_code == 200:
@@ -514,12 +411,15 @@ class GetClusterTopologyCommand(RavenCommand):
 
 
 class GetOperationStateCommand(RavenCommand):
-    def __init__(self, id):
+    def __init__(self, operation_id, is_server_store_operation=False):
         super(GetOperationStateCommand, self).__init__(method="GET")
-        self.id = id
+        self.operation_id = operation_id
+        self.is_server_store_operation = is_server_store_operation
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database, self.id)
+        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database,
+                                                                      self.operation_id) if self.is_server_store_operation == False \
+            else "{0}/operations/state?id={2}".format(server_node.url, self.operation_id)
 
     def set_response(self, response):
         try:
@@ -527,32 +427,6 @@ class GetOperationStateCommand(RavenCommand):
         except ValueError:
             raise response.raise_for_status()
         return response
-
-
-# For Admin use only (create or delete databases, Api-Key commands)
-class PutApiKeyCommand(RavenCommand):
-    def __init__(self, name, api_key):
-        """
-        @param name: the name of  the api_key
-        :type str
-        @param api_key: the api_key
-        :type ApiKeyDefinition
-        """
-        super(PutApiKeyCommand, self).__init__(method="PUT")
-        if name is None:
-            raise ValueError("{0} name is Invalid".format(name))
-        if api_key is None or not isinstance(api_key, ApiKeyDefinition):
-            raise ValueError("{0} name is Invalid".format(api_key))
-
-        self.name = name
-        self.api_key = api_key
-
-    def create_request(self, server_node):
-        self.url = "{0}/admin/api-keys?name={1}".format(server_node.url, Utils.quote_key(self.name))
-        self.data = self.api_key.to_json()
-
-    def set_response(self, response):
-        pass
 
 
 class GetApiKeyCommand(RavenCommand):
@@ -628,7 +502,7 @@ class DeleteDatabaseCommand(RavenCommand):
         self.hard_delete = hard_delete
 
     def create_request(self, server_node):
-        db_name = self.name.replace("Rave/Databases/", "")
+        db_name = self.name.replace("Raven/Databases/", "")
         self.url = "{0}/admin/databases?name={1}".format(server_node.url, Utils.quote_key(db_name))
         if self.hard_delete:
             self.url += "&hard-delete=true"
@@ -641,3 +515,138 @@ class DeleteDatabaseCommand(RavenCommand):
         except ValueError:
             raise response.raise_for_status()
         return None
+
+
+class PutAttachmentCommand(RavenCommand):
+    def __init__(self, document_id, name, stream, content_type, change_vector):
+        """
+        @param document_id: The id of the document
+        @param name: Name of the attachment
+        @param stream: The attachment as bytes (ex.open("file_path", "rb"))
+        :param content_type: The type of the attachment (ex.image/png)
+        :param change_vector: The change vector of the document
+        """
+
+        if not document_id:
+            raise ValueError("Invalid document_id")
+        if not name:
+            raise ValueError("Invalid name")
+
+        super(PutAttachmentCommand, self).__init__(method="PUT")
+        self._document_id = document_id
+        self._name = name
+        self._stream = stream
+        self._content_type = content_type
+        self._change_vector = change_vector
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(server_node.url, server_node.database,
+                                                                          Utils.quote_key(self._document_id),
+                                                                          Utils.quote_key(self._name))
+        if self._content_type:
+            self.url += "&contentType={0}".format(Utils.quote_key(self._content_type))
+        self.data = self._stream
+
+        if self._change_vector is not None:
+            self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
+
+    def set_response(self, response):
+        if response.status_code == 201:
+            return response.json()
+
+
+class GetFacetsCommand(RavenCommand):
+    def __init__(self, query):
+        if not query:
+            raise ValueError("Invalid query")
+        super(GetFacetsCommand, self).__init__(method=query.calculate_http_method(), is_read_request=True)
+        self._query = query
+        if query.wait_for_non_stale_results_timeout and query.wait_for_non_stale_results_timeout != timedelta.max:
+            self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta.seconds(10)
+
+    def create_request(self, server_node):
+        if self._query.facet_setup_doc and len(self._query.facets) > 0:
+            raise exceptions.InvalidOperationException("You cannot specify both 'facet_setup_doc' and 'facets'.")
+
+        self.url = "{0}/databases/{1}/queries/{2}?{3}".format(server_node.url, server_node.database,
+                                                              self._query.index_name,
+                                                              self._query.get_query_string(self.method))
+
+    def set_response(self, response):
+        if response.status_code == 200:
+            return response.json()
+
+
+class MultiGetCommand(RavenCommand):
+    def __init__(self, requests):
+        """
+        @param requests: The requests for the server
+        :type list of dict
+        dict keys:
+            url = Request url (relative).
+            headers =  Request headers.
+            query = Query information e.g. "?pageStart=10&amp;pageSize=20".
+            data = The data for the requests body
+            method = The requests method e.g.
+        """
+        super(MultiGetCommand, self).__init__(method="POST")
+        self._requests = requests
+        self._base_url = None
+
+    def create_request(self, server_node):
+        self._base_url = "{0}/databases/{1}".format(server_node.url, server_node.database)
+        commands = []
+        for request in self._requests:
+            # Todo cache
+            # if self.change_vector is not None:
+            #     headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
+            headers = {}
+            for key, value in request.get("headers", {}).items():
+                headers[key] = value
+            commands.append(
+                {"Url": "/databases/{0}{1}".format(server_node.database, request["url"]),
+                 "Query": request.get("query", None), "Method": request.get("method", None),
+                 "Content": request.get("data", None), "Headers": headers})
+
+        self.data = {"Requests": commands}
+        self.url = "{0}/multi_get".format(self._base_url)
+
+    def set_response(self, response):
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response["Results"]
+        except:
+            raise exceptions.ErrorResponseException("Invalid response")
+
+
+class GetDatabaseTopologyCommand(RavenCommand):
+    def __init__(self, database_name):
+        super(GetDatabaseTopologyCommand, self).__init__(method="GET")
+        self._database_name = database_name
+
+    def create_request(self, server_node):
+        self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_name)
+
+    def set_response(self, response):
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response["Topology"]
+        except:
+            raise response.raise_for_status()
+
+
+class WaitForRaftIndexCommand(RavenCommand):
+    def __init__(self, index):
+        super(WaitForRaftIndexCommand, self).__init__(method="GET", is_read_request=True)
+        self._index = index
+
+    def create_request(self, server_node):
+        self.url = "{0}/rachis/waitfor?index={1}".format(server_node.url, self._index)
+
+    def set_response(self, response):
+        if response is None:
+            raise exceptions.ErrorResponseException("Invalid response")

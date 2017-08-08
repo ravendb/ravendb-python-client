@@ -1,9 +1,9 @@
-from pyravendb.data.operations import QueryOperationOptions
-from pyravendb.data.indexes import IndexQuery
 from pyravendb.custom_exceptions import exceptions
 from datetime import datetime, timedelta
+from threading import Timer
 import urllib
 import inspect
+import json
 import sys
 import re
 
@@ -18,20 +18,12 @@ class _DynamicStructure(object):
 
 class Utils(object):
     @staticmethod
-    def empty_etag():
-        return 0
-
-    @staticmethod
     def quote_key(key, reserved_slash=False):
         reserved = '%:=&?~#+!$,;\'*[]'
         if reserved_slash:
             reserved += '/'
         if key:
-            # To be able to work on python 2.x and 3.x
-            if sys.version_info.major > 2:
-                return urllib.parse.quote(key, safe=reserved)
-            else:
-                return urllib.quote(key, safe=reserved)
+            return urllib.parse.quote(key, safe=reserved)
         else:
             return ''
 
@@ -45,29 +37,10 @@ class Utils(object):
                 "Database name can only contain only A-Z, a-z, \"_\", \".\" or \"-\" but was: " + name)
 
     @staticmethod
-    def build_path(index_name, query, options):
-        if index_name is None:
-            raise ValueError("None index_name is not valid")
-        path = "queries/{0}?".format(Utils.quote_key(index_name, True) if index_name else "")
-        if query is None:
-            raise ValueError("None query is not valid")
-        if not isinstance(query, IndexQuery):
-            raise ValueError("query must be IndexQuery type")
-        if query.query:
-            path += "&query={0}".format(Utils.quote_key(query.query))
-        if options is None:
-            options = QueryOperationOptions()
-        if not isinstance(options, QueryOperationOptions):
-            raise ValueError("options must be QueryOperationOptions type")
-
-        path += "&pageSize={0}&allowStale={1}&details={2}".format(query.page_size, options.allow_stale,
-                                                                  options.retrieve_details)
-        if options.max_ops_per_sec:
-            path += "&maxOpsPerSec={0}".format(options.max_ops_per_sec)
-        if options.stale_timeout:
-            path += "&staleTimeout={0}".format(options.stale_timeout)
-
-        return path
+    def get_change_vector_from_header(response):
+        header = response.headers.get("ETag", None)
+        if header is not None and header[0] == "\"":
+            return header[1: len(header) - 2]
 
     @staticmethod
     def import_class(name):
@@ -215,6 +188,12 @@ class Utils(object):
         return value
 
     @staticmethod
+    def dict_to_binary(the_dict):
+        str = json.dumps(the_dict)
+        binary = ' '.join(format(ord(letter), 'b') for letter in str)
+        return binary
+
+    @staticmethod
     def dict_to_string(dictionary):
         builder = []
         for item in dictionary:
@@ -226,6 +205,16 @@ class Utils(object):
     @staticmethod
     def datetime_to_string(datetime_obj):
         return datetime_obj.strftime("%Y-%m-%dT%H:%M:%S.%f0")
+
+    @staticmethod
+    def start_a_timer(interval, function, args=None, name=None, daemon=False):
+        timer = Timer(interval, function, args)
+        timer.daemon = daemon
+        if name is not None:
+            timer.name = name
+        timer.start()
+
+        return timer
 
     @staticmethod
     def string_to_datetime(datetime_str):

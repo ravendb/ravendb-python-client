@@ -1,9 +1,5 @@
 from time import time as _time
-
-try:
-    import Queue as queue  # < 3.0
-except ImportError:
-    import queue as queue
+import queue as queue
 
 
 class IndexQueue(queue.Queue, object):
