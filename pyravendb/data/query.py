@@ -3,7 +3,6 @@ from datetime import timedelta
 from enum import Enum
 from pyravendb.tools.utils import Utils
 import sys
-import json
 
 
 class QueryOperator(Enum):
@@ -14,13 +13,13 @@ class QueryOperator(Enum):
 class IndexQueryBase(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, query, start=0, default_operator=None, fields_to_fetch=None,
-                 wait_for_non_stale_result_as_of_now=False,
-                 wait_for_non_stale_results=False,
-                 wait_for_non_stale_results_timeout=None, default_field=None):
+    def __init__(self, query, query_parameters=None, start=0, wait_for_non_stale_result_as_of_now=False,
+                 wait_for_non_stale_results=False, wait_for_non_stale_results_timeout=None):
         """
-        @param query: Actual query that will be performed (Lucene syntax).
+        @param query: Actual query that will be performed.
         :type str
+        @param query_parameters: Parameters to the query
+        :type dict
         @param start:  Number of records that should be skipped.
         :type int
         @param default_operator: The operator of the query (AND or OR) the default value is OR
@@ -35,16 +34,13 @@ class IndexQueryBase(object):
         """
         self._page_size = sys.maxsize
         self._page_size_set = False
-        self.is_distinct = False
         self.query = query
+        self.query_parameters = query_parameters
         self.start = start
-        self.fields_to_fetch = fields_to_fetch
-        self.default_operator = default_operator
         self.wait_for_non_stale_results = wait_for_non_stale_results
         self.wait_for_non_stale_results_timeout = wait_for_non_stale_results_timeout
         if self.wait_for_non_stale_results and not self.wait_for_non_stale_results_timeout:
             self.wait_for_non_stale_results_timeout = timedelta.max
-        self.default_field = default_field
         self.wait_for_non_stale_result_as_of_now = wait_for_non_stale_result_as_of_now
 
     def __str__(self):
@@ -61,14 +57,13 @@ class IndexQueryBase(object):
 
 
 class IndexQuery(IndexQueryBase):
-    def __init__(self, query="", start=0, default_operator=None, includes=None, sorted_fields=None, transformer=None,
+    def __init__(self, query="", query_parameters=None, start=0, default_operator=None, includes=None, transformer=None,
                  transformer_parameters=None, show_timings=False, skip_duplicate_checking=False, **kwargs):
-        super().__init__(query, start, default_operator, **kwargs)
+        super(IndexQuery, self).__init__(query=query, query_parameters=query_parameters, start=start, **kwargs)
         self.allow_multiple_index_entries_for_same_document_to_result_transformer = kwargs.get(
             "allow_multiple_index_entries_for_same_document_to_result_transformer", False)
         self.transformer = transformer
         self.transformer_parameters = transformer_parameters
-        self.sorted_fields = [] if sorted_fields is None else sorted_fields
         self.includes = includes if includes is not None else []
         self.show_timings = show_timings
         self.skip_duplicate_checking = skip_duplicate_checking
@@ -76,49 +71,37 @@ class IndexQuery(IndexQueryBase):
     def get_custom_query_str_variables(self):
         return ""
 
-    def get_query_string(self, include_query=True):
-        path = "?"
-        if self.query is not None and include_query:
-            path += self.query
-        if self.default_field:
-            path += "&defaultField={0}".format(self.default_field)
-        if self.default_operator != QueryOperator.OR:
-            path += "&operator=AND"
-        custom_vars = self.get_custom_query_str_variables()
-        if vars:
-            path += custom_vars if custom_vars.startswith("&") else "&" + custom_vars
-
-        if self.start != 0:
-            path += "&start={0}".format(self.start)
-        if self._page_size_set:
-            path += "&pageSize={0}".format(self.page_size)
-        if self.allow_multiple_index_entries_for_same_document_to_result_transformer:
-            path += "&allowMultipleIndexEntriesForSameDocumentToResultTransformer=true"
-        if self.is_distinct:
-            path += "&distinct=true"
-        if self.show_timings:
-            path += "&showTimings=true"
-        if self.skip_duplicate_checking:
-            path += "&skipDuplicateChecking=true"
-        if len(self.fields_to_fetch) > 0:
-            "&fetch=".join([Utils.quote_key(field) for field in self.fields_to_fetch if field is not None])
-        if len(self.includes) > 0:
-            "&include=".join([Utils.quote_key(include) for include in self.includes if include is not None])
-        if len(self.sorted_fields) > 0:
-            "&sort=".join([Utils.quote_key(sort) for sort in self.sorted_fields if sort is not None])
-        if self.transformer:
-            path += "&transformer={0}".format(Utils.quote_key(self.transformer))
-        if self.transformer_parameters is not None:
-            for key, value in self.transformer_parameters.items():
-                path += "&tp-{0}={1}".format(key, value)
+    def to_json(self):
+        data = {"Query": self.query}
+        if self._page_size_set and self._page_size >= 0:
+            data["PageSize"] = self.page_size
         if self.wait_for_non_stale_result_as_of_now:
-            path += "&waitForNonStaleResultsAsOfNow=true"
-        if self.wait_for_non_stale_results_timeout:
-            path += "&waitForNonStaleResultsTimeout={0}".format(self.wait_for_non_stale_results_timeout)
+            data["WaitForNonStaleResultsAsOfNow"] = self.wait_for_non_stale_result_as_of_now
+        if self.start > 0:
+            data["Start"] = self.start
+        if self.wait_for_non_stale_results_timeout is not None:
+            data["WaitForNonStaleResultsTimeout"] = str(self.wait_for_non_stale_results_timeout)
+        if self.allow_multiple_index_entries_for_same_document_to_result_transformer:
+            data[
+                "AllowMultipleIndexEntriesForSameDocumentToResultTransformer"] = \
+                self.allow_multiple_index_entries_for_same_document_to_result_transformer
+        if self.show_timings:
+            data["ShowTimings"] = self.show_timings
+        if self.skip_duplicate_checking:
+            data["SkipDuplicateChecking"] = self.skip_duplicate_checking
+        if len(self.includes) > 0:
+            data["Includes"] = self.includes
+        if self.transformer:
+            data["Transformer"] = self.transformer
+            if self.transformer_parameters is not None:
+                data["TransformerParameters"] = self.transformer_parameters
+
+        data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
+        return data
 
 
 class FacetQuery(IndexQueryBase):
-    def __init__(self, query="", index_name=None, facets=None, facet_setup_doc=None, start=0, default_operator=None,
+    def __init__(self, query="", index_name=None, facets=None, facet_setup_doc=None, start=0,
                  **kwargs):
         """
         @param index_name: Index name to run facet query on.
@@ -128,7 +111,7 @@ class FacetQuery(IndexQueryBase):
         @param facet_setup_doc: Id of a facet setup document that can be found in database containing facets.
         :type str
         """
-        super().__init__(query, start, default_operator, **kwargs)
+        super().__init__(query=query, start=start, **kwargs)
         self.index_name = index_name
         self.facets = {} if facets is None else facets
         self.facet_setup_doc = facet_setup_doc
@@ -169,6 +152,33 @@ class FacetQuery(IndexQueryBase):
 
     def serialize_facets_to_json(self):
         return {"Facets": [facet.to_json() for facet in self.facets]}
+
+
+class FacetMode(Enum):
+    default = 0
+    ranges = 1
+
+    def __str__(self):
+        return self.name
+
+
+class FacetAggregation(Enum):
+    none = 0,
+    count = 1,
+    max = 2,
+    min = 4,
+    average = 8,
+    sum = 16
+
+
+class FacetTermSortMode(Enum):
+    value_asc = 0
+    value_desc = 1
+    hits_asc = 2
+    hits_desc = 3
+
+    def __str__(self):
+        return self.name
 
 
 class Facet(object):
@@ -223,30 +233,3 @@ class Facet(object):
             data["Ranges"] = self.ranges
 
         return data
-
-
-class FacetMode(Enum):
-    default = 0
-    ranges = 1
-
-    def __str__(self):
-        return self.name
-
-
-class FacetAggregation(Enum):
-    none = 0,
-    count = 1,
-    max = 2,
-    min = 4,
-    average = 8,
-    sum = 16
-
-
-class FacetTermSortMode(Enum):
-    value_asc = 0
-    value_desc = 1
-    hits_asc = 2
-    hits_desc = 3
-
-    def __str__(self):
-        return self.name

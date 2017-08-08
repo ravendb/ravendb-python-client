@@ -1,4 +1,4 @@
-from pyravendb.commands.raven_commands import RavenCommand
+from pyravendb.commands.raven_commands import RavenCommand, GetDatabaseTopologyCommand
 from pyravendb.custom_exceptions import exceptions
 from requests.exceptions import RequestException
 from abc import abstractmethod
@@ -109,6 +109,7 @@ class DeleteDatabaseOperation(ServerOperation):
                     raise exceptions.DatabaseDoesNotExistException(response["Message"])
             except ValueError:
                 raise response.raise_for_status()
+            return {"raft_command_index": response["RaftCommandIndex"]}
 
 
 class GetDatabaseNamesOperation(ServerOperation):
@@ -141,4 +142,13 @@ class GetDatabaseNamesOperation(ServerOperation):
             if "Databases" not in response:
                 raise ValueError("Invalid response")
 
-                return response["Databases"]
+            return response["Databases"]
+
+
+class GetDatabaseTopologyOperation(ServerOperation):
+    def __init__(self, database_name):
+        super(GetDatabaseTopologyOperation, self).__init__()
+        self._database_name = database_name
+
+    def get_command(self, conventions):
+        return GetDatabaseTopologyCommand(self._database_name)

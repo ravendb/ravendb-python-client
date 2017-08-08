@@ -4,7 +4,7 @@ from abc import abstractmethod
 from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexQuery
+from pyravendb.data.query import IndexQuery
 
 
 class QueryOperationOptions(object):
@@ -14,8 +14,11 @@ class QueryOperationOptions(object):
       @param stale_timeout: If AllowStale is set to false and index is stale, then this is the maximum timeout to wait
       for index to become non-stale. If timeout is exceeded then exception is thrown.
       None by default - throw immediately if index is stale.
+      :type timedelta
       @param max_ops_per_sec Limits the amount of base Operation per second allowed.
+      :type int
       @param retrieve_details Determines whether Operation details about each document should be returned by server.
+      :type bool
   """
 
     def __init__(self, allow_stale=True, stale_timeout=None, max_ops_per_sec=None, retrieve_details=False):
@@ -38,6 +41,31 @@ class Operation(object):
     @abstractmethod
     def get_command(self, store, conventions, cache=None):
         raise NotImplementedError
+
+    @staticmethod
+    def build_path(index_name, query, options):
+        if index_name is None:
+            raise ValueError("None index_name is not valid")
+        path = "queries/{0}?".format(Utils.quote_key(index_name, True) if index_name else "")
+        if query is None:
+            raise ValueError("None query is not valid")
+        if not isinstance(query, IndexQuery):
+            raise ValueError("query must be IndexQuery type")
+        if query.query:
+            path += "&query={0}".format(Utils.quote_key(query.query))
+        if options is None:
+            options = QueryOperationOptions()
+        if not isinstance(options, QueryOperationOptions):
+            raise ValueError("options must be QueryOperationOptions type")
+
+        path += "&pageSize={0}&allowStale={1}&details={2}".format(query.page_size, options.allow_stale,
+                                                                  options.retrieve_details)
+        if options.max_ops_per_sec:
+            path += "&maxOpsPerSec={0}".format(options.max_ops_per_sec)
+        if options.stale_timeout:
+            path += "&staleTimeout={0}".format(options.stale_timeout)
+
+        return path
 
 
 class DeleteAttachmentOperation(Operation):
@@ -64,9 +92,9 @@ class DeleteAttachmentOperation(Operation):
             self._change_vector = change_vector
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/attachment?id={2}&name={3}".format(server_node.url, server_node.database,
-                                                                             Utils.quote_key(self._document_id),
-                                                                             Utils.quote_key(self.name))
+            self.url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(server_node.url, server_node.database,
+                                                                              Utils.quote_key(self._document_id),
+                                                                              Utils.quote_key(self.name))
             if self._change_vector is not None:
                 self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
 
@@ -75,27 +103,22 @@ class DeleteAttachmentOperation(Operation):
 
 
 class PatchByIndexOperation(Operation):
-    def __init__(self, index_name, query_to_update, patch, options=None):
-        if index_name is None:
-            raise ValueError("Invalid index_name")
+    def __init__(self, query_to_update, patch, options=None):
         if query_to_update is None:
             raise ValueError("Invalid query")
         if patch is None:
             raise ValueError("Invalid patch")
         super(PatchByIndexOperation, self).__init__()
-        self._index_name = index_name
         self._query_to_update = query_to_update
         self._patch = patch
         self._options = options
 
     def get_command(self, store, conventions, cache=None):
-        return self.PatchByIndexCommand(self._index_name, self._query_to_update, self._patch, self._options)
+        return self.PatchByIndexCommand(self._query_to_update, self._patch, self._options)
 
     class PatchByIndexCommand(RavenCommand):
-        def __init__(self, index_name, query_to_update, patch, options):
+        def __init__(self, query_to_update, patch, options):
             """
-            @param index_name: name of an index to perform a query on
-            :type str
             @param query_to_update: query that will be performed
             :type IndexQuery
             @param options: various Operation options e.g. AllowStale or MaxOpsPerSec
@@ -103,10 +126,9 @@ class PatchByIndexOperation(Operation):
             @param patch: JavaScript patch that will be executed on query results( Used only when update)
             :type PatchRequest
             @return: json
-            :rtype: dict
+            :rtype: dict of operation_id
             """
             super(PatchByIndexOperation.PatchByIndexCommand, self).__init__(method="PATCH")
-            self._index_name = index_name
             self._query_to_update = query_to_update
             self._patch = patch
             self._options = options
@@ -117,44 +139,54 @@ class PatchByIndexOperation(Operation):
 
             if self._patch:
                 if not isinstance(self._patch, PatchRequest):
-                    raise ValueError("scripted_patch must be PatchRequest Type")
+                    raise ValueError("_patch must be PatchRequest Type")
                 self._patch = self._patch.to_json()
 
-            self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database,
-                                                      Utils.build_path(self._index_name, self._query_to_update,
-                                                                       self._options))
-            self.data = self._patch
+            self.url = server_node.url + "/databases/" + server_node.database + "/queries"
+            path = "?allowStale={0}&maxOpsPerSec={1}&details={2}".format(self._options.allow_stale,
+                                                                         "" if self._options.max_ops_per_sec is None else self._options.max_ops_per_sec,
+                                                                         self._options.retrieve_details)
+            if self._options.stale_timeout is not None:
+                path += "&staleTimeout=" + str(self._options.stale_timeout)
+
+            self.url += path
+            self.data = {"Query": self._query_to_update.to_json(), "Patch": self._patch}
 
         def set_response(self, response):
             if response is None:
-                raise exceptions.ErrorResponseException("Could not find index {0}".format(self._index_name))
+                raise exceptions.ErrorResponseException("Invalid Response")
 
             if response.status_code != 200 and response.status_code != 202:
                 raise response.raise_for_status()
-            return response.json()
+
+            return {"operation_id": response.json()["OperationId"]}
 
 
 class DeleteByIndexOperation(Operation):
-    def __init__(self, index_name, query, options=None):
-        if not query:
+    def __init__(self, query_to_delete, options=None):
+        """
+        @param index_name: name of an index to perform a query on
+        :type str
+        @param query_to_delete: query that will be performed
+        :type IndexQuery
+        @param options: various Operation options e.g. AllowStale or MaxOpsPerSec
+        :type QueryOperationOptions
+        :rtype: dict of operation_id
+       """
+        if not query_to_delete:
             raise ValueError("Invalid query")
-        if not index_name:
-            raise ValueError("Invalid index_name")
-        
+
         super(DeleteByIndexOperation, self).__init__()
-        self._index_name = index_name
-        self._query = query
+        self._query_to_delete = query_to_delete
         self._options = options if options is not None else QueryOperationOptions()
 
     def get_command(self, store, conventions, cache=None):
-        return self._DeleteByIndexCommand(self._index_name, self._query, self._options)
+        return self._DeleteByIndexCommand(self._query_to_delete, self._options)
 
     class _DeleteByIndexCommand(RavenCommand):
-        def __init__(self, index_name, query, options=None):
+        def __init__(self, query_to_delete, options=None):
             """
-            @param index_name: name of an index to perform a query on
-            :type str
-            @param query: query that will be performed
+            @param query_to_delete: query that will be performed
             :type IndexQuery
             @param options: various Operation options e.g. AllowStale or MaxOpsPerSec
             :type QueryOperationOptions
@@ -162,13 +194,19 @@ class DeleteByIndexOperation(Operation):
             :rtype: dict
             """
             super(DeleteByIndexOperation._DeleteByIndexCommand, self).__init__(method="DELETE")
-            self.index_name = index_name
-            self.query = query
-            self.options = options
+            self._query_to_delete = query_to_delete
+            self._options = options
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database,
-                                                      Utils.build_path(self.index_name, self.query, self.options))
+            self.url = server_node.url + "/databases/" + server_node.database + "/queries"
+            path = "?allowStale={0}&maxOpsPerSec={1}&details={2}".format(self._options.allow_stale,
+                                                                         "" if self._options.max_ops_per_sec is None else self._options.max_ops_per_sec,
+                                                                         self._options.retrieve_details)
+            if self._options.stale_timeout is not None:
+                path += "&staleTimeout=" + str(self._options.stale_timeout)
+
+            self.url += path
+            self.data = self._query_to_delete.to_json()
 
         def set_response(self, response):
             if response is None:
@@ -179,7 +217,7 @@ class DeleteByIndexOperation(Operation):
                     raise exceptions.ErrorResponseException(response.json()["Error"])
                 except ValueError:
                     raise response.raise_for_status()
-            return response.json()
+            return {"operation_id": response.json()["OperationId"]}
 
 
 class PatchCollectionOperation(Operation):
@@ -188,13 +226,13 @@ class PatchCollectionOperation(Operation):
             raise ValueError("Invalid collection_name")
         if patch is None:
             raise ValueError("Invalid patch")
-        
+
         super(PatchCollectionOperation, self).__init__()
         self._collection_name = collection_name
         self._patch = patch
 
     def get_command(self, store, conventions, cache=None):
-        return self.PatchByCollectionCommand(self._collection_name, self._patch)
+        return self._PatchByCollectionCommand(self._collection_name, self._patch)
 
     class _PatchByCollectionCommand(RavenCommand):
         def __init__(self, collection_name, patch):
@@ -226,7 +264,7 @@ class PatchCollectionOperation(Operation):
 
             if response.status_code != 200 and response.status_code != 202:
                 raise response.raise_for_status()
-            return response.json()
+            return {"operation_id": response.json()["OperationId"]}
 
 
 class DeleteCollectionOperation(Operation):
@@ -243,7 +281,7 @@ class DeleteCollectionOperation(Operation):
             self.collection_name = collection_name
 
         def create_request(self, server_node):
-            self.url = "{0}/database/{1}/collection/docs?name={2}".format(server_node.url, server_node.database,
+            self.url = "{0}/databases/{1}/collections/docs?name={2}".format(server_node.url, server_node.database,
                                                                           self.collection_name)
 
         def set_response(self, response):
@@ -255,7 +293,7 @@ class DeleteCollectionOperation(Operation):
                     raise exceptions.ErrorResponseException(response.json()["Error"])
                 except ValueError:
                     raise response.raise_for_status()
-            return response.json()
+            return {"operation_id": response.json()["OperationId"]}
 
 
 class GetAttachmentOperation(Operation):
@@ -268,7 +306,7 @@ class GetAttachmentOperation(Operation):
         if attachment_type != AttachmentType.document and change_vector is None:
             raise ValueError("change_vector",
                              "Change Vector cannot be null for attachment type {0}".format(attachment_type))
-        
+
         super(GetAttachmentOperation, self).__init__()
         self._document_id = document_id
         self._name = name
@@ -276,7 +314,7 @@ class GetAttachmentOperation(Operation):
         self._change_vector = change_vector
 
     def get_command(self, store, conventions, cache=None):
-        return self._GetAttachmentCommand(self._document_id, self._name, self._type, self._change_vector)
+        return self._GetAttachmentCommand(self._document_id, self._name, self._attachment_type, self._change_vector)
 
     class _GetAttachmentCommand(RavenCommand):
         def __init__(self, document_id, name, attachment_type, change_vector):
@@ -299,8 +337,8 @@ class GetAttachmentOperation(Operation):
             self._change_vector = change_vector
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/attachments?id={3}&name={4}".format(
-                server_node.url, server_node.database, Utils.quote_key(server_node.document_id),
+            self.url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(
+                server_node.url, server_node.database, Utils.quote_key(self._document_id),
                 Utils.quote_key(self._name))
 
             if self._attachment_type != AttachmentType.document:
@@ -308,11 +346,14 @@ class GetAttachmentOperation(Operation):
                 self.data = {"Type": str(self._attachment_type), "ChangeVector": self._change_vector}
 
         def set_response(self, response):
+            if response is None:
+                return None
+
             if response.status_code == 200:
                 attachment_details = {"content_type": response.headers.get("Content-Type", None),
                                       "change_vector": Utils.get_change_vector_from_header(response),
-                                      "hash": response.get("Attachment-Hash", None),
-                                      "size": response.get("Attachment-Size", 0)}
+                                      "hash": response.headers.get("Attachment-Hash", None),
+                                      "size": response.headers.get("Attachment-Size", 0)}
 
                 return {"response": response, "details": attachment_details}
 
@@ -342,6 +383,7 @@ class PutAttachmentOperation(Operation):
         :param change_vector: The change vector of the document
         """
 
+        super(PutAttachmentOperation, self).__init__()
         self._document_id = document_id
         self._name = name
         self._stream = stream
@@ -357,7 +399,7 @@ class GetFacetsOperation(Operation):
     def __init__(self, query):
         if query is None:
             raise ValueError("Invalid query")
-        
+
         super(GetFacetsOperation, self).__init__()
         self._query = query
 
@@ -369,7 +411,7 @@ class GetMultiFacetsOperation(Operation):
     def __init__(self, queries):
         if queries is None or len(queries) == 0:
             raise ValueError("Invalid queries")
-        
+
         super(GetMultiFacetsOperation, self).__init__()
         self._queries = queries
 

@@ -1,6 +1,6 @@
 from pyravendb.commands.raven_commands import QueryCommand
 from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.data.indexes import IndexQuery
+from pyravendb.data.query import IndexQuery
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
 from enum import Enum

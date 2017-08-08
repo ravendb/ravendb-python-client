@@ -140,6 +140,7 @@ class PutIndexesOperation(AdminOperation):
         if len(indexes_to_add) == 0:
             raise ValueError("Invalid indexes_to_add")
 
+        super(PutIndexesOperation, self).__init__()
         self._indexes_to_add = indexes_to_add
 
     def get_command(self, conventions):
@@ -150,7 +151,7 @@ class PutIndexesOperation(AdminOperation):
             """
             @param index_to_add: Index to add to the database
             :type args of IndexDefinition
-            :rtype dict (etaf, transformer)
+            :rtype dict (etag, transformer)
             """
             super(PutIndexesOperation._PutIndexesCommand, self).__init__(method="PUT")
             if index_to_add is None:
@@ -173,7 +174,7 @@ class PutIndexesOperation(AdminOperation):
                 response = response.json()
                 if "Error" in response:
                     raise exceptions.ErrorResponseException(response["Error"])
-                return {"etag": response["Etag"], "transformer": response["Transformer"]}
+                return response["Results"]
             except ValueError:
                 response.raise_for_status()
 
@@ -182,11 +183,12 @@ class PutTransformerOperation(AdminOperation):
     def __init__(self, transformer_definition):
         if not transformer_definition:
             raise ValueError("Invalid transformer_definition")
-
+        
+        super(PutTransformerOperation, self).__init__()
         self._transformer_definition = transformer_definition
 
     def get_command(self, conventions):
-        return self._PutTransformerCommand(*self._transformer_definition)
+        return self._PutTransformerCommand(self._transformer_definition)
 
     class _PutTransformerCommand(RavenCommand):
         def __init__(self, transformer_definition):
@@ -204,13 +206,13 @@ class PutTransformerOperation(AdminOperation):
             self.url = "{0}/databases/{1}/transformers?name={2}".format(server_node.url, server_node.database,
                                                                         Utils.quote_key(
                                                                             self._transformer_definition.name))
-            self.data = self._transformer_definition
+            self.data = self._transformer_definition.to_json()
 
         def set_response(self, response):
             try:
                 response = response.json()
                 if "Error" in response:
                     raise exceptions.ErrorResponseException(response["Error"])
-                return response["Results"]
+                return response
             except ValueError:
                 response.raise_for_status()

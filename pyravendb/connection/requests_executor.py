@@ -22,7 +22,7 @@ class RequestsExecutor(object):
     def __init__(self, database_name, certificate, convention=None, **kwargs):
         self._database_name = database_name
         self._certificate = certificate
-        self.topology_etag = kwargs.get("topology_etag", -1)
+        self.topology_etag = kwargs.get("topology_etag", 0)
         self._last_return_response = datetime.utcnow()
         self.convention = convention if convention is not None else DocumentConvention()
         self._node_selector = kwargs.get("node_selector", None)

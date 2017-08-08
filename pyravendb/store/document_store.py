@@ -134,7 +134,9 @@ class OperationExecutor(object):
         try:
             get_operation_command = GetOperationStateCommand(operation_id)
             while True:
-                response = self.request_executor.execute(get_operation_command)
+                response = self._request_executor.execute(get_operation_command)
+                if "Error" in response:
+                    raise ValueError(response["Error"])
                 if timeout and time.time() - start_time > timeout:
                     raise exceptions.TimeoutException("The Operation did not finish before the timeout end")
                 if response["Status"] == "Completed":

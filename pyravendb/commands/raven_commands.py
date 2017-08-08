@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*- #
-from pyravendb.data.indexes import IndexQuery, QueryOperator
-from pyravendb.data.indexes import IndexDefinition
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.database import ApiKeyDefinition
 from pyravendb.tools.utils import Utils
 from abc import abstractmethod
 from datetime import timedelta
@@ -155,7 +152,8 @@ class PutDocumentCommand(RavenCommand):
             raise ValueError("document and metadata must be dict")
 
         self.data = self.document
-        self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database, self.key)
+        self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database,
+                                                          Utils.quote_key(self.key))
 
     def set_response(self, response):
         try:
@@ -240,12 +238,12 @@ class DeleteIndexCommand(RavenCommand):
 
 class PatchCommand(RavenCommand):
     def __init__(self, document_id, change_vector, patch, patch_if_missing,
-                 skip_patch_if_change_vector_mismatch, return_debug_information=False, test=False):
-        if self.document_id is None:
+                 skip_patch_if_change_vector_mismatch=False, return_debug_information=False, test=False):
+        if document_id is None:
             raise ValueError("None key is invalid")
-        if self.patch is None:
+        if patch is None:
             raise ValueError("None patch is invalid")
-        if self.patch_if_missing and not self.patch_if_missing.script:
+        if patch_if_missing and not patch_if_missing.script:
             raise ValueError("None or Empty script is invalid")
 
         super(PatchCommand, self).__init__(method="PATCH")
@@ -270,13 +268,15 @@ class PatchCommand(RavenCommand):
             self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
 
         self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
-        self.data = {"Patch": self.patch.to_json(),
-                     "PatchIfMissing": self.patch_if_missing.to_json() if self.patch_if_missing else None}
+        self.data = {"Patch": self._patch.to_json(),
+                     "PatchIfMissing": self._patch_if_missing.to_json() if self._patch_if_missing else None}
 
     def set_response(self, response):
+        if response is None:
+            return None
+
         if response and response.status_code == 200:
             return response.json()
-        return None
 
 
 class QueryCommand(RavenCommand):
@@ -411,12 +411,15 @@ class GetClusterTopologyCommand(RavenCommand):
 
 
 class GetOperationStateCommand(RavenCommand):
-    def __init__(self, id):
+    def __init__(self, operation_id, is_server_store_operation=False):
         super(GetOperationStateCommand, self).__init__(method="GET")
-        self.id = id
+        self.operation_id = operation_id
+        self.is_server_store_operation = is_server_store_operation
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database, self.id)
+        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database,
+                                                                      self.operation_id) if self.is_server_store_operation == False \
+            else "{0}/operations/state?id={2}".format(server_node.url, self.operation_id)
 
     def set_response(self, response):
         try:
@@ -424,32 +427,6 @@ class GetOperationStateCommand(RavenCommand):
         except ValueError:
             raise response.raise_for_status()
         return response
-
-
-# For Admin use only (create or delete databases, Api-Key commands)
-class PutApiKeyCommand(RavenCommand):
-    def __init__(self, name, api_key):
-        """
-        @param name: the name of  the api_key
-        :type str
-        @param api_key: the api_key
-        :type ApiKeyDefinition
-        """
-        super(PutApiKeyCommand, self).__init__(method="PUT")
-        if name is None:
-            raise ValueError("{0} name is Invalid".format(name))
-        if api_key is None or not isinstance(api_key, ApiKeyDefinition):
-            raise ValueError("{0} name is Invalid".format(api_key))
-
-        self.name = name
-        self.api_key = api_key
-
-    def create_request(self, server_node):
-        self.url = "{0}/admin/api-keys?name={1}".format(server_node.url, Utils.quote_key(self.name))
-        self.data = self.api_key.to_json()
-
-    def set_response(self, response):
-        pass
 
 
 class GetApiKeyCommand(RavenCommand):
@@ -563,11 +540,11 @@ class PutAttachmentCommand(RavenCommand):
         self._change_vector = change_vector
 
     def create_request(self, server_node):
-        url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(server_node.url, server_node.database,
-                                                                     Utils.quote_key(self._document_id),
-                                                                     Utils.quote_key(self._name))
+        self.url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(server_node.url, server_node.database,
+                                                                          Utils.quote_key(self._document_id),
+                                                                          Utils.quote_key(self._name))
         if self._content_type:
-            url += "&contentType={0}".format(Utils.quote_key(self._content_type))
+            self.url += "&contentType={0}".format(Utils.quote_key(self._content_type))
         self.data = self._stream
 
         if self._change_vector is not None:
@@ -641,4 +618,35 @@ class MultiGetCommand(RavenCommand):
                 raise exceptions.ErrorResponseException(response["Error"])
             return response["Results"]
         except:
+            raise exceptions.ErrorResponseException("Invalid response")
+
+
+class GetDatabaseTopologyCommand(RavenCommand):
+    def __init__(self, database_name):
+        super(GetDatabaseTopologyCommand, self).__init__(method="GET")
+        self._database_name = database_name
+
+    def create_request(self, server_node):
+        self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_name)
+
+    def set_response(self, response):
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response["Topology"]
+        except:
+            raise response.raise_for_status()
+
+
+class WaitForRaftIndexCommand(RavenCommand):
+    def __init__(self, index):
+        super(WaitForRaftIndexCommand, self).__init__(method="GET", is_read_request=True)
+        self._index = index
+
+    def create_request(self, server_node):
+        self.url = "{0}/rachis/waitfor?index={1}".format(server_node.url, self._index)
+
+    def set_response(self, response):
+        if response is None:
             raise exceptions.ErrorResponseException("Invalid response")
