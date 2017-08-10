@@ -12,9 +12,10 @@ setup(
     keywords='pyravendb',
     install_requires=
     [
-        "pysodium >= 0.6.9.1",
+        "pysodium >= 0.6.13",
         "requests >= 2.18.2",
         "inflector >= 2.0.11",
+        'xxhash >= 1.0.1',
     ],
     zip_safe=False
 )

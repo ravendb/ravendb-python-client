@@ -559,7 +559,7 @@ class GetFacetsCommand(RavenCommand):
     def __init__(self, query):
         if not query:
             raise ValueError("Invalid query")
-        super(GetFacetsCommand, self).__init__(method=query.calculate_http_method(), is_read_request=True)
+        super(GetFacetsCommand, self).__init__(method="POST", is_read_request=True)
         self._query = query
         if query.wait_for_non_stale_results_timeout and query.wait_for_non_stale_results_timeout != timedelta.max:
             self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta.seconds(10)
@@ -568,9 +568,8 @@ class GetFacetsCommand(RavenCommand):
         if self._query.facet_setup_doc and len(self._query.facets) > 0:
             raise exceptions.InvalidOperationException("You cannot specify both 'facet_setup_doc' and 'facets'.")
 
-        self.url = "{0}/databases/{1}/queries/{2}?{3}".format(server_node.url, server_node.database,
-                                                              self._query.index_name,
-                                                              self._query.get_query_string(self.method))
+        self.url = "{0}/databases/{1}/queries?op-facets&query-hash={2}".format(server_node.url, server_node.database,
+                                                                               self._query.get_query_hash())
 
     def set_response(self, response):
         if response.status_code == 200:
