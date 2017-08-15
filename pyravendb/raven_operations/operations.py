@@ -42,31 +42,6 @@ class Operation(object):
     def get_command(self, store, conventions, cache=None):
         raise NotImplementedError
 
-    @staticmethod
-    def build_path(index_name, query, options):
-        if index_name is None:
-            raise ValueError("None index_name is not valid")
-        path = "queries/{0}?".format(Utils.quote_key(index_name, True) if index_name else "")
-        if query is None:
-            raise ValueError("None query is not valid")
-        if not isinstance(query, IndexQuery):
-            raise ValueError("query must be IndexQuery type")
-        if query.query:
-            path += "&query={0}".format(Utils.quote_key(query.query))
-        if options is None:
-            options = QueryOperationOptions()
-        if not isinstance(options, QueryOperationOptions):
-            raise ValueError("options must be QueryOperationOptions type")
-
-        path += "&pageSize={0}&allowStale={1}&details={2}".format(query.page_size, options.allow_stale,
-                                                                  options.retrieve_details)
-        if options.max_ops_per_sec:
-            path += "&maxOpsPerSec={0}".format(options.max_ops_per_sec)
-        if options.stale_timeout:
-            path += "&staleTimeout={0}".format(options.stale_timeout)
-
-        return path
-
 
 class DeleteAttachmentOperation(Operation):
     def __init__(self, document_id, name, change_vector=None):
@@ -282,7 +257,7 @@ class DeleteCollectionOperation(Operation):
 
         def create_request(self, server_node):
             self.url = "{0}/databases/{1}/collections/docs?name={2}".format(server_node.url, server_node.database,
-                                                                          self.collection_name)
+                                                                            self.collection_name)
 
         def set_response(self, response):
             if response is None:
@@ -421,13 +396,15 @@ class GetMultiFacetsOperation(Operation):
     class _GetMultiFacetsCommand(RavenCommand):
         def __init__(self, queries):
             super(GetMultiFacetsOperation._GetMultiFacetsCommand, self).__init__(is_read_request=True)
-            self._command = None
-            commands = {}
+            requests = {}
             for q in queries:
-                method = q.calculate_http_method()
-                commands.update(
-                    {"url": "/queries" + q.index_name, "query": "?" + q.get_query_string(method), "method": method,
-                     "data": q.serialize_facets_to_json() if method == "POST" else None})
+                if not q:
+                    raise ValueError("Invalid query")
+                requests.update(
+                    {"url": "/queries", "query": "?op=facets&query-hash=" + q.get_query_hash(), "method": "POST",
+                     "data": q.to_json()})
+
+            self._command = MultiGetCommand(requests)
 
         def create_request(self, server_node):
             return self._command.create_request(server_node)

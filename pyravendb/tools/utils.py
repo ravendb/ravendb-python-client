@@ -1,4 +1,5 @@
 from pyravendb.custom_exceptions import exceptions
+import OpenSSL.crypto
 from datetime import datetime, timedelta
 from threading import Timer
 import urllib
@@ -26,6 +27,11 @@ class Utils(object):
             return urllib.parse.quote(key, safe=reserved)
         else:
             return ''
+
+    @staticmethod
+    def convert_to_snake_case(name):
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
     @staticmethod
     def name_validation(name):
@@ -189,8 +195,8 @@ class Utils(object):
 
     @staticmethod
     def dict_to_binary(the_dict):
-        str = json.dumps(the_dict)
-        binary = ' '.join(format(ord(letter), 'b') for letter in str)
+        json_dict = json.dumps(the_dict)
+        binary = ' '.join(format(ord(letter), 'b') for letter in json_dict)
         return binary
 
     @staticmethod
@@ -299,3 +305,23 @@ class Utils(object):
             buffer += term[start: length - start]
 
         return buffer
+
+    @staticmethod
+    def pfx_to_pem(pem_path, pfx_path, pfx_password):
+        """
+        @param pem_path: Where to create the pem file
+        @param pfx_path: The path to the pfx file
+        @param pfx_password: The password to pfx file
+        """
+        with open(pem_path, 'wb') as pem_file:
+            with open(pfx_path, 'rb') as pfx_file:
+                pfx = pfx_file.read()
+            p12 = OpenSSL.crypto.load_pkcs12(pfx, pfx_password)
+            pem_file.write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, p12.get_privatekey()))
+            pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, p12.get_certificate()))
+            ca = p12.get_ca_certificates()
+            if ca is not None:
+                for cert in ca:
+                    # In python 3.6* we need to save the ca to ?\lib\site-packages\certifi\cacert.pem.
+                    pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
+        return pem_path
