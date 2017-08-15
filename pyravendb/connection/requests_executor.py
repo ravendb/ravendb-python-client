@@ -1,7 +1,7 @@
 from pyravendb.commands.raven_commands import GetTopologyCommand, GetStatisticsCommand
 from pyravendb.connection.requests_helpers import *
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.tools.authenticator import ApiKeyAuthenticator
+from OpenSSL import crypto
 from pyravendb.data.document_convention import DocumentConvention
 from threading import Lock, Thread
 from pyravendb.tools.utils import Utils
@@ -38,7 +38,6 @@ class RequestsExecutor(object):
 
         self._failed_nodes_timers = {}
         self._first_topology_update = None
-        self._authenticator = ApiKeyAuthenticator()
         self.cluster_token = None
 
     @staticmethod
@@ -89,8 +88,6 @@ class RequestsExecutor(object):
     def execute_with_node(self, chosen_node, raven_command, should_retry):
         while True:
             raven_command.create_request(chosen_node)
-            if self.cluster_token is not None:
-                raven_command.headers["Raven-Authorization", self.cluster_token]
             node_index = 0 if self._node_selector is None else self._node_selector.current_node_index
 
             with requests.session() as session:
@@ -103,10 +100,9 @@ class RequestsExecutor(object):
                 start_time = time.time() * 1000
                 end_time = None
                 try:
-                    if self.cluster_token is not None:
-                        raven_command.headers["Raven-Authorization"] = chosen_node.current_token
                     response = session.request(raven_command.method, url=raven_command.url, data=data,
-                                               headers=raven_command.headers, stream=raven_command.use_stream)
+                                               cert=self._certificate, headers=raven_command.headers,
+                                               stream=raven_command.use_stream)
                 except Exception as e:
                     end_time = time.time() * 1000
                     if not should_retry:
@@ -130,23 +126,16 @@ class RequestsExecutor(object):
 
                 if response.status_code == 404:
                     return raven_command.set_response(None)
-                if response.status_code == 412 or response.status_code == 401:
-                    if not self._api_key:
-                        raise exceptions.AuthorizationException(
-                            "Got unauthorized response for {0}. Please specify an api-key.".format(
-                                chosen_node.url))
-                    raven_command.authentication_retries += 1
-                    if raven_command.authentication_retries > 1:
-                        raise exceptions.AuthorizationException(
-                            "Got unauthorized response for {0} after trying to authenticate using specified api-key.".format(
-                                chosen_node.url))
-
-                    self.handle_unauthorized(chosen_node)
-                    continue
                 if response.status_code == 403:
+                    if self._certificate is not None:
+                        with open(self._certificate, 'rb') as pem:
+                            cert = crypto.load_certificate(crypto.FILETYPE_PEM, pem.read())
+                            name = str(cert.get_subject().get_components()[0][1])
                     raise exceptions.AuthorizationException(
-                        "Forbidden access to {0}. Make sure you're using the correct api-key.".format(
-                            chosen_node.url))
+                        "Forbidden access to " + chosen_node.database + "@" + chosen_node.url + ", " +
+                        ("a certificate is required." if self._certificate is None
+                         else name + " does not have permission to access it or is unknown.") +
+                        response.request.method + " " + response.request.path_url)
                 if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
                     if len(raven_command.failed_nodes) == 1:
                         node = list(raven_command.failed_nodes.keys())[0]
@@ -288,34 +277,6 @@ class RequestsExecutor(object):
 
         self._node_selector.restore_node_index(node_status.node_index)
 
-    def update_current_token(self):
-        if self._unauthorized_timer_initialize:
-            topology = self._topology
-            leader_node = topology.leader_node
-
-            if leader_node is not None:
-                self.handle_unauthorized(leader_node, False)
-
-            for node in topology.nodes:
-                self.handle_unauthorized(node, False)
-        else:
-            self._unauthorized_timer_initialize = True
-
-        Utils.start_a_timer(60 * 20, self.update_current_token, daemon=True)
-
-    def handle_unauthorized(self, server_node, should_raise=True):
-        try:
-            cluster_token = self._authenticator.authenticate(server_node.url, self._api_key, self.headers)
-            self.cluster_token = cluster_token
-        except Exception as e:
-            log.info("Failed to authorize using api key", exc_info=str(e))
-
-            if should_raise:
-                raise
-
-        if not self._unauthorized_timer_initialize:
-            self.update_current_token()
-
     def update_topology_callback(self):
         time = datetime.utcnow()
         if time - self._last_return_response <= timedelta(minutes=5):
@@ -324,4 +285,3 @@ class RequestsExecutor(object):
             self.update_topology(self._node_selector.get_current_node())
         except Exception as e:
             log.info("Couldn't Update Topology from _updateTopologyTimer task", e)
-

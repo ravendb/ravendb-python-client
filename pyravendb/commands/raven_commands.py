@@ -649,3 +649,22 @@ class WaitForRaftIndexCommand(RavenCommand):
     def set_response(self, response):
         if response is None:
             raise exceptions.ErrorResponseException("Invalid response")
+
+
+class GetTcpInfoCommand(RavenCommand):
+    def __init__(self, tag, database_name=None):
+        super(GetTcpInfoCommand, self).__init__(method="GET")
+        self._tag = tag
+        self._database_name = database_name
+
+    def create_request(self, server_node):
+        if self._database_name is None:
+            self.url = "{0}/info/tcp?tag={1}".format(server_node.url, self._tag)
+        else:
+            self.url = "{0}/databases/{1}/info/tcp?tag={2}".format(server_node.url, self._database_name, self._tag)
+
+    def set_response(self, response):
+        if response is None:
+            raise exceptions.ErrorResponseException("Invalid response")
+
+        return response.json()

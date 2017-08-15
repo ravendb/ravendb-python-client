@@ -1,4 +1,4 @@
-from pyravendb.commands.raven_commands import GetClusterTopologyCommand
+from pyravendb.commands.raven_commands import GetClusterTopologyCommand, GetTcpInfoCommand
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.connection.requests_helpers import *
 import hashlib
@@ -55,8 +55,6 @@ class ClusterRequestExecutor(RequestsExecutor):
                     self.cancel_all_failed_nodes_timers()
 
                 self.topology_etag = self._node_selector.topology.etag
-            except:
-                pass
             finally:
                 self.update_cluster_topology_lock.release()
         else:
@@ -75,9 +73,25 @@ class ClusterRequestExecutor(RequestsExecutor):
                     topology.nodes.append(ServerNode(url, cluster_tag=key))
                 self._node_selector = NodeSelector(
                     Topology.convert_json_topology_to_entity(json.load(topology)))
-                self.topology_etag = -2
-                # TODO set topology Timer
                 return True
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log.info(e)
         return False
+
+    def perform_health_check(self, node, node_status):
+        command = GetTcpInfoCommand(tag="health-check")
+        try:
+            self.execute_with_node(node, command, should_retry=False)
+
+        except Exception as e:
+            log.info("{0} is still down".format(node.cluster_tag), e)
+            failed_node_timer = self._failed_nodes_timers.get(node_status.node, None)
+            if failed_node_timer is not None:
+                failed_node_timer.start_timer()
+            return
+
+        failed_node_timer = self._failed_nodes_timers.pop(node_status.node, None)
+        if failed_node_timer:
+            del failed_node_timer
+
+        self._node_selector.restore_node_index(node_status.node_index)

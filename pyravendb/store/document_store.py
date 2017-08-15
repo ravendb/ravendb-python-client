@@ -14,12 +14,16 @@ class DocumentStore(object):
         self.urls = urls
         self.database = database
         self.conventions = DocumentConvention()
-        self.certificate = certificate
+        self._certificate = certificate
         self._request_executor = {}
         self._initialize = False
         self.generator = None
         self._operations = None
         self.admin = AdminOperationExecutor(self, database)
+
+    @property
+    def certificate(self):
+        return self._certificate
 
     @property
     def operations(self):
@@ -38,12 +42,14 @@ class DocumentStore(object):
             db_name = self.database
 
         if db_name not in self._request_executor:
-            self._request_executor[db_name] = RequestsExecutor.create(self.urls, db_name, self.certificate,
+            self._request_executor[db_name] = RequestsExecutor.create(self.urls, db_name, self._certificate,
                                                                       self.conventions)
         return self._request_executor[db_name]
 
     def initialize(self):
         if not self._initialize:
+            if self.urls is None or len(self.urls) == 0:
+                raise ValueError("Document store URLs cannot be empty", "urks")
             if self.database is None:
                 raise exceptions.InvalidOperationException("None database is not valid")
 
