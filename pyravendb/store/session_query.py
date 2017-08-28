@@ -1,58 +1,227 @@
-from pyravendb.commands.raven_commands import QueryCommand
+from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.data.query import IndexQuery
+from pyravendb.data.query import IndexQuery, QueryOperator, EscapeQueryOptions
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
-from enum import Enum
 import time
 import re
 
 
-class EscapeQueryOptions(Enum):
-    EscapeAll = 0
-    AllowPostfixWildcard = 1
-    AllowAllWildcards = 2
-    RawQuery = 3
+class _Token:
+    def __init__(self, field_name=None, value=None, token=None, write=None, **kwargs):
+        self.__dict__.update({"field_name": field_name, "value": value, "token": token, "write": write, **kwargs})
 
 
 class Query(object):
-    def __init__(self, session, requests_executor):
+    where_operators = {'equals': 'equals', 'greater_than': 'greater_than',
+                       'greater_than_or_equal': 'greater_than_or_equal', 'less_than': 'less_than',
+                       'less_than_or_equal': 'less_than_or_equal', 'in': 'in', 'all_in': 'all_in',
+                       'between': 'between', 'search': 'search', 'lucene': 'lucene', 'starts_with': 'starts_with',
+                       'ends_with': 'ends_with', 'exists': 'exists'}
+
+    def __init__(self, session):
         self.session = session
-        self._requests_executor = requests_executor
-        self.query_builder = ""
-        self.negate = False
-        self._sort_hints = set()
-        self._sort_fields = set()
+        # Those argument will be initialize when class is called see __call__
+        # for be able to query with the same instance of the Query class
+        self.query_builder = None
+        self.negate = None
+        self.fields_to_fetch_token = None
+        self._select_tokens = None
+        self._from_token = None
+        self._group_by_tokens = None
+        self._order_by_tokens = None
+        self._where_tokens = None
+        self.includes = None
+        self._current_clause_depth = None
+        self.is_intersect = None
+        self.the_wait_for_non_stale_results = False
         self.fetch = None
 
-    def __call__(self, object_type=None, index_name=None, using_default_operator=None,
-                 wait_for_non_stale_results=False, includes=None, with_statistics=False, nested_object_types=None):
+    def __call__(self, object_type=None, index_name=None, collection_name=None, is_map_reduce=False,
+                 with_statistics=False, metadata_only=False, default_operator=None, wait_for_non_stale_results=False,
+                 timeout=None, nested_object_types=None):
         """
-        @param index_name: The index name we want to apply
-        :type index_name: str
-        @param object_type: The type of the object we want to track the entity too
-        :type Type
+        @param Type object_type: The type of the object we want to track the entity too
+        @param str index_name: The index name we want to apply
+        @param str collection_name: Name of the collection (mutually exclusive with indexName)
+        @param bool is_map_reduce: Whether we are querying a map/reduce index(modify how we treat identifier properties)
         @param nested_object_types: A dict of classes for nested object the key will be the name of the class and the
         value will be the object we want to get for that attribute
-        :type str
-        @param using_default_operator: If None, by default will use OR operator for the query (can use for OR or AND)
-        @param with_statistics: Make it True to get the query statistics as well
-        :type bool
+        @param bool with_statistics: Make it True to get the query statistics as well
+        @param QueryOperator default_operator: The default query operator (OR or AND)
+        @param bool wait_for_non_stale_results: Instructs the query to wait for non stale results
+        @param float timeout: The time to wait for non stale result
         """
         if not index_name:
             index_name = "dynamic"
             if object_type is not None:
                 index_name += "/{0}".format(self.session.conventions.default_transform_plural(object_type.__name__))
         self.index_name = index_name
+        self.collection_name = collection_name
         self.object_type = object_type
         self.nested_object_types = nested_object_types
-        self.using_default_operator = using_default_operator
-        self.wait_for_non_stale_results = wait_for_non_stale_results
-        self.includes = includes
-        if includes and not isinstance(self.includes, list):
-            self.includes = [self.includes]
+        self.is_map_reduce = is_map_reduce
         self._with_statistics = with_statistics
+        self.default_operator = default_operator
+        self.metadata_only = metadata_only
+        self.query_builder = ""
+        self.query_parameters = {}
+        self.negate = False
+        self.fields_to_fetch_token = {}
+        self._select_tokens = []  # List[_Token]
+        self._from_token = None
+        self._group_by_tokens = []  # List[_Token]
+        self._order_by_tokens = []  # List[_Token]
+        self._where_tokens = []  # List[_Token]
+        self.includes = ()
+        self._current_clause_depth = 0
+        self.is_intersect = False
+        self.start = 0
+        self.page_size = None
+        self.cutoff_etag = None
+        self.wait_for_non_stale_results = wait_for_non_stale_results
+        self.timeout = timeout if timeout is not None else self.session.conventions.timeout
+        self.fetch = None
+
         return self
+
+    def __iter__(self):
+        return iter(self._execute_query())
+
+    def __str__(self):
+        if self._current_clause_depth != 0:
+            raise InvalidOperationException(
+                "A clause was not closed correctly within this query, current clause depth = {0}".format(
+                    self._current_clause_depth))
+
+        # SELECT build
+        select_token_length = len(self._select_tokens)
+        if select_token_length > 0:
+            index = 0
+            self.query_builder += "SELECT "
+            if select_token_length == 1 and self._select_tokens[0].token == "distinct":
+                self.query_builder += "DISTINCT *"
+                return
+
+            for token in self._select_tokens:
+                if index > 0 and self._select_tokens[index - 1].token != "distinct":
+                    self.query_builder += ","
+                self._add_space_if_needed()
+                self.query_builder += token.write
+                index += 1
+
+        # FROM build
+        self._add_space_if_needed()
+        if self.index_name == "dynamic":
+            self.query_builder += "FROM "
+            if Utils.contains_any(self.collection_name, [' ', '\t', '\r', '\n', '\v']):
+                if '"' in self.collection_name:
+                    raise ValueError("Collection name cannot contain a quote, but was: " + self.collection_name)
+                self.query_builder += '"' + self.collection_name + '"'
+            else:
+                self.query_builder += self.collection_name
+        else:
+            self.query_builder += "FROM INDEX '" + self.index_name + "'"
+
+        # WITH build
+        if self.includes is not None and len(self.includes) > 0:
+            self.query_builder += " WITH "
+            first = True
+            for include in self.includes:
+                if not first:
+                    self.query_builder += ","
+                first = False
+                required_quotes = False
+                if not re.match("^[A-Za-z0-9_]+$", include):
+                    required_quotes = True
+                self.query_builder += "include("
+                if required_quotes:
+                    self.query_builder += "'{0}'".format(include.replace("'", "\\'"))
+                else:
+                    self.query_builder += include
+                self.query_builder += ")"
+
+        # GroupBy build
+        if len(self._group_by_tokens) > 0:
+            self.query_builder += " GROUP BY "
+            index = 0
+            for token in self._group_by_tokens:
+                if index > 0:
+                    self.query_builder += ","
+                self.query_builder += token.write
+                index += 1
+
+        # WHERE build
+        if len(self._where_tokens) > 0:
+            self.query_builder += " WHERE "
+            if self.is_intersect:
+                self.query_builder += "intersect("
+
+            for token in self._where_tokens:
+                self._add_space_if_needed()
+                self.query_builder += token.write
+
+            if self.is_intersect:
+                self.query_builder += ") "
+
+        # ORDER BY build
+        if len(self._order_by_tokens) > 0:
+            self.query_builder += " ORDER BY "
+            first = True
+            for token in self._order_by_tokens:
+                if not first and self._order_by_tokens[len(self._order_by_tokens - 1)] is not None:
+                    self.query_builder += ", "
+                first = False
+                self.query_builder += token.write
+
+    @staticmethod
+    def _get_rql_write_case(token):
+        return {"in": " IN ($" + token.value + ")",
+                "all_in": " ALL IN ($" + token.value + ")",
+                "between": "BETWEEN $" + token.value,
+                "equals": " = $" + token.value,
+                "greater_then": " > $" + token.value,
+                "greater_then_or_equal": " >= $" + token.value,
+                "less_than": " < $" + token.value,
+                "less_than_or_equal": " <= $" + token.value,
+                "search": ", $" + token.value + ", AND)" if getattr(token, "search_operator",
+                                                                    None) == QueryOperator.AND else ")",
+                "lucene": ", $" + token.value + ")",
+                "starts_with": ", $" + token.value + ")",
+                "ends_with": ", $" + token.value + ")",
+                "exists": ")"}.get(token.token)
+
+    @staticmethod
+    def rql_where_write(token):
+        where_rql = ""
+        boost = getattr(token, "boost", None)
+        if boost:
+            where_rql += "boost("
+        fuzzy = getattr(token, "fuzzy", None)
+        if fuzzy:
+            where_rql += "fuzzy("
+        proximity = getattr(token, "proximity", None)
+        if proximity:
+            where_rql += "proximity("
+        exact = getattr(token, "exact", False)
+        if exact:
+            where_rql += "exact("
+
+        if token.token in ["search", "lucene", "starts_with", "end_with", "exists"]:
+            where_rql += token.token + "("
+
+        where_rql += token.field_name + Query._get_rql_write_case(token)
+
+        if exact:
+            where_rql += ")"
+        if proximity:
+            where_rql += "," + proximity + ")"
+        if fuzzy:
+            where_rql += "," + fuzzy + ")"
+        if boost:
+            where_rql += "," + boost + ")"
+
+        return where_rql
 
     def select(self, *args):
         """
@@ -65,54 +234,94 @@ class Query(object):
             self.fetch = args
         return self
 
-    def _lucene_builder(self, value, action=None, escape_query_options=EscapeQueryOptions.EscapeAll):
+    def _add_space_if_needed(self):
+        if self.query_builder.endswith(("(", ")", ",")):
+            self.query_builder += " "
 
-        if isinstance(value, str):
-            if escape_query_options == EscapeQueryOptions.EscapeAll:
-                value = Utils.escape(value, False, False)
-
-            elif escape_query_options == EscapeQueryOptions.AllowPostfixWildcard:
-                value = Utils.escape(value, False, False)
-            elif escape_query_options == EscapeQueryOptions.AllowAllWildcards:
-                value = Utils.escape(value, False, False)
-                value = re.sub(r'"\\\*(\s|$)"', "*${1}", value)
-            elif escape_query_options == EscapeQueryOptions.RawQuery:
-                value = Utils.escape(value, False, False).replace("\\*", "*")
-
-        lucene_text = Utils.to_lucene(value, action=action)
-
-        if len(self.query_builder) > 0 and not self.query_builder.endswith(' '):
-            self.query_builder += ' '
+    def negate_if_needed(self, field_name):
         if self.negate:
             self.negate = False
-            self.query_builder += '-'
 
-        return lucene_text
+            if len(self._where_tokens) == 0:
+                if field_name is not None:
+                    self.where_exists(field_name)
+                else:
+                    self.where_true()
 
-    def __iter__(self):
-        return self._execute_query().__iter__()
+                self.and_also()
 
-    def where_equals(self, field_name, value, escape_query_options=EscapeQueryOptions.EscapeAll):
+    def add_query_parameter(self, value):
+        parameter_name = "p{0}".format(len(self.query_parameters))
+        self.query_parameters[parameter_name] = value
+        return parameter_name
+
+    def _add_operator_if_needed(self):
+        if len(self._where_tokens) > 0:
+            query_operator = None
+            last_token = self._where_tokens[-1]
+            if last_token is not None and last_token.token in Query.where_operators:
+                query_operator = QueryOperator.AND if self.default_operator == QueryOperator.AND else QueryOperator.OR
+            if last_token.hasattr("search_operator"):
+                # default to OR operator after search if AND was not specified explicitly
+                query_operator = QueryOperator.OR
+
+            if query_operator:
+                self._where_tokens.append({_Token(write=str(query_operator))})
+
+    def intersect(self):
+        last = self._where_tokens[-1]
+        if last.token in Query.where_operators:
+            self.is_intersect = True
+            self._where_tokens.append(_Token(value=None, token="intersect", write=","))
+            return self
+        else:
+            raise InvalidOperationException("Cannot add INTERSECT at this point.")
+
+    def where_equals(self, field_name, value, exact=False):
         """
         To get all the document that equal to the value in the given field_name
 
-        @param field_name:The field name in the index you want to query.
-        :type str
+        @param str field_name: The field name in the index you want to query.
         @param value: The value will be the fields value you want to query
-        @param escape_query_options: the way we should escape special characters
-        :type EscapeQueryOptions
+        @param bool exact: If True getting exact match of the query
         """
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        lucene_text = self._lucene_builder(value, action="equal", escape_query_options=escape_query_options)
-        self.query_builder += "{0}:{1}".format(field_name, lucene_text)
+        field_name = Utils.escape_if_needed(field_name)
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        parameter_name = self.add_query_parameter(value)
+        token = _Token(field_name=field_name, value=parameter_name, token="equals", exact=exact)
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
         return self
 
-    def where(self, **kwargs):
+    def where_exists(self, field_name):
+        field_name = Utils.escape_if_needed(field_name)
+
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+        self._where_tokens.append(_Token(field_name=field_name, value=None, token="exists", write=")"))
+        return self
+
+    def where_true(self):
+        self._add_operator_if_needed()
+        self.negate_if_needed(None)
+
+        self._where_tokens.append(_Token(token="true_token", write="true"))
+        return self
+
+    def where(self, exact=False, **kwargs):
         """
         To get all the document that equal to the value within kwargs with the specific key
 
+        @param bool exact: If True getting exact match of the query
         @param kwargs: the keys of the kwargs will be the fields name in the index you want to query.
         The value will be the the fields value you want to query
         (if kwargs[field_name] is a list it will behave has the where_in method)
@@ -121,7 +330,7 @@ class Query(object):
             if isinstance(kwargs[field_name], list):
                 self.where_in(field_name, kwargs[field_name])
             else:
-                self.where_equals(field_name, kwargs[field_name])
+                self.where_equals(field_name, kwargs[field_name], exact)
         return self
 
     def search(self, field_name, search_terms, escape_query_options=EscapeQueryOptions.RawQuery, boost=1):
@@ -268,8 +477,13 @@ class Query(object):
         return self
 
     def and_also(self):
-        if len(self.query_builder) > 0:
-            self.query_builder += " AND"
+        last = self._where_tokens[-1]
+        if last:
+            if isinstance(last.value, QueryOperator):
+                raise InvalidOperationException("Cannot add AND, previous token was already an QueryOperator.")
+
+            self._where_tokens.append(_Token(value=QueryOperator.AND, write="AND"))
+
         return self
 
     def or_else(self):
@@ -277,22 +491,34 @@ class Query(object):
             self.query_builder += " OR"
         return self
 
-    def add_not(self):
-        self.negate = True
+    def negate_next(self):
+        """
+        Negate the next operation
+        """
+
+        self.negate = not self.negate
+
+    @property
+    def not_(self):
+        self.negate_next()
         return self
 
     def _execute_query(self):
         self.session.increment_requests_count()
         conventions = self.session.conventions
-        end_time = time.time() + conventions.timeout
+        c = timedelta
+        c.seconds
+        end_time = time.time() + self.timeout.seconds
+        self.__str__()
         while True:
-            query_command = QueryCommand(self.index_name,
-                                         IndexQuery(self.query_builder, default_operator=self.using_default_operator,
-                                                    sort_hints=self._sort_hints, sort_fields=self._sort_fields,
-                                                    fetch=self.fetch,
-                                                    wait_for_non_stale_results=self.wait_for_non_stale_results),
-                                         conventions=conventions, includes=self.includes)
-            response = self._requests_executor.execute(query_command)
+            index_query = IndexQuery(query=self.query_builder, query_parameters=self.query_parameters, start=self.start,
+                                     page_size=self.page_size, cutoff_etag=self.cutoff_etag,
+                                     wait_for_non_stale_results=self.wait_for_non_stale_results,
+                                     wait_for_non_stale_results_timeout=self.timeout)
+
+            query_command = QueryOperation(session=self.session, index_name=self.index_name, index_query=index_query,
+                                           metadata_only=self.metadata_only).create_request()
+            response = self.session.requests_executor.execute(query_command)
             if response is None:
                 return []
 

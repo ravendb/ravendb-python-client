@@ -280,81 +280,38 @@ class PatchCommand(RavenCommand):
 
 
 class QueryCommand(RavenCommand):
-    def __init__(self, index_name, index_query, conventions, includes=None, metadata_only=False,
-                 index_entries_only=False,
-                 force_read_from_master=False):
+    def __init__(self, conventions, index_query, metadata_only=False, index_entries_only=False):
         """
-        @param index_name: A name of an index to query
-        @param force_read_from_master: If True the reading also will be from the master
-        :type bool
-        :type str
-        @param index_query: A query definition containing all information required to query a specified index.
-        :type IndexQuery
-        @param includes: An array of relative paths that specify related documents ids
-        which should be included in a query result.
-        :type list
-        @param metadata_only: True if returned documents should include only metadata without a document body.
-        :type bool
-        @param index_entries_only: True if query results should contain only index entries.
-        :type bool
+        @param IndexQuery index_query: A query definition containing all information required to query a specified index.
+        @param bool metadata_only: True if returned documents should include only metadata without a document body.
+        @param bool index_entries_only: True if query results should contain only index entries.
         @return:json
         :rtype:dict
         """
-        super(QueryCommand, self).__init__(method="GET", is_read_request=True)
-        if index_name is None:
-            raise ValueError("Invalid index_name")
+        super(QueryCommand, self).__init__(method="POST", is_read_request=True)
         if index_query is None:
             raise ValueError("Invalid index_query")
         if conventions is None:
             raise ValueError("Invalid convention")
-        self.conventions = conventions
-        self.index_name = index_name
-        self.index_query = index_query
-        self.includes = includes
-        self.metadata_only = metadata_only
-        self.index_entries_only = index_entries_only
-        self.force_read_from_master = force_read_from_master
+        self._conventions = conventions
+        self._index_query = index_query
+        self._metadata_only = metadata_only
+        self._index_entries_only = index_entries_only
 
     def create_request(self, server_node):
-        if not self.index_name:
-            raise ValueError("index_name cannot be None or empty")
-        if self.index_query is None:
-            raise ValueError("None query is invalid")
-        if not isinstance(self.index_query, IndexQuery):
-            raise ValueError("query must be IndexQuery type")
-        path = "queries/{0}?&pageSize={1}".format(Utils.quote_key(self.index_name, True), self.index_query.page_size)
-        if self.index_query.default_operator is QueryOperator.AND:
-            path += "&operator={0}".format(self.index_query.default_operator.value)
-        if self.index_query.query:
-            path += "&query={0}".format(Utils.quote_key(self.index_query.query))
-        if self.index_query.sort_hints:
-            for hint in self.index_query.sort_hints:
-                path += "&{0}".format(hint)
-        if self.index_query.sort_fields:
-            for field in self.index_query.sort_fields:
-                path += "&sort={0}".format(field)
-        if self.index_query.fetch:
-            for item in self.index_query.fetch:
-                path += "&fetch={0}".format(item)
-        if self.metadata_only:
-            path += "&metadata-only=true"
-        if self.index_entries_only:
-            path += "&debug=entries"
-        if self.includes and len(self.includes) > 0:
-            path += "".join("&include=" + item for item in self.includes)
-        # if self.index_query.wait_for_non_stale_results:
-        #     path += "&waitForNonStaleResultsAsOfNow=true"
-        if self.index_query.wait_for_non_stale_results_timeout:
-            path += "&waitForNonStaleResultsTimeout={0}".format(self.index_query.wait_for_non_stale_results_timeout)
+        self.url = "{0}/databases/{1}/queries?query-hash={2}".format(server_node.url, server_node.database,
+                                                                     self._index_query.get_query_hash())
+        if self._metadata_only:
+            self.url += "&metadata-only=true"
+        if self._index_entries_only:
+            self.url += "&debug=entries"
 
-        if len(self.index_query.query) <= self.conventions.max_length_of_query_using_get_url:
-            self.method = "POST"
-
-        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
+        self.data = self._index_query.to_json()
 
     def set_response(self, response):
         if response is None:
-            raise exceptions.ErrorResponseException("Could not find index {0}".format(self.index_name))
+            return
+
         response = response.json()
         if "Error" in response:
             raise exceptions.ErrorResponseException(response["Error"])
@@ -396,7 +353,7 @@ class GetTopologyCommand(RavenCommand):
 
 
 class GetClusterTopologyCommand(RavenCommand):
-    def __init__(self, force_url=None):
+    def __init__(self):
         super(GetClusterTopologyCommand, self).__init__(method="GET", is_read_request=True)
 
     def create_request(self, server_node):
@@ -454,37 +411,6 @@ class GetApiKeyCommand(RavenCommand):
             raise response.raise_for_status()
 
         return response["Results"]
-
-
-class CreateDatabaseCommand(RavenCommand):
-    def __init__(self, database_document):
-        """
-        Creates a database
-
-        @param database_document: has to be DatabaseDocument type
-        """
-        super(CreateDatabaseCommand, self).__init__(method="PUT")
-        self.database_document = database_document
-
-    def create_request(self, server_node):
-        if "Raven/DataDir" not in self.database_document.settings:
-            raise exceptions.InvalidOperationException("The Raven/DataDir setting is mandatory")
-        db_name = self.database_document.database_id.replace("Raven/Databases/", "")
-        Utils.name_validation(db_name)
-
-        self.url = "{0}/admin/databases?name={1}".format(server_node.url, Utils.quote_key(db_name))
-        self.data = self.database_document.to_json()
-
-    def set_response(self, response):
-        if response is None:
-            raise ValueError("response is invalid.")
-
-        if response.status_code == 201:
-            return response.json()
-
-        if response.status_code == 400:
-            response = response.json()
-            raise exceptions.ErrorResponseException(response["Message"])
 
 
 class DeleteDatabaseCommand(RavenCommand):
@@ -562,7 +488,7 @@ class GetFacetsCommand(RavenCommand):
         super(GetFacetsCommand, self).__init__(method="POST", is_read_request=True)
         self._query = query
         if query.wait_for_non_stale_results_timeout and query.wait_for_non_stale_results_timeout != timedelta.max:
-            self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta.seconds(10)
+            self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta(seconds=10)
 
     def create_request(self, server_node):
         if self._query.facet_setup_doc and len(self._query.facets) > 0:

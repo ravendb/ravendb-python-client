@@ -34,7 +34,7 @@ class Utils(object):
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
     @staticmethod
-    def name_validation(name):
+    def database_name_validation(name):
         if name is None:
             raise ValueError("None name is not valid")
         result = re.match(r'([A-Za-z0-9_\-\.]+)', name, re.IGNORECASE)
@@ -143,55 +143,6 @@ class Utils(object):
                         entity_initialize_dict[key] = document[key]
 
         return entity_initialize_dict
-
-    @staticmethod
-    def to_lucene(value, action):
-        query_text = ""
-        if action == "in":
-            if not value or len(value) == 0:
-                return None
-            query_text += "("
-            first = True
-            for item in value:
-                if isinstance(item, str) and ' ' in item:
-                    item = "\"{0}\"".format(item)
-                item = item
-                if first:
-                    query_text += "{0}".format(item)
-                    first = False
-                else:
-                    query_text += ",{0}".format(item)
-            query_text += ")"
-            return query_text
-
-        elif action == "between":
-            query_text = "{{{0} TO {1}}}".format(
-                Utils.numeric_to_lucene_syntax(value[0]) if value[0] is not None else "*",
-                Utils.numeric_to_lucene_syntax(value[1]) if value[1] is not None else "NULL")
-        elif action == "equal_between":
-            query_text = "[{0} TO {1}]".format(
-                Utils.numeric_to_lucene_syntax(value[0]) if value[0] is not None else "*",
-                Utils.numeric_to_lucene_syntax(value[1]) if value[1] is not None else "NULL")
-        elif action == "search":
-            query_text = "({0})".format(value)
-        else:
-            query_text = value
-            if value is None:
-                query_text = "[[NULL_VALUE]]"
-
-            if isinstance(value, str) and ' ' in value:
-                query_text = "\"{0}\"".format(value)
-
-        return query_text
-
-    @staticmethod
-    def numeric_to_lucene_syntax(value):
-        if value is None:
-            value = "[[NULL_VALUE]]"
-        elif not value:
-            value = "[[EMPTY_STRING]]"
-
-        return value
 
     @staticmethod
     def dict_to_binary(the_dict):
@@ -307,6 +258,26 @@ class Utils(object):
         return buffer
 
     @staticmethod
+    def escape_if_needed(name):
+        if name:
+            escape = False
+            first = True
+            for c in name:
+                if first:
+                    if not c.isalpha() and c != '_' and c != '@':
+                        escape = True
+                        break
+                    first = False
+                else:
+                    if (not c.isalpha() or not c.isdigit()) and c != '_' and c != '@' and c != '[' and c != ']':
+                        escape = True
+                        break
+
+            if escape:
+                return "'{0}'".format(name)
+        return name
+
+    @staticmethod
     def pfx_to_pem(pem_path, pfx_path, pfx_password):
         """
         @param pem_path: Where to create the pem file
@@ -325,3 +296,44 @@ class Utils(object):
                     # In python 3.6* we need to save the ca to ?\lib\site-packages\certifi\cacert.pem.
                     pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
         return pem_path
+
+    @staticmethod
+    def index_of_any(text, any_of):
+        """
+        @param text: The text we want to check
+        :type str
+        @param any_of: list of char
+        :type list
+        :returns False if text nit
+        """
+        result = -1
+        if not text or not any_of:
+            return result
+
+        any_of = list(set(any_of))
+        i = 0
+        while i < len(text) and result == -1:
+            for c in any_of:
+                if c == text[i]:
+                    result = i
+                    break
+            i += 1
+        return result
+
+    @staticmethod
+    def contains_any(text, any_of):
+        """
+        @param text: The text we want to check
+        :type str
+        @param any_of: list of char
+        :type list
+        :returns False if text nit
+        """
+        if not text or not any_of:
+            return False
+
+        any_of = list(set(any_of))
+        for c in any_of:
+            if c in text:
+                return True
+        return False

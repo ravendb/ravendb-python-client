@@ -1,8 +1,17 @@
+from pyravendb.tools.utils import Utils
 from abc import ABCMeta
 from datetime import timedelta
 from enum import Enum
+import json
 import xxhash
 import sys
+
+
+class EscapeQueryOptions(Enum):
+    EscapeAll = 0
+    AllowPostfixWildcard = 1
+    AllowAllWildcards = 2
+    RawQuery = 3
 
 
 class QueryOperator(Enum):
@@ -24,14 +33,12 @@ class IndexQueryBase(object):
         :type int
         @param page_size:  Maximum number of records that will be retrieved.
         :type int
-        @param default_field: Default field to use when querying directly on the Lucene query
-        :type str
         @param wait_for_non_stale_result_as_of_now:  Used to calculate index staleness
         :type bool
         @param cutoff_etag: Gets or sets the cutoff etag.
         :type None or float
         """
-        self._page_size = sys.maxsize
+        self._page_size = sys.maxsize if page_size is None else page_size
         self._page_size_set = False
         if page_size is not None:
             self.page_size = page_size
@@ -57,15 +64,17 @@ class IndexQueryBase(object):
         self._page_size = value
         self._page_size_set = True
 
+    @property
+    def page_size_set(self):
+        return self._page_size_set
+
 
 class IndexQuery(IndexQueryBase):
-    def __init__(self, query="", query_parameters=None, start=0, includes=None, transformer=None,
-                 transformer_parameters=None, show_timings=False, skip_duplicate_checking=False, **kwargs):
+    def __init__(self, query="", query_parameters=None, start=0, includes=None, show_timings=False,
+                 skip_duplicate_checking=False, **kwargs):
         super(IndexQuery, self).__init__(query=query, query_parameters=query_parameters, start=start, **kwargs)
         self.allow_multiple_index_entries_for_same_document_to_result_transformer = kwargs.get(
             "allow_multiple_index_entries_for_same_document_to_result_transformer", False)
-        self.transformer = transformer
-        self.transformer_parameters = transformer_parameters
         self.includes = includes if includes is not None else []
         self.show_timings = show_timings
         self.skip_duplicate_checking = skip_duplicate_checking
@@ -93,13 +102,25 @@ class IndexQuery(IndexQueryBase):
             data["SkipDuplicateChecking"] = self.skip_duplicate_checking
         if len(self.includes) > 0:
             data["Includes"] = self.includes
-        if self.transformer:
-            data["Transformer"] = self.transformer
-            if self.transformer_parameters is not None:
-                data["TransformerParameters"] = self.transformer_parameters
 
         data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
         return data
+
+    def get_query_hash(self):
+        query_hash = xxhash.xxh64()
+        query_hash.update(self.query)
+        query_hash.update(bytes(self.wait_for_non_stale_results))
+        query_hash.update(bytes(self.wait_for_non_stale_result_as_of_now))
+        query_hash.update(bytes(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout)))
+        query_hash.update(bytes(self.show_timings))
+        if self.cutoff_etag:
+            query_hash.update(bytes(self.cutoff_etag))
+        query_hash.update(bytes(self.start))
+        query_hash.update(self.page_size.to_bytes(8, byteorder='big'))
+        if self.query_parameters:
+            str_query_parameters = json.dumps(self.query_parameters).encode('utf-8')
+            query_hash.update(str_query_parameters)
+        return query_hash.intdigest()
 
 
 class FacetQuery(IndexQueryBase):
@@ -119,7 +140,7 @@ class FacetQuery(IndexQueryBase):
             query_hash.update(self.query)
             query_hash.update(self.wait_for_non_stale_results)
             query_hash.update(self.wait_for_non_stale_result_as_of_now)
-            query_hash.update(self.wait_for_non_stale_results_timeout)
+            query_hash.update(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout))
             query_hash.update(self.cutoff_etag)
             query_hash.update(self.start)
             query_hash.update(self.page_size)

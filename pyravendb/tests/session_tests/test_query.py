@@ -2,7 +2,6 @@ from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition, SortOptions, QueryOperator, IndexFieldOptions
-from pyravendb.commands.raven_commands import PutIndexesCommand
 import unittest
 
 
