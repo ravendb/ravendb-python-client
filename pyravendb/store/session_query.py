@@ -1,6 +1,6 @@
 from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.data.query import IndexQuery, QueryOperator, EscapeQueryOptions
+from pyravendb.data.query import IndexQuery, QueryOperator, EscapeQueryOptions, OrderingType
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
 import time
@@ -16,14 +16,17 @@ class Query(object):
     where_operators = {'equals': 'equals', 'greater_than': 'greater_than',
                        'greater_than_or_equal': 'greater_than_or_equal', 'less_than': 'less_than',
                        'less_than_or_equal': 'less_than_or_equal', 'in': 'in', 'all_in': 'all_in',
-                       'between': 'between', 'search': 'search', 'lucene': 'lucene', 'starts_with': 'starts_with',
-                       'ends_with': 'ends_with', 'exists': 'exists'}
+                       'between': 'between', 'search': 'search', 'lucene': 'lucene', 'startsWith': 'startsWith',
+                       'endsWith': 'endsWith', 'exists': 'exists'}
 
     def __init__(self, session):
+        """
+        These argument will be initialized when class is called (see __call__)
+        for be able to query with the same instance of the Query class
+        """
+
         self.session = session
-        # Those argument will be initialize when class is called see __call__
-        # for be able to query with the same instance of the Query class
-        self.query_builder = None
+
         self.negate = None
         self.fields_to_fetch_token = None
         self._select_tokens = None
@@ -36,6 +39,9 @@ class Query(object):
         self.is_intersect = None
         self.the_wait_for_non_stale_results = False
         self.fetch = None
+        self._query = None
+        self.start = None
+        self.page_size = None
 
     def __call__(self, object_type=None, index_name=None, collection_name=None, is_map_reduce=False,
                  with_statistics=False, metadata_only=False, default_operator=None, wait_for_non_stale_results=False,
@@ -50,13 +56,14 @@ class Query(object):
         @param bool with_statistics: Make it True to get the query statistics as well
         @param QueryOperator default_operator: The default query operator (OR or AND)
         @param bool wait_for_non_stale_results: Instructs the query to wait for non stale results
-        @param float timeout: The time to wait for non stale result
+        @param timedelta timeout: The time to wait for non stale result
         """
         if not index_name:
             index_name = "dynamic"
             if object_type is not None:
                 index_name += "/{0}".format(self.session.conventions.default_transform_plural(object_type.__name__))
         self.index_name = index_name
+        # TODO if collection_name is null see ProcessQueryParameters
         self.collection_name = collection_name
         self.object_type = object_type
         self.nested_object_types = nested_object_types
@@ -64,7 +71,6 @@ class Query(object):
         self._with_statistics = with_statistics
         self.default_operator = default_operator
         self.metadata_only = metadata_only
-        self.query_builder = ""
         self.query_parameters = {}
         self.negate = False
         self.fields_to_fetch_token = {}
@@ -73,7 +79,7 @@ class Query(object):
         self._group_by_tokens = []  # List[_Token]
         self._order_by_tokens = []  # List[_Token]
         self._where_tokens = []  # List[_Token]
-        self.includes = ()
+        self.includes = set()
         self._current_clause_depth = 0
         self.is_intersect = False
         self.start = 0
@@ -82,6 +88,7 @@ class Query(object):
         self.wait_for_non_stale_results = wait_for_non_stale_results
         self.timeout = timeout if timeout is not None else self.session.conventions.timeout
         self.fetch = None
+        self._query = None
 
         return self
 
@@ -89,107 +96,154 @@ class Query(object):
         return iter(self._execute_query())
 
     def __str__(self):
+        return self._build_query()
+
+    def _build_query(self):
+        if self._query:
+            return self._query
+
         if self._current_clause_depth != 0:
             raise InvalidOperationException(
                 "A clause was not closed correctly within this query, current clause depth = {0}".format(
                     self._current_clause_depth))
 
-        # SELECT build
+        query_builder = []
+        self.build_from(query_builder)
+        self.build_group_by(query_builder)
+        self.build_where(query_builder)
+        self.build_order_by(query_builder)
+        self.build_select(query_builder)
+        self.build_include(query_builder)
+
+        return "".join(query_builder)
+
+    def build_from(self, query_builder):
+        Query._add_space_if_needed(query_builder)
+        if self.index_name == "dynamic":
+            query_builder += "FROM "
+            if Utils.contains_any(self.collection_name, [' ', '\t', '\r', '\n', '\v']):
+                if '"' in self.collection_name:
+                    raise ValueError("Collection name cannot contain a quote, but was: " + self.collection_name)
+                    query_builder.append('"' + self.collection_name + '"')
+            else:
+                query_builder.append(self.collection_name)
+        else:
+            query_builder.append("FROM INDEX '" + self.index_name + "'")
+
+    def build_group_by(self, query_builder):
+        if len(self._group_by_tokens) > 0:
+            query_builder.append(" GROUP BY ")
+            index = 0
+            for token in self._group_by_tokens:
+                if index > 0:
+                    query_builder.append(",")
+                    query_builder.append(token.write)
+                index += 1
+
+    def build_where(self, query_builder):
+        if len(self._where_tokens) > 0:
+            query_builder.append(" WHERE ")
+            if self.is_intersect:
+                self.query_builder.append("intersect(")
+
+            for token in self._where_tokens:
+                Query._add_space_if_needed(query_builder)
+                query_builder.append(token.write)
+
+            if self.is_intersect:
+                query_builder.append(") ")
+
+    def build_order_by(self, query_builder):
+        if len(self._order_by_tokens) > 0:
+            query_builder.append(" ORDER BY ")
+            first = True
+            for token in self._order_by_tokens:
+                if not first and self._order_by_tokens[-1] is not None:
+                    query_builder.append(", ")
+                first = False
+                query_builder.append(token.write)
+                if token.ordering != OrderingType.str:
+                    query_builder.append(token.ordering)
+                if token.descending:
+                    query_builder.append("DESC")
+
+    def build_select(self, query_builder):
         select_token_length = len(self._select_tokens)
         if select_token_length > 0:
             index = 0
-            self.query_builder += "SELECT "
+            query_builder.append("SELECT ")
             if select_token_length == 1 and self._select_tokens[0].token == "distinct":
-                self.query_builder += "DISTINCT *"
+                query_builder.append("DISTINCT *")
                 return
 
             for token in self._select_tokens:
                 if index > 0 and self._select_tokens[index - 1].token != "distinct":
-                    self.query_builder += ","
-                self._add_space_if_needed()
-                self.query_builder += token.write
+                    query_builder.append(",")
+                Query._add_space_if_needed(query_builder)
+                query_builder.append(token.write)
                 index += 1
 
-        # FROM build
-        self._add_space_if_needed()
-        if self.index_name == "dynamic":
-            self.query_builder += "FROM "
-            if Utils.contains_any(self.collection_name, [' ', '\t', '\r', '\n', '\v']):
-                if '"' in self.collection_name:
-                    raise ValueError("Collection name cannot contain a quote, but was: " + self.collection_name)
-                self.query_builder += '"' + self.collection_name + '"'
-            else:
-                self.query_builder += self.collection_name
-        else:
-            self.query_builder += "FROM INDEX '" + self.index_name + "'"
-
-        # WITH build
+    def build_include(self, query_builder):
         if self.includes is not None and len(self.includes) > 0:
-            self.query_builder += " WITH "
+            query_builder.append(" INCLUDE ")
             first = True
             for include in self.includes:
                 if not first:
-                    self.query_builder += ","
+                    query_builder.append(",")
                 first = False
                 required_quotes = False
                 if not re.match("^[A-Za-z0-9_]+$", include):
                     required_quotes = True
-                self.query_builder += "include("
                 if required_quotes:
-                    self.query_builder += "'{0}'".format(include.replace("'", "\\'"))
+                    query_builder.append("'{0}'".format(include.replace("'", "\\'")))
                 else:
-                    self.query_builder += include
-                self.query_builder += ")"
+                    query_builder.append(include)
 
-        # GroupBy build
-        if len(self._group_by_tokens) > 0:
-            self.query_builder += " GROUP BY "
-            index = 0
-            for token in self._group_by_tokens:
-                if index > 0:
-                    self.query_builder += ","
-                self.query_builder += token.write
-                index += 1
-
-        # WHERE build
-        if len(self._where_tokens) > 0:
-            self.query_builder += " WHERE "
-            if self.is_intersect:
-                self.query_builder += "intersect("
-
-            for token in self._where_tokens:
-                self._add_space_if_needed()
-                self.query_builder += token.write
-
-            if self.is_intersect:
-                self.query_builder += ") "
-
-        # ORDER BY build
-        if len(self._order_by_tokens) > 0:
-            self.query_builder += " ORDER BY "
-            first = True
-            for token in self._order_by_tokens:
-                if not first and self._order_by_tokens[len(self._order_by_tokens - 1)] is not None:
-                    self.query_builder += ", "
-                first = False
-                self.query_builder += token.write
+    def assert_no_raw_query(self):
+        if self._query:
+            raise InvalidOperationException(
+                "raw_query was called, cannot modify this query by calling on operations "
+                "that would modify the query (such as where, select, order_by, group_by, etc)")
 
     @staticmethod
     def _get_rql_write_case(token):
-        return {"in": " IN ($" + token.value + ")",
-                "all_in": " ALL IN ($" + token.value + ")",
-                "between": "BETWEEN $" + token.value,
-                "equals": " = $" + token.value,
-                "greater_then": " > $" + token.value,
-                "greater_then_or_equal": " >= $" + token.value,
-                "less_than": " < $" + token.value,
-                "less_than_or_equal": " <= $" + token.value,
-                "search": ", $" + token.value + ", AND)" if getattr(token, "search_operator",
-                                                                    None) == QueryOperator.AND else ")",
-                "lucene": ", $" + token.value + ")",
-                "starts_with": ", $" + token.value + ")",
-                "ends_with": ", $" + token.value + ")",
-                "exists": ")"}.get(token.token)
+        write = None
+        if token.token == "in":
+            write = " IN ($" + token.value + ")"
+        elif token.token == "all_in":
+            write = " ALL IN ($" + token.value + ")"
+        elif token.token == "between":
+            write = "".join(["BETWEEN $", str(token.value[0]), " AND $", str(token.value[1])])
+        elif token.token == "equals":
+            write = " = $" + token.value
+        elif token.token == "not_equals":
+            write = " != $" + token.value
+        elif token.token == "greater_then":
+            write = " > $" + token.value
+        elif token.token == "greater_then_or_equal":
+            write = " >= $" + token.value
+        elif token.token == "less_than":
+            write = " < $" + token.value
+        elif token.token == "less_than_or_equal":
+            write = " <= $" + token.value
+        elif token.token == "search":
+            write_builder = [", $", token.value]
+            if hasattr(token, "search_operator"):
+                write_builder.append(", AND")
+            write_builder.append(")")
+            write = "".join(write_builder)
+        elif token.token == "lucene":
+            write = ", $" + token.value + ")"
+        elif token.token == "startsWith":
+            write = ", $" + token.value + ")"
+        elif token.token == "endsWith":
+            write = ", $" + token.value + ")"
+        elif token.token == "exists":
+            write = ")"
+
+        if write is None:
+            raise AttributeError("token.token don't match any of the cases for rql builder")
+        return write
 
     @staticmethod
     def rql_where_write(token):
@@ -207,7 +261,7 @@ class Query(object):
         if exact:
             where_rql += "exact("
 
-        if token.token in ["search", "lucene", "starts_with", "end_with", "exists"]:
+        if token.token in ["search", "lucene", "startsWith", "endWith", "exists"]:
             where_rql += token.token + "("
 
         where_rql += token.field_name + Query._get_rql_write_case(token)
@@ -234,9 +288,11 @@ class Query(object):
             self.fetch = args
         return self
 
-    def _add_space_if_needed(self):
-        if self.query_builder.endswith(("(", ")", ",")):
-            self.query_builder += " "
+    @staticmethod
+    def _add_space_if_needed(query_builder):
+        if len(query_builder) > 0:
+            if not query_builder[-1].endswith(("(", ")", ",", " ")):
+                query_builder.append(" ")
 
     def negate_if_needed(self, field_name):
         if self.negate:
@@ -249,6 +305,7 @@ class Query(object):
                     self.where_true()
 
                 self.and_also()
+            self._where_tokens.append(_Token(write="NOT"))
 
     def add_query_parameter(self, value):
         parameter_name = "p{0}".format(len(self.query_parameters))
@@ -261,21 +318,36 @@ class Query(object):
             last_token = self._where_tokens[-1]
             if last_token is not None and last_token.token in Query.where_operators:
                 query_operator = QueryOperator.AND if self.default_operator == QueryOperator.AND else QueryOperator.OR
-            if last_token.hasattr("search_operator"):
+            if hasattr(last_token, "search_operator"):
                 # default to OR operator after search if AND was not specified explicitly
                 query_operator = QueryOperator.OR
 
             if query_operator:
-                self._where_tokens.append({_Token(write=str(query_operator))})
+                self._where_tokens.append(_Token(write=str(query_operator)))
 
     def intersect(self):
-        last = self._where_tokens[-1]
-        if last.token in Query.where_operators:
-            self.is_intersect = True
-            self._where_tokens.append(_Token(value=None, token="intersect", write=","))
-            return self
-        else:
-            raise InvalidOperationException("Cannot add INTERSECT at this point.")
+        if len(self._where_tokens) > 0:
+            last = self._where_tokens[-1]
+            if last.token in Query.where_operators:
+                self.is_intersect = True
+                self._where_tokens.append(_Token(value=None, token="intersect", write=","))
+                return self
+            else:
+                raise InvalidOperationException("Cannot add INTERSECT at this point.")
+
+    def raw_query(self, query):
+        """
+        To get all the document that equal to the query
+
+        @param str query: The rql query
+        """
+        if len(self._where_tokens) != 0 or len(self._select_tokens) != 0 or len(
+                self._order_by_tokens) != 0 or len(self._group_by_tokens) != 0:
+            raise InvalidOperationException(
+                "You can only use raw_query on a new query, without applying any operations "
+                "(such as where, select, order_by, group_by, etc)")
+        self._query = query
+        return self
 
     def where_equals(self, field_name, value, exact=False):
         """
@@ -290,17 +362,25 @@ class Query(object):
 
         field_name = Utils.escape_if_needed(field_name)
         if isinstance(value, timedelta):
-            value = Utils.timedelta_tick(value)
+            value = timedelta
 
         self._add_operator_if_needed()
-        self.negate_if_needed(field_name)
 
         parameter_name = self.add_query_parameter(value)
-        token = _Token(field_name=field_name, value=parameter_name, token="equals", exact=exact)
+        token = "equals"
+        if self.negate:
+            self.negate = False
+            token = "not_equals"
+        token = _Token(field_name=field_name, value=parameter_name, token=token, exact=exact)
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
         return self
+
+    def where_not_equal(self, field_name, value, exact=False):
+        if not self.negate:
+            self.negate = True
+        return self.where_equals(field_name, value, exact)
 
     def where_exists(self, field_name):
         field_name = Utils.escape_if_needed(field_name)
@@ -328,33 +408,33 @@ class Query(object):
         """
         for field_name in kwargs:
             if isinstance(kwargs[field_name], list):
-                self.where_in(field_name, kwargs[field_name])
+                self.where_in(field_name, kwargs[field_name], exact)
             else:
                 self.where_equals(field_name, kwargs[field_name], exact)
         return self
 
-    def search(self, field_name, search_terms, escape_query_options=EscapeQueryOptions.RawQuery, boost=1):
-        """
-        for more complex text searching
-
-        @param field_name:The field name in the index you want to query.
-        :type str
-        @param search_terms: The terms you want to query
-        :type str
-        @param escape_query_options: The way we should escape special characters
-        :type EscapeQueryOptions
-        @param boost: This feature gives user the ability to manually tune the relevance level of matching documents
-        :type numeric
-        """
-        if boost < 0:
-            raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
-
-        search_terms = Utils.quote_key(str(search_terms))
-        search_terms = self._lucene_builder(search_terms, "search", escape_query_options)
-        self.query_builder += "{0}:{1}".format(field_name, search_terms)
-        if boost != 1:
-            self.query_builder += "^{0}".format(boost)
-        return self
+    # def search(self, field_name, search_terms, escape_query_options=EscapeQueryOptions.RawQuery, boost=1):
+    #     """
+    #     for more complex text searching
+    #
+    #     @param field_name:The field name in the index you want to query.
+    #     :type str
+    #     @param search_terms: The terms you want to query
+    #     :type str
+    #     @param escape_query_options: The way we should escape special characters
+    #     :type EscapeQueryOptions
+    #     @param boost: This feature gives user the ability to manually tune the relevance level of matching documents
+    #     :type numeric
+    #     """
+    #     if boost < 0:
+    #         raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
+    #
+    #     search_terms = Utils.quote_key(str(search_terms))
+    #     search_terms = self._lucene_builder(search_terms, "search", escape_query_options)
+    #     self.query_builder += "{0}:{1}".format(field_name, search_terms)
+    #     if boost != 1:
+    #         self.query_builder += "^{0}".format(boost)
+    #     return self
 
     def where_ends_with(self, field_name, value):
         """
@@ -379,110 +459,112 @@ class Query(object):
         """
         To get all the document that starts with the value in the giving field_name
 
-        @param field_name:The field name in the index you want to query.
-        :type str
-        @param value: The value will be the fields value you want to query
-        :type str
+        @param str field_name:The field name in the index you want to query.
+        @param str value: The value will be the fields value you want to query
         """
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        if value is not None and not isinstance(value, str) and field_name is not None:
-            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
+        field_name = Utils.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
 
-        lucene_text = self._lucene_builder(value, action="end_with")
-        self.query_builder += "{0}:{1}*".format(field_name, lucene_text)
+        token = _Token(field_name=field_name, token="startsWith", value=self.add_query_parameter(value))
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
         return self
 
-    def where_in(self, field_name, values):
+    def where_in(self, field_name, values, exact=False):
         """
         Check that the field has one of the specified values
 
-        @param field_name: Name of the field
-        :type str
-        @param values: The values we wish to query
-        :type list
+        @param str field_name: Name of the field
+        @param str values: The values we wish to query
+        @param bool exact: Getting the exact query (ex. case sensitive)
         """
-        if field_name is None:
-            raise ValueError("None field_name is invalid")
-        lucene_text = self._lucene_builder(values, action="in")
-        if lucene_text is None:
-            self.query_builder += "@emptyIn<{0}>:(no-result)".format(field_name)
-        else:
-            self.query_builder += "@in<{0}>:{1}".format(field_name, lucene_text)
+        field_name = Utils.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        self._where_tokens.append(
+            _Token(field_name=field_name, value=list(Utils.unpack_iterable(values)), token="in", exact=exact))
         return self
 
-    def where_between(self, field_name, start, end):
+    def where_between(self, field_name, start, end, exact=False):
+        field_name = Utils.escape_if_needed(field_name)
+
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
         if isinstance(start, timedelta):
             start = Utils.timedelta_tick(start)
         if isinstance(end, timedelta):
             end = Utils.timedelta_tick(end)
 
-        value = start or end
-        if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
-            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
+        from_parameter_name = self.add_query_parameter("*" if start is None else start)
+        to_parameter_name = self.add_query_parameter("NULL" if end is None else end)
 
-        lucene_text = self._lucene_builder([start, end], action="between")
-        self.query_builder += "{0}:{1}".format(field_name, lucene_text)
+        token = _Token(field_name=field_name, token="between", value=(from_parameter_name, to_parameter_name),
+                       exact=exact)
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
         return self
 
-    def where_between_or_equal(self, field_name, start, end):
-        if isinstance(start, timedelta):
-            start = Utils.timedelta_tick(start)
-        if isinstance(end, timedelta):
-            end = Utils.timedelta_tick(end)
-
-        value = start or end
-        if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
-            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
-        lucene_text = self._lucene_builder([start, end], action="equal_between")
-        self.query_builder += "{0}:{1}".format(field_name, lucene_text)
-        return self
-
-    def where_greater_than(self, field_name, value):
-        return self.where_between(field_name, value, None)
-
-    def where_greater_than_or_equal(self, field_name, value):
-        return self.where_between_or_equal(field_name, value, None)
-
-    def where_less_than(self, field_name, value):
-        return self.where_between(field_name, None, value)
-
-    def where_less_than_or_equal(self, field_name, value):
-        return self.where_between_or_equal(field_name, None, value)
+    # def where_greater_than(self, field_name, value):
+    #     return self.where_between(field_name, value, None)
+    #
+    # def where_greater_than_or_equal(self, field_name, value):
+    #     return self.where_between_or_equal(field_name, value, None)
+    #
+    # def where_less_than(self, field_name, value):
+    #     return self.where_between(field_name, None, value)
+    #
+    # def where_less_than_or_equal(self, field_name, value):
+    #     return self.where_between_or_equal(field_name, None, value)
 
     def where_not_none(self, field_name):
-        if len(self.query_builder) > 0:
-            self.query_builder += ' '
-        self.query_builder += '('
-        self.where_equals(field_name, '*').and_also().add_not().where_equals(field_name, None)
-        self.query_builder += ')'
+        self.and_also().not_.where_equals(field_name, None)
         return self
 
-    def order_by(self, fields_name):
-        if isinstance(fields_name, list):
-            for field_name in fields_name:
-                self._sort_fields.add(field_name)
-        else:
-            self._sort_fields.add(fields_name)
+    def add_order(self, field_name, descending, ordering):
+        """
+        @param str field_name: The field you want to order
+        @param bool descending: In descending Order
+        @param OrderingType ordering: The field_name type (str, long, float or alpha_numeric)
+        :return:
+        """
+        return self.order_by(field_name, ordering, descending=descending)
+
+    def order_by(self, field_name, ordering=OrderingType.str, descending=False):
+        self.assert_no_raw_query()
+        field_name = Utils.escape_if_needed(field_name)
+        self._order_by_tokens.append(
+            _Token(field_name=field_name, token="order_by", write=field_name, descending=descending, ordering=ordering))
+
         return self
 
-    def order_by_descending(self, fields_name):
-        if isinstance(fields_name, list):
-            for i in range(len(fields_name)):
-                fields_name[i] = "-{0}".format(fields_name[i])
-        else:
-            fields_name = "-{0}".format(fields_name)
-        self.order_by(fields_name)
-        return self
+    def order_by_descending(self, field_name, ordering=OrderingType.str):
+        return self.order_by(field_name, ordering, descending=True)
+
+    def order_by_score(self):
+        return self.order_by("score()")
+
+    def order_by_score_descending(self):
+        return self.order_by("score()", descending=True)
+
+    def random_ordering(self):
+        return self.order_by("random()")
 
     def and_also(self):
-        last = self._where_tokens[-1]
-        if last:
-            if isinstance(last.value, QueryOperator):
-                raise InvalidOperationException("Cannot add AND, previous token was already an QueryOperator.")
+        if len(self._where_tokens) > 0:
+            last = self._where_tokens[-1]
+            if last:
+                if isinstance(self.query_parameters[last.value], QueryOperator):
+                    raise InvalidOperationException("Cannot add AND, previous token was already an QueryOperator.")
 
-            self._where_tokens.append(_Token(value=QueryOperator.AND, write="AND"))
+                self._where_tokens.append(_Token(value=QueryOperator.AND, write="AND"))
 
         return self
 
@@ -491,7 +573,27 @@ class Query(object):
             self.query_builder += " OR"
         return self
 
-    def negate_next(self):
+    def boost(self, boost):
+        if boost != 1:
+            try:
+                last = self._where_tokens[-1]
+            except IndexError:
+                raise InvalidOperationException("Missing where clause")
+            if boost <= 0:
+                raise ArgumentOutOfRangeException("boost", "Boost factor must be a positive number")
+
+            setattr(last, "boost", boost)
+            return self
+
+    def take(self, count):
+        self.page_size = count
+        return self
+
+    def skip(self, count):
+        self.start = count
+        return self
+
+    def _negate_next(self):
         """
         Negate the next operation
         """
@@ -500,18 +602,16 @@ class Query(object):
 
     @property
     def not_(self):
-        self.negate_next()
+        self._negate_next()
         return self
 
     def _execute_query(self):
         self.session.increment_requests_count()
         conventions = self.session.conventions
-        c = timedelta
-        c.seconds
         end_time = time.time() + self.timeout.seconds
-        self.__str__()
+        query = self._build_query()
         while True:
-            index_query = IndexQuery(query=self.query_builder, query_parameters=self.query_parameters, start=self.start,
+            index_query = IndexQuery(query=query, query_parameters=self.query_parameters, start=self.start,
                                      page_size=self.page_size, cutoff_etag=self.cutoff_etag,
                                      wait_for_non_stale_results=self.wait_for_non_stale_results,
                                      wait_for_non_stale_results_timeout=self.timeout)
@@ -525,24 +625,23 @@ class Query(object):
             if response["IsStale"] and self.wait_for_non_stale_results:
                 if time.time() > end_time:
                     raise ErrorResponseException("The index is still stale after reached the timeout")
-                    time.sleep(0.1)
                 continue
             break
 
         results = []
         response_results = response.pop("Results")
         response_includes = response.pop("Includes")
-
+        self.session.save_includes(response_includes)
         for result in response_results:
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
                                                                           self.nested_object_types,
                                                                           fetch=False if not self.fetch else True)
-            if not self.fetch:
+            if not self.fetch and self.object_type != dict:
                 self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
                                          original_metadata=original_metadata,
                                          metadata=metadata, document=result)
             results.append(entity)
-        self.session.save_includes(response_includes)
+
         if self._with_statistics:
             return results, response
         return results

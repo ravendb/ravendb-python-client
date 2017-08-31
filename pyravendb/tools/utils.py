@@ -1,5 +1,6 @@
 from pyravendb.custom_exceptions import exceptions
 import OpenSSL.crypto
+from collections import Iterable
 from datetime import datetime, timedelta
 from threading import Timer
 import urllib
@@ -27,6 +28,15 @@ class Utils(object):
             return urllib.parse.quote(key, safe=reserved)
         else:
             return ''
+
+    @staticmethod
+    def unpack_iterable(iterable):
+        for item in iterable:
+            if isinstance(item, Iterable) and not isinstance(item, str):
+                for nested in Utils.unpack_iterable(item):
+                    yield nested
+            else:
+                yield item
 
     @staticmethod
     def convert_to_snake_case(name):
@@ -73,6 +83,8 @@ class Utils(object):
         metadata = document.pop("@metadata")
         original_metadata = metadata.copy()
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
+        if object_type == dict:
+            return document, metadata, original_metadata
         entity = _DynamicStructure(**document)
         if not fetch:
             object_from_metadata = None
@@ -269,7 +281,7 @@ class Utils(object):
                         break
                     first = False
                 else:
-                    if (not c.isalpha() or not c.isdigit()) and c != '_' and c != '@' and c != '[' and c != ']':
+                    if (not c.isalpha() and not c.isdigit()) and c != '_' and c != '@' and c != '[' and c != ']':
                         escape = True
                         break
 

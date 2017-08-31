@@ -18,6 +18,19 @@ class QueryOperator(Enum):
     OR = "OR"
     AND = "AND"
 
+    def __str__(self):
+        return self.value
+
+
+class OrderingType(Enum):
+    str = 0
+    long = " AS long"
+    float = " AS double"
+    alpha_numeric = " AS alphaNumeric"
+
+    def __str__(self):
+        return self.value
+
 
 class IndexQueryBase(object):
     __metaclass__ = ABCMeta

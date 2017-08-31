@@ -7,6 +7,8 @@ from pyravendb.tools.utils import Utils
 from pyravendb.tools.utils import _DynamicStructure
 from xxhash import xxh64
 from enum import Enum
+import timeit
+from datetime import timedelta
 
 
 class User:
@@ -23,8 +25,8 @@ class Dog:
 
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://localhost.fiddler:8080"], database="python") as store:
-        create_database_operation = CreateDatabaseOperation(database_name="python")
+    with DocumentStore(urls=["http://localhost.fiddler:8080"], database="python_2") as store:
+        create_database_operation = CreateDatabaseOperation(database_name="python_2")
         try:
             store.admin.server.send(create_database_operation)
         except Exception as e:
@@ -45,8 +47,11 @@ if __name__ == "__main__":
         store.admin.send(PutIndexesOperation(IndexDefinition("AllUsers", index_map=index_map)))
 
         with store.open_session() as session:
-            q = list(
-                session.query(object_type=User, index_name="AllUsers", nested_object_types={"dog": Dog}).where_equals(
-                    "age", 29))
-        for item in q:
-            print(item.name)
+            q, stats = list(
+                session.query(object_type=User, with_statistics=True, index_name="AllUsers",
+                              wait_for_non_stale_results=True, timeout=timedelta(seconds=10),
+                              nested_object_types={"dog": Dog}).where_starts_with("name", "I"))
+            query = list(
+                session.query(object_type=dict, index_name="AllUsers").raw_query("from index 'AllUsers' where age=29"))
+            for i in query:
+                print(i)
