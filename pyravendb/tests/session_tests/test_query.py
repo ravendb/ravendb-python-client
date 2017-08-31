@@ -1,8 +1,7 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import DocumentStore
+from pyravendb.raven_operations.admin_operations import PutIndexesOperation
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexDefinition, SortOptions, QueryOperator, IndexFieldOptions
-from pyravendb.commands.raven_commands import PutIndexesCommand
+from pyravendb.data.indexes import IndexDefinition, SortOptions, IndexFieldOptions
 import unittest
 
 
@@ -27,25 +26,20 @@ class Order(object):
 
 
 class TestQuery(TestBase):
-    @classmethod
-    def setUpClass(cls):
-        super(TestQuery, cls).setUpClass()
-        cls.index_map = ("from doc in docs "
-                         "select new {"
-                         "name = doc.name,"
-                         "key = doc.key,"
-                         "doc_id = doc.key+\"_\"+doc.name}")
-        cls.index_sort = IndexDefinition(name="Testing_Sort", index_map=cls.index_map,
-                                         fields={"key": IndexFieldOptions(sort_options=SortOptions.numeric),
-                                                 "doc_id": IndexFieldOptions(storage=True)})
+    def setUp(self):
+        super(TestQuery, self).setUp()
+        index_map = ("from doc in docs "
+                     "select new {"
+                     "name = doc.name,"
+                     "key = doc.key,"
+                     "doc_id = doc.key+\"_\"+doc.name}")
+        index_definition = IndexDefinition(name="Testing_Sort", index_map=index_map,
+                                           fields={"key": IndexFieldOptions(sort_options=SortOptions.numeric),
+                                                   "doc_id": IndexFieldOptions(storage=True)})
 
-        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
-        cls.document_store.initialize()
-        requests_executor = cls.document_store.get_request_executor()
+        self.store.admin.send(PutIndexesOperation(index_definition))
 
-        requests_executor.execute(PutIndexesCommand(cls.index_sort))
-
-        with cls.document_store.open_session() as session:
+        with self.store.open_session() as session:
             session.store(Product("test101", 2, "a"), "products/101")
             session.store(Product("test10", 3, "b"), "products/10")
             session.store(Product("test106", 4, "c"), "products/106")
@@ -57,8 +51,8 @@ class TestQuery(TestBase):
             session.save_changes()
 
     def test_where_equal_dynamic_index(self):
-        with self.document_store.open_session() as session:
-            query_results = list(session.query().where_equals("name", "test101"))
+        with self.store.open_session() as session:
+            query_results = list(session.query(collection_name="Products").where_equals("name", "test101"))
             self.assertEqual(query_results[0].name, "test101")
 
     def test_where_equal_double(self):

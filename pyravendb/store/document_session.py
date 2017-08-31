@@ -45,6 +45,10 @@ class DocumentSession(object):
         pass
 
     @property
+    def requests_executor(self):
+        return self._requests_executor
+
+    @property
     def number_of_requests_in_session(self):
         return self._number_of_requests_in_session
 
@@ -75,7 +79,7 @@ class DocumentSession(object):
     @property
     def query(self):
         if self._query is None:
-            self._query = Query(self, self._requests_executor)
+            self._query = Query(self)
         return self._query
 
     def save_includes(self, includes=None):

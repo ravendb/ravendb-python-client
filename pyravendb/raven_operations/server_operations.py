@@ -25,7 +25,8 @@ class CreateDatabaseOperation(ServerOperation):
     def __init__(self, database_name, replication_factor=1, settings=None, secure_settings=None):
         super(CreateDatabaseOperation, self).__init__()
         self.replication_factor = replication_factor
-        self.database_record = self.get_default_database_record()
+        self.database_record = CreateDatabaseOperation.get_default_database_record()
+        Utils.database_name_validation(database_name)
         self.database_record["DatabaseName"] = database_name
         if settings:
             self.database_record["Settings"] = settings
@@ -35,7 +36,8 @@ class CreateDatabaseOperation(ServerOperation):
     def get_command(self, conventions):
         return self._CreateDatabaseCommand(self.database_record, self.replication_factor, conventions)
 
-    def get_default_database_record(self):
+    @staticmethod
+    def get_default_database_record():
         return {"DatabaseName": None, "Disabled": False, "Encrypted": False, "DeletionInProgress": None,
                 "DataDirectory": None, "Topology": None,
                 "ConflictSolverConfig": {"DatabaseResolverId": None, "ResolveByCollection": None,

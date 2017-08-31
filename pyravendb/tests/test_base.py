@@ -42,7 +42,7 @@ class TestBase(unittest.TestCase):
         return topology
 
     def setUp(self):
-        self.default_urls = ["http://localhost.fiddler:8081"]
+        self.default_urls = ["http://localhost.fiddler:8080"]
         self.default_database = "NorthWindTest"
         self.store = DocumentStore(urls=self.default_urls, database=self.default_database)
         self.store.admin.server.send(CreateDatabaseOperation(database_name=self.default_database))

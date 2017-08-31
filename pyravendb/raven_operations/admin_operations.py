@@ -166,7 +166,7 @@ class PutIndexesOperation(AdminOperation):
                 self.indexes_to_add.append(index_definition.to_json())
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/indexes".format(server_node.url, server_node.database)
+            self.url = "{0}/databases/{1}/admin/indexes".format(server_node.url, server_node.database)
             self.data = {"Indexes": self.indexes_to_add}
 
         def set_response(self, response):
