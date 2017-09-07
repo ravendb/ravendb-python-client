@@ -52,3 +52,29 @@ class UnsuccessfulRequestException(Exception):
 
 class AggregateException(Exception):
     pass
+
+
+# <---------- Subscription Exceptions ---------->
+
+class SubscriptionInUseException(Exception):
+    pass
+
+
+class SubscriptionClosedException(Exception):
+    pass
+
+
+class SubscriptionInvalidStateException(Exception):
+    pass
+
+
+class SubscriptionDoesNotExistException(Exception):
+    pass
+
+
+class SubscriptionDoesNotBelongToNodeException(Exception):
+    pass
+
+
+class SubscriberErrorException(Exception):
+    pass

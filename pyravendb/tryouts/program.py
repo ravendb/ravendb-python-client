@@ -1,6 +1,8 @@
 from pyravendb.store.document_store import DocumentStore
+from pyravendb.commands.raven_commands import GetTcpInfoCommand
 from pyravendb.raven_operations.server_operations import CreateDatabaseOperation
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation
+from pyravendb.raven_operations.admin_operations import PutIndexesOperation, GetStatisticsOperation
+from pyravendb.subscriptions.data import SubscriptionCreationOptions
 from pyravendb.data.indexes import IndexDefinition
 from requests.exceptions import RequestException
 from pyravendb.tools.utils import Utils
@@ -9,13 +11,18 @@ from xxhash import xxh64
 from enum import Enum
 import timeit
 from datetime import timedelta
+from threading import Thread
+from urllib.parse import urlsplit, urlparse
+from pyravendb.custom_exceptions.exceptions import *
+from pyravendb.subscriptions.subscription import Subscription
+from  pyravendb.subscriptions.data import SubscriptionConnectionOptions
 
 
 class User:
-    def __init__(self, name, age, dog):
+    def __init__(self, name=None, age=0, dog=None):
         self.name = name
-        self.age = age
         self.dog = dog
+        self.age = age
 
 
 class Dog:
@@ -23,10 +30,18 @@ class Dog:
         self.name = name
         self.brand = brand
 
+    def __str__(self):
+        return f"The dog name is {self.name} and his brand is {self.brand}"
+
+
+def test(batch):
+    for b in batch.items:
+        print(b.result)
+
 
 if __name__ == "__main__":
     with DocumentStore(urls=["http://localhost.fiddler:8080"], database="python_2") as store:
-        create_database_operation = CreateDatabaseOperation(database_name="python_2")
+        create_database_operation = CreateDatabaseOperation(database_name="python_subscription")
         try:
             store.admin.server.send(create_database_operation)
         except Exception as e:
@@ -45,13 +60,14 @@ if __name__ == "__main__":
                     "age = doc.age," \
                     "dog = doc.dog}"
         store.admin.send(PutIndexesOperation(IndexDefinition("AllUsers", index_map=index_map)))
+        subscription_query = store.subscription.create("from Dogs where name = 'fazi1'")
 
-        with store.open_session() as session:
-            q, stats = list(
-                session.query(object_type=User, with_statistics=True, index_name="AllUsers",
-                              wait_for_non_stale_results=True, timeout=timedelta(seconds=10),
-                              nested_object_types={"dog": Dog}).where_starts_with("name", "I"))
-            query = list(
-                session.query(object_type=dict, index_name="AllUsers").raw_query("from index 'AllUsers' where age=29"))
-            for i in query:
-                print(i)
+        option = SubscriptionConnectionOptions("10", time_to_wait_before_connection_retry=timedelta(seconds=10))
+        subscription = store.subscription.open(option, store.database, object_type=Dog)
+        t = subscription.run(test)
+        t.join()
+
+        subscription.close()
+        subscriptions = store.subscription.get_subscriptions(0, 3)
+        for sub in subscriptions:
+            print(sub)

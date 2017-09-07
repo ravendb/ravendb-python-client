@@ -336,6 +336,13 @@ class GetAttachmentOperation(Operation):
 class PatchOperation(Operation):
     def __init__(self, document_id, change_vector, patch, patch_if_missing=None,
                  skip_patch_if_change_vector_mismatch=False):
+        """
+        @param str document_id: The id of the document
+        @param str change_vector: The change_vector
+        @param PatchRequest patch: The patch that going to be applied on the document
+        @param PatchRequest patch_if_missing: The default patch to applied
+        @param bool skip_patch_if_change_vector_mismatch: If True will skip documents that mismatch the change_vector
+        """
         super(PatchOperation, self).__init__()
         self._document_id = document_id
         self._change_vector = change_vector

@@ -3,6 +3,8 @@ from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.document_convention import DocumentConvention
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
 from pyravendb.store.document_session import DocumentSession
+from pyravendb.subscriptions.document_subscriptions import DocumentSubscriptions
+from threading import Lock
 import uuid
 import time
 
@@ -19,7 +21,9 @@ class DocumentStore(object):
         self._initialize = False
         self.generator = None
         self._operations = None
+        self.lock = Lock()
         self.admin = AdminOperationExecutor(self, database)
+        self.subscription = DocumentSubscriptions(self)
 
     @property
     def certificate(self):
@@ -41,9 +45,10 @@ class DocumentStore(object):
         if db_name is None:
             db_name = self.database
 
-        if db_name not in self._request_executor:
-            self._request_executor[db_name] = RequestsExecutor.create(self.urls, db_name, self._certificate,
-                                                                      self.conventions)
+        with self.lock:
+            if db_name not in self._request_executor:
+                self._request_executor[db_name] = RequestsExecutor.create(self.urls, db_name, self._certificate,
+                                                                          self.conventions)
         return self._request_executor[db_name]
 
     def initialize(self):
@@ -63,10 +68,10 @@ class DocumentStore(object):
                 "You cannot open a session or access the database commands before initializing the document store.\
                 Did you forget calling initialize()?")
 
-    def open_session(self, database=None):
+    def open_session(self, database=None, requests_executor=None):
         self._assert_initialize()
         session_id = uuid.uuid4()
-        requests_executor = self.get_request_executor(database)
+        requests_executor = self.get_request_executor(database) if requests_executor is None else requests_executor
         return DocumentSession(database, self, requests_executor, session_id)
 
     def generate_id(self, db_name, entity):

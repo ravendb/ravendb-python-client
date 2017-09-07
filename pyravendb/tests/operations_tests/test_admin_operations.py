@@ -17,17 +17,6 @@ class TestAdminOperations(TestBase):
         index_names = self.store.admin.send(GetIndexNamesOperation(0, 25))
         self.assertTrue("Users" in index_names and "Dogs" in index_names)
 
-    def test_put_transformer_operation(self):
-        transformer_definition_users = TransformerDefinition("UsersTrans",
-                                                             "from user in results select new {user.first_name,user.last_name}")
-        transformer_definition_dogs = TransformerDefinition("DogsTrans",
-                                                            "from dog in results select new { dog.name, dog.brand }")
-
-        self.store.admin.send(PutTransformerOperation(transformer_definition_users))
-        self.store.admin.send(PutTransformerOperation(transformer_definition_dogs))
-        transformer_names = self.store.admin.send(GetTransformerNamesOperation(0, 25))
-        self.assertTrue("UsersTrans" in transformer_names and "DogsTrans" in transformer_names)
-
 
 if __name__ == "__main__":
     unittest.main()

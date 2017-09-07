@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*- #
+from pyravendb.subscriptions.data import SubscriptionState
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.utils import Utils
 from abc import abstractmethod
@@ -6,7 +7,8 @@ from datetime import timedelta
 import collections
 import logging
 
-log = logging.basicConfig(filename='responses.log', level=logging.DEBUG)
+logging.basicConfig(filename='responses.log', level=logging.DEBUG)
+log = logging.getLogger()
 
 
 class RavenCommand(object):
@@ -23,6 +25,7 @@ class RavenCommand(object):
         self.failed_nodes = {}
         self.authentication_retries = 0
         self.timeout = None
+        self.requested_node = None
 
     @abstractmethod
     def create_request(self, server_node):
@@ -239,6 +242,13 @@ class DeleteIndexCommand(RavenCommand):
 class PatchCommand(RavenCommand):
     def __init__(self, document_id, change_vector, patch, patch_if_missing,
                  skip_patch_if_change_vector_mismatch=False, return_debug_information=False, test=False):
+        """
+        @param str document_id: The id of the document
+        @param str change_vector: The change_vector
+        @param PatchRequest patch: The patch that going to be applied on the document
+        @param PatchRequest patch_if_missing: The default patch to applied
+        @param bool skip_patch_if_change_vector_mismatch: If True will skip documents that mismatch the change_vector
+        """
         if document_id is None:
             raise ValueError("None key is invalid")
         if patch is None:
@@ -589,8 +599,101 @@ class GetTcpInfoCommand(RavenCommand):
         else:
             self.url = "{0}/databases/{1}/info/tcp?tag={2}".format(server_node.url, self._database_name, self._tag)
 
+        self.requested_node = server_node
+
     def set_response(self, response):
         if response is None:
             raise exceptions.ErrorResponseException("Invalid response")
 
         return response.json()
+
+
+class CreateSubscriptionCommand(RavenCommand):
+    def __init__(self, options):
+        """
+        @param SubscriptionCreationOptions options: Subscription options
+        """
+
+        super(CreateSubscriptionCommand, self).__init__(method="PUT")
+        self._options = options
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/subscriptions".format(server_node.url, server_node.database)
+        self.data = self._options.to_json()
+
+    def set_response(self, response):
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response["Name"]
+        except:
+            raise response.raise_for_status()
+
+
+class DeleteSubscriptionCommand(RavenCommand):
+    def __init__(self, name):
+        super(DeleteSubscriptionCommand, self).__init__(method="DELETE")
+        self._name = name
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/subscriptions?taskName={2}".format(server_node.url, server_node.database,
+                                                                         self._name)
+
+    def set_response(self, response):
+        pass
+
+
+class GetSubscriptionsCommand(RavenCommand):
+    def __init__(self, start, page_size):
+        super(GetSubscriptionsCommand, self).__init__(method="GET", is_read_request=True)
+        self._start = start
+        self._page_size = page_size
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/subscriptions?start={2}&pageSize={3}".format(
+            server_node.url, server_node.database, self._start, self._page_size)
+
+    def set_response(self, response):
+        if response is None:
+            raise ValueError("response is invalid.")
+        inner_data = {}
+        data = []
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            for item in response["Results"]:
+                for key, value in item.items():
+                    inner_data[Utils.convert_to_snake_case(key)] = value
+                data.append(SubscriptionState(**inner_data))
+            return data
+
+        except ValueError:
+            raise response.raise_for_status()
+
+
+class GetSubscriptionStateCommand(RavenCommand):
+    def __init__(self, subscription_name):
+        super(GetSubscriptionStateCommand, self).__init__(method="GET", is_read_request=True)
+        self._subscription_name = subscription_name
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/subscriptions/state?name={2}".format(
+            server_node.url, server_node.database, self._subscription_name)
+
+    def set_response(self, response):
+        if response is None:
+            raise ValueError("response is invalid.")
+        data = {}
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+
+            for key, value in response.items():
+                data[Utils.convert_to_snake_case(key)] = value
+            return SubscriptionState(**data)
+
+        except ValueError:
+            raise response.raise_for_status()
