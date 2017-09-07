@@ -137,7 +137,7 @@ class Utils(object):
             return document
 
         entity_initialize_dict = {}
-        args, __, keywords, defaults = inspect.getargspec(entity_init)
+        args, __, keywords, defaults, _, _, _ = inspect.getfullargspec(entity_init)
         if (len(args) - 1) > len(document):
             remainder = len(args)
             if defaults:
@@ -157,10 +157,9 @@ class Utils(object):
         return entity_initialize_dict
 
     @staticmethod
-    def dict_to_binary(the_dict):
+    def dict_to_bytes(the_dict):
         json_dict = json.dumps(the_dict)
-        binary = ' '.join(format(ord(letter), 'b') for letter in json_dict)
-        return binary
+        return bytes(json_dict, encoding='utf-8')
 
     @staticmethod
     def dict_to_string(dictionary):

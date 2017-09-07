@@ -29,8 +29,14 @@ class ClusterRequestExecutor(RequestsExecutor):
                                       disable_topology_updates=True)
 
     def update_topology(self, node):
+        if self._closed:
+            return
+
         if self.update_cluster_topology_lock.acquire(False):
             try:
+                if self._closed:
+                    return False
+
                 command = GetClusterTopologyCommand()
                 response = self.execute_with_node(node, command, should_retry=False)
 

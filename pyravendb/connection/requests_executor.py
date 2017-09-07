@@ -37,8 +37,11 @@ class RequestsExecutor(object):
         self._disable_topology_updates = kwargs.get("disable_topology_updates", False)
 
         self._failed_nodes_timers = {}
+        self.update_topology_timer = None
         self._first_topology_update = None
         self.cluster_token = None
+
+        self._closed = False
 
     @staticmethod
     def create(urls, database_name, certificate, convention=None):
@@ -163,7 +166,7 @@ class RequestsExecutor(object):
         for url in initial_urls:
             try:
                 self.update_topology(ServerNode(url, self._database_name))
-                Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
+                self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
                 return
             except Exception as e:
                 if len(initial_urls) == 0:
@@ -190,15 +193,21 @@ class RequestsExecutor(object):
                 self._node_selector = NodeSelector(
                     Topology.convert_json_topology_to_entity(json_file))
                 self.topology_etag = -2
-                Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
+                self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
                 return True
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log.info(e)
         return False
 
     def update_topology(self, node):
+        if self._closed:
+            return
+
         if self.update_topology_lock.acquire(False):
             try:
+                if self._closed:
+                    return False
+
                 command = GetTopologyCommand()
                 response = self.execute_with_node(node, command, should_retry=False)
 
@@ -285,3 +294,12 @@ class RequestsExecutor(object):
             self.update_topology(self._node_selector.get_current_node())
         except Exception as e:
             log.info("Couldn't Update Topology from _updateTopologyTimer task", e)
+
+    def close(self):
+        if self._closed:
+            return
+
+        self._closed = True
+        self.cancel_all_failed_nodes_timers()
+        if self.update_topology_timer:
+            self.update_topology_timer.cancel()
