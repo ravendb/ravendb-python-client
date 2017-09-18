@@ -163,6 +163,13 @@ class TestQuery(TestBase):
                     "FROM Companies WHERE name='withNesting'"))
             self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
+    def test_raw_query_with_query_parameters(self):
+        with self.store.open_session() as session:
+            query_results = list(
+                session.query(object_type=Company, nested_object_types={"product": Product}).raw_query(
+                    "FROM Companies WHERE name= $p0", query_parameters={"p0": "withNesting"}))
+            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
+
     def test_fail_after_raw_query_add(self):
         try:
             with self.store.open_session() as session:
