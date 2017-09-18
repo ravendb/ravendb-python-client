@@ -4,7 +4,7 @@ The API can handle most CRUD scenarios, including full support for replication, 
 
 
 ```python
-with document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB") as store:
+with document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
     store.initialize()
     with store.open_session() as session:
     foo = session.load("foos/1")
@@ -39,7 +39,7 @@ There are three ways to install pyravendb.
  ```python
 from pyravendb.store import document_store
     
-store =  document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB")
+store =  document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB")
 store.initialize() 
 with store.open_session() as session:
     foo = session.load("foos/1")
@@ -81,14 +81,14 @@ For storing with dict we will use database_commands the put command (see the sou
 
 ```python
 class Foo(object):
-   def __init__(name, key = None):
-   	self.name = name
-    self.key = key
+   def __init__(self, name, key = None):
+        self.name = name
+        self.key = key
       
 class FooBar(object):
-   def __init__(self,name, foo):
-	    self.name = name
-	    self.foo = foo
+    def __init__(self, name, foo):
+        self.name = name
+        self.foo = foo
 	    
 with store.open_session() as session:
     foo = Foo("PyRavenDB")
