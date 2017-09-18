@@ -3,28 +3,28 @@ PyRavenDB is a python client api for [RavenDB](https://ravendb.net/), a NoSQL do
 The API can handle most CRUD scenarios, including full support for replication, failover, dynamic queries, etc.
 
 
-```
+```python
 with document_store.documentstore(url="http://localhost:8080", database="PyRavenDB") as store:
-store.initialize()
-with store.open_session() as session:
-foo = session.load("foos/1")
+	store.initialize()
+	with store.open_session() as session:
+		foo = session.load("foos/1")
 ```
 
 ## Installation
 There are three ways to install pyravendb.
 
 1. Install from [PyPi](https://pypi.python.org/pypi), as [pyravendb](https://pypi.python.org/pypi/pyravendb).
-	```
+	```bash
 	pip install pyravendb
 	```
 
 2. Install from source, via PyPi. From pyravendb, download, open the source (pyravendb-x.x.x.zip) and run setup.py.
-	```
+	```bash
     python setup.py install
 	```
 3. Install from source via [GitHub](https://github.com/IdanHaim/RavenDB-Python-Client).
  
-	```
+	```bash
     git clone https://github.com/IdanHaim/RavenDB-Python-Client.git
     cd RavenDB-Python-Client
     python setup.py install
@@ -32,7 +32,7 @@ There are three ways to install pyravendb.
 
 ## Usage
 ##### Load a single or several document\s from the store:
- ```
+ ```python
     from pyravendb.store import document_store
     
     store =  document_store.documentstore(url="http://localhost:8080", database="PyRavenDB")
@@ -44,11 +44,11 @@ There are three ways to install pyravendb.
 load method have the option to track entity for you the only thing you need to do is add ```object_type```  when you call to load 
 (load method will return a dynamic_stracture object by default) for class with nested object you can call load with ```nested_object_types``` dictionary for the other types. just put in the key the name of the object and in the value his class (without this option you will get the document as it is) .
 
-```
+```pyton
 	foo = session.load("foos/1", object_type=Foo)
 ```
 
-```
+```python
 	class FooBar(object):
 		def __init__(self,name,foo):
 			self.name = name
@@ -59,14 +59,14 @@ load method have the option to track entity for you the only thing you need to d
 ```
 To load several documents at once, supply a list of ids to session.load.
 
-```
+```python
 	foo = session.load(["foos/1", "foos/2", "foos/3"], object_type=Foo)
 ```
 
 ##### Delete a document
 To delete a document from the store,  use ```session.delete()``` with the id or entity you would like to delete.
 
-```
+```python
 with store.open_session() as session:
        foo = session.delete("foos/1")
 ```
@@ -75,7 +75,7 @@ with store.open_session() as session:
 to store a new document, use ```session.store(entity)``` with the entity you would like to store (entity must be an object)
 For storing with dict we will use database_commands the put command (see the source code for that).
 
-```
+```python
 class Foo(object):
    def __init__(name,key = None):
    	self.name = name
@@ -105,7 +105,7 @@ with store.open_session() as session:
 * ```nested_object_types``` - A dict of classes for nested object the key will be the name of the class and the value will be 
 &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&nbsp;the object we want to get for that attribute
 	
-```
+```python
 with store.open_session() as session:
 	query_result = list(session.query().where_equals("name", "test101")
 	query_result = list(session.query(object_type=Foo).where_starts_with("name", "n"))
@@ -116,13 +116,13 @@ with store.open_session() as session:
 
 You can also build the query with several options using the builder pattern.
 
-```
+```python
 with store.open_session() as session:
 	list(session.query(wait_for_non_stale_results=True).where_not_none("name").order_by_descending("name"))
 ``` 
 
 For the query you can also use the `where` feature which can get a variable number of arguments (**kwargs)
-```
+```python
 with store.open_session() as session:
 	query_results = list(session.query().where(name="test101", key=[4, 6, 90]))
 
@@ -133,7 +133,7 @@ with store.open_session() as session:
 A list of the properties we like to include in the query or in load.
 The include property wont show in our result but when we load or query for it we wont requests it from the server.
 The includes will save on the session cache.
-```
+```python
 class FooBar(object):
 	def __init__(name, foo_key)
     	self.name = name
@@ -151,7 +151,7 @@ with store.open_session() as session:
 
 Replication works using plain HTTP requests to replicate all changes from one server instance to another.
 * enable Replication bundle (```"Raven/ActiveBundles"```) on a database e.g. you can create new database with the following code:
-	```
+	```python
     from pyravendb.data import database
     
     database_document = database.DatabaseDocument(database_id="PyRavenDB", settings={"Raven/DataDir": "test", "Raven/ActiveBundles": "Replication"})
@@ -161,7 +161,7 @@ Replication works using plain HTTP requests to replicate all changes from one se
     ###### database_commands are a set of low level operations that can be used to manipulate data and change configuration on a server. 
 
 * setup a replication by creating the ```ReplicationDestinations``` document with appropriate settings.
-	```
+	```python
     with store.open_session("PyRavenDB") as session:
             replication_document = database.ReplicationDocument([database.ReplicationDestination(url="http://localhost:8080", database="destination_database_name")])
             session.store(replication_document)
@@ -202,7 +202,7 @@ Replication works using plain HTTP requests to replicate all changes from one se
 	failover behavior can be found in `store.conventions`.</br >
 	To change the failover behavior just use the following code. do it before you initailze the store:
 	
-	```
+	```python
 	from pyravendb.store import document_store
 	from pyravendb.data import document_convention
 	
@@ -224,7 +224,7 @@ To authenticate the user by using API keys we need to create a document with Rav
 	* <B>ReadOnly</B>: True or False (False as a default, not a must)
 
 First we open a store to the system database (system database must be declared explicitly) and then use `database_commands.put()` to put the document into the system database:
-```
+```python
 with document_store.documentstore(url="http://localhost:8080", database = "system") as store:
 	store.initialize()
     store.database_commands.put("Raven/ApiKeys/sample", {"Name": "sample", "Secret": "ThisIsMySecret", 
