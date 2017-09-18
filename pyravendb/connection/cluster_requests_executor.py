@@ -44,7 +44,7 @@ class ClusterRequestExecutor(RequestsExecutor):
                     "{0}".format(node.url).encode(
                         'utf-8')).hexdigest()
 
-                topology_file = "{0}\{1}.raven-cluster-topology".format(os.getcwd(), hash_name)
+                topology_file = "{0}\\{1}.raven-cluster-topology".format(os.getcwd(), hash_name)
                 try:
                     with open(topology_file, 'w') as outfile:
                         json.dump(response, outfile, ensure_ascii=False)
@@ -70,7 +70,7 @@ class ClusterRequestExecutor(RequestsExecutor):
         server_hash = hashlib.md5(
             "{0}{1}".format(url, self._database_name).encode(
                 'utf-8')).hexdigest()
-        cluster_topology_file_path = "{0}\{1}.raven-cluster-topology".format(os.getcwd(), server_hash)
+        cluster_topology_file_path = "{0}\\{1}.raven-cluster-topology".format(os.getcwd(), server_hash)
         try:
             with open(cluster_topology_file_path, 'r') as cluster_topology_file:
                 json_file = json.load(cluster_topology_file)

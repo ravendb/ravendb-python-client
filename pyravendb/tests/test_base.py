@@ -36,22 +36,34 @@ class TestBase(unittest.TestCase):
 
     @staticmethod
     def wait_for_database_topology(store, database_name, replication_factor=1):
-        topology = store.admin.server.send(GetDatabaseTopologyOperation(database_name))
+        topology = store.admin.server.send(GetDatabaseRecordOperation(database_name))
         while len(topology["Members"]) < replication_factor:
-            topology = store.admin.server.send(GetDatabaseTopologyOperation(database_name))
+            topology = store.admin.server.send(GetDatabaseRecordOperation(database_name))
         return topology
 
     def setUp(self):
         self.default_urls = ["http://localhost.fiddler:8080"]
         self.default_database = "NorthWindTest"
         self.store = DocumentStore(urls=self.default_urls, database=self.default_database)
-        self.store.admin.server.send(CreateDatabaseOperation(database_name=self.default_database))
+        created = False
+        while not created:
+            try:
+                self.store.admin.server.send(CreateDatabaseOperation(database_name=self.default_database))
+                created = True
+            except Exception as e:
+                if "already exists!" in str(e):
+                    self.store.admin.server.send(
+                        DeleteDatabaseOperation(database_name=self.default_database, hard_delete=True))
+                    continue
+                raise
         TestBase.wait_for_database_topology(self.store, self.default_database)
 
-        index_map = "from doc in docs select new{Tag = doc[\"@metadata\"][\"@collection\"]}"
-        self.store.admin.send(PutIndexesOperation(IndexDefinition("AllDocuments", index_map=index_map)))
+        self.index_map = "from doc in docs select new{Tag = doc[\"@metadata\"][\"@collection\"]}"
+        self.store.admin.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
 
         self.store.initialize()
 
     def tearDown(self):
-        self.store.admin.server.send(DeleteDatabaseOperation(database_name=self.default_database, hard_delete=True))
+        database_names = self.store.admin.server.send(GetDatabaseNamesOperation(0, 5))
+        for name in database_names:
+            self.store.admin.server.send(DeleteDatabaseOperation(database_name=name, hard_delete=True))

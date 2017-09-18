@@ -1,6 +1,6 @@
 from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.data.query import IndexQuery, QueryOperator, EscapeQueryOptions, OrderingType
+from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
 import time
@@ -18,6 +18,8 @@ class Query(object):
                        'less_than_or_equal': 'less_than_or_equal', 'in': 'in', 'all_in': 'all_in',
                        'between': 'between', 'search': 'search', 'lucene': 'lucene', 'startsWith': 'startsWith',
                        'endsWith': 'endsWith', 'exists': 'exists'}
+
+    rql_keyword = ("AS", "SELECT", "WHERE", "LOAD", "GROUP", "ORDER", "INCLUDE")
 
     def __init__(self, session):
         """
@@ -42,30 +44,30 @@ class Query(object):
         self._query = None
         self.start = None
         self.page_size = None
+        self.last_equality = None
+
+    @property
+    def not_(self):
+        self._negate_next()
+        return self
 
     def __call__(self, object_type=None, index_name=None, collection_name=None, is_map_reduce=False,
                  with_statistics=False, metadata_only=False, default_operator=None, wait_for_non_stale_results=False,
                  timeout=None, nested_object_types=None):
         """
-        @param Type object_type: The type of the object we want to track the entity too
-        @param str index_name: The index name we want to apply
-        @param str collection_name: Name of the collection (mutually exclusive with indexName)
+        @param Type object_type: The type of the object we want to track the entity too.
+        @param str index_name: The index name we want to apply.
+        @param str collection_name: Name of the collection (mutually exclusive with indexName).
         @param bool is_map_reduce: Whether we are querying a map/reduce index(modify how we treat identifier properties)
-        @param nested_object_types: A dict of classes for nested object the key will be the name of the class and the
-        value will be the object we want to get for that attribute
-        @param bool with_statistics: Make it True to get the query statistics as well
-        @param QueryOperator default_operator: The default query operator (OR or AND)
-        @param bool wait_for_non_stale_results: Instructs the query to wait for non stale results
-        @param timedelta timeout: The time to wait for non stale result
+        @param bool with_statistics: Make it True to get the query statistics as well.
+        @param QueryOperator default_operator: The default query operator (OR or AND).
+        @param bool wait_for_non_stale_results: Instructs the query to wait for non stale results.
+        @param timedelta timeout: The time to wait for non stale result.
+        @param nested_object_types: A dict of classes for nested object the key will be the name of the class and the.
+        value will be the object we want to get for that attribute.
         """
-        if not index_name:
-            index_name = "dynamic"
-            if object_type is not None:
-                index_name += "/{0}".format(self.session.conventions.default_transform_plural(object_type.__name__))
-        self.index_name = index_name
-        # TODO if collection_name is null see ProcessQueryParameters
-        self.collection_name = collection_name
         self.object_type = object_type
+        self.index_name, self.collection_name = self._process_query_parameters(index_name, collection_name)
         self.nested_object_types = nested_object_types
         self.is_map_reduce = is_map_reduce
         self._with_statistics = with_statistics
@@ -89,6 +91,7 @@ class Query(object):
         self.timeout = timeout if timeout is not None else self.session.conventions.timeout
         self.fetch = None
         self._query = None
+        self.last_equality = None
 
         return self
 
@@ -97,6 +100,20 @@ class Query(object):
 
     def __str__(self):
         return self._build_query()
+
+    def _process_query_parameters(self, index_name, collection_name):
+        if index_name and collection_name:
+            raise InvalidOperationException(
+                "Parameters 'index_name' and 'collection_name' are mutually exclusive. "
+                "Please specify only one of them.")
+
+        if not index_name and not collection_name:
+            if not self.object_type:
+                collection_name = "@all_docs"
+            else:
+                collection_name = self.session.conventions.default_transform_plural(self.object_type.__name__)
+
+        return "dynamic" if index_name is None else index_name, collection_name
 
     def _build_query(self):
         if self._query:
@@ -118,13 +135,15 @@ class Query(object):
         return "".join(query_builder)
 
     def build_from(self, query_builder):
-        Query._add_space_if_needed(query_builder)
+        if not self.index_name and not self.collection_name:
+            raise NotSupportedException("Either index_name or collection_name must be specified")
+
         if self.index_name == "dynamic":
-            query_builder += "FROM "
+            query_builder.append("FROM ")
             if Utils.contains_any(self.collection_name, [' ', '\t', '\r', '\n', '\v']):
                 if '"' in self.collection_name:
                     raise ValueError("Collection name cannot contain a quote, but was: " + self.collection_name)
-                    query_builder.append('"' + self.collection_name + '"')
+                query_builder.append('"' + self.collection_name + '"')
             else:
                 query_builder.append(self.collection_name)
         else:
@@ -213,14 +232,14 @@ class Query(object):
         elif token.token == "all_in":
             write = " ALL IN ($" + token.value + ")"
         elif token.token == "between":
-            write = "".join(["BETWEEN $", str(token.value[0]), " AND $", str(token.value[1])])
+            write = "".join([" BETWEEN $", str(token.value[0]), " AND $", str(token.value[1])])
         elif token.token == "equals":
             write = " = $" + token.value
         elif token.token == "not_equals":
             write = " != $" + token.value
-        elif token.token == "greater_then":
+        elif token.token == "greater_than":
             write = " > $" + token.value
-        elif token.token == "greater_then_or_equal":
+        elif token.token == "greater_than_or_equal":
             write = " >= $" + token.value
         elif token.token == "less_than":
             write = " < $" + token.value
@@ -228,7 +247,8 @@ class Query(object):
             write = " <= $" + token.value
         elif token.token == "search":
             write_builder = [", $", token.value]
-            if hasattr(token, "search_operator"):
+            search_operator = getattr(token, "search_operator", None)
+            if search_operator and search_operator == QueryOperator.AND:
                 write_builder.append(", AND")
             write_builder.append(")")
             write = "".join(write_builder)
@@ -261,7 +281,7 @@ class Query(object):
         if exact:
             where_rql += "exact("
 
-        if token.token in ["search", "lucene", "startsWith", "endWith", "exists"]:
+        if token.token in ["search", "lucene", "startsWith", "endsWith", "exists"]:
             where_rql += token.token + "("
 
         where_rql += token.field_name + Query._get_rql_write_case(token)
@@ -273,26 +293,36 @@ class Query(object):
         if fuzzy:
             where_rql += "," + fuzzy + ")"
         if boost:
-            where_rql += "," + boost + ")"
+            where_rql += "," + str(boost) + ")"
 
         return where_rql
-
-    def select(self, *args):
-        """
-        Fetch only the required fields from the server
-
-        @param args: The name of the terms you like to acquire
-
-        """
-        if args:
-            self.fetch = args
-        return self
 
     @staticmethod
     def _add_space_if_needed(query_builder):
         if len(query_builder) > 0:
             if not query_builder[-1].endswith(("(", ")", ",", " ")):
                 query_builder.append(" ")
+
+    @staticmethod
+    def escape_if_needed(name):
+        if name:
+            escape = False
+            first = True
+            for c in name:
+                if first:
+                    if not c.isalpha() and c != '_' and c != '@':
+                        escape = True
+                        break
+                    first = False
+                else:
+                    if (not c.isalpha() and not c.isdigit()) and c != '_' and c != '@' and c != '[' and c != ']':
+                        escape = True
+                        break
+
+            if escape or name.upper() in Query.rql_keyword:
+                return "'{0}'".format(name)
+
+        return name
 
     def negate_if_needed(self, field_name):
         if self.negate:
@@ -313,12 +343,15 @@ class Query(object):
         return parameter_name
 
     def _add_operator_if_needed(self):
+        self.assert_no_raw_query()
+
         if len(self._where_tokens) > 0:
             query_operator = None
             last_token = self._where_tokens[-1]
             if last_token is not None and last_token.token in Query.where_operators:
                 query_operator = QueryOperator.AND if self.default_operator == QueryOperator.AND else QueryOperator.OR
-            if hasattr(last_token, "search_operator"):
+            search_operator = getattr(last_token, "search_operator", None)
+            if search_operator and search_operator != QueryOperator.OR:
                 # default to OR operator after search if AND was not specified explicitly
                 query_operator = QueryOperator.OR
 
@@ -360,30 +393,28 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Utils.escape_if_needed(field_name)
-        if isinstance(value, timedelta):
-            value = timedelta
-
+        field_name = Query.escape_if_needed(field_name)
         self._add_operator_if_needed()
 
-        parameter_name = self.add_query_parameter(value)
         token = "equals"
         if self.negate:
             self.negate = False
             token = "not_equals"
-        token = _Token(field_name=field_name, value=parameter_name, token=token, exact=exact)
+
+        self.last_equality = {field_name: value}
+        token = _Token(field_name=field_name, value=self.add_query_parameter(value), token=token, exact=exact)
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
         return self
 
-    def where_not_equal(self, field_name, value, exact=False):
+    def where_not_equals(self, field_name, value, exact=False):
         if not self.negate:
             self.negate = True
         return self.where_equals(field_name, value, exact)
 
     def where_exists(self, field_name):
-        field_name = Utils.escape_if_needed(field_name)
+        field_name = Query.escape_if_needed(field_name)
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
@@ -413,46 +444,49 @@ class Query(object):
                 self.where_equals(field_name, kwargs[field_name], exact)
         return self
 
-    # def search(self, field_name, search_terms, escape_query_options=EscapeQueryOptions.RawQuery, boost=1):
-    #     """
-    #     for more complex text searching
-    #
-    #     @param field_name:The field name in the index you want to query.
-    #     :type str
-    #     @param search_terms: The terms you want to query
-    #     :type str
-    #     @param escape_query_options: The way we should escape special characters
-    #     :type EscapeQueryOptions
-    #     @param boost: This feature gives user the ability to manually tune the relevance level of matching documents
-    #     :type numeric
-    #     """
-    #     if boost < 0:
-    #         raise ArgumentOutOfRangeException("boost", "boost factor must be a positive number")
-    #
-    #     search_terms = Utils.quote_key(str(search_terms))
-    #     search_terms = self._lucene_builder(search_terms, "search", escape_query_options)
-    #     self.query_builder += "{0}:{1}".format(field_name, search_terms)
-    #     if boost != 1:
-    #         self.query_builder += "^{0}".format(boost)
-    #     return self
+    def search(self, field_name, search_terms, operator=QueryOperator.OR):
+        """
+        For more complex text searching
+
+        @param str field_name: The field name in the index you want to query.
+        :type str
+        @param str search_terms: The terms you want to query
+        @param QueryOperator operator: OR or AND
+        """
+
+        if field_name is None:
+            raise ValueError("None field_name is invalid")
+
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        self.last_equality = {field_name: "(" + search_terms + ")" if ' ' in search_terms else search_terms}
+        token = _Token(field_name=field_name, token="search", value=self.add_query_parameter(search_terms),
+                       search_operator=operator)
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+        return self
 
     def where_ends_with(self, field_name, value):
         """
         To get all the document that ends with the value in the giving field_name
 
-        @param field_name:The field name in the index you want to query.
-        :type str
-        @param value: The value will be the fields value you want to query
-        :type str
+        @param str field_name:The field name in the index you want to query.
+        @param str value: The value will be the fields value you want to query
         """
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        if value is not None and not isinstance(value, str) and field_name is not None:
-            field_name = self.session.conventions.range_field_name(field_name, type(value).__name__)
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
 
-        lucene_text = self._lucene_builder(value, action="end_with")
-        self.query_builder += "{0}:*{1}".format(field_name, lucene_text)
+        self.last_equality = {field_name: value}
+        token = _Token(field_name=field_name, token="endsWith", value=self.add_query_parameter(value))
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
         return self
 
     def where_starts_with(self, field_name, value):
@@ -465,10 +499,11 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Utils.escape_if_needed(field_name)
+        field_name = Query.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
+        self.last_equality = {field_name: value}
         token = _Token(field_name=field_name, token="startsWith", value=self.add_query_parameter(value))
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
@@ -483,16 +518,19 @@ class Query(object):
         @param str values: The values we wish to query
         @param bool exact: Getting the exact query (ex. case sensitive)
         """
-        field_name = Utils.escape_if_needed(field_name)
+        field_name = Query.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
-        self._where_tokens.append(
-            _Token(field_name=field_name, value=list(Utils.unpack_iterable(values)), token="in", exact=exact))
+        token = _Token(field_name=field_name, value=self.add_query_parameter(list(Utils.unpack_iterable(values))),
+                       token="in", exact=exact)
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
         return self
 
     def where_between(self, field_name, start, end, exact=False):
-        field_name = Utils.escape_if_needed(field_name)
+        field_name = Query.escape_if_needed(field_name)
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
@@ -512,17 +550,61 @@ class Query(object):
 
         return self
 
-    # def where_greater_than(self, field_name, value):
-    #     return self.where_between(field_name, value, None)
-    #
-    # def where_greater_than_or_equal(self, field_name, value):
-    #     return self.where_between_or_equal(field_name, value, None)
-    #
-    # def where_less_than(self, field_name, value):
-    #     return self.where_between(field_name, None, value)
-    #
-    # def where_less_than_or_equal(self, field_name, value):
-    #     return self.where_between_or_equal(field_name, None, value)
+    def where_greater_than(self, field_name, value):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+
+        token = _Token(field_name=field_name, token="greater_than", value=self.add_query_parameter(value))
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
+
+    def where_greater_than_or_equal(self, field_name, value):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+
+        token = _Token(field_name=field_name, token="greater_than_or_equal", value=self.add_query_parameter(value))
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
+
+    def where_less_than(self, field_name, value):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+
+        token = _Token(field_name=field_name, token="less_than", value=self.add_query_parameter(value))
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
+
+    def where_less_than_or_equal(self, field_name, value):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+
+        token = _Token(field_name=field_name, token="less_than_or_equal", value=self.add_query_parameter(value))
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
 
     def where_not_none(self, field_name):
         self.and_also().not_.where_equals(field_name, None)
@@ -539,9 +621,10 @@ class Query(object):
 
     def order_by(self, field_name, ordering=OrderingType.str, descending=False):
         self.assert_no_raw_query()
-        field_name = Utils.escape_if_needed(field_name)
+        field_name = Query.escape_if_needed(field_name)
         self._order_by_tokens.append(
-            _Token(field_name=field_name, token="order_by", write=field_name, descending=descending, ordering=ordering))
+            _Token(field_name=field_name, token="order_by", write=field_name, descending=descending,
+                   ordering=ordering))
 
         return self
 
@@ -583,6 +666,7 @@ class Query(object):
                 raise ArgumentOutOfRangeException("boost", "Boost factor must be a positive number")
 
             setattr(last, "boost", boost)
+            last.write = self.rql_where_write(last)
             return self
 
     def take(self, count):
@@ -600,13 +684,17 @@ class Query(object):
 
         self.negate = not self.negate
 
-    @property
-    def not_(self):
-        self._negate_next()
+    def include(self, path):
+        self.includes.add(path)
         return self
 
+    def get_last_equality_term(self):
+        """
+        The last term that we asked the query to use equals on
+        """
+        return self.last_equality
+
     def _execute_query(self):
-        self.session.increment_requests_count()
         conventions = self.session.conventions
         end_time = time.time() + self.timeout.seconds
         query = self._build_query()
@@ -616,7 +704,8 @@ class Query(object):
                                      wait_for_non_stale_results=self.wait_for_non_stale_results,
                                      wait_for_non_stale_results_timeout=self.timeout)
 
-            query_command = QueryOperation(session=self.session, index_name=self.index_name, index_query=index_query,
+            query_command = QueryOperation(session=self.session, index_name=self.index_name,
+                                           index_query=index_query,
                                            metadata_only=self.metadata_only).create_request()
             response = self.session.requests_executor.execute(query_command)
             if response is None:
@@ -636,7 +725,7 @@ class Query(object):
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
                                                                           self.nested_object_types,
                                                                           fetch=False if not self.fetch else True)
-            if not self.fetch and self.object_type != dict:
+            if self.object_type != dict:
                 self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
                                          original_metadata=original_metadata,
                                          metadata=metadata, document=result)

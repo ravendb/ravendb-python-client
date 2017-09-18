@@ -54,6 +54,10 @@ class AggregateException(Exception):
     pass
 
 
+class NotSupportedException(Exception):
+    pass
+
+
 # <---------- Subscription Exceptions ---------->
 
 class SubscriptionInUseException(Exception):

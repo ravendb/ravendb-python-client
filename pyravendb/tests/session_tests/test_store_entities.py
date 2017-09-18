@@ -11,37 +11,38 @@ class Foo(object):
 
 
 class TestSessionStore(TestBase):
-    @classmethod
-    def setUpClass(cls):
-        super(TestSessionStore, cls).setUpClass()
-        cls.document_store = DocumentStore(cls.default_url, cls.default_database)
-        cls.document_store.initialize()
+    def setUp(self):
+        super(TestSessionStore, self).setUp()
+
+    def tearDown(self):
+        super(TestSessionStore, self).tearDown()
+        self.delete_all_topology_files()
 
     def test_store_without_key(self):
         foo = Foo("test", 10)
-        with self.document_store.open_session() as session:
+        with self.store.open_session() as session:
             session.store(foo)
             session.save_changes()
 
-        with self.document_store.open_session() as session:
+        with self.store.open_session() as session:
             self.assertIsNotNone(session.load(foo.Id))
 
     def test_store_with_key(self):
         foo = Foo("test", 20)
-        with self.document_store.open_session() as session:
+        with self.store.open_session() as session:
             session.store(foo, "testingStore/1")
             session.save_changes()
 
-        with self.document_store.open_session() as session:
+        with self.store.open_session() as session:
             self.assertEqual(session.load("testingStore/1").key, 20)
 
     def test_store_after_delete_fail(self):
         foo = Foo("test", 20)
-        with self.document_store.open_session() as session:
+        with self.store.open_session() as session:
             session.store(foo, "testingStore")
             session.save_changes()
 
-        with self.document_store.open_session() as session:
+        with self.store.open_session() as session:
             session.delete("testingStore")
             with self.assertRaises(exceptions.InvalidOperationException):
                 session.store(foo)

@@ -30,3 +30,13 @@ class DatabaseAccess(Enum):
 
     def __str__(self):
         return self.value
+
+
+class SecurityClearance(Enum):
+    unauthenticated_clients = "UnauthenticatedClients"
+    cluster_admin = "ClusterAdmin"
+    operator = "Operator"
+    valid_user = "ValidUser"
+
+    def __str__(self):
+        return self.value

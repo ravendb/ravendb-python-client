@@ -77,73 +77,75 @@ class DeleteAttachmentOperation(Operation):
             pass
 
 
-class PatchByIndexOperation(Operation):
-    def __init__(self, query_to_update, patch, options=None):
+class PatchByQueryOperation(Operation):
+    def __init__(self, query_to_update, options=None):
+        """
+        @param query_to_update: query that will be performed
+        :type IndexQuery or str
+        @param options: various Operation options e.g. AllowStale or MaxOpsPerSec
+        :type QueryOperationOptions
+        @return: json
+        :rtype: dict of operation_id
+        """
         if query_to_update is None:
             raise ValueError("Invalid query")
-        if patch is None:
-            raise ValueError("Invalid patch")
-        super(PatchByIndexOperation, self).__init__()
+        super(PatchByQueryOperation, self).__init__()
+        if isinstance(query_to_update, str):
+            query_to_update = IndexQuery(query=query_to_update)
         self._query_to_update = query_to_update
-        self._patch = patch
+        if options is None:
+            options = QueryOperationOptions()
         self._options = options
 
     def get_command(self, store, conventions, cache=None):
-        return self.PatchByIndexCommand(self._query_to_update, self._patch, self._options)
+        return self._PatchByQueryCommand(self._query_to_update, self._options)
 
-    class PatchByIndexCommand(RavenCommand):
-        def __init__(self, query_to_update, patch, options):
+    class _PatchByQueryCommand(RavenCommand):
+        def __init__(self, query_to_update, options):
             """
             @param query_to_update: query that will be performed
             :type IndexQuery
             @param options: various Operation options e.g. AllowStale or MaxOpsPerSec
             :type QueryOperationOptions
-            @param patch: JavaScript patch that will be executed on query results( Used only when update)
-            :type PatchRequest
             @return: json
             :rtype: dict of operation_id
             """
-            super(PatchByIndexOperation.PatchByIndexCommand, self).__init__(method="PATCH")
+            super(PatchByQueryOperation._PatchByQueryCommand, self).__init__(method="PATCH")
             self._query_to_update = query_to_update
-            self._patch = patch
             self._options = options
 
         def create_request(self, server_node):
             if not isinstance(self._query_to_update, IndexQuery):
                 raise ValueError("query must be IndexQuery Type")
 
-            if self._patch:
-                if not isinstance(self._patch, PatchRequest):
-                    raise ValueError("_patch must be PatchRequest Type")
-                self._patch = self._patch.to_json()
-
             self.url = server_node.url + "/databases/" + server_node.database + "/queries"
             path = "?allowStale={0}&maxOpsPerSec={1}&details={2}".format(self._options.allow_stale,
-                                                                         "" if self._options.max_ops_per_sec is None else self._options.max_ops_per_sec,
+                                                                         "" if self._options.max_ops_per_sec is None
+                                                                         else self._options.max_ops_per_sec,
                                                                          self._options.retrieve_details)
             if self._options.stale_timeout is not None:
                 path += "&staleTimeout=" + str(self._options.stale_timeout)
 
             self.url += path
-            self.data = {"Query": self._query_to_update.to_json(), "Patch": self._patch}
+            self.data = {"Query": self._query_to_update.to_json()}
 
         def set_response(self, response):
             if response is None:
                 raise exceptions.ErrorResponseException("Invalid Response")
-
-            if response.status_code != 200 and response.status_code != 202:
+            try:
+                response = response.json()
+                if "Error" in response:
+                    raise exceptions.ErrorResponseException(response["Error"])
+                return {"operation_id": response["OperationId"]}
+            except ValueError:
                 raise response.raise_for_status()
 
-            return {"operation_id": response.json()["OperationId"]}
 
-
-class DeleteByIndexOperation(Operation):
+class DeleteByQueryOperation(Operation):
     def __init__(self, query_to_delete, options=None):
         """
-        @param index_name: name of an index to perform a query on
-        :type str
         @param query_to_delete: query that will be performed
-        :type IndexQuery
+        :type IndexQuery or str
         @param options: various Operation options e.g. AllowStale or MaxOpsPerSec
         :type QueryOperationOptions
         :rtype: dict of operation_id
@@ -151,14 +153,16 @@ class DeleteByIndexOperation(Operation):
         if not query_to_delete:
             raise ValueError("Invalid query")
 
-        super(DeleteByIndexOperation, self).__init__()
+        super(DeleteByQueryOperation, self).__init__()
+        if isinstance(query_to_delete, str):
+            query_to_delete = IndexQuery(query=query_to_delete)
         self._query_to_delete = query_to_delete
         self._options = options if options is not None else QueryOperationOptions()
 
     def get_command(self, store, conventions, cache=None):
-        return self._DeleteByIndexCommand(self._query_to_delete, self._options)
+        return self._DeleteByQueryCommand(self._query_to_delete, self._options)
 
-    class _DeleteByIndexCommand(RavenCommand):
+    class _DeleteByQueryCommand(RavenCommand):
         def __init__(self, query_to_delete, options=None):
             """
             @param query_to_delete: query that will be performed
@@ -168,7 +172,7 @@ class DeleteByIndexOperation(Operation):
             @return: json
             :rtype: dict
             """
-            super(DeleteByIndexOperation._DeleteByIndexCommand, self).__init__(method="DELETE")
+            super(DeleteByQueryOperation._DeleteByQueryCommand, self).__init__(method="DELETE")
             self._query_to_delete = query_to_delete
             self._options = options
 
@@ -186,82 +190,6 @@ class DeleteByIndexOperation(Operation):
         def set_response(self, response):
             if response is None:
                 raise exceptions.ErrorResponseException("Could not find index {0}".format(self.index_name))
-
-            if response.status_code != 200 and response.status_code != 202:
-                try:
-                    raise exceptions.ErrorResponseException(response.json()["Error"])
-                except ValueError:
-                    raise response.raise_for_status()
-            return {"operation_id": response.json()["OperationId"]}
-
-
-class PatchCollectionOperation(Operation):
-    def __init__(self, collection_name, patch):
-        if collection_name is None:
-            raise ValueError("Invalid collection_name")
-        if patch is None:
-            raise ValueError("Invalid patch")
-
-        super(PatchCollectionOperation, self).__init__()
-        self._collection_name = collection_name
-        self._patch = patch
-
-    def get_command(self, store, conventions, cache=None):
-        return self._PatchByCollectionCommand(self._collection_name, self._patch)
-
-    class _PatchByCollectionCommand(RavenCommand):
-        def __init__(self, collection_name, patch):
-            """
-            @param collection_name: name of the collection
-            :type str
-            @param patch: JavaScript patch that will be executed on query results
-            :type PatchRequest
-            @return: json
-            :rtype: dict
-            """
-            super(PatchCollectionOperation._PatchByCollectionCommand, self).__init__(method="PATCH")
-            self._collection_name = collection_name
-            self._patch = patch
-
-        def create_request(self, server_node):
-            if self._patch:
-                if not isinstance(self._patch, PatchRequest):
-                    raise ValueError("Patch must be PatchRequest Type")
-                self._patch = self._patch.to_json()
-
-            self.url = "{0}/databases/{1}/collections/docs?name={2}".format(server_node.url, server_node.database,
-                                                                            self._collection_name)
-            self.data = self._patch
-
-        def set_response(self, response):
-            if response is None:
-                raise exceptions.ErrorResponseException("Invalid Response")
-
-            if response.status_code != 200 and response.status_code != 202:
-                raise response.raise_for_status()
-            return {"operation_id": response.json()["OperationId"]}
-
-
-class DeleteCollectionOperation(Operation):
-    def __init__(self, collection_name):
-        super(DeleteCollectionOperation, self).__init__()
-        self.collection_name = collection_name
-
-    def get_command(self, store, conventions, cache=None):
-        return self._DeleteCollectionCommand(self.collection_name)
-
-    class _DeleteCollectionCommand(RavenCommand):
-        def __init__(self, collection_name):
-            super(DeleteCollectionOperation._DeleteCollectionCommand, self).__init__(method="DELETE")
-            self.collection_name = collection_name
-
-        def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/collections/docs?name={2}".format(server_node.url, server_node.database,
-                                                                            self.collection_name)
-
-        def set_response(self, response):
-            if response is None:
-                raise exceptions.ErrorResponseException("Response is Invalid")
 
             if response.status_code != 200 and response.status_code != 202:
                 try:
@@ -361,8 +289,8 @@ class PutAttachmentOperation(Operation):
         @param document_id: The id of the document
         @param name: Name of the attachment
         @param stream: The attachment as bytes (ex.open("file_path", "rb"))
-        :param content_type: The type of the attachment (ex.image/png)
-        :param change_vector: The change vector of the document
+        @param content_type: The type of the attachment (ex.image/png)
+        @param change_vector: The change vector of the document
         """
 
         super(PutAttachmentOperation, self).__init__()

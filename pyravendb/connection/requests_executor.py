@@ -83,8 +83,9 @@ class RequestsExecutor(object):
                     raise
 
         if self._node_selector is None:
-            raise exceptions.InvalidOperationException(
-                "node_selector cannot be None, please check your connection or supply a valid node_selector")
+            raise exceptions.InvalidOperationException("A connection with the server could not be established",
+                                                       "node_selector cannot be None, please check your connection "
+                                                       "or supply a valid node_selector")
         chosen_node = self._node_selector.get_current_node()
         return self.execute_with_node(chosen_node, raven_command, should_retry)
 
@@ -143,6 +144,7 @@ class RequestsExecutor(object):
                     if len(raven_command.failed_nodes) == 1:
                         node = list(raven_command.failed_nodes.keys())[0]
                         raise exceptions.UnsuccessfulRequestException(node.url, raven_command.failed_nodes[node])
+
                     self.handle_server_down(chosen_node, node_index, raven_command, None)
                     chosen_node = self._node_selector.get_current_node()
                     continue
@@ -152,7 +154,7 @@ class RequestsExecutor(object):
                     try:
                         response = response.json()
                         if "Error" in response:
-                            raise Exception(response["Error"], response["Type"])
+                            raise Exception(response["Message"], response["Type"])
                     except ValueError:
                         raise response.raise_for_status()
 

@@ -11,6 +11,7 @@ logging.basicConfig(filename='responses.log', level=logging.DEBUG)
 log = logging.getLogger()
 
 
+# Todo update the commands
 class RavenCommand(object):
     def __init__(self, url=None, method=None, data=None, headers=None, is_read_request=False, use_stream=False):
         self.url = url
@@ -23,7 +24,6 @@ class RavenCommand(object):
         self.is_read_request = is_read_request
         self.use_stream = use_stream
         self.failed_nodes = {}
-        self.authentication_retries = 0
         self.timeout = None
         self.requested_node = None
 
@@ -44,7 +44,7 @@ class RavenCommand(object):
 
 
 class GetDocumentCommand(RavenCommand):
-    def __init__(self, key_or_keys, includes=None, metadata_only=False, force_read_from_master=False):
+    def __init__(self, key_or_keys, includes=None, metadata_only=False):
         """
         @param key_or_keys: the key of the documents you want to retrieve (key can be a list of ids)
         :type str or list
@@ -54,14 +54,11 @@ class GetDocumentCommand(RavenCommand):
         :type bool
         @return: A list of the id or ids we looked for (if they exists)
         :rtype: dict
-        @param force_read_from_master: If True the reading also will be from the master
-        :type bool
         """
         super(GetDocumentCommand, self).__init__(method="GET", is_read_request=True)
         self.key_or_keys = key_or_keys
         self.includes = includes
         self.metadata_only = metadata_only
-        self.force_read_from_master = force_read_from_master
 
     def create_request(self, server_node):
         if self.key_or_keys is None:
@@ -73,7 +70,7 @@ class GetDocumentCommand(RavenCommand):
         if isinstance(self.key_or_keys, list):
             key_or_keys = collections.OrderedDict.fromkeys(self.key_or_keys)
             if self.metadata_only:
-                path += "&metadata-only=True"
+                path += "&metadata-only=true"
 
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
@@ -102,10 +99,10 @@ class GetDocumentCommand(RavenCommand):
 
 
 class DeleteDocumentCommand(RavenCommand):
-    def __init__(self, key, etag=None):
+    def __init__(self, key, change_vector=None):
         super(DeleteDocumentCommand, self).__init__(method="DELETE")
         self.key = key
-        self.etag = etag
+        self.change_vector = change_vector
 
     def create_request(self, server_node):
         if self.key is None:
@@ -113,8 +110,8 @@ class DeleteDocumentCommand(RavenCommand):
         if not isinstance(self.key, str):
             raise ValueError("key must be {0}".format(type("")))
 
-        if self.etag is not None:
-            self.headers = {"If-Match": "\"{0}\"".format(self.etag)}
+        if self.change_vector is not None:
+            self.headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
 
         self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database,
                                                           Utils.quote_key(self.key))
@@ -130,12 +127,9 @@ class DeleteDocumentCommand(RavenCommand):
 class PutDocumentCommand(RavenCommand):
     def __init__(self, key, document, change_vector=None):
         """
-        @param key: unique key under which document will be stored
-        :type str
-        @param document: document data
-        :type dict
-        @param change_vector: current document change_vector, used for concurrency checks (null to skip check)
-        :type str
+        @param str key: unique key under which document will be stored
+        @param dict document: document data
+        @param str change_vector: current document change_vector, used for concurrency checks (null to skip check)
         @return: json file
         :rtype: dict
         """
@@ -162,8 +156,6 @@ class PutDocumentCommand(RavenCommand):
         try:
             response = response.json()
             if "Error" in response:
-                if "ActualEtag" in response:
-                    raise exceptions.FetchConcurrencyException(response["Error"])
                 raise exceptions.ErrorResponseException(response["Error"])
             return response
         except ValueError:
@@ -172,9 +164,9 @@ class PutDocumentCommand(RavenCommand):
 
 
 class BatchCommand(RavenCommand):
-    def __init__(self, commands_array):
+    def __init__(self, commands):
         super(BatchCommand, self).__init__(method="POST")
-        self.commands_array = commands_array
+        self.commands_array = commands
 
     def create_request(self, server_node):
         data = []
@@ -196,43 +188,22 @@ class BatchCommand(RavenCommand):
             raise exceptions.InvalidOperationException(e)
 
 
-class GetIndexCommand(RavenCommand):
-    def __init__(self, index_name, force_read_from_master=False):
-        """
-       @param index_name: Name of the index you like to get or delete
-       :type str
-       @param force_read_from_master: If True the reading also will be from the master
-       :type bool
-       """
-        super(GetIndexCommand, self).__init__(method="GET", is_read_request=True)
-        self.index_name = index_name
-        self.force_read_from_master = force_read_from_master
-
-    def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/indexes?{2}".format(server_node.url, server_node.database,
-                                                          "name={0}".format(Utils.quote_key(self.index_name,
-                                                                                            True)) if self.index_name else "")
-
-    def set_response(self, response):
-        if response is None:
-            return None
-        return response.json()['Results']
-
-
 class DeleteIndexCommand(RavenCommand):
-    def __init__(self, index_name):
+    def __init__(self, index_name, database_name=None):
         """
-        @param index_name: Name of the index you like to get or delete
-        :type str
+        @param str index_name: Name of the index you like to get or delete
+        @param str database_name: Name of the index database
         """
         super(DeleteIndexCommand, self).__init__(method="DELETE")
         self.index_name = index_name
+        self.database_name = database_name
 
     def create_request(self, server_node):
         if not self.index_name:
             raise ValueError("None or empty index_name is invalid")
 
-        self.url = "{0}/databases/{1}/indexes?name={2}".format(server_node.url, server_node.database,
+        database = self.database_name if self.database_name else server_node.database
+        self.url = "{0}/databases/{1}/indexes?name={2}".format(server_node.url, database,
                                                                Utils.quote_key(self.index_name, True))
 
     def set_response(self, response):
@@ -336,7 +307,7 @@ class GetStatisticsCommand(RavenCommand):
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/stats".format(server_node.url, server_node.database)
         if self.debug_tag:
-            self.url += "?{0}".format(self.debug_tag)
+            self.url += "?" + self.debug_tag
 
     def set_response(self, response):
         if response and response.status_code == 200:
@@ -396,71 +367,14 @@ class GetOperationStateCommand(RavenCommand):
         return response
 
 
-class GetApiKeyCommand(RavenCommand):
-    def __init__(self, name):
-        """
-        @param name: the name of  the api_key
-        :type str
-        """
-        super(GetApiKeyCommand, self).__init__(method="GET")
-        if name is None:
-            raise ValueError("{0} name is Invalid".format(name))
-
-        self.name = name
-
-    def create_request(self, server_node):
-        self.url = "{0}/admin/api-keys?name={1}".format(server_node.url, Utils.quote_key(self.name))
-
-    def set_response(self, response):
-        if response is None:
-            return None
-
-        try:
-            response = response.json()
-        except ValueError:
-            raise response.raise_for_status()
-
-        return response["Results"]
-
-
-class DeleteDatabaseCommand(RavenCommand):
-    def __init__(self, name, hard_delete=False):
-        """
-        delete a database
-
-        @param name: The name of the database
-        :type str
-        @param hard_delete: If true delete the database from the memory
-        :type bool
-        """
-        super(DeleteDatabaseCommand, self).__init__(method="DELETE")
-        self.name = name
-        self.hard_delete = hard_delete
-
-    def create_request(self, server_node):
-        db_name = self.name.replace("Raven/Databases/", "")
-        self.url = "{0}/admin/databases?name={1}".format(server_node.url, Utils.quote_key(db_name))
-        if self.hard_delete:
-            self.url += "&hard-delete=true"
-
-    def set_response(self, response):
-        try:
-            response = response.json()
-            if "Error" in response:
-                raise exceptions.DatabaseDoesNotExistException(response["Message"])
-        except ValueError:
-            raise response.raise_for_status()
-        return None
-
-
 class PutAttachmentCommand(RavenCommand):
     def __init__(self, document_id, name, stream, content_type, change_vector):
         """
         @param document_id: The id of the document
         @param name: Name of the attachment
         @param stream: The attachment as bytes (ex.open("file_path", "rb"))
-        :param content_type: The type of the attachment (ex.image/png)
-        :param change_vector: The change vector of the document
+        @param content_type: The type of the attachment (ex.image/png)
+        @param change_vector: The change vector of the document
         """
 
         if not document_id:
@@ -532,9 +446,6 @@ class MultiGetCommand(RavenCommand):
         self._base_url = "{0}/databases/{1}".format(server_node.url, server_node.database)
         commands = []
         for request in self._requests:
-            # Todo cache
-            # if self.change_vector is not None:
-            #     headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
             headers = {}
             for key, value in request.get("headers", {}).items():
                 headers[key] = value
@@ -556,9 +467,9 @@ class MultiGetCommand(RavenCommand):
             raise exceptions.ErrorResponseException("Invalid response")
 
 
-class GetDatabaseTopologyCommand(RavenCommand):
+class GetDatabaseRecordCommand(RavenCommand):
     def __init__(self, database_name):
-        super(GetDatabaseTopologyCommand, self).__init__(method="GET")
+        super(GetDatabaseRecordCommand, self).__init__(method="GET")
         self._database_name = database_name
 
     def create_request(self, server_node):
@@ -607,6 +518,8 @@ class GetTcpInfoCommand(RavenCommand):
 
         return response.json()
 
+
+# ------------------------SubscriptionCommands----------------------
 
 class CreateSubscriptionCommand(RavenCommand):
     def __init__(self, options):
