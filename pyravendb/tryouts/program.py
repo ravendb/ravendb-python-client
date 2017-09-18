@@ -70,6 +70,14 @@ if __name__ == "__main__":
         UsersByName().execute(store)
 
         with store.open_session() as session:
-            query = list(
+            session.store(User(name="Idan", age=29, dog=Dog(name="Faz", brand="UnKnown")))
+            session.save_changes()
+
+            query, stats = list(
                 session.query(object_type=User, with_statistics=True, index_name="UsersByName").where_equals(
-                    "name", "Idan").include("dog"))
+                    "name", "Idan"))
+
+            result, stats = list(
+                session.query(object_type=User, with_statistics=True, index_name="UsersByName").raw_query(
+                    "FROM 'Users' Where name = $key", {"key": "Idan"}))
+            print(result)

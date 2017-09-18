@@ -58,7 +58,7 @@ class FooBar(object):
             self.name = name
             self.foo = foo
 	
-	foo_bar = session.load("FooBars/1", object_type=FooBar,nested_object_types={"foo":Foo})
+	foo_bar = session.load("FooBars/1", object_type=FooBar, nested_object_types={"foo":Foo})
 			
 ```
 To load several documents at once, supply a list of ids to session.load.
