@@ -28,7 +28,8 @@ class SortOptions(Enum):
     none = "None"
     # Sort using term values as Strings. Sort values are str and lower values are at the front.
     str = "String"
-    # Sort using term values as encoded Doubles and Longs. Sort values are float or longs and lower values are at the front.
+    # Sort using term values as encoded Doubles and Longs.
+    # Sort values are float or longs and lower values are at the front.
     numeric = "Numeric"
 
     def __str__(self):
@@ -39,9 +40,9 @@ class FieldIndexing(Enum):
     # Do not index the field value.
     no = "No"
     # Index the tokens produced by running the field's value through an Analyzer
-    analyzed = "Analyzed"
+    search = "Search"
     # Index the field's value without using an Analyzer, so it can be searched.
-    not_analyzed = "NotAnalyzed"
+    exact = "Exact"
     # Index this field using the default internal analyzer: LowerCaseKeywordAnalyzer
     default = "Default"
 
@@ -67,12 +68,12 @@ class FieldTermVector(Enum):
 
 
 class IndexDefinition(object):
-    def __init__(self, name, index_map, configuration=None, **kwargs):
+    def __init__(self, name, maps, configuration=None, **kwargs):
         """
         @param name: The name of the index
         :type str
-        @param index_map: The map of the index
-        :type str or tuple
+        @param maps: The map of the index
+        :type str ,set or list of str
         @param kwargs: Can be use to initialize the other option in the index definition
         :type kwargs
         """
@@ -82,9 +83,18 @@ class IndexDefinition(object):
 
         self.index_id = kwargs.get("index_id", 0)
         self.is_test_index = kwargs.get("is_test_index", False)
+
+        # IndexLockMode
         self.lock_mod = kwargs.get("lock_mod", None)
+
+        # The priority of the index IndexPriority
         self.priority = kwargs.get("priority", None)
-        self.maps = (index_map,) if isinstance(index_map, str) else tuple(set(index_map, ))
+        if isinstance(maps, str):
+            self.maps = (maps,)
+        else:
+            if isinstance(maps, list):
+                maps = set(maps)
+            self.maps = tuple(maps, )
 
         # fields is a  key value dict. the key is the name of the field and the value is IndexFieldOptions
         self.fields = kwargs.get("fields", {})
@@ -135,18 +145,12 @@ class IndexFieldOptions(object):
     def __init__(self, sort_options=None, indexing=None, storage=None, suggestions=None, term_vector=None,
                  analyzer=None):
         """
-        @param sort_options: Sort options to use for a particular field
-        :type SortOptions
-        @param indexing: Options for indexing a field
-        :type FieldIndexing
-        @param storage: Specifies whether a field should be stored
-        :type boolFq
-        @param suggestions: If to produce a suggestions in query
-        :type bool
-        @param term_vector: Specifies whether to include term vectors for a field
-        :type FieldTermVector
-        @param analyzer: To make an entity property indexed using a specific Analyzer,
-        :type str
+        @param SortOptions sort_options: Sort options to use for a particular field
+        @param FieldIndexing indexing: Options for indexing a field
+        @param bool storage: Specifies whether a field should be stored
+        @param bool suggestions: If to produce a suggestions in query
+        @param FieldTermVector term_vector: Specifies whether to include term vectors for a field
+        @param str analyzer: To make an entity property indexed using a specific Analyzer (Need the name)
         """
         self.sort_options = sort_options
         self.indexing = indexing

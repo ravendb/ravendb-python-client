@@ -1,22 +1,7 @@
 from pyravendb.data.indexes import SortOptions
 from datetime import datetime, timedelta
 from pyravendb.tools.utils import Utils
-from enum import Enum
 from inflector import Inflector
-import sys
-
-
-class ReadBehavior(Enum):
-    leader_only = "LeaderOnly"
-    leader_with_failover = "LeaderWithFailover"
-    leader_with_failover_when_request_time_sla_threshold_is_reached = "LeaderWithFailoverWhenRequestTimeSlaThresholdIsReached"
-    round_robin = "RoundRobin"
-    round_robin_failover_when_request_time_sla_threshold_is_reached = "RoundRobinWithFailoverWhenRequestTimeSlaThresholdIsReached"
-    fastest_node = "FastestNode"
-
-    def __str__(self):
-        return self.value
-
 
 inflector = Inflector()
 
@@ -40,12 +25,15 @@ class DocumentConvention(object):
     def json_default(o):
         if o is None:
             return None
+
         if isinstance(o, datetime):
             return Utils.datetime_to_string(o)
         elif isinstance(o, timedelta):
             return Utils.timedelta_to_str(o)
         elif getattr(o, "__dict__", None):
             return o.__dict__
+        elif isinstance(o, int) or isinstance(o, float):
+            return str(o)
         else:
             raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")
 

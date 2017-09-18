@@ -269,26 +269,6 @@ class Utils(object):
         return buffer
 
     @staticmethod
-    def escape_if_needed(name):
-        if name:
-            escape = False
-            first = True
-            for c in name:
-                if first:
-                    if not c.isalpha() and c != '_' and c != '@':
-                        escape = True
-                        break
-                    first = False
-                else:
-                    if (not c.isalpha() and not c.isdigit()) and c != '_' and c != '@' and c != '[' and c != ']':
-                        escape = True
-                        break
-
-            if escape:
-                return "'{0}'".format(name)
-        return name
-
-    @staticmethod
     def pfx_to_pem(pem_path, pfx_path, pfx_password):
         """
         @param pem_path: Where to create the pem file
@@ -309,12 +289,16 @@ class Utils(object):
         return pem_path
 
     @staticmethod
+    def get_cert_file_fingerprint(pem_path):
+        with open(pem_path, 'rb') as pem_file:
+            cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_file.read())
+            return str(cert.digest("sha1"))
+
+    @staticmethod
     def index_of_any(text, any_of):
         """
-        @param text: The text we want to check
-        :type str
-        @param any_of: list of char
-        :type list
+        @param str text: The text we want to check
+        @param list any_of: list of char
         :returns False if text nit
         """
         result = -1

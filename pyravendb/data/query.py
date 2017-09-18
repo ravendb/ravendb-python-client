@@ -35,21 +35,15 @@ class OrderingType(Enum):
 class IndexQueryBase(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, query, query_parameters=None, start=0, page_size=None, wait_for_non_stale_result_as_of_now=False,
+    def __init__(self, query, query_parameters=None, start=0, page_size=None,
                  wait_for_non_stale_results=False, wait_for_non_stale_results_timeout=None, cutoff_etag=None):
         """
-        @param query: Actual query that will be performed.
-        :type str
-        @param query_parameters: Parameters to the query
-        :type dict
-        @param start:  Number of records that should be skipped.
-        :type int
-        @param page_size:  Maximum number of records that will be retrieved.
-        :type int
-        @param wait_for_non_stale_result_as_of_now:  Used to calculate index staleness
-        :type bool
-        @param cutoff_etag: Gets or sets the cutoff etag.
-        :type None or float
+        @param str query: Actual query that will be performed.
+        @param dict query_parameters: Parameters to the query
+        @param int start:  Number of records that should be skipped.
+        @param int page_size:  Maximum number of records that will be retrieved.
+        @param bool wait_for_non_stale_results: True to wait in the server side to non stale result
+        @param None or float cutoff_etag: Gets or sets the cutoff etag.
         """
         self._page_size = sys.maxsize if page_size is None else page_size
         self._page_size_set = False
@@ -60,9 +54,6 @@ class IndexQueryBase(object):
         self.start = start
         self.wait_for_non_stale_results = wait_for_non_stale_results
         self.wait_for_non_stale_results_timeout = wait_for_non_stale_results_timeout
-        if self.wait_for_non_stale_results and not self.wait_for_non_stale_results_timeout:
-            self.wait_for_non_stale_results_timeout = timedelta.max
-        self.wait_for_non_stale_result_as_of_now = wait_for_non_stale_result_as_of_now
         self.cutoff_etag = cutoff_etag
 
     def __str__(self):
@@ -99,12 +90,12 @@ class IndexQuery(IndexQueryBase):
         data = {"Query": self.query, "CutoffEtag": self.cutoff_etag}
         if self._page_size_set and self._page_size >= 0:
             data["PageSize"] = self.page_size
-        if self.wait_for_non_stale_result_as_of_now:
-            data["WaitForNonStaleResultsAsOfNow"] = self.wait_for_non_stale_result_as_of_now
+        if self.wait_for_non_stale_results:
+            data["WaitForNonStaleResults"] = self.wait_for_non_stale_results
         if self.start > 0:
             data["Start"] = self.start
         if self.wait_for_non_stale_results_timeout is not None:
-            data["WaitForNonStaleResultsTimeout"] = str(self.wait_for_non_stale_results_timeout)
+            data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout)
         if self.allow_multiple_index_entries_for_same_document_to_result_transformer:
             data[
                 "AllowMultipleIndexEntriesForSameDocumentToResultTransformer"] = \
@@ -123,8 +114,8 @@ class IndexQuery(IndexQueryBase):
         query_hash = xxhash.xxh64()
         query_hash.update(self.query)
         query_hash.update(bytes(self.wait_for_non_stale_results))
-        query_hash.update(bytes(self.wait_for_non_stale_result_as_of_now))
-        query_hash.update(bytes(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout)))
+        if self.wait_for_non_stale_results_timeout:
+            query_hash.update(bytes(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout)))
         query_hash.update(bytes(self.show_timings))
         if self.cutoff_etag:
             query_hash.update(bytes(self.cutoff_etag))
@@ -152,7 +143,6 @@ class FacetQuery(IndexQueryBase):
         with xxhash.xxh64 as query_hash:
             query_hash.update(self.query)
             query_hash.update(self.wait_for_non_stale_results)
-            query_hash.update(self.wait_for_non_stale_result_as_of_now)
             query_hash.update(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout))
             query_hash.update(self.cutoff_etag)
             query_hash.update(self.start)
@@ -172,8 +162,7 @@ class FacetQuery(IndexQueryBase):
         data["FacetSetupDoc"] = self.facet_setup_doc
         data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
         data["WaitForNonStaleResults"] = self.wait_for_non_stale_results
-        data["WaitForNonStaleResultsAsOfNow"] = self.wait_for_non_stale_result_as_of_now
-        data["WaitForNonStaleResultsTimeout"] = str(self.wait_for_non_stale_results_timeout) \
+        data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout) \
             if self.wait_for_non_stale_results_timeout is not None else None
         return data
 

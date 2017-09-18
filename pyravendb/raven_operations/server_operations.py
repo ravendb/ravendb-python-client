@@ -1,5 +1,5 @@
-from pyravendb.commands.raven_commands import RavenCommand, GetDatabaseTopologyCommand
-from pyravendb.data.certificate import CertificateDefinition
+from pyravendb.commands.raven_commands import RavenCommand, GetDatabaseRecordCommand
+from pyravendb.data.certificate import CertificateDefinition, SecurityClearance
 from pyravendb.custom_exceptions import exceptions
 from requests.exceptions import RequestException
 from pyravendb.tools.utils import Utils
@@ -77,34 +77,31 @@ class CreateDatabaseOperation(ServerOperation):
 
 
 class DeleteDatabaseOperation(ServerOperation):
-    def __init__(self, database_name, hard_delete, from_node=None):
+    def __init__(self, database_name, hard_delete, from_node=None, time_to_wait_for_confirmation=None):
         if database_name is None:
             raise ValueError("Invalid database_name")
 
         super(DeleteDatabaseOperation, self).__init__()
-        self._database_name = database_name
-        self._hard_delete = hard_delete
-        self._from_node = from_node
+        self._parameters = {"DatabaseNames": [database_name], "HardDelete": hard_delete,
+                            "TimeToWaitForConfirmation": time_to_wait_for_confirmation}
+        if from_node:
+            self._parameters["FromNodes"] = [from_node]
 
     def get_command(self, conventions):
-        return self._DeleteDatabaseCommand(self._database_name, self._hard_delete, self._from_node)
+        return self._DeleteDatabaseCommand(self._parameters)
 
     class _DeleteDatabaseCommand(RavenCommand):
-        def __init__(self, database_name, hard_delete, from_node):
-            if database_name is None:
-                raise ValueError("Invalid database_name")
+        def __init__(self, parameters):
+            if parameters is None:
+                raise ValueError("Invalid parameters")
 
-            super(DeleteDatabaseOperation._DeleteDatabaseCommand, self).__init__(method="Delete")
-            self._database_name = database_name
-            self._hard_delete = hard_delete
-            self._from_node = from_node
+            self._parameters = parameters
+
+            super(DeleteDatabaseOperation._DeleteDatabaseCommand, self).__init__(method="DELETE")
 
         def create_request(self, server_node):
-            self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_name)
-            if self._hard_delete:
-                self.url += "&hard-delete=true"
-            if self._from_node:
-                self.url += "&from-node=" + self._from_node
+            self.url = "{0}/admin/databases".format(server_node.url)
+            self.data = self._parameters
 
         def set_response(self, response):
             try:
@@ -149,32 +146,36 @@ class GetDatabaseNamesOperation(ServerOperation):
             return response["Databases"]
 
 
-class GetDatabaseTopologyOperation(ServerOperation):
+class GetDatabaseRecordOperation(ServerOperation):
     def __init__(self, database_name):
-        super(GetDatabaseTopologyOperation, self).__init__()
+        super(GetDatabaseRecordOperation, self).__init__()
         self._database_name = database_name
 
     def get_command(self, conventions):
-        return GetDatabaseTopologyCommand(self._database_name)
+        return GetDatabaseRecordCommand(self._database_name)
 
+
+# --------------------CertificateOperation------------------------------
 
 class GetCertificateOperation(ServerOperation):
-    def __init__(self, name):
-        if name is None:
-            raise ValueError("name is Invalid cannot be None")
+    def __init__(self, start, page_size):
+
         super(GetCertificateOperation, self).__init__()
-        self._name = name
+        self._start = start
+        self._page_size = page_size
 
     def get_command(self, conventions):
-        return self._GetCertificateCommand(self._name)
+        return self._GetCertificateCommand(self._start, self._page_size)
 
     class _GetCertificateCommand(RavenCommand):
-        def __init__(self, name):
+        def __init__(self, start, page_size):
             super(GetCertificateOperation._GetCertificateCommand, self).__init__(method="GET")
-            self._name = name
+            self._start = start
+            self._page_size = page_size
 
         def create_request(self, server_node):
-            self.url = "{0}/admin/certificates?name={1}".format(server_node.url, Utils.quote_key(self._name))
+            self.url = "{0}/admin/certificates?start={1}&pageSize={2}".format(server_node.url, self._start,
+                                                                              self._page_size)
 
         def set_response(self, response):
             if response is None:
@@ -193,17 +194,14 @@ class GetCertificateOperation(ServerOperation):
 
 
 class CreateClientCertificateOperation(ServerOperation):
-    def __init__(self, name, permissions, server_admin=False, password=None):
+    def __init__(self, name, permissions, clearance=SecurityClearance.unauthenticated_clients, password=None):
         """
         Add certificate json to the server and get certificate from server to use
-        @param name: The name of the certificate
-        :type str
-        @param permissions: the permissions to the client
-        :type dict [str:DatabaseAccess]
-        @param server_admin: If we server admin
-        :type bool
-        @param password: The password of the certificate
-        :type str
+        @param str name: The name of the certificate
+        @param Dict[str:DatabaseAccess] permissions: the permissions to the database the key is the name of the database
+        the value is database access (read or admin)
+        @param SecurityClearance clearance: The clearance of the client
+        @param str password: The password of the certificate
         """
         if name is None:
             raise ValueError("name cannot by None")
@@ -213,14 +211,14 @@ class CreateClientCertificateOperation(ServerOperation):
         super(CreateClientCertificateOperation, self).__init__()
         self._name = name
         self._permissions = permissions
-        self._server_admin = server_admin
+        self._clearance = clearance
         self._password = password
 
     def get_command(self, conventions):
-        return self._CreateClientCertificateCommand(self._name, self._permissions, self._server_admin, self._password)
+        return self._CreateClientCertificateCommand(self._name, self._permissions, self._clearance, self._password)
 
     class _CreateClientCertificateCommand(RavenCommand):
-        def __init__(self, name, permissions, server_admin, password):
+        def __init__(self, name, permissions, clearance, password):
             if name is None:
                 raise ValueError("name cannot by None")
             if permissions is None:
@@ -231,18 +229,18 @@ class CreateClientCertificateOperation(ServerOperation):
                                                                                                    use_stream=True)
             self._name = name
             self._permissions = permissions
-            self._server_admin = server_admin
+            self._clearance = clearance
             self._password = password
 
         def create_request(self, server_node):
             self.url = server_node.url + "/admin/certificates"
-            self.data = {"Name": self._name, "ServerAdmin": self._server_admin}
+            self.data = {"Name": self._name, "SecurityClearance": str(self._clearance)}
             if self._password:
                 self.data["Password"] = self._password
 
-            permissions = []
+            permissions = {}
             for key, value in self._permissions.items():
-                permissions.append({"Database": key, "Access": str(self.value)})
+                permissions.update({"Database": key, "Access": str(self.value)})
 
             self.data["Permissions"] = permissions
 
@@ -258,14 +256,12 @@ class CreateClientCertificateOperation(ServerOperation):
 
 
 class PutClientCertificateOperation(ServerOperation):
-    def __init__(self, certificate, permissions, server_admin=False):
+    def __init__(self, name, certificate, permissions, clearance=SecurityClearance.unauthenticated_clients):
         """
-        @param certificate: X509 certificate file (OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem))
-        :type X509
-        @param permissions: the permissions to the client
-        :type dict [str:DatabaseAccess]
-        @param server_admin: If we server admin
-        :type bool
+        @param str name: Certificate name
+        @param x509 certificate: X509 certificate file (OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem))
+        @param Dict[str:DatabaseAccess] permissions: the permissions to the client
+        @param SecurityClearance clearance: The clearance of the client
         """
         if certificate is None:
             raise ValueError("certificate cannot be None")
@@ -273,15 +269,16 @@ class PutClientCertificateOperation(ServerOperation):
             raise ValueError("permissions cannot be None")
 
         super(PutClientCertificateOperation, self).__init__()
+        self._name = name
         self._certificate = certificate
         self._permissions = permissions
-        self._server_admin = server_admin
+        self._clearance = clearance
 
     def get_command(self, conventions):
-        return self._PutClientCertificateCommand(self._certificate, self._permissions, self._server_admin)
+        return self._PutClientCertificateCommand(self._name, self._certificate, self._permissions, self._clearance)
 
     class _PutClientCertificateCommand(RavenCommand):
-        def __init__(self, certificate, permissions, server_admin=False):
+        def __init__(self, name, certificate, permissions, clearance=SecurityClearance.unauthenticated_clients):
             if certificate is None:
                 raise ValueError("certificate cannot be None")
             if permissions is None:
@@ -289,14 +286,16 @@ class PutClientCertificateOperation(ServerOperation):
 
             super(PutClientCertificateOperation._PutClientCertificateCommand, self).__init__(method="PUT",
                                                                                              use_stream=True)
+            self._name = name
             self._certificate = certificate
             self._permissions = permissions
-            self._server_admin = server_admin
+            self._clearance = clearance
 
         def create_request(self, server_node):
             self.url = server_node.url + "/admin/certificates"
 
-            self.data = {"Certificate": self._certificate, "ServerAdmin": self._server_admin}
+            self.data = {"Name": self._name, "Certificate": self._certificate,
+                         "SecurityClearance": str(self._clearance)}
             permissions = []
             for key, value in self._permissions.items():
                 permissions.append({"Database": key, "Access": str(self.value)})
@@ -307,64 +306,26 @@ class PutClientCertificateOperation(ServerOperation):
             pass
 
 
-class PutCertificateOperation(ServerOperation):
-    def __init__(self, name, certificate):
-        """
-        @param name: The name of the certificate
-        :type str
-        @param certificate: The certificate to add
-        :type CertificateDefinition
-        """
-        if name is None:
-            raise ValueError("certificate cannot be None")
-        if certificate is None:
-            raise ValueError("permissions cannot be None")
-
-        super(PutCertificateOperation, self).__init__()
-        self._name = name
-        self._certificate = certificate
-
-    def get_command(self, conventions):
-        return self._PutCertificateCommand(self._name, self._certificate)
-
-    class _PutCertificateCommand(RavenCommand):
-        def __init__(self, name, certificate):
-            if name is None:
-                raise ValueError("certificate cannot be None")
-            if certificate is None:
-                raise ValueError("permissions cannot be None")
-
-            super(PutCertificateOperation._PutCertificateCommand, self).__init__(method="PUT")
-            self._name = name
-            self._certificate = certificate
-
-        def create_request(self, server_node):
-            self.url = "{0}/admin/certificates?name={1}".format(server_node.url, Utils.quote_key(self._name))
-            self.data = self._certificate.to_json()
-
-        def set_response(self, response):
-            pass
-
-
 class DeleteCertificateOperation(ServerOperation):
-    def __init__(self, name):
-        if name is None:
+    def __init__(self, thumbprint):
+        if thumbprint is None:
             raise ValueError("certificate cannot be None")
         super(DeleteCertificateOperation, self).__init__()
-        self._name = name
+        self._thumbprint = thumbprint
 
     def get_command(self, conventions):
-        return self._DeleteCertificateCommand(self._name)
+        return self._DeleteCertificateCommand(self._thumbprint)
 
     class _DeleteCertificateCommand(RavenCommand):
-        def __init__(self, name):
-            if name is None:
+        def __init__(self, thumbprint):
+            if thumbprint is None:
                 raise ValueError("certificate cannot be None")
             super(DeleteCertificateOperation._DeleteCertificateCommand, self).__init__(method="DELETE")
-            self._name = name
+            self._thumbprint = thumbprint
 
         def create_request(self, server_node):
-            self.url = "{0}/admin/certificates?name={1}".format(server_node.url, Utils.quote_key(self._name))
+            self.url = "{0}/admin/certificates?thumbprint={1}".format(server_node.url,
+                                                                      Utils.quote_key(self._thumbprint))
 
         def set_response(self, response):
             pass

@@ -43,27 +43,48 @@ class DeleteIndexOperation(AdminOperation):
             pass
 
 
-class DeleteTransformerOperation(AdminOperation):
-    def __init__(self, transformer_name):
-        super(DeleteIndexOperation, self).__init__()
-        self._transformer_name = transformer_name
+class GetIndexOperation(AdminOperation):
+    def __init__(self, index_name):
+        """
+        @param str index_name: The name of the index
+        @returns The IndexDefinition of the index
+        :rtype IndexDefinition
+        """
+        super(GetIndexOperation, self).__init__()
+        self._index_name = index_name
 
     def get_command(self, conventions):
-        return self._DeleteTransformerCommand(self._transformer_name)
+        return self._GetIndexCommand(self._index_name)
 
-    class _DeleteTransformerCommand(RavenCommand):
-        def __init__(self, transformer_name):
-            if not transformer_name:
-                raise ValueError("Invalid transformer_name")
-            super(DeleteTransformerOperation._DeleteTransformerCommand, self).__init__(method="DELETE")
-            self._transformer_name = transformer_name
+    class _GetIndexCommand(RavenCommand):
+        def __init__(self, index_name):
+            """
+           @param str index_name: Name of the index you like to get or delete
+           """
+            super(GetIndexOperation._GetIndexCommand, self).__init__(method="GET", is_read_request=True)
+            if index_name is None:
+                raise AttributeError("index_name")
+            self._index_name = index_name
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/transformers?name={2}".format(server_node.url, server_node.database,
-                                                                        Utils.quote_key(self._transformer_name))
+            self.url = "{0}/databases/{1}/indexes?{2}".format(server_node.url, server_node.database,
+                                                              "name={0}".format(
+                                                                  Utils.quote_key(self._index_name, True)))
 
         def set_response(self, response):
-            pass
+            if response is None:
+                return None
+            data = {}
+            try:
+                response = response.json()["Results"]
+                if len(response) > 1:
+                    raise ValueError("response is Invalid")
+                for key, value in response[0].items():
+                    data[Utils.convert_to_snake_case(key)] = value
+                return IndexDefinition(**data)
+
+            except ValueError:
+                raise response.raise_for_status()
 
 
 class GetIndexNamesOperation(AdminOperation):

@@ -4,15 +4,19 @@ from pyravendb.tests.test_base import TestBase
 
 
 class TestGet(TestBase):
-    @classmethod
-    def setUpClass(cls):
-        super(TestGet, cls).setUpClass()
-        put_command = PutDocumentCommand("products/101", {"Name": "test","@metadata":{}})
+    def setUp(self):
+        super(TestGet, self).setUp()
+        put_command = PutDocumentCommand("products/101", {"Name": "test", "@metadata": {}})
         put_command2 = PutDocumentCommand("products/10", {"Name": "test", "@metadata": {}})
-        cls.requests_executor.execute(put_command)
-        cls.requests_executor.execute(put_command2)
-        cls.response = cls.requests_executor.execute(GetDocumentCommand("products/101"))
-        cls.other_response = cls.requests_executor.execute(GetDocumentCommand("products/10"))
+        self.requests_executor = self.store.get_request_executor()
+        self.requests_executor.execute(put_command)
+        self.requests_executor.execute(put_command2)
+        self.response = self.requests_executor.execute(GetDocumentCommand("products/101"))
+        self.other_response = self.requests_executor.execute(GetDocumentCommand("products/10"))
+
+    def tearDown(self):
+        super(TestGet, self).tearDown()
+        self.delete_all_topology_files()
 
     def test_equal(self):
         self.assertEqual(self.response["Results"][0]["@metadata"]["@id"], "products/101")

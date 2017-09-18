@@ -5,26 +5,31 @@ from pyravendb.tests.test_base import TestBase
 
 
 class TestDelete(TestBase):
-    @classmethod
-    def setUpClass(cls):
-        super(TestDelete, cls).setUpClass()
-        cls.response = cls.requests_executor.execute(
+    def setUp(self):
+        super(TestDelete, self).setUp()
+        self.requests_executor = self.store.get_request_executor()
+        self.response = self.requests_executor.execute(
             PutDocumentCommand("products/101", {"Name": "test", "@metadata": {}}))
-        cls.requests_executor.execute(PutDocumentCommand("products/10", {"Name": "test", "@metadata": {}}))
-        cls.other_response = cls.requests_executor.execute(
+
+        self.requests_executor.execute(PutDocumentCommand("products/10", {"Name": "test", "@metadata": {}}))
+        self.other_response = self.requests_executor.execute(
             PutDocumentCommand("products/102", {"Name": "test", "@metadata": {}}))
 
-    def test_delete_success_no_etag(self):
+    def tearDown(self):
+        super(TestDelete, self).tearDown()
+        self.delete_all_topology_files()
+
+    def test_delete_success_no_change_vector(self):
         delete_command = DeleteDocumentCommand("products/10")
         self.assertIsNone(self.requests_executor.execute(delete_command))
 
-    def test_delete_success_with_etag(self):
-        delete_command = DeleteDocumentCommand("products/102", self.other_response["ETag"])
+    def test_delete_success_with_change_vector(self):
+        delete_command = DeleteDocumentCommand("products/102", self.other_response["ChangeVector"])
         self.assertIsNone(self.requests_executor.execute(delete_command))
 
     def test_delete_fail(self):
-        with self.assertRaises(exceptions.ErrorResponseException):
-            self.requests_executor.execute(DeleteDocumentCommand("products/101", self.response["ETag"] + 10))
+        with self.assertRaises(Exception):
+            self.requests_executor.execute(DeleteDocumentCommand("products/101", self.response["ChangeVector"] + '10'))
 
     if __name__ == "__main__":
         unittest.main()

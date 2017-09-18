@@ -2,64 +2,77 @@ import unittest
 from pyravendb.data.document_convention import DocumentConvention
 from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexQuery, IndexFieldOptions, SortOptions
-from pyravendb.data.patches import PatchRequest
+from pyravendb.data.indexes import IndexFieldOptions, SortOptions, IndexDefinition
+from pyravendb.data.query import IndexQuery
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.operation import OperationExecutor, QueryOperationOptions
+from pyravendb.raven_operations.admin_operations import PutIndexesOperation
+from pyravendb.raven_operations.operations import QueryOperationOptions, PatchByQueryOperation, DeleteByQueryOperation
 
 
 class TestByIndexActions(TestBase):
-    @classmethod
-    def setUpClass(cls):
-        super(TestByIndexActions, cls).setUpClass()
+    def setUp(self):
+        super(TestByIndexActions, self).setUp()
         index_map = ("from doc in docs.Testings "
                      "select new{"
                      "Name = doc.Name,"
                      "DocNumber = doc.DocNumber} ")
 
-        cls.index_sort = IndexDefinition(name="Testing_Sort", index_map=index_map,
-                                         fields={"DocNumber": IndexFieldOptions(sort_options=SortOptions.numeric)})
-        cls.patch = PatchRequest("this.Name = 'Patched';")
-        cls.requests_executor.execute(PutIndexesCommand(cls.index_sort))
-        cls.operations = OperationExecutor(cls.requests_executor)
+        self.index_sort = IndexDefinition(name="Testing_Sort", maps=index_map,
+                                          fields={"DocNumber": IndexFieldOptions(sort_options=SortOptions.numeric)})
+        self.patch = "this.Name = 'Patched';"
+        self.store.admin.send(PutIndexesOperation(self.index_sort))
+        self.requests_executor = self.store.get_request_executor()
         for i in range(100):
             put_command = PutDocumentCommand("testing/" + str(i),
                                              {"Name": "test" + str(i), "DocNumber": i,
                                               "@metadata": {"@collection": "Testings"}})
-            cls.requests_executor.execute(put_command)
+            self.requests_executor.execute(put_command)
+
+    def tearDown(self):
+        super(TestByIndexActions, self).tearDown()
+        self.delete_all_topology_files()
 
     def test_update_by_index_success(self):
-        query_command = QueryCommand("Testing_Sort", IndexQuery(query="Name:*", wait_for_non_stale_results=True),
-                                     conventions=DocumentConvention())
+        query_command = QueryCommand(
+            index_query=IndexQuery(query="From INDEX 'Testing_Sort'", wait_for_non_stale_results=True),
+            conventions=DocumentConvention())
         self.requests_executor.execute(query_command)
-        patch_by_index_command = PatchByIndexCommand("Testing_Sort", IndexQuery("Name:*"), self.patch,
-                                                     options=QueryOperationOptions(allow_stale=False))
-        response = self.requests_executor.execute(patch_by_index_command)
-        result = self.operations.wait_for_operation_complete(response["OperationId"])
+
+        patch_command = PatchByQueryOperation("From INDEX 'Testing_Sort' Update {{{0}}}".format(
+            self.patch), options=QueryOperationOptions(allow_stale=False)).get_command(self.store,
+                                                                                       self.store.conventions)
+        result = self.requests_executor.execute(patch_command)
+        result = self.store.operations.wait_for_operation_complete(result['operation_id'])
         self.assertIsNotNone(result)
         self.assertTrue(result["Result"]["Total"] >= 50)
 
     def test_update_by_index_fail(self):
-        patch_by_index_command = PatchByIndexCommand("", IndexQuery("Name:test"), self.patch)
-        response = self.requests_executor.execute(patch_by_index_command)
+        patch_command = PatchByQueryOperation(
+            IndexQuery("From INDEX 'TeSort' Update {{{0}}}".format(
+                self.patch)), options=QueryOperationOptions(allow_stale=False)).get_command(self.store,
+                                                                                            self.store.conventions)
+        response = self.requests_executor.execute(patch_command)
         with self.assertRaises(exceptions.InvalidOperationException):
-            self.requests_executor.execute(self.operations.wait_for_operation_complete(response["OperationId"]))
+            self.store.operations.wait_for_operation_complete(response['operation_id'])
 
     def test_delete_by_index_fail(self):
-        delete_by_index_command = DeleteByIndexCommand("region2", IndexQuery("Name:Western"))
+        delete_by_index_command = DeleteByQueryOperation("From Index 'region_2' WHERE Name = 'Western'").get_command(
+            self.store, self.store.conventions)
         response = self.requests_executor.execute(delete_by_index_command)
         with self.assertRaises(exceptions.InvalidOperationException):
-            self.requests_executor.execute(self.operations.wait_for_operation_complete(response["OperationId"]))
+            self.store.operations.wait_for_operation_complete(response["operation_id"])
 
     def test_delete_by_index_success(self):
-        query_command = QueryCommand("Testing_Sort",
-                                     IndexQuery(query="DocNumber_D_Range:[0 TO 49]", wait_for_non_stale_results=True),
-                                     conventions=DocumentConvention())
+        query_command = QueryCommand(self.store.conventions,
+                                     IndexQuery(query="FROM INDEX 'Testing_Sort' WHERE DocNumber BETWEEN '0' AND '49'",
+                                                wait_for_non_stale_results=True))
         self.requests_executor.execute(query_command)
-        delete_by_index_command = DeleteByIndexCommand("Testing_Sort", IndexQuery("DocNumber_D_Range:[0 TO 49]"),
-                                                       options=QueryOperationOptions(allow_stale=False))
+        delete_by_index_command = DeleteByQueryOperation(
+            "FROM INDEX 'Testing_Sort' WHERE DocNumber BETWEEN '0' AND '49'",
+            options=QueryOperationOptions(allow_stale=False)).get_command(
+            self.store, self.store.conventions)
         response = self.requests_executor.execute(delete_by_index_command)
-        result = self.operations.wait_for_operation_complete(response["OperationId"])
+        result = self.store.operations.wait_for_operation_complete(response["operation_id"])
         assert result["Status"] == "Completed"
 
 

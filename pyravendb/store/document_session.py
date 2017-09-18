@@ -13,16 +13,13 @@ class _SaveChangesData(object):
 
 
 class DocumentSession(object):
-    """
-      Implements Unit of Work for accessing the RavenDB server
-
-      @param database: the name of the database we open a session to
-      :type str
-      @param document_store: the store that we work on
-      :type DocumentStore
-      """
-
     def __init__(self, database, document_store, requests_executor, session_id, **kwargs):
+        """
+        Implements Unit of Work for accessing the RavenDB server
+
+        @param str database: the name of the database we open a session to
+        @param DocumentStore document_store: the store that we work on
+        """
         self.session_id = session_id
         self.database = database
         self._document_store = document_store
@@ -84,9 +81,9 @@ class DocumentSession(object):
 
     def save_includes(self, includes=None):
         if includes:
-            for include in includes:
-                if include["@metadata"]["@id"] not in self._documents_by_id:
-                    self._included_documents_by_id[include["@metadata"]["@id"]] = include
+            for key, value in includes.items():
+                if key not in self._documents_by_id:
+                    self._included_documents_by_id[key] = value
 
     def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
         if key is not None:
