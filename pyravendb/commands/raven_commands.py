@@ -407,6 +407,9 @@ class PutAttachmentCommand(RavenCommand):
 
 class GetFacetsCommand(RavenCommand):
     def __init__(self, query):
+        """
+        @param FacetQuery query: The query we wish to get
+        """
         if not query:
             raise ValueError("Invalid query")
         super(GetFacetsCommand, self).__init__(method="POST", is_read_request=True)
@@ -418,8 +421,9 @@ class GetFacetsCommand(RavenCommand):
         if self._query.facet_setup_doc and len(self._query.facets) > 0:
             raise exceptions.InvalidOperationException("You cannot specify both 'facet_setup_doc' and 'facets'.")
 
-        self.url = "{0}/databases/{1}/queries?op-facets&query-hash={2}".format(server_node.url, server_node.database,
+        self.url = "{0}/databases/{1}/queries?op=facets&query-hash={2}".format(server_node.url, server_node.database,
                                                                                self._query.get_query_hash())
+        self.data = self._query.to_json()
 
     def set_response(self, response):
         if response.status_code == 200:

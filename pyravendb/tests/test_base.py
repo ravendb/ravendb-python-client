@@ -64,6 +64,4 @@ class TestBase(unittest.TestCase):
         self.store.initialize()
 
     def tearDown(self):
-        database_names = self.store.admin.server.send(GetDatabaseNamesOperation(0, 5))
-        for name in database_names:
-            self.store.admin.server.send(DeleteDatabaseOperation(database_name=name, hard_delete=True))
+        self.store.admin.server.send(DeleteDatabaseOperation(database_name="NorthWindTest", hard_delete=True))

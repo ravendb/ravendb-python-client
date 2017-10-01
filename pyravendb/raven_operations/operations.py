@@ -307,6 +307,9 @@ class PutAttachmentOperation(Operation):
 
 class GetFacetsOperation(Operation):
     def __init__(self, query):
+        """
+        @param FacetQuery query: The query we wish to get
+        """
         if query is None:
             raise ValueError("Invalid query")
 

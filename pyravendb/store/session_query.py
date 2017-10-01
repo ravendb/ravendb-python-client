@@ -1,6 +1,7 @@
 from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType
+from pyravendb.commands.raven_commands import GetFacetsCommand
+from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType, FacetQuery
 from pyravendb.tools.utils import Utils
 from datetime import timedelta
 import time
@@ -8,7 +9,7 @@ import re
 
 
 class _Token:
-    def __init__(self, field_name=None, value=None, token=None, write=None, **kwargs):
+    def __init__(self, field_name="", value=None, token=None, write=None, **kwargs):
         self.__dict__.update({"field_name": field_name, "value": value, "token": token, "write": write, **kwargs})
 
 
@@ -30,7 +31,7 @@ class Query(object):
         self.session = session
 
         self.negate = None
-        self.fields_to_fetch_token = None
+        self.fields_to_fetch = None
         self._select_tokens = None
         self._from_token = None
         self._group_by_tokens = None
@@ -46,6 +47,7 @@ class Query(object):
         self.page_size = None
         self.last_equality = None
         self.query_parameters = None
+        self.is_distinct = None
 
     @property
     def not_(self):
@@ -76,7 +78,7 @@ class Query(object):
         self.metadata_only = metadata_only
         self.query_parameters = {}
         self.negate = False
-        self.fields_to_fetch_token = {}
+        self.fields_to_fetch = None
         self._select_tokens = []  # List[_Token]
         self._from_token = None
         self._group_by_tokens = []  # List[_Token]
@@ -93,6 +95,7 @@ class Query(object):
         self.fetch = None
         self._query = None
         self.last_equality = None
+        self.is_distinct = False
 
         return self
 
@@ -191,7 +194,7 @@ class Query(object):
         select_token_length = len(self._select_tokens)
         if select_token_length > 0:
             index = 0
-            query_builder.append("SELECT ")
+            query_builder.append(" SELECT ")
             if select_token_length == 1 and self._select_tokens[0].token == "distinct":
                 query_builder.append("DISTINCT *")
                 return
@@ -199,6 +202,7 @@ class Query(object):
             for token in self._select_tokens:
                 if index > 0 and self._select_tokens[index - 1].token != "distinct":
                     query_builder.append(",")
+
                 Query._add_space_if_needed(query_builder)
                 query_builder.append(token.write)
                 index += 1
@@ -261,6 +265,15 @@ class Query(object):
             write = ", $" + token.value + ")"
         elif token.token == "exists":
             write = ")"
+        elif token.token == "select":
+            write_builder = []
+            for value in token.value:
+                if len(write_builder) > 0:
+                    write_builder.append(", ")
+                    if value.upper() in Query.rql_keyword:
+                        value = "'{0}'".format(value)
+                write_builder.append(value)
+            write = "".join(write_builder)
 
         if write is None:
             raise AttributeError("token.token don't match any of the cases for rql builder")
@@ -658,6 +671,38 @@ class Query(object):
 
         return self
 
+    def distinct(self):
+        if self.is_distinct:
+            raise InvalidOperationException("This is already a distinct query.")
+        self.is_distinct = True
+        self._select_tokens.insert(0, _Token(token="distinct"))
+        return self
+
+    def select(self, *args):
+        """
+        @param str args: The fields to fetch
+        """
+
+        if len(args) > 0:
+            self.fields_to_fetch = args
+            if len(self._select_tokens) == 0:
+                token = _Token(token="select", value=args)
+                token.write = self._get_rql_write_case(token)
+                self._select_tokens.append(token)
+            else:
+                replaced = False
+                for token in self._select_tokens:
+                    if token.token == "select":
+                        token.value = args
+                        token.write = self._get_rql_write_case(token)
+                        replaced = True
+                        break
+                if not replaced:
+                    token = _Token(token="select", value=args)
+                    token.write = self._get_rql_write_case(token)
+                    self._select_tokens.append(token)
+        return self
+
     def or_else(self):
         if len(self.query_builder) > 0:
             self.query_builder += " OR"
@@ -701,6 +746,25 @@ class Query(object):
         """
         return self.last_equality
 
+    def to_facets(self, facets, start=0, page_size=None):
+        """
+        Query the facets results for this query using the specified list of facets with the given start and pageSize
+
+        @param List[Facet] facets: List of facets
+        @param int start:  Start index for paging
+        @param page_size: Paging PageSize. If set, overrides Facet.max_result
+        """
+
+        if len(facets) == 0:
+            raise ValueError("Facets must contain at least one entry", "facets")
+        str_query = self.__str__()
+        facet_query = FacetQuery(str_query, None, facets, start, page_size, query_parameters=self.query_parameters,
+                                 wait_for_non_stale_results=self.wait_for_non_stale_results,
+                                 wait_for_non_stale_results_timeout=self.timeout, cutoff_etag=self.cutoff_etag)
+
+        command = GetFacetsCommand(query=facet_query)
+        return self.session.requests_executor.execute(command)
+
     def _execute_query(self):
         conventions = self.session.conventions
         end_time = time.time() + self.timeout.seconds
@@ -726,13 +790,13 @@ class Query(object):
 
         results = []
         response_results = response.pop("Results")
-        response_includes = response.pop("Includes")
+        response_includes = response.pop("Includes", None)
         self.session.save_includes(response_includes)
         for result in response_results:
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
                                                                           self.nested_object_types,
                                                                           fetch=False if not self.fetch else True)
-            if self.object_type != dict:
+            if self.object_type != dict and not self.fields_to_fetch:
                 self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
                                          original_metadata=original_metadata,
                                          metadata=metadata, document=result)

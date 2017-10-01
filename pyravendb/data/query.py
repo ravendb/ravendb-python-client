@@ -140,17 +140,25 @@ class FacetQuery(IndexQueryBase):
         self.facet_setup_doc = facet_setup_doc
 
     def get_query_hash(self):
-        with xxhash.xxh64 as query_hash:
-            query_hash.update(self.query)
-            query_hash.update(self.wait_for_non_stale_results)
-            query_hash.update(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout))
-            query_hash.update(self.cutoff_etag)
-            query_hash.update(self.start)
-            query_hash.update(self.page_size)
-            query_hash.update(self.query_parameters)
-            query_hash.update(self.facet_setup_doc)
-            query_hash.update(self.facets)
-            return query_hash.intdigest()
+        query_hash = xxhash.xxh64()
+        query_hash.update(self.query)
+        query_hash.update(bytes(self.wait_for_non_stale_results))
+        if self.wait_for_non_stale_results_timeout:
+            query_hash.update(bytes(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout)))
+        if self.cutoff_etag:
+            query_hash.update(bytes(self.cutoff_etag))
+        query_hash.update(bytes(self.start))
+        query_hash.update(self.page_size.to_bytes(8, byteorder='big'))
+        if self.query_parameters:
+            str_query_parameters = json.dumps(self.query_parameters).encode('utf-8')
+            query_hash.update(str_query_parameters)
+        if self.facet_setup_doc:
+            query_hash.update(bytes(self.facet_setup_doc))
+        if self.facets:
+            json_facets = [facet.to_json() for facet in self.facets]
+            str_facets = json.dumps(json_facets).encode('utf-8')
+            query_hash.update(str_facets)
+        return query_hash.intdigest()
 
     def to_json(self):
         data = {"Query": self.query, "CutoffEtag": self.cutoff_etag}
@@ -158,7 +166,7 @@ class FacetQuery(IndexQueryBase):
             data["PageSize"] = self.page_size
         if self.start > 0:
             data["Start"] = self.start
-        data["Facets"] = self.facets
+        data["Facets"] = [facet.to_json() for facet in self.facets]
         data["FacetSetupDoc"] = self.facet_setup_doc
         data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
         data["WaitForNonStaleResults"] = self.wait_for_non_stale_results
@@ -168,34 +176,37 @@ class FacetQuery(IndexQueryBase):
 
 
 class FacetMode(Enum):
-    default = 0
-    ranges = 1
+    default = "Default"
+    ranges = "Ranges"
 
     def __str__(self):
-        return self.name
+        return self.value
 
 
 class FacetAggregation(Enum):
-    none = 0,
-    count = 1,
-    max = 2,
-    min = 4,
-    average = 8,
-    sum = 16
+    none = "None"
+    count = "Count"
+    max = "Max"
+    min = "Min"
+    average = "Average"
+    sum = "Sum"
+
+    def __str__(self):
+        return self.value
 
 
 class FacetTermSortMode(Enum):
-    value_asc = 0
-    value_desc = 1
-    hits_asc = 2
-    hits_desc = 3
+    value_asc = "ValueAsc"
+    value_desc = "ValueDesc"
+    hits_asc = "HitsAsc"
+    hits_desc = "HitsDesc"
 
     def __str__(self):
-        return self.name
+        return self.value
 
 
 class Facet(object):
-    def __init__(self, name=None, display_name=None, ranges=None, mode=FacetMode.ranges,
+    def __init__(self, name=None, display_name=None, ranges=None, mode=FacetMode.default,
                  aggregation=FacetAggregation.none, aggregation_field=None, aggregation_type=None, max_result=None,
                  term_sort_mode=FacetTermSortMode.value_asc, include_remaining_terms=False):
         """
@@ -203,8 +214,8 @@ class Facet(object):
         :type str
         @param display_name: Display name of facet. Will return {name} if None.
         :type str
-        @param ranges: List of facet ranges
-        :type list of str
+        @param list ranges: List of facet ranges
+        ex. [10 TO NULL] is > 10, [NULL TO 10} is <=10, [10 TO 30] is 10 < x > 30
         @param mode: Mode of a facet (Default, ranges).
         :type FacetMode
         @param aggregation: Flags indicating type of facet aggregation
@@ -232,8 +243,9 @@ class Facet(object):
         self.include_remaining_terms = include_remaining_terms
 
     def to_json(self):
-        data = {"Mode": self.mode, "Aggregation": self.aggregation, "AggregationField": self.aggregation_field,
-                "AggregationType": self.aggregation_type, "Name": self.name, "TermSortMode": self.term_sort_mode,
+        data = {"Mode": str(self.mode), "Aggregation": str(self.aggregation),
+                "AggregationField": self.aggregation_field,
+                "AggregationType": self.aggregation_type, "Name": self.name, "TermSortMode": str(self.term_sort_mode),
                 "IncludeRemainingTerms": self.include_remaining_terms}
 
         if self.max_result is not None:
@@ -242,7 +254,7 @@ class Facet(object):
         if self.display_name is not None and self.display_name != self.name:
             data["DisplayName"] = self.display_name
 
-        if len(self.rangers) > 0:
+        if len(self.ranges) > 0:
             data["Ranges"] = self.ranges
 
         return data

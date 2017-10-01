@@ -32,12 +32,19 @@ class TestQuery(TestBase):
                      "select new {"
                      "name = doc.name,"
                      "key = doc.key,"
-                     "doc_id = doc.key+\"_\"+doc.name}")
+                     "doc_id = doc.key_doc.name}")
         index_definition = IndexDefinition(name="Testing_Sort", maps=index_map,
                                            fields={"key": IndexFieldOptions(sort_options=SortOptions.numeric),
                                                    "doc_id": IndexFieldOptions(storage=True)})
 
-        self.store.admin.send(PutIndexesOperation(index_definition))
+        maps = ("from order in docs.Orders "
+                "select new {"
+                "key = order.key,"
+                "order_and_id = order.name+\"_\"+order.product_id}")
+        second_index_definition = IndexDefinition(name="SelectTestingIndex", maps=maps,
+                                                  fields={"order_and_id": IndexFieldOptions(storage=True)})
+
+        self.store.admin.send(PutIndexesOperation(index_definition, second_index_definition))
 
         with self.store.open_session() as session:
             session.store(Product("test101", 2, "a"), "products/101")
@@ -180,5 +187,15 @@ class TestQuery(TestBase):
         except exceptions.InvalidOperationException as e:
             self.assertTrue("raw_query was called" in str(e))
 
-    if __name__ == "__main__":
-        unittest.main()
+    def test_query_with_select(self):
+        with self.store.open_session() as session:
+            query_results = list(
+                session.query(object_type=dict, wait_for_non_stale_results=True, index_name="SelectTestingIndex").where(
+                    key=92).select("order_and_id"))
+            for result in query_results:
+                self.assertEqual(len(result), 1)
+                self.assertTrue("order_and_id" in result)
+
+
+if __name__ == "__main__":
+    unittest.main()
