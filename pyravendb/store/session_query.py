@@ -188,7 +188,7 @@ class Query(object):
                 if token.ordering != OrderingType.str:
                     query_builder.append(token.ordering)
                 if token.descending:
-                    query_builder.append("DESC")
+                    query_builder.append(" DESC")
 
     def build_select(self, query_builder):
         select_token_length = len(self._select_tokens)

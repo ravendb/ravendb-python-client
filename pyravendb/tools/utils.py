@@ -103,7 +103,12 @@ class Utils(object):
             # Checking the class for initialize
             entity_initialize_dict = Utils.make_initialize_dict(document, entity.__class__.__init__)
 
-            entity = entity.__class__(**entity_initialize_dict)
+            temp_entity = entity.__class__(**entity_initialize_dict)
+            for key, value in entity.__dict__.items():
+                if key not in entity_initialize_dict:
+                    if hasattr(temp_entity, key):
+                        setattr(temp_entity, key, value)
+            entity = temp_entity
 
         if nested_object_types:
             for key in nested_object_types:
