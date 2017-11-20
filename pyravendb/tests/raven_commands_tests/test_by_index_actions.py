@@ -51,16 +51,14 @@ class TestByIndexActions(TestBase):
             IndexQuery("From INDEX 'TeSort' Update {{{0}}}".format(
                 self.patch)), options=QueryOperationOptions(allow_stale=False)).get_command(self.store,
                                                                                             self.store.conventions)
-        response = self.requests_executor.execute(patch_command)
-        with self.assertRaises(exceptions.InvalidOperationException):
-            self.store.operations.wait_for_operation_complete(response['operation_id'])
+        with self.assertRaises(exceptions.ErrorResponseException):
+            self.requests_executor.execute(patch_command)
 
     def test_delete_by_index_fail(self):
         delete_by_index_command = DeleteByQueryOperation("From Index 'region_2' WHERE Name = 'Western'").get_command(
             self.store, self.store.conventions)
-        response = self.requests_executor.execute(delete_by_index_command)
-        with self.assertRaises(exceptions.InvalidOperationException):
-            self.store.operations.wait_for_operation_complete(response["operation_id"])
+        with self.assertRaises(exceptions.ErrorResponseException):
+            self.requests_executor.execute(delete_by_index_command)
 
     def test_delete_by_index_success(self):
         query_command = QueryCommand(self.store.conventions,

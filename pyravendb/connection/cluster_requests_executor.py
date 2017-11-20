@@ -1,6 +1,7 @@
 from pyravendb.commands.raven_commands import GetClusterTopologyCommand, GetTcpInfoCommand
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.connection.requests_helpers import *
+from pyravendb.custom_exceptions import exceptions
 import hashlib
 import json
 import os
@@ -28,7 +29,7 @@ class ClusterRequestExecutor(RequestsExecutor):
         return ClusterRequestExecutor(certificate, convention, node_selector=NodeSelector(topology), topology_etag=-2,
                                       disable_topology_updates=True)
 
-    def update_topology(self, node):
+    def update_topology(self, node, force_update=False):
         if self._closed:
             return
 
@@ -57,7 +58,7 @@ class ClusterRequestExecutor(RequestsExecutor):
                 if self._node_selector is None:
                     self._node_selector = NodeSelector(topology)
 
-                elif self._node_selector.on_update_topology(topology):
+                elif self._node_selector.on_update_topology(topology, force_update):
                     self.cancel_all_failed_nodes_timers()
 
                 self.topology_etag = self._node_selector.topology.etag
@@ -65,6 +66,9 @@ class ClusterRequestExecutor(RequestsExecutor):
                 self.update_cluster_topology_lock.release()
         else:
             return False
+
+    def raise_exceptions(self, error_list):
+        raise exceptions.AggregateException("Failed to retrieve cluster topology from all known nodes", error_list)
 
     def try_load_from_cache(self, url):
         server_hash = hashlib.md5(
