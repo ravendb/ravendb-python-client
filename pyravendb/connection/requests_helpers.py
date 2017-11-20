@@ -1,6 +1,21 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
-from threading import Lock, Timer
+from threading import Lock, Thread
 from pyravendb.tools.utils import Utils
+
+
+class PropagatingThread(Thread):
+    def run(self):
+        self.exception = None
+        try:
+            self.ret = self._target(*self._args, **self._kwargs)
+        except BaseException as e:
+            self.exception = e
+
+    def join(self):
+        super(PropagatingThread, self).join()
+        if self.exception:
+            raise self.exception
+        return self.ret
 
 
 class ServerNode(object):

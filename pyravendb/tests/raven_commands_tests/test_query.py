@@ -34,7 +34,7 @@ class TestQuery(TestBase):
         self.assertFalse("Name" in response["Results"][0])
 
     def test_get_only_index_entries(self):
-        query_command = QueryCommand(index_query=IndexQuery(query="From INDEX 'AllDocuments' WHERE Tag='products'",
+        query_command = QueryCommand(index_query=IndexQuery(query="FROM INDEX 'AllDocuments' WHERE Tag='products'",
                                                             wait_for_non_stale_results=True),
                                      conventions=DocumentConvention(),
                                      index_entries_only=True)

@@ -1,4 +1,5 @@
 from pyravendb.store.document_store import DocumentStore
+from pyravendb.store import document_store
 from pyravendb.commands.raven_commands import GetTcpInfoCommand
 from pyravendb.raven_operations.server_operations import CreateDatabaseOperation, DeleteDatabaseOperation
 from pyravendb.raven_operations.admin_operations import PutIndexesOperation, GetStatisticsOperation
@@ -59,25 +60,7 @@ class UsersByName:
 
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://localhost.fiddler:8080"], database="python2") as store:
-        create_database_operation = CreateDatabaseOperation(database_name="python2")
-        try:
-            store.admin.server.send(create_database_operation)
-        except Exception as e:
-            print(e)
-        store.initialize()
-
-        UsersByName().execute(store)
-
-        with store.open_session() as session:
-            session.store(User(name="Idan", age=29, dog=Dog(name="Faz", brand="UnKnown")))
-            session.save_changes()
-
-            query, stats = list(
-                session.query(object_type=User, with_statistics=True, index_name="UsersByName").where_equals(
-                    "name", "Idan"))
-
-            result, stats = list(
-                session.query(object_type=User, with_statistics=True, index_name="UsersByName").raw_query(
-                    "FROM 'Users' Where name = $key", {"key": "Idan"}))
-            print(result)
+    store = document_store.DocumentStore(urls=["http://localhost:8080", "http://localhost:8084"], database="PyRavenDB")
+    store.initialize()
+    with store.open_session() as session:
+        foo = session.load("foos/1")

@@ -43,6 +43,9 @@ class NextHiLoCommand(RavenCommand):
         self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
 
     def set_response(self, response):
+        if response is None:
+            raise ValueError("response is invalid.")
+
         if response.status_code == 201:
             response = response.json()
             return {"prefix": response["Prefix"], "server_tag": response["ServerTag"], "low": response["Low"],

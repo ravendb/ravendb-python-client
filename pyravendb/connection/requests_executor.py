@@ -56,7 +56,7 @@ class RequestsExecutor(object):
                                 disable_topology_updates=True)
 
     def start_first_topology_thread(self, urls):
-        self._first_topology_update = Thread(target=self.first_topology_update, args=(urls,), daemon=True)
+        self._first_topology_update = PropagatingThread(target=self.first_topology_update, args=(urls,), daemon=True)
         self._first_topology_update.start()
 
     def execute(self, raven_command, should_retry=True):
@@ -140,13 +140,22 @@ class RequestsExecutor(object):
                         ("a certificate is required." if self._certificate is None
                          else name + " does not have permission to access it or is unknown.") +
                         response.request.method + " " + response.request.path_url)
+                if response.status_code == 410:
+                    if should_retry:
+                        self.update_topology(chosen_node, True)
+                        # TODO update this after build make fastest node selector
                 if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
                     if len(raven_command.failed_nodes) == 1:
                         node = list(raven_command.failed_nodes.keys())[0]
+                        database_missing = response.headers.get("Database-Missing", None)
+                        if database_missing:
+                            raise exceptions.DatabaseDoesNotExistException(
+                                "Database " + database_missing + " does not exists")
+
                         raise exceptions.UnsuccessfulRequestException(node.url, raven_command.failed_nodes[node])
 
-                    self.handle_server_down(chosen_node, node_index, raven_command, None)
-                    chosen_node = self._node_selector.get_current_node()
+                    if self.handle_server_down(chosen_node, node_index, raven_command, None):
+                        chosen_node = self._node_selector.get_current_node()
                     continue
                 if response.status_code == 409:
                     # TODO: Conflict resolution
@@ -170,6 +179,10 @@ class RequestsExecutor(object):
                 self.update_topology(ServerNode(url, self._database_name))
                 self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
                 return
+            except exceptions.DatabaseDoesNotExistException as e:
+                if len(initial_urls) == 1:
+                    raise
+                error_list.append((url, e))
             except Exception as e:
                 if len(initial_urls) == 0:
                     self._last_known_urls = initial_urls
@@ -182,7 +195,10 @@ class RequestsExecutor(object):
                 return
 
         self._last_known_urls = initial_urls
-        raise exceptions.AggregateException("Failed to retrieve cluster topology from all known nodes", error_list)
+        self.raise_exceptions(error_list)
+
+    def raise_exceptions(self, error_list):
+        raise exceptions.AggregateException("Failed to retrieve database topology from all known nodes", error_list)
 
     def try_load_from_cache(self, url):
         server_hash = hashlib.md5(
@@ -201,7 +217,7 @@ class RequestsExecutor(object):
             log.info(e)
         return False
 
-    def update_topology(self, node):
+    def update_topology(self, node, force_update=False):
         if self._closed:
             return
 
@@ -228,7 +244,7 @@ class RequestsExecutor(object):
                 if self._node_selector is None:
                     self._node_selector = NodeSelector(topology)
 
-                elif self._node_selector.on_update_topology(topology):
+                elif self._node_selector.on_update_topology(topology, force_update):
                     self.cancel_all_failed_nodes_timers()
 
                 self.topology_etag = self._node_selector.topology.etag
@@ -241,7 +257,10 @@ class RequestsExecutor(object):
         command.failed_nodes.update({chosen_node: {"url": command.url, "error": str(e), "type": type(e).__name__}})
         node_selector = self._node_selector
 
-        if node_selector is not None and chosen_node not in self._failed_nodes_timers:
+        if node_selector is None:
+            return False
+
+        if chosen_node not in self._failed_nodes_timers:
             node_status = NodeStatus(self, node_index, chosen_node)
             with self.update_timer_lock:
                 if self._failed_nodes_timers.get(chosen_node, None) is None:
