@@ -179,10 +179,10 @@ class RequestsExecutor(object):
                 self.update_topology(ServerNode(url, self._database_name))
                 self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
                 return
-            except exceptions.DatabaseDoesNotExistException as e:
-                if len(initial_urls) == 1:
-                    raise
-                error_list.append((url, e))
+            except exceptions.DatabaseDoesNotExistException:
+                # Will happen on all node in the cluster, so errors immediately
+                self._last_known_urls = initial_urls
+                raise
             except Exception as e:
                 if len(initial_urls) == 0:
                     self._last_known_urls = initial_urls
