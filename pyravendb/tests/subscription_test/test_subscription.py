@@ -3,6 +3,7 @@ import threading
 from pyravendb.subscriptions.data import *
 from pyravendb.commands.raven_commands import GetSubscriptionsCommand
 from pyravendb.tests.test_base import TestBase
+from pyravendb.custom_exceptions.exceptions import SubscriptionInUseException
 import unittest
 
 
@@ -50,15 +51,15 @@ class TestSubscription(TestBase):
             session.save_changes()
 
         creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
-        self.store.subscription.create(creation_options)
+        self.store.subscriptions.create(creation_options)
 
         request_executor = self.store.get_request_executor()
         subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
         self.assertGreaterEqual(len(subscriptions), 1)
 
-        connection_options = SubscriptionConnectionOptions(subscriptions[0].subscription_name)
+        connection_options = SubscriptionWorkerOptions(subscriptions[0].subscription_name)
         self.assertEqual(len(self.results), 0)
-        with self.store.subscription.open(connection_options, object_type=User) as subscription:
+        with self.store.subscriptions.get_subscription_worker(connection_options, object_type=User) as subscription:
             subscription.run(self.process_documents)
             self.event.wait()
 
@@ -74,15 +75,15 @@ class TestSubscription(TestBase):
             session.store(User("Raven", "DB"))
             session.save_changes()
 
-        self.store.subscription.create("FROM Users where last_name='Shalom'")
+        self.store.subscriptions.create("FROM Users where last_name='Shalom'")
 
         request_executor = self.store.get_request_executor()
         subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
         self.assertGreaterEqual(len(subscriptions), 1)
 
-        connection_options = SubscriptionConnectionOptions(subscriptions[0].subscription_name)
+        connection_options = SubscriptionWorkerOptions(subscriptions[0].subscription_name)
         self.assertEqual(len(self.results), 0)
-        with self.store.subscription.open(connection_options) as subscription:
+        with self.store.subscriptions.get_subscription_worker(connection_options) as subscription:
             subscription.confirm_callback = self.acknowledge
             subscription.run(self.process_documents)
             self.ack.wait()
@@ -93,6 +94,45 @@ class TestSubscription(TestBase):
                 session.save_changes()
             self.event.wait()
             self.assertEqual(len(self.results), 3)
+
+    def test_drop_subscription(self):
+        self.expected_items_count = 3
+        with self.store.open_session() as session:
+            session.store(User("Idan", "Shalom"))
+            session.store(User("Ilay", "Shalom"))
+            session.store(User("Raven", "DB"))
+            session.save_changes()
+        try:
+            creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
+            name = self.store.subscriptions.create(creation_options)
+
+            worker_options = SubscriptionWorkerOptions(name)
+            self.assertEqual(len(self.results), 0)
+            subscription = self.store.subscriptions.get_subscription_worker(worker_options, object_type=User)
+            subscription.run(self.process_documents)
+            self.event.set()
+
+            subscription_throw = self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name),
+                                                                                  object_type=User)
+
+            th = subscription_throw.run(self.process_documents)
+            self.event.set()
+            with self.assertRaises(SubscriptionInUseException):
+                th.join()
+
+            self.store.subscriptions.drop_connection(name)
+            with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name),
+                                                                  object_type=User) as subscription:
+                subscription.run(self.process_documents)
+                self.event.wait()
+
+            self.assertEqual(len(self.results), 2)
+            for item in self.results:
+                self.assertTrue(isinstance(item, User))
+
+        finally:
+            subscription.close()
+            subscription_throw.close()
 
 
 if __name__ == "__main__":

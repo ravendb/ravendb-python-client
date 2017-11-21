@@ -154,7 +154,11 @@ class RequestsExecutor(object):
 
                         raise exceptions.UnsuccessfulRequestException(node.url, raven_command.failed_nodes[node])
 
-                    if self.handle_server_down(chosen_node, node_index, raven_command, None):
+                    try:
+                        e = response.json()["Message"]
+                    except ValueError:
+                        e = None
+                    if self.handle_server_down(chosen_node, node_index, raven_command, e):
                         chosen_node = self._node_selector.get_current_node()
                     continue
                 if response.status_code == 409:

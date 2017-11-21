@@ -23,7 +23,7 @@ class DocumentStore(object):
         self._operations = None
         self.lock = Lock()
         self.admin = AdminOperationExecutor(self, database)
-        self.subscription = DocumentSubscriptions(self)
+        self.subscriptions = DocumentSubscriptions(self)
 
     @property
     def certificate(self):

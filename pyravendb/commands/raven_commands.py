@@ -561,6 +561,19 @@ class DeleteSubscriptionCommand(RavenCommand):
         pass
 
 
+class DropSubscriptionCommand(RavenCommand):
+    def __init__(self, name):
+        super(DropSubscriptionCommand, self).__init__(method="POST")
+        self._name = name
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/subscriptions/drop?name={2}".format(server_node.url, server_node.database,
+                                                                          self._name)
+
+    def set_response(self, response):
+        pass
+
+
 class GetSubscriptionsCommand(RavenCommand):
     def __init__(self, start, page_size):
         super(GetSubscriptionsCommand, self).__init__(method="GET", is_read_request=True)

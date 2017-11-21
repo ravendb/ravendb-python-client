@@ -1,8 +1,8 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from pyravendb.commands.raven_commands import CreateSubscriptionCommand, DeleteSubscriptionCommand, \
-    GetSubscriptionsCommand, GetSubscriptionStateCommand
+    GetSubscriptionsCommand, GetSubscriptionStateCommand, DropSubscriptionCommand
 from threading import Lock
-from pyravendb.subscriptions.subscription import Subscription
+from pyravendb.subscriptions.subscription import SubscriptionWorker
 from pyravendb.subscriptions.data import *
 
 
@@ -36,9 +36,9 @@ class DocumentSubscriptions:
         command = CreateSubscriptionCommand(options)
         return request_executor.execute(command)
 
-    def open(self, options, database=None, object_type=None, nested_object_types=None):
+    def get_subscription_worker(self, options, database=None, object_type=None, nested_object_types=None):
         """
-        @param SubscriptionConnectionOptions options: The subscription connection options.
+        @param SubscriptionWorkerOptions options: The subscription connection options.
         @param str database: The database name
         @param Type object_type: The type of the object we want to track the entity to
         @param Dict[str, Type] nested_object_types: A dict of classes for nested object the key will be the name of the
@@ -46,11 +46,11 @@ class DocumentSubscriptions:
         """
         if options is None:
             raise InvalidOperationException("Cannot create a subscription if the options is set to None")
-        if not isinstance(options, SubscriptionConnectionOptions):
-            raise ValueError("Invalid options", "options mus be SubscriptionConnectionOptions")
+        if not isinstance(options, SubscriptionWorkerOptions):
+            raise ValueError("Invalid options", "options mus be SubscriptionWorkerOptions")
 
-        subscription = Subscription(options, self._store, database, object_type=object_type,
-                                    nested_object_types=nested_object_types)
+        subscription = SubscriptionWorker(options, self._store, database, object_type=object_type,
+                                          nested_object_types=nested_object_types)
         with self.lock:
             self._subscriptions.add(subscription)
 
@@ -59,6 +59,16 @@ class DocumentSubscriptions:
     def delete(self, name_or_id, database=None):
         request_executor = self._store.get_request_executor(database)
         command = DeleteSubscriptionCommand(name_or_id)
+        request_executor.execute(command)
+
+    def drop_connection(self, name, database=None):
+        """
+        Force server to close current client subscription connection to the server
+        @param str name: The name of the subscription
+        @param str database: The name of the database
+        """
+        request_executor = self._store.get_request_executor(database)
+        command = DropSubscriptionCommand(name)
         request_executor.execute(command)
 
     def get_subscriptions(self, start, take, database=None):
