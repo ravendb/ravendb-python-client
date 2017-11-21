@@ -1,7 +1,7 @@
 import logging
 import socket
 from pyravendb.tools.utils import Utils
-from threading import Thread
+from pyravendb.connection.requests_helpers import PropagatingThread
 from urllib.parse import urlparse
 from pyravendb.commands.raven_commands import GetTcpInfoCommand
 from pyravendb.subscriptions.data import IncrementalJsonParser
@@ -12,11 +12,11 @@ logging.basicConfig(filename='responses.log', level=logging.DEBUG)
 log = logging.getLogger()
 
 
-class Subscription:
+class SubscriptionWorker:
     def __init__(self, options, store, database_name, confirm_callback=None, object_type=None,
                  nested_object_types=None):
         """
-        @param SubscriptionConnectionOptions options: The subscription connection options.
+        @param SubscriptionWorkerOptions options: The subscription connection options.
         @param DocumentStore store: The document store
         @param str database_name: The database name
         @param func(SubscriptionBatch) confirm_callback: allows the user to define stuff that happens after the confirm was received from the server
@@ -29,7 +29,7 @@ class Subscription:
         self._database_name = database_name if database_name is not None else store.database
         self._logger = logging.getLogger("subscription_" + self._database_name)
         if options.subscription_name is None:
-            raise AttributeError("SubscriptionConnectionOptions must specify the subscription_name", "options")
+            raise AttributeError("SubscriptionWorkerOptions must specify the subscription_name", "options")
 
         self._deleted = False
         self._process_documents = None
@@ -192,7 +192,7 @@ class Subscription:
         if self._subscription_thread:
             raise SubscriptionInUseException("Subscription already in use")
         self._process_documents = process_documents
-        self._subscription_thread = Thread(target=self.run_subscription)
+        self._subscription_thread = PropagatingThread(target=self.run_subscription)
         self._subscription_thread.start()
         return self._subscription_thread
 

@@ -41,7 +41,7 @@ class SubscriptionCreationOptions:
         return {"ChangeVector": self.change_vector, "Query": self.query, "Name": self.name}
 
 
-class SubscriptionConnectionOptions:
+class SubscriptionWorkerOptions:
     def __init__(self, subscription_name, strategy=None, ignore_subscriber_errors=False,
                  time_to_wait_before_connection_retry=None, max_docs_per_batch=4096):
         """
