@@ -1,4 +1,5 @@
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.tools.utils import Utils
 from threading import Lock
 
 
@@ -66,9 +67,9 @@ class HiloGenerator(object):
                 document = self.database_commands.get(path)["Results"][0]
             except (exceptions.ErrorResponseException, IndexError):
                 pass
-            etag = ""
             min_id = 1
             if document is None:
+                etag = Utils.empty_etag()
                 max_id = self.capacity
             else:
                 min_id = document["Max"] + 1

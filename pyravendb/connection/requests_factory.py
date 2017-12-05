@@ -173,7 +173,7 @@ class HttpRequestsFactory(object):
         return self.http_request_handler(path, "GET", force_read_from_master=True, uri="docs")
 
     def call_hilo(self, type_tag_name, max_id, etag):
-        headers = {"if-None-Match": etag}
+        headers = {"if-None-Match": "\"" + etag + "\""}
         put_url = "docs/Raven%2FHilo%2F{0}".format(type_tag_name)
         response = self.http_request_handler(put_url, "PUT", data={"Max": max_id},
                                              headers=headers)

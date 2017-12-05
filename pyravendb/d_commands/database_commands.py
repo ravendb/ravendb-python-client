@@ -81,7 +81,7 @@ class DatabaseCommands(object):
             raise ValueError("key must be {0}".format(type("")))
         headers = {}
         if etag is not None:
-            headers["If-None-Match"] = etag
+            headers["If-None-Match"] = "\"" + etag + "\""
         key = Utils.quote_key(key)
         path = "docs/{0}".format(key)
         response = self._requests_handler.http_request_handler(path, "DELETE", headers=headers)
@@ -113,7 +113,7 @@ class DatabaseCommands(object):
         data = [{"Key": key, "Document": document, "Metadata": metadata, "AdditionalData": None,
                  "Method": "PUT", "Etag": etag}]
         if etag:
-            headers = {"if-None-Match": etag}
+            headers = {"if-None-Match": "\"" + etag + "\""}
         response = self._requests_handler.http_request_handler("bulk_docs", "POST", data=data, headers=headers).json()
         if "Error" in response:
             if "ActualEtag" in response:

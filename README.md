@@ -15,10 +15,10 @@ There are three ways to install pyravendb.
 
 1. Install from [PyPi](https://pypi.python.org/pypi), as [pyravendb](https://pypi.python.org/pypi/pyravendb).
 	```bash
-	pip install pyravendb
+	pip install pyravendb==3.5.x.x  (You have to specify the version for this one)
 	```
 
-2. Install from source, via PyPi. From pyravendb, download, open the source (pyravendb-x.x.x.zip) and run setup.py.
+2. Install from source, via PyPi. From pyravendb, download, open the source (pyravendb-3.5.x.zip) and run setup.py.
 	```bash
     python setup.py install
 	```

@@ -22,13 +22,13 @@ class Utils(object):
         return '00000000-0000-0000-0000-000000000000'
 
     @staticmethod
-    def quote_key(key):
+    def quote_key(key, safe="!*'();:@&=+$,/?%#[]~"):
         if key:
             # To be able to work on python 2.x and 3.x
             if sys.version_info.major > 2:
-                return urllib.parse.quote(key)
+                return urllib.parse.quote(key, safe=safe)
             else:
-                return urllib.quote(key)
+                return urllib.quote(key, safe=safe)
         else:
             return ''
 

@@ -47,6 +47,15 @@ class TestSessionStore(TestBase):
             with self.assertRaises(exceptions.InvalidOperationException):
                 session.store(foo)
 
+    def test_store_fifty_documents_at_once(self):
+        with self.document_store.open_session() as session:
+            for i in range(40):
+                session.store(Foo("Idan", 29))
+            session.save_changes()
+
+            result = list(session.query(Foo).where_equals("name", "Idan"))
+            self.assertTrue(len(result) >= 40)
+
 
 if __name__ == "__main__":
     unittest.main()
