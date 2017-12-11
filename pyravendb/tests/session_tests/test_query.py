@@ -1,6 +1,6 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import documentstore
-from pyravendb.store.session_query import QueryOperator
+from pyravendb.store.session_query import QueryOperator, EscapeQueryOptions
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition, SortOptions
 import unittest
@@ -192,6 +192,7 @@ class TestQuery(TestBase):
         with self.document_store.open_session() as session:
             query_result = list(session.query().where_starts_with("name", "test").take(4).skip("2"))
             self.assertEqual(len(query_result), 4)
+
 
 if __name__ == "__main__":
     unittest.main()

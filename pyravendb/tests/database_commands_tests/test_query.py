@@ -1,6 +1,7 @@
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexQuery
 from pyravendb.tests.test_base import TestBase
+import time
 
 
 class TestQuery(TestBase):
@@ -36,5 +37,10 @@ class TestQuery(TestBase):
 
     def test_only_query_change_page_size_and_add_start(self):
         self.db.put_index("Testing", self.index, True)
-        response = self.db.query("Testing", IndexQuery("Tag:Products", page_size=1, start=1))
+        start = time.time()
+        while True and time.time() - start < 30:
+            response = self.db.query("Testing",
+                                     IndexQuery("Tag:Products", page_size=1, start=1))
+            if not response["IsStale"]:
+                break
         self.assertEqual(response["Results"][0]["Name"], "test2")

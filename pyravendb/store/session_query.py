@@ -75,7 +75,7 @@ class Query(object):
             elif escape_query_options == EscapeQueryOptions.AllowPostfixWildcard:
                 value = Utils.escape(value, False, False)
             elif escape_query_options == EscapeQueryOptions.AllowAllWildcards:
-                value = Utils.escape(value, False, False)
+                value = Utils.escape(value, True, False)
                 value = re.sub(r'"\\\*(\s|$)"', "*${1}", value)
             elif escape_query_options == EscapeQueryOptions.RawQuery:
                 value = Utils.escape(value, False, False).replace("\\*", "*")
@@ -245,11 +245,15 @@ class Query(object):
 
         value = start or end
         if self.session.conventions.uses_range_type(value) and not field_name.endswith("_Range"):
-            sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
+            value_type = type(value).__name__
+            if sys.version_info.major > 2:
+                if value > 2147483647:
+                    value_type = "long"
+            sort_hint = self.session.conventions.get_default_sort_option(value_type)
             if sort_hint:
                 field_name = "{0}_Range".format(field_name)
                 if sys.version_info.major > 2:
-                    if value > sys.maxsize:
+                    if value > 2147483647:
                         sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
         lucene_text = self._lucene_builder([start, end], action="equal_between")
@@ -327,7 +331,7 @@ class Query(object):
         if value != 1:
             # 1 is the default
             if self.query_builder.endswith(')'):
-                self.query_builder = "{0}^{1})".format(self.query_builder[:len(self.query_builder) - 1], value)
+                self.query_builder = "{0}^{1}".format(self.query_builder, value)
             else:
                 self.query_builder += "^{0}".format(value)
         return self

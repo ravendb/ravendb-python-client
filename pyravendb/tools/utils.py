@@ -214,7 +214,7 @@ class Utils(object):
 
         python_version = sys.version_info.major
 
-        if (python_version > 2 and value > sys.maxsize and isinstance(value, int)) \
+        if (python_version > 2 and value > 2147483647 and isinstance(value, int)) \
                 or python_version <= 2 and isinstance(value, long):
             value = "Lx{0}".format(int(value))
 
