@@ -8,7 +8,7 @@ class Foo(object):
     def __init__(self, name, key):
         self.name = name
         self.key = key
-        # self.Id = None
+        self.Id = None
 
 
 class TestSessionStore(TestBase):
@@ -56,6 +56,21 @@ class TestSessionStore(TestBase):
             result = list(session.query(Foo).where_equals("name", "Idan"))
             self.assertTrue(len(result) >= 40)
 
+    def _save_documents(self, documents):
+        with self.document_store.open_session() as session:
+            for document in documents:
+                session.store(document)
+            session.save_changes()
+
+    def test_store_the_same_documents_should_work(self):
+        documents = []
+        for i in range(0, 40):
+            documents.append(Foo("IdanHaim", i))
+
+        self._save_documents(documents)
+        self._save_documents(documents)
+        self._save_documents(documents)
+        self._save_documents(documents)
 
 if __name__ == "__main__":
     unittest.main()

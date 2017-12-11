@@ -22,7 +22,7 @@ class HiloGenerator(object):
         @param entity: the object we want to generate id for
         :type object
         @param convention: the document_store convention
-        :type Convention()
+        :type Convention
         @param request_handler: the handler for the requests
         :type HttpRequestsFactory
         @return: the id

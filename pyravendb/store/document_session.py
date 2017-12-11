@@ -79,7 +79,7 @@ class documentsession(object):
                 self._entities_and_metadata[self._entities_by_key[key]] = {
                     "original_value": document.copy(), "metadata": metadata,
                     "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
-                    "force_concurrency_check": force_concurrency_check}
+                     "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
         if key not in self._entities_by_key:
@@ -248,6 +248,7 @@ class documentsession(object):
                 raise exceptions.InvalidOperationException(
                     "Can't store document, there is a deferred command registered for this document in the session. "
                     "Document id: " + entity_id)
+
 
         if entity in self._deleted_entities:
             raise exceptions.InvalidOperationException(

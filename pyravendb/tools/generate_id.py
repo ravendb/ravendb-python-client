@@ -1,7 +1,8 @@
 class GenerateEntityIdOnTheClient(object):
     @staticmethod
     def try_set_id_on_entity(entity, key):
-        entity.Id = key
+        if hasattr(entity, "Id"):
+            entity.Id = key
 
     @staticmethod
     def try_get_id_from_instance(entity):

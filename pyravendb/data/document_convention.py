@@ -63,7 +63,7 @@ class DocumentConvention(object):
         # timeout for wait to server in seconds
         self.timeout = 30
         self.failover_behavior = Failover.allow_reads_from_secondaries
-        self.default_use_optimistic_concurrency = True
+        self.default_use_optimistic_concurrency = False
         self.json_default_method = DocumentConvention.json_default
         self._system_database = "system"
 

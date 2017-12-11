@@ -267,7 +267,7 @@ class DatabaseCommands(object):
         if index_query.default_operator is QueryOperator.AND:
             path += "&operator={0}".format(index_query.default_operator.value)
         if index_query.query:
-            path += "&query={0}".format(Utils.quote_key(index_query.query))
+            path += "&query={0}".format(Utils.quote_key(index_query.query, safe='/'))
         if index_query.sort_hints:
             for hint in index_query.sort_hints:
                 path += "&{0}".format(hint)
@@ -287,6 +287,8 @@ class DatabaseCommands(object):
             path += "&start={0}".format(index_query.start)
 
         path += "&pageSize={0}".format(index_query.page_size)
+        if index_query.wait_for_non_stale_results:
+            path += "&waitForNonStaleResultsAsOfNow=true"
         response = self._requests_handler.http_request_handler(path, "GET",
                                                                force_read_from_master=force_read_from_master).json()
         if "Error" in response:
