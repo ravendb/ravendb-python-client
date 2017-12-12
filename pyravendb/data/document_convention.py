@@ -119,9 +119,15 @@ class DocumentConvention(object):
         if not type_name:
             return None
         if type_name == "int" or type_name == "float":
-            return SortOptions.float.value
+            try:
+                return SortOptions.float.value
+            except AttributeError:
+                return SortOptions.float
         if type_name == "long":
-            return SortOptions.long.value
+            try:
+                return SortOptions.long.value
+            except AttributeError:
+                return SortOptions.long
 
     @property
     def system_database(self):
