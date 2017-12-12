@@ -265,7 +265,11 @@ class DatabaseCommands(object):
             raise ValueError("query must be IndexQuery type")
         path = "indexes/{0}?".format(Utils.quote_key(index_name))
         if index_query.default_operator is QueryOperator.AND:
-            path += "&operator={0}".format(index_query.default_operator.value)
+            try:
+                operator = index_query.default_operator.value
+            except AttributeError:
+                operator = index_query.default_operator
+            path += "&operator={0}".format(operator)
         if index_query.query:
             path += "&query={0}".format(Utils.quote_key(index_query.query, safe='/'))
         if index_query.sort_hints:
