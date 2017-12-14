@@ -110,7 +110,7 @@ class Query(object):
             sort_hint = self.session.conventions.get_default_sort_option(type(value).__name__)
             if sort_hint:
                 if sys.version_info.major > 2:
-                    if value > sys.maxsize:
+                    if value > 2147483647:
                         sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
@@ -166,7 +166,7 @@ class Query(object):
             if sort_hint:
                 field_name = "{0}_Range".format(field_name)
                 if sys.version_info.major > 2:
-                    if value > sys.maxsize:
+                    if value > 2147483647:
                         sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
@@ -191,7 +191,7 @@ class Query(object):
             if sort_hint:
                 field_name = "{0}_Range".format(field_name)
                 if sys.version_info.major > 2:
-                    if value > sys.maxsize:
+                    if value > 2147483647:
                         sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
@@ -229,7 +229,7 @@ class Query(object):
             if sort_hint:
                 field_name = "{0}_Range".format(field_name)
                 if sys.version_info.major > 2:
-                    if value > sys.maxsize:
+                    if value > 2147483647:
                         sort_hint = self.session.conventions.get_default_sort_option("long")
                 self._sort_hints.add("SortHint-{0}={1}".format(field_name, sort_hint))
 
