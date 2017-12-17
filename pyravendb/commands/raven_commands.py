@@ -356,7 +356,7 @@ class GetOperationStateCommand(RavenCommand):
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database,
-                                                                      self.operation_id) if self.is_server_store_operation == False \
+                                                                      self.operation_id) if not self.is_server_store_operation \
             else "{0}/operations/state?id={2}".format(server_node.url, self.operation_id)
 
     def set_response(self, response):
@@ -561,9 +561,9 @@ class DeleteSubscriptionCommand(RavenCommand):
         pass
 
 
-class DropSubscriptionCommand(RavenCommand):
+class DropSubscriptionConnectionCommand(RavenCommand):
     def __init__(self, name):
-        super(DropSubscriptionCommand, self).__init__(method="POST")
+        super(DropSubscriptionConnectionCommand, self).__init__(method="POST")
         self._name = name
 
     def create_request(self, server_node):

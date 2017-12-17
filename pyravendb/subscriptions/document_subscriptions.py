@@ -1,6 +1,6 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from pyravendb.commands.raven_commands import CreateSubscriptionCommand, DeleteSubscriptionCommand, \
-    GetSubscriptionsCommand, GetSubscriptionStateCommand, DropSubscriptionCommand
+    GetSubscriptionsCommand, GetSubscriptionStateCommand, DropSubscriptionConnectionCommand
 from threading import Lock
 from pyravendb.subscriptions.subscription import SubscriptionWorker
 from pyravendb.subscriptions.data import *
@@ -68,7 +68,7 @@ class DocumentSubscriptions:
         @param str database: The name of the database
         """
         request_executor = self._store.get_request_executor(database)
-        command = DropSubscriptionCommand(name)
+        command = DropSubscriptionConnectionCommand(name)
         request_executor.execute(command)
 
     def get_subscriptions(self, start, take, database=None):

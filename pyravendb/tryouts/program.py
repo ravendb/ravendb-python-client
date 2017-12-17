@@ -2,7 +2,7 @@ from pyravendb.store.document_store import DocumentStore
 from pyravendb.store import document_store
 from pyravendb.commands.raven_commands import GetTcpInfoCommand
 from pyravendb.raven_operations.server_operations import CreateDatabaseOperation, DeleteDatabaseOperation
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation, GetStatisticsOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetStatisticsOperation
 from pyravendb.subscriptions.data import SubscriptionCreationOptions
 from pyravendb.data.indexes import IndexDefinition, IndexFieldOptions, FieldIndexing
 from requests.exceptions import RequestException
@@ -56,7 +56,7 @@ class UsersByName:
                                                 fields={"name": IndexFieldOptions(indexing=FieldIndexing.search)})
 
     def execute(self, document_store):
-        document_store.admin.send(PutIndexesOperation(self.index_definition))
+        document_store.maintenance.send(PutIndexesOperation(self.index_definition))
 
 
 if __name__ == "__main__":

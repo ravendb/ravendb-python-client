@@ -5,7 +5,7 @@ from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexFieldOptions, SortOptions, IndexDefinition
 from pyravendb.data.query import IndexQuery
 from pyravendb.tests.test_base import TestBase
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.raven_operations.operations import QueryOperationOptions, PatchByQueryOperation, DeleteByQueryOperation
 
 
@@ -20,7 +20,7 @@ class TestByIndexActions(TestBase):
         self.index_sort = IndexDefinition(name="Testing_Sort", maps=index_map,
                                           fields={"DocNumber": IndexFieldOptions(sort_options=SortOptions.numeric)})
         self.patch = "this.Name = 'Patched';"
-        self.store.admin.send(PutIndexesOperation(self.index_sort))
+        self.store.maintenance.send(PutIndexesOperation(self.index_sort))
         self.requests_executor = self.store.get_request_executor()
         for i in range(100):
             put_command = PutDocumentCommand("testing/" + str(i),

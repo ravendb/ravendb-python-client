@@ -1,5 +1,5 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition, SortOptions, IndexFieldOptions
 import unittest
@@ -44,7 +44,7 @@ class TestQuery(TestBase):
         second_index_definition = IndexDefinition(name="SelectTestingIndex", maps=maps,
                                                   fields={"order_and_id": IndexFieldOptions(storage=True)})
 
-        self.store.admin.send(PutIndexesOperation(index_definition, second_index_definition))
+        self.store.maintenance.send(PutIndexesOperation(index_definition, second_index_definition))
 
         with self.store.open_session() as session:
             session.store(Product("test101", 2, "a"), "products/101")

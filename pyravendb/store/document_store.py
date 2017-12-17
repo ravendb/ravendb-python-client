@@ -17,12 +17,12 @@ class DocumentStore(object):
         self.database = database
         self.conventions = DocumentConvention()
         self._certificate = certificate
-        self._request_executor = {}
+        self._request_executors = {}
         self._initialize = False
         self.generator = None
-        self._operations = None
+        self._operations_executor = None
         self.lock = Lock()
-        self.admin = AdminOperationExecutor(self, database)
+        self._maintenance_operation_executor = None
         self.subscriptions = DocumentSubscriptions(self)
 
     @property
@@ -30,9 +30,18 @@ class DocumentStore(object):
         return self._certificate
 
     @property
+    def maintenance(self):
+        self._assert_initialize()
+        if not self._maintenance_operation_executor:
+            self._maintenance_operation_executor = MaintenanceOperationExecutor(self, self.database)
+        return self._maintenance_operation_executor
+
+    @property
     def operations(self):
         self._assert_initialize()
-        return self._operations
+        if not self._operations_executor:
+            self._operations_executor = OperationExecutor(self)
+        return self._operations_executor
 
     def __enter__(self):
         return self
@@ -42,14 +51,16 @@ class DocumentStore(object):
             self.generator.return_unused_range()
 
     def get_request_executor(self, db_name=None):
+        self._assert_initialize()
+
         if db_name is None:
             db_name = self.database
 
         with self.lock:
-            if db_name not in self._request_executor:
-                self._request_executor[db_name] = RequestsExecutor.create(self.urls, db_name, self._certificate,
-                                                                          self.conventions)
-        return self._request_executor[db_name]
+            if db_name not in self._request_executors:
+                self._request_executors[db_name] = RequestsExecutor.create(self.urls, db_name, self._certificate,
+                                                                           self.conventions)
+        return self._request_executors[db_name]
 
     def initialize(self):
         if not self._initialize:
@@ -58,7 +69,6 @@ class DocumentStore(object):
             if self.database is None:
                 raise exceptions.InvalidOperationException("None database is not valid")
 
-            self._operations = OperationExecutor(self)
             self.generator = MultiDatabaseHiLoKeyGenerator(self)
             self._initialize = True
 
@@ -80,12 +90,18 @@ class DocumentStore(object):
 
 
 # ------------------------------Operation executors ---------------------------->
-class AdminOperationExecutor:
+class MaintenanceOperationExecutor:
     def __init__(self, document_store, database_name=None):
         self._store = document_store
         self._database_name = database_name if database_name is not None else document_store.database
-        self.server = ServerOperationExecutor(self._store)
+        self._server_operation_executor = None
         self._request_executor = None
+
+    @property
+    def server(self):
+        if not self._server_operation_executor:
+            self._server_operation_executor = ServerOperationExecutor(self._store)
+        return self._server_operation_executor
 
     @property
     def request_executor(self):
@@ -96,7 +112,7 @@ class AdminOperationExecutor:
     def send(self, operation):
         try:
             operation_type = getattr(operation, 'operation')
-            if operation_type != "AdminOperation":
+            if operation_type != "MaintenanceOperation":
                 raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:
             raise ValueError("Invalid operation")
@@ -135,9 +151,15 @@ class ServerOperationExecutor:
 
 class OperationExecutor(object):
     def __init__(self, document_store, database_name=None):
-        self._document_store = document_store
-        self._database_name = database_name
-        self._request_executor = document_store.get_request_executor(db_name=database_name)
+        self._store = document_store
+        self._database_name = database_name if database_name is not None else document_store.database
+        self._request_executor = None
+
+    @property
+    def request_executor(self):
+        if self._request_executor is None:
+            self._request_executor = self._store.get_request_executor(self._database_name)
+        return self._request_executor
 
     def wait_for_operation_complete(self, operation_id, timeout=None):
         from pyravendb.commands.raven_commands import GetOperationStateCommand
@@ -145,7 +167,7 @@ class OperationExecutor(object):
         try:
             get_operation_command = GetOperationStateCommand(operation_id)
             while True:
-                response = self._request_executor.execute(get_operation_command)
+                response = self.request_executor.execute(get_operation_command)
                 if "Error" in response:
                     raise ValueError(response["Error"])
                 if timeout and time.time() - start_time > timeout:
@@ -166,5 +188,5 @@ class OperationExecutor(object):
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self._document_store, self._request_executor.convention)
-        return self._request_executor.execute(command)
+        command = operation.get_command(self._store, self.request_executor.convention)
+        return self.request_executor.execute(command)
