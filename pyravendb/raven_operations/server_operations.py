@@ -204,7 +204,7 @@ class CreateClientCertificateOperation(ServerOperation):
         @param str password: The password of the certificate
         """
         if name is None:
-            raise ValueError("name cannot by None")
+            raise ValueError("name cannot be None")
         if permissions is None:
             raise ValueError("permissions cannot be None")
 
@@ -220,7 +220,7 @@ class CreateClientCertificateOperation(ServerOperation):
     class _CreateClientCertificateCommand(RavenCommand):
         def __init__(self, name, permissions, clearance, password):
             if name is None:
-                raise ValueError("name cannot by None")
+                raise ValueError("name cannot be None")
             if permissions is None:
                 raise ValueError("permissions cannot be None")
 

@@ -8,9 +8,6 @@ from pyravendb.subscriptions.data import IncrementalJsonParser
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.connection.requests_executor import RequestsExecutor
 
-logging.basicConfig(filename='responses.log', level=logging.DEBUG)
-log = logging.getLogger()
-
 
 class SubscriptionWorker:
     def __init__(self, options, store, database_name, confirm_callback=None, object_type=None,
@@ -28,6 +25,12 @@ class SubscriptionWorker:
         self._store = store
         self._database_name = database_name if database_name is not None else store.database
         self._logger = logging.getLogger("subscription_" + self._database_name)
+        handler = logging.FileHandler('subscriptions.log')
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        handler.setFormatter(formatter)
+        self._logger.addHandler(handler)
+        self._logger.setLevel(logging.DEBUG)
+
         if options.subscription_name is None:
             raise AttributeError("SubscriptionWorkerOptions must specify the subscription_name", "options")
 
@@ -206,7 +209,7 @@ class SubscriptionWorker:
                 self._my_socket.close()
             self._subscription_thread.join()
         except Exception as ex:
-            self._logger.info("Error during closing the subscription", ex)
+            self._logger.debug("Error during closing the subscription: " + str(ex))
 
     def __enter__(self):
         return self

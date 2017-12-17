@@ -3,6 +3,7 @@ from pyravendb.tests.test_base import TestBase
 from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions.exceptions import ErrorResponseException
 from pyravendb.data.document_convention import DocumentConvention
+import time
 
 
 class TestQuery(TestBase):
@@ -38,7 +39,12 @@ class TestQuery(TestBase):
                                                             wait_for_non_stale_results=True),
                                      conventions=DocumentConvention(),
                                      index_entries_only=True)
-        response = self.requests_executor.execute(query_command)
+
+        start = time.time()
+        while True and time.time() - start < 30:
+            response = self.requests_executor.execute(query_command)
+            if not response["IsStale"]:
+                break
         self.assertFalse("@metadata" in response["Results"][0])
 
     def test_fail_with_no_index(self):

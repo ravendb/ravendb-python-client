@@ -1,6 +1,6 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.query import Facet, FacetMode
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.data.indexes import IndexDefinition
 import unittest
 
@@ -19,7 +19,7 @@ class ProductsAndPricePerUnit:
         self.index_definition = IndexDefinition(name=ProductsAndPricePerUnit.__name__, maps=self.maps)
 
     def execute(self, store):
-        store.admin.send(PutIndexesOperation(self.index_definition))
+        store.maintenance.send(PutIndexesOperation(self.index_definition))
 
 
 class TestFacets(TestBase):

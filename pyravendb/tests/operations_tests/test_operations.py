@@ -34,7 +34,7 @@ class TestOperations(TestBase):
         self.assertIsNone(attachment)
 
     def test_patch_by_index(self):
-        self.store.admin.send(PutIndexesOperation(
+        self.store.maintenance.send(PutIndexesOperation(
             IndexDefinition("Patches", maps="from doc in docs.Patches select new {patched = doc.patched}")))
 
         with self.store.open_session() as session:
@@ -64,7 +64,7 @@ class TestOperations(TestBase):
             self.store.operations.send(operation)
 
     def test_delete_by_index(self):
-        self.store.admin.send(PutIndexesOperation(
+        self.store.maintenance.send(PutIndexesOperation(
             IndexDefinition("Users", maps="from doc in docs.Users select new {name=doc.name}")))
 
         with self.store.open_session() as session:

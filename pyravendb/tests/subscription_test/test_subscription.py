@@ -96,7 +96,7 @@ class TestSubscription(TestBase):
             self.assertEqual(len(self.results), 3)
 
     def test_drop_subscription(self):
-        self.expected_items_count = 3
+        self.expected_items_count = 2
         with self.store.open_session() as session:
             session.store(User("Idan", "Shalom"))
             session.store(User("Ilay", "Shalom"))
@@ -106,27 +106,33 @@ class TestSubscription(TestBase):
             creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
             name = self.store.subscriptions.create(creation_options)
 
-            worker_options = SubscriptionWorkerOptions(name)
+            worker_options = SubscriptionWorkerOptions(name, strategy=SubscriptionOpeningStrategy.wait_for_free)
             self.assertEqual(len(self.results), 0)
             subscription = self.store.subscriptions.get_subscription_worker(worker_options, object_type=User)
             subscription.run(self.process_documents)
-            self.event.set()
+            self.event.wait()
 
             subscription_throw = self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name),
                                                                                   object_type=User)
 
             th = subscription_throw.run(self.process_documents)
-            self.event.set()
             with self.assertRaises(SubscriptionInUseException):
                 th.join()
 
+            self.items_count = 0
+            self.event.clear()
             self.store.subscriptions.drop_connection(name)
             with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name),
                                                                   object_type=User) as subscription:
-                subscription.run(self.process_documents)
+                sub = subscription.run(self.process_documents)
+                with self.store.open_session() as session:
+                    session.store(User("Idan", "Shalom"))
+                    session.store(User("Ilay", "Shalom"))
+                    session.save_changes()
+
                 self.event.wait()
 
-            self.assertEqual(len(self.results), 2)
+            self.assertEqual(len(self.results), 4)
             for item in self.results:
                 self.assertTrue(isinstance(item, User))
 

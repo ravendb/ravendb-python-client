@@ -1,7 +1,7 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.indexes import IndexDefinition, FieldIndexing, IndexFieldOptions
 from pyravendb.data.query import QueryOperator
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from datetime import datetime
 
 
@@ -33,7 +33,7 @@ class LastFmAnalyzed(object):
                                                 fields={"query": IndexFieldOptions(indexing=FieldIndexing.search)})
 
     def execute(self, store):
-        store.admin.send(PutIndexesOperation(self.index_definition))
+        store.maintenance.send(PutIndexesOperation(self.index_definition))
 
 
 class FullTextSearchTest(TestBase):

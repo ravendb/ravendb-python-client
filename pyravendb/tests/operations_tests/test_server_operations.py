@@ -11,17 +11,17 @@ class TestServerOperations(TestBase):
 
     def test_create_database_name_longer_than_260_chars(self):
         name = "long_database_name_" + ''.join(['z' for _ in range(100)])
-        self.store.admin.server.send(CreateDatabaseOperation(database_name=name))
+        self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
         TestBase.wait_for_database_topology(self.store, name)
-        database_names = self.store.admin.server.send(GetDatabaseNamesOperation(0, 3))
+        database_names = self.store.maintenance.server.send(GetDatabaseNamesOperation(0, 3))
         self.assertTrue(name in database_names)
 
     def test_cannot_create_database_with_the_same_name(self):
         name = "Duplicate"
-        self.store.admin.server.send(CreateDatabaseOperation(database_name=name))
+        self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
         TestBase.wait_for_database_topology(self.store, name)
         with self.assertRaises(Exception):
-            self.store.admin.server.send(CreateDatabaseOperation(database_name=name))
+            self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
 
 
 if __name__ == "__main__":

@@ -160,7 +160,7 @@ class Query(object):
             for token in self._group_by_tokens:
                 if index > 0:
                     query_builder.append(",")
-                    query_builder.append(token.write)
+                query_builder.append(token.write)
                 index += 1
 
     def build_where(self, query_builder):

@@ -5,11 +5,11 @@ from pyravendb.data.indexes import IndexDefinition
 from abc import abstractmethod
 
 
-class AdminOperation(object):
+class MaintenanceOperation(object):
     __slots__ = ['__operation']
 
     def __init__(self):
-        self.__operation = "AdminOperation"
+        self.__operation = "MaintenanceOperation"
 
     @property
     def operation(self):
@@ -20,7 +20,7 @@ class AdminOperation(object):
         raise NotImplementedError
 
 
-class DeleteIndexOperation(AdminOperation):
+class DeleteIndexOperation(MaintenanceOperation):
     def __init__(self, index_name):
         super(DeleteIndexOperation, self).__init__()
         self._index_name = index_name
@@ -43,7 +43,7 @@ class DeleteIndexOperation(AdminOperation):
             pass
 
 
-class GetIndexOperation(AdminOperation):
+class GetIndexOperation(MaintenanceOperation):
     def __init__(self, index_name):
         """
         @param str index_name: The name of the index
@@ -87,7 +87,7 @@ class GetIndexOperation(AdminOperation):
                 raise response.raise_for_status()
 
 
-class GetIndexNamesOperation(AdminOperation):
+class GetIndexNamesOperation(MaintenanceOperation):
     def __init__(self, start, page_size):
         super(GetIndexNamesOperation, self).__init__()
         self._start = start
@@ -121,7 +121,7 @@ class GetIndexNamesOperation(AdminOperation):
             return response["Results"]
 
 
-class PutIndexesOperation(AdminOperation):
+class PutIndexesOperation(MaintenanceOperation):
     def __init__(self, *indexes_to_add):
         if len(indexes_to_add) == 0:
             raise ValueError("Invalid indexes_to_add")
@@ -165,6 +165,6 @@ class PutIndexesOperation(AdminOperation):
                 response.raise_for_status()
 
 
-class GetStatisticsOperation(AdminOperation):
+class GetStatisticsOperation(MaintenanceOperation):
     def get_command(self, conventions):
         return GetStatisticsCommand()

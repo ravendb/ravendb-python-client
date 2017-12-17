@@ -1,6 +1,6 @@
 import unittest
 from pyravendb.data.indexes import IndexDefinition
-from pyravendb.raven_operations.admin_operations import PutIndexesOperation, GetIndexOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetIndexOperation
 from pyravendb.commands.raven_commands import DeleteIndexCommand
 from pyravendb.tests.test_base import TestBase
 
