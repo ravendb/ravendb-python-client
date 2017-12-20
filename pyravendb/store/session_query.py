@@ -336,16 +336,19 @@ class Query(object):
                 self.query_builder += "^{0}".format(value)
         return self
 
+    def get_index_query(self):
+        return IndexQuery(self.query_builder, default_operator=self.using_default_operator,
+                          sort_hints=self._sort_hints, sort_fields=self._sort_fields,
+                          fetch=self.fetch,
+                          wait_for_non_stale_results=self.wait_for_non_stale_results,
+                          start=self._start)
+
     def _execute_query(self):
         self.session.increment_requests_count()
         conventions = self.session.conventions
         end_time = time.time() + conventions.timeout
         while True:
-            index_query = IndexQuery(self.query_builder, default_operator=self.using_default_operator,
-                                     sort_hints=self._sort_hints, sort_fields=self._sort_fields,
-                                     fetch=self.fetch,
-                                     wait_for_non_stale_results=self.wait_for_non_stale_results,
-                                     start=self._start)
+            index_query = self.get_index_query()
             if self._page_size is not None:
                 index_query.page_size = self._page_size
             response = self.session.database_commands.query(self.index_name, index_query, includes=self.includes)
@@ -364,7 +367,7 @@ class Query(object):
             entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
                                                                           self.nested_object_types,
                                                                           fetch=False if not self.fetch else True)
-            if not self.fetch:
+            if self.object_type != dict and not self.fetch:
                 self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
                                          original_metadata=original_metadata,
                                          metadata=metadata, document=result)

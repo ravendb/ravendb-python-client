@@ -3,6 +3,8 @@ from pyravendb.custom_exceptions import exceptions
 from pyravendb.store.session_query import Query
 from pyravendb.d_commands import commands_data
 from pyravendb.tools.utils import Utils
+from pyravendb.store.stream import IncrementalJsonParser
+import ijson
 
 
 class _SaveChangesData(object):
@@ -79,7 +81,7 @@ class documentsession(object):
                 self._entities_and_metadata[self._entities_by_key[key]] = {
                     "original_value": document.copy(), "metadata": metadata,
                     "original_metadata": original_metadata, "etag": metadata.get("etag", None), "key": key,
-                     "force_concurrency_check": force_concurrency_check}
+                    "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
         if key not in self._entities_by_key:
@@ -249,7 +251,6 @@ class documentsession(object):
                     "Can't store document, there is a deferred command registered for this document in the session. "
                     "Document id: " + entity_id)
 
-
         if entity in self._deleted_entities:
             raise exceptions.InvalidOperationException(
                 "Can't store object, it was already deleted in this session.  Document id: " + entity_id)
@@ -358,3 +359,20 @@ class Advanced(object):
             if instance in self.session.entities_and_metadata:
                 return self.session.entities_and_metadata[instance]["key"]
         return None
+
+    def stream(self, query, object_type=None, nested_object_types=None):
+        index_query = query.get_index_query()
+        if index_query.wait_for_non_stale_results:
+            raise exceptions.NotSupportedException("Since stream() does not wait for indexing (by design), "
+                                                   "streaming query with wait_for_non_stale_results is not supported.")
+        self.session.increment_requests_count()
+        response = self.session.database_commands.stream_query(query.index_name, index_query)
+        basic_parse = IncrementalJsonParser.basic_parse(response)
+        parser = ijson.backend.common.parse(basic_parse)
+
+        results = ijson.backend.common.items(parser, "Results")
+        for result in next(results, None):
+            document, metadata, _ = Utils.convert_to_entity(result, object_type, self.session.conventions,
+                                                            nested_object_types)
+            yield {"document": document, "metadata": metadata, "key": metadata.get(metadata["@id"], None),
+                   "etag": metadata.get(metadata["@etag"], None)}

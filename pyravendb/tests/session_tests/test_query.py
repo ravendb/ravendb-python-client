@@ -1,6 +1,6 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import documentstore
-from pyravendb.store.session_query import QueryOperator, EscapeQueryOptions
+from pyravendb.store.session_query import QueryOperator
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition, SortOptions
 import unittest
@@ -188,10 +188,44 @@ class TestQuery(TestBase):
 
             self.assertTrue(found_in_all)
 
-    def test_where_starts_with_skip_take(self):
+    class Product:
+        def __init__(self, name, key, order):
+            self.name = name
+            self.key = key
+            self.order = order
+
+    def test_stream(self):
         with self.document_store.open_session() as session:
-            query_result = list(session.query().where_starts_with("name", "test").take(4).skip("2"))
-            self.assertEqual(len(query_result), 4)
+            session.save_changes()
+            list(session.query(wait_for_non_stale_results=True, index_name="Testing_Sort"))
+
+        with self.document_store.open_session() as session:
+            query_results = session.query(index_name="Testing_Sort")
+            results = session.advanced.stream(query_results)
+            count = 0
+            for _ in results:
+                count += 1
+            self.assertEqual(count, 8)
+
+    def test_stream_with_object_type(self):
+        object_type = Company
+        nested_object_types = {"product": Product}
+        with self.document_store.open_session() as session:
+            list(session.query(object_type=object_type, nested_object_types=nested_object_types).where_equals(
+                "name", "withNesting"))
+
+        with self.document_store.open_session() as session:
+            query_results = session.query(index_name="Auto/Companies/Byname", ).where_equals("name", "withNesting")
+            results = session.advanced.stream(query_results, object_type=object_type,
+                                              nested_object_types=nested_object_types)
+            for result in results:
+                self.assertTrue(isinstance(result["document"], Company))
+
+
+def test_where_starts_with_skip_take(self):
+    with self.document_store.open_session() as session:
+        query_result = list(session.query().where_starts_with("name", "test").take(4).skip("2"))
+        self.assertEqual(len(query_result), 4)
 
 
 if __name__ == "__main__":
