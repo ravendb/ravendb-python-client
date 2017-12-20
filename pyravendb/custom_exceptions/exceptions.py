@@ -21,5 +21,10 @@ class FetchConcurrencyException(Exception):
 class ArgumentOutOfRangeException(Exception):
     pass
 
+
 class TimeoutException(Exception):
+    pass
+
+
+class NotSupportedException(Exception):
     pass

@@ -15,6 +15,7 @@ setup(
         "pycrypto >= 2.6.1",
         "requests >= 2.9.1",
         "inflector >= 2.0.11",
+        'ijson',
     ],
     zip_safe=False
 )

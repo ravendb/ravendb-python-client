@@ -72,5 +72,6 @@ class TestSessionStore(TestBase):
         self._save_documents(documents)
         self._save_documents(documents)
 
+
 if __name__ == "__main__":
     unittest.main()

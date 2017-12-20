@@ -30,7 +30,7 @@ class HttpRequestsFactory(object):
         if self.convention is None:
             self.convention = DocumentConvention()
         self.headers = {"Accept": "application/json", "Has-Api-key": 'true' if self.api_key is not None else 'false',
-                        "Raven-Client-Version": "3.0.0.0"}
+                        "Raven-Client-Version": "3.5.0.0"}
         self.replication_topology = IndexQueue()
         self.topology_change_counter = 0
         self.lock = Lock()
@@ -42,7 +42,7 @@ class HttpRequestsFactory(object):
         self._current_database = None
 
     def http_request_handler(self, path, method, data=None, headers=None, admin=False, force_read_from_master=False,
-                             uri="databases"):
+                             uri="databases", stream=False):
         if self.force_get_topology:
             self.force_get_topology = False
             self.get_replication_topology()
@@ -55,10 +55,10 @@ class HttpRequestsFactory(object):
             uri = self.convention.system_database
 
         return self._execute_with_replication(path, method, headers=headers, data=data, admin=admin,
-                                              force_read_from_master=force_read_from_master, uri=uri)
+                                              force_read_from_master=force_read_from_master, uri=uri, stream=stream)
 
     def _execute_with_replication(self, path, method, headers, data=None, admin=False,
-                                  force_read_from_master=False, uri="databases"):
+                                  force_read_from_master=False, uri="databases", stream=False):
         second_api_key = None
         while True:
             index = None
@@ -107,7 +107,7 @@ class HttpRequestsFactory(object):
                     headers = {}
                 headers.update(self.headers)
                 data = json.dumps(data, default=self.convention.json_default_method)
-                response = session.request(method, url=url, data=data, headers=headers)
+                response = session.request(method, url=url, data=data, headers=headers, stream=stream)
                 if response.status_code == 412 or response.status_code == 401:
                     try:
                         oauth_source = response.headers.__getitem__("OAuth-Source")
@@ -118,7 +118,7 @@ class HttpRequestsFactory(object):
                     continue
                 if (response.status_code == 503 or response.status_code == 502) and \
                         not self.replication_topology.empty() and not (
-                                path == "replication/topology" or "Hilo" in path):
+                        path == "replication/topology" or "Hilo" in path):
                     if self.primary:
                         if self.convention.failover_behavior == Failover.fail_immediately or force_read_from_master:
                             raise exceptions.ErrorResponseException("Failed to get response from server")

@@ -17,7 +17,14 @@ class TestBase(unittest.TestCase):
         cls.default_database = "NorthWindTest"
         cls.request_handler = HttpRequestsFactory(cls.default_url, cls.default_database)
         cls.db = database_commands.DatabaseCommands(cls.request_handler)
-        cls.db.admin_commands.create_database(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"}))
+        while True:
+            try:
+                cls.db.admin_commands.create_database(DatabaseDocument(cls.default_database, {"Raven/DataDir": "test"}))
+                break
+            except Exception as e:
+                if "already exists" in str(e):
+                    cls.db.admin_commands.delete_database(cls.default_database, True)
+
         cls.index_map = ("from doc in docs "
                          "select new{"
                          "Tag = doc[\"@metadata\"][\"Raven-Entity-Name\"],"

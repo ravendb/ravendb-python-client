@@ -238,6 +238,43 @@ class DatabaseCommands(object):
     def get_operation_status(self, operation_id):
         pass
 
+    @staticmethod
+    def _build_query_request_path(path, index_query, includes=None, metadata_only=False, index_entries_only=False,
+                                  include_query=True, add_page_size=True):
+        if index_query.default_operator is QueryOperator.AND:
+            try:
+                operator = index_query.default_operator.value
+            except AttributeError:
+                operator = index_query.default_operator
+            path += "&operator={0}".format(operator)
+        if index_query.query and include_query:
+            path += "&query={0}".format(Utils.quote_key(index_query.query, safe='/'))
+        if index_query.sort_hints:
+            for hint in index_query.sort_hints:
+                path += "&{0}".format(hint)
+        if index_query.sort_fields:
+            for field in index_query.sort_fields:
+                path += "&sort={0}".format(field)
+        if index_query.fetch:
+            for item in index_query.fetch:
+                path += "&fetch={0}".format(item)
+        if metadata_only:
+            path += "&metadata-only=true"
+        if index_entries_only:
+            path += "&debug=entries"
+        if includes and len(includes) > 0:
+            path += "".join("&include=" + item for item in includes)
+        if index_query.start and index_query.start != 0:
+            path += "&start={0}".format(index_query.start)
+
+        if add_page_size and index_query.page_size:
+            path += "&pageSize={0}".format(index_query.page_size)
+
+        if index_query.wait_for_non_stale_results:
+            path += "&waitForNonStaleResultsAsOfNow=true"
+
+        return path
+
     def query(self, index_name, index_query, includes=None, metadata_only=False, index_entries_only=False,
               force_read_from_master=False):
         """
@@ -262,42 +299,46 @@ class DatabaseCommands(object):
         if index_query is None:
             raise ValueError("None query is invalid")
         if not isinstance(index_query, IndexQuery):
-            raise ValueError("query must be IndexQuery type")
+            raise ValueError("index_query must be IndexQuery type")
         path = "indexes/{0}?".format(Utils.quote_key(index_name))
-        if index_query.default_operator is QueryOperator.AND:
-            try:
-                operator = index_query.default_operator.value
-            except AttributeError:
-                operator = index_query.default_operator
-            path += "&operator={0}".format(operator)
-        if index_query.query:
-            path += "&query={0}".format(Utils.quote_key(index_query.query, safe='/'))
-        if index_query.sort_hints:
-            for hint in index_query.sort_hints:
-                path += "&{0}".format(hint)
-        if index_query.sort_fields:
-            for field in index_query.sort_fields:
-                path += "&sort={0}".format(field)
-        if index_query.fetch:
-            for item in index_query.fetch:
-                path += "&fetch={0}".format(item)
-        if metadata_only:
-            path += "&metadata-only=true"
-        if index_entries_only:
-            path += "&debug=entries"
-        if includes and len(includes) > 0:
-            path += "".join("&include=" + item for item in includes)
-        if index_query.start:
-            path += "&start={0}".format(index_query.start)
-
-        path += "&pageSize={0}".format(index_query.page_size)
-        if index_query.wait_for_non_stale_results:
-            path += "&waitForNonStaleResultsAsOfNow=true"
+        path += self._build_query_request_path(path=path, index_query=index_query, includes=includes,
+                                               metadata_only=metadata_only, index_entries_only=index_entries_only)
         response = self._requests_handler.http_request_handler(path, "GET",
                                                                force_read_from_master=force_read_from_master).json()
         if "Error" in response:
             raise exceptions.ErrorResponseException(response["Error"][:100])
         return response
+
+    def stream_query(self, index_name, index_query):
+        """
+        @param index_name: A name of an index to query
+        :type str
+        @param index_query: A query definition containing all information required to query a specified index..
+        :type IndexQuery
+        """
+        if not index_name:
+            raise ValueError("index_name cannot be None or empty")
+        if index_query is None:
+            raise ValueError("None query is invalid")
+        if not isinstance(index_query, IndexQuery):
+            raise ValueError("index_query must be IndexQuery type")
+        method = "GET"
+        if index_query.query and len(index_query.query) > 1024 + 512:
+            method = "POST"
+
+        path = "streams/query/{0}?".format(index_name)
+        data = None
+        headers = None
+        if method == "GET":
+            path += self._build_query_request_path(path=path, index_query=index_query, add_page_size=False)
+        else:
+            path += self._build_query_request_path(path=path, index_query=index_query, include_query=False,
+                                                   add_page_size=False)
+            data = index_query.query
+            headers = {'content-encoding': 'gzip'}
+
+        return self._requests_handler.http_request_handler(path=path, method=method, data=data, headers=headers,
+                                                           stream=True)
 
     # For Admin use only (create or delete databases)
     class Admin(object):
