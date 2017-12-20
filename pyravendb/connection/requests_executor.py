@@ -40,6 +40,7 @@ class RequestsExecutor(object):
         self.update_topology_timer = None
         self._first_topology_update = None
         self.cluster_token = None
+        self.topology_nodes = None
 
         self._closed = False
 
@@ -138,7 +139,7 @@ class RequestsExecutor(object):
                     raise exceptions.AuthorizationException(
                         "Forbidden access to " + chosen_node.database + "@" + chosen_node.url + ", " +
                         ("a certificate is required." if self._certificate is None
-                         else name + " does not have permission to access it or is unknown.") +
+                        else name + " does not have permission to access it or is unknown.") +
                         response.request.method + " " + response.request.path_url)
                 if response.status_code == 410:
                     if should_retry:
@@ -182,6 +183,7 @@ class RequestsExecutor(object):
             try:
                 self.update_topology(ServerNode(url, self._database_name))
                 self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
+                self.topology_nodes = self._node_selector.topology.nodes
                 return
             except exceptions.DatabaseDoesNotExistException:
                 # Will happen on all node in the cluster, so errors immediately
@@ -196,6 +198,7 @@ class RequestsExecutor(object):
         # Failed to update topology trying update from cache
         for url in initial_urls:
             if self.try_load_from_cache(url):
+                self.topology_nodes = self._node_selector.topology.nodes
                 return
 
         self._last_known_urls = initial_urls

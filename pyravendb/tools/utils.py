@@ -53,6 +53,13 @@ class Utils(object):
                 "Database name can only contain only A-Z, a-z, \"_\", \".\" or \"-\" but was: " + name)
 
     @staticmethod
+    def first_or_default(iterator, func, default):
+        for item in iterator:
+            if func(item):
+                return item
+        return default
+
+    @staticmethod
     def get_change_vector_from_header(response):
         header = response.headers.get("ETag", None)
         if header is not None and header[0] == "\"":
