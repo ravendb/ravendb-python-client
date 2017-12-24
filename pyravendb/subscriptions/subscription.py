@@ -1,5 +1,7 @@
 import logging
 import socket
+import sys
+from datetime import datetime
 from pyravendb.tools.utils import Utils
 from pyravendb.connection.requests_helpers import PropagatingThread
 from urllib.parse import urlparse
@@ -7,16 +9,18 @@ from pyravendb.commands.raven_commands import GetTcpInfoCommand
 from pyravendb.subscriptions.data import IncrementalJsonParser
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.connection.requests_executor import RequestsExecutor
+from pyravendb.custom_exceptions.exceptions import AggregateException
 
 
 class SubscriptionWorker:
-    def __init__(self, options, store, database_name, confirm_callback=None, object_type=None,
-                 nested_object_types=None):
+    def __init__(self, options, store, database_name, confirm_callback=None, on_subscription_connection_retry=None,
+                 object_type=None, nested_object_types=None):
         """
         @param SubscriptionWorkerOptions options: The subscription connection options.
         @param DocumentStore store: The document store
         @param str database_name: The database name
-        @param func(SubscriptionBatch) confirm_callback: allows the user to define stuff that happens after the confirm was received from the server
+        @param func(SubscriptionBatch) confirm_callback: Allows the user to define stuff that happens after the confirm was received from the server
+        @param func(Exception) on_subscription_connection_retry: Allows the user to define what will happen after connection retry
         @param Type object_type: The type of the object we want to track the entity to
         @param Dict[str, Type] nested_object_types: A dict of classes for nested object the key will be the name of the
         class and the value will be the object we want to get for that attribute
@@ -44,6 +48,10 @@ class SubscriptionWorker:
         self.nested_object_types = nested_object_types
         self._batch = None
         self.confirm_callback = confirm_callback
+        self._redirect_node = None
+
+        self.on_subscription_connection_retry = on_subscription_connection_retry
+        self._last_connection_failure = None
 
     def connect_to_server(self):
         command = GetTcpInfoCommand("Subscription/" + self._database_name, self._database_name)
@@ -52,7 +60,17 @@ class SubscriptionWorker:
         send_buffer_size = 32 * 1024
         receive_buffer_size = 4096
 
-        result = request_executor.execute(command)
+        if self._redirect_node:
+            try:
+                result = request_executor.execute_with_node(self._redirect_node, command, should_retry=False)
+            except Exception:
+                # if we failed to talk to a node, we'll forget about it and let the topology to
+                # redirect us to the current nod
+                self._redirect_node = None
+                raise
+        else:
+            result = request_executor.execute(command)
+
         uri = urlparse(result["Url"])
         host = uri.hostname
         port = uri.port
@@ -119,6 +137,31 @@ class SubscriptionWorker:
             raise InvalidOperationException("Unrecognized message from server: " + item['Type'])
 
     def run_subscription(self):
+        import time
+        while not self._closed:
+            try:
+                self.process_subscription()
+            except Exception as ex:
+                try:
+                    if sys.gettrace():
+                        self._logger.info("Subscription '{0}'. Pulling task threw the following exception : {1}".format(
+                            self._options.subscription_name, ex))
+                    if self.should_try_to_reconnect(ex):
+                        time.sleep(self._options.time_to_wait_before_connection_retry.seconds)
+                        if self.on_subscription_connection_retry:
+                            self.on_subscription_connection_retry(ex)
+                    else:
+                        if sys.gettrace():
+                            self._logger.info(
+                                "Connection to subscription '{0}'. have been shut down because of an error : {1}".format(
+                                    self._options.subscription_name, ex))
+                        raise
+                except Exception as e:
+                    if e == ex:
+                        raise
+                    raise AggregateException(e, ex)
+
+    def process_subscription(self):
         try:
             parser = self.connect_to_server()
             if self._closed:
@@ -135,8 +178,9 @@ class SubscriptionWorker:
                 try:
                     self._process_documents(self._batch)
                 except Exception as ex:
-                    self._logger.info("Subscription '{0}'. Subscriber threw an exception on document batch".format(
-                        self._options.subscription_name), ex)
+                    self._logger.info(
+                        "Subscription '{0}'. Subscriber threw an exception on document batch : {1}".format(
+                            self._options.subscription_name, str(ex)))
                     if not self._options.ignore_subscriber_errors:
                         raise SubscriberErrorException(
                             "Subscriber threw an exception in subscription" + self._options.subscription_name, ex)
@@ -149,6 +193,45 @@ class SubscriptionWorker:
         finally:
             if self._my_socket:
                 self._my_socket.close()
+
+    def should_try_to_reconnect(self, exception):
+        if isinstance(exception, SubscriptionDoesNotBelongToNodeException):
+            self.assert_last_connection_failure()
+            request_executor = self._store.get_request_executor(self._database_name)
+            if not exception.appropriate_node:
+                return True
+
+            node_to_redirect_to = Utils.first_or_default(request_executor.topology_nodes,
+                                                         lambda node: node.cluster_tag == exception.appropriate_node,
+                                                         None)
+
+            if not node_to_redirect_to:
+                raise AggregateException(exception, InvalidOperationException(
+                    "Could not redirect to {0}, "
+                    "because it was not found in local topology, even after retrying".format(
+                        exception.appropriate_node)))
+
+            self._redirect_node = node_to_redirect_to
+            return True
+        if isinstance(exception, SubscriptionChangeVectorUpdateConcurrencyException):
+            return True
+        if isinstance(exception, (
+                SubscriptionInUseException, SubscriptionDoesNotExistException, SubscriptionClosedException,
+                SubscriptionInvalidStateException, DatabaseDoesNotExistException, AuthorizationException,
+                AllTopologyNodesDownException, SubscriberErrorException, ValueError, NotImplementedError,
+                AttributeError)):
+            self.close()
+            return False
+        self.assert_last_connection_failure()
+        return True
+
+    def assert_last_connection_failure(self):
+        if not self._last_connection_failure:
+            self._last_connection_failure = datetime.now()
+        elif (datetime.now() - self._last_connection_failure) > self._options.max_erroneous_period:
+            raise SubscriptionInvalidStateException(
+                "Subscription connection was in invalid state for more than {0} and therefore will be terminated".format(
+                    self._options.max_erroneous_period))
 
     def assert_connection_state(self, connection_status):
         if connection_status['Type'] == "Error":
@@ -183,10 +266,12 @@ class SubscriptionWorker:
                     if "RedirectedTag" in connection_status["Data"]:
                         appropriate_node = connection_status["Data"]["RedirectedTag"]
                         raise SubscriptionDoesNotBelongToNodeException(
-                            "Subscription With Id '{0}' cannot be processed by current node, "
-                            "it will be redirected to {1}".format(
+                            appropriate_node,
+                            "Subscription With Id '{0}' cannot be processed by current node, it will be redirected to {1}".format(
                                 self._options.subscription_name,
                                 appropriate_node if appropriate_node is not None else "None"))
+            if status == "ConcurrencyReconnect":
+                raise SubscriptionChangeVectorUpdateConcurrencyException(connection_status["Exception"])
             raise AttributeError(
                 "Subscription '{0}' could not be opened, reason: {1}".format(
                     self._options.subscription_name, status))

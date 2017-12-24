@@ -58,25 +58,39 @@ class NotSupportedException(Exception):
     pass
 
 
+class AggregateException(Exception):
+    pass
+
+
 # <---------- Subscription Exceptions ---------->
 
-class SubscriptionInUseException(Exception):
+class SubscriptionException(Exception):
     pass
 
 
-class SubscriptionClosedException(Exception):
+class SubscriptionInUseException(SubscriptionException):
     pass
 
 
-class SubscriptionInvalidStateException(Exception):
+class SubscriptionClosedException(SubscriptionException):
     pass
 
 
-class SubscriptionDoesNotExistException(Exception):
+class SubscriptionInvalidStateException(SubscriptionException):
     pass
 
 
-class SubscriptionDoesNotBelongToNodeException(Exception):
+class SubscriptionDoesNotExistException(SubscriptionException):
+    pass
+
+
+class SubscriptionDoesNotBelongToNodeException(SubscriptionException):
+    def __init__(self, appropriate_node, message):
+        super(SubscriptionDoesNotBelongToNodeException, self).__init__(message)
+        self.appropriate_node = appropriate_node
+
+
+class SubscriptionChangeVectorUpdateConcurrencyException(SubscriptionException):
     pass
 
 

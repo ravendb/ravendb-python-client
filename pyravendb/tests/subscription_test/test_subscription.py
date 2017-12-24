@@ -61,7 +61,7 @@ class TestSubscription(TestBase):
         self.assertEqual(len(self.results), 0)
         with self.store.subscriptions.get_subscription_worker(connection_options, object_type=User) as subscription:
             subscription.run(self.process_documents)
-            self.event.wait()
+            self.event.wait(timeout=5)
 
         self.assertEqual(len(self.results), 2)
         for item in self.results:
@@ -86,13 +86,13 @@ class TestSubscription(TestBase):
         with self.store.subscriptions.get_subscription_worker(connection_options) as subscription:
             subscription.confirm_callback = self.acknowledge
             subscription.run(self.process_documents)
-            self.ack.wait()
+            self.ack.wait(timeout=5)
 
             self.assertEqual(len(self.results), 2)
             with self.store.open_session() as session:
                 session.store(User("Idan", "Shalom"))
                 session.save_changes()
-            self.event.wait()
+            self.event.wait(timeout=5)
             self.assertEqual(len(self.results), 3)
 
     def test_drop_subscription(self):

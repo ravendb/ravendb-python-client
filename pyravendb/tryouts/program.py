@@ -1,23 +1,9 @@
-from pyravendb.store.document_store import DocumentStore
-from pyravendb.store import document_store
-from pyravendb.commands.raven_commands import GetTcpInfoCommand
-from pyravendb.raven_operations.server_operations import CreateDatabaseOperation, DeleteDatabaseOperation
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetStatisticsOperation
-from pyravendb.subscriptions.data import SubscriptionCreationOptions
 from pyravendb.data.indexes import IndexDefinition, IndexFieldOptions, FieldIndexing
-from requests.exceptions import RequestException
-from pyravendb.tools.utils import Utils
-from pyravendb.tools.utils import _DynamicStructure
-from xxhash import xxh64
-from enum import Enum
-import timeit
-import time
-from datetime import timedelta
-from threading import Thread
-from urllib.parse import urlsplit, urlparse
-from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.subscriptions.subscription import Subscription
-from  pyravendb.subscriptions.data import SubscriptionConnectionOptions
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
+from pyravendb.custom_exceptions import exceptions
+from pyravendb.store.document_store import DocumentStore
+from pyravendb.subscriptions.data import *
+import threading
 
 
 class User:
@@ -33,7 +19,7 @@ class Dog:
         self.brand = brand
 
     def __str__(self):
-        return "The dog name is" + self.name + " and his brand is" + self.brand
+        return "The dog name is " + self.name + " and his brand is " + self.brand
 
 
 def test(batch):
@@ -59,8 +45,35 @@ class UsersByName:
         document_store.maintenance.send(PutIndexesOperation(self.index_definition))
 
 
+class Test(Exception):
+    pass
+
+
+event = threading.Event()
+
+items_count = 0
+
+
+def process_documents(self, batch):
+    global items_count
+    items_count += len(batch.items)
+    for b in batch.items:
+        self.results.append(b.result)
+    if self.items_count == self.expected_items_count:
+        event.set()
+
+
+class Test2(Test):
+    def __init__(self, number=0, message=""):
+        super(Test2, self).__init__(message)
+        self.number = number
+
+
 if __name__ == "__main__":
-    store = document_store.DocumentStore(urls=["http://localhost:8080", "http://localhost:8084"], database="PyRavenDB")
-    store.initialize()
-    with store.open_session() as session:
-        foo = session.load("foos/1")
+    with DocumentStore(urls=["http://localhost:8084"], database="NorthWind") as store:
+        store.initialize()
+
+    connection_options = SubscriptionWorkerOptions("Test")
+    with store.subscriptions.get_subscription_worker(connection_options) as subscription:
+        r = subscription.run(process_documents)
+        event.wait()

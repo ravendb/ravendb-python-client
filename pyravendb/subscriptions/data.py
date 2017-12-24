@@ -43,7 +43,7 @@ class SubscriptionCreationOptions:
 
 class SubscriptionWorkerOptions:
     def __init__(self, subscription_name, strategy=None, ignore_subscriber_errors=False,
-                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096):
+                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096, max_erroneous_period=None):
         """
         @param str subscription_name: The subscription name
         @param SubscriptionOpeningStrategy strategy: Options for opening a subscription
@@ -60,6 +60,9 @@ class SubscriptionWorkerOptions:
             time_to_wait_before_connection_retry = timedelta(milliseconds=5000)
         self.time_to_wait_before_connection_retry = time_to_wait_before_connection_retry
         self.max_docs_per_batch = max_docs_per_batch
+        self.max_erroneous_period = max_erroneous_period
+        if max_erroneous_period is None:
+            self.max_erroneous_period = timedelta(minutes=5)
 
     def to_json(self):
         return {"SubscriptionName": self.subscription_name,
@@ -223,11 +226,11 @@ class IncrementalJsonParser:
                     return
 
                 try:
-                    yield ('number', ijson.basic_parse.common.number(symbol))
-                except ijson.basic_parse.decimal.InvalidOperation:
-                    raise ijson.basic_parse.UnexpectedSymbol(symbol, pos)
+                    yield ('number', ijson.backend.common.number(symbol))
+                except ijson.backend.decimal.InvalidOperation:
+                    raise ijson.backend.UnexpectedSymbol(symbol, pos)
         except StopIteration:
-            raise ijson.basic_parse.common.IncompleteJSONError('Incomplete JSON data')
+            raise ijson.backend.common.IncompleteJSONError('Incomplete JSON data')
 
     @staticmethod
     def parse_array(lexer):
@@ -242,11 +245,11 @@ class IncrementalJsonParser:
                     if symbol == ']':
                         break
                     if symbol != ',':
-                        raise ijson.basic_parse.UnexpectedSymbol(symbol, pos)
+                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     pos, symbol = next(lexer)
             yield ('end_array', None)
         except StopIteration:
-            raise ijson.basic_parse.common.IncompleteJSONError('Incomplete JSON data')
+            raise ijson.backend.common.IncompleteJSONError('Incomplete JSON data')
 
     @staticmethod
     def parse_object(lexer):
@@ -256,22 +259,22 @@ class IncrementalJsonParser:
             if symbol != '}':
                 while True:
                     if symbol[0] != '"':
-                        raise ijson.basic_parse.UnexpectedSymbol(symbol, pos)
+                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     yield ('map_key', IncrementalJsonParser.unescape(symbol[1:-1]))
                     pos, symbol = next(lexer)
                     if symbol != ':':
-                        raise ijson.basic_parse.UnexpectedSymbol(symbol, pos)
+                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     for event in IncrementalJsonParser.parse_value(lexer, None, pos):
                         yield event
                     pos, symbol = next(lexer)
                     if symbol == '}':
                         break
                     if symbol != ',':
-                        raise ijson.basic_parse.UnexpectedSymbol(symbol, pos)
+                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     pos, symbol = next(lexer)
             yield ('end_map', None)
         except StopIteration:
-            raise ijson.basic_parse.common.IncompleteJSONError('Incomplete JSON data')
+            raise ijson.backend.common.IncompleteJSONError('Incomplete JSON data')
 
     @staticmethod
     def unescape(s):
