@@ -12,7 +12,7 @@ class DocumentConvention(object):
         self.max_ids_to_catch = kwargs.get("max_ids_to_catch", 32)
         # timeout for wait to server in seconds
         self.timeout = kwargs.get("timeout", timedelta(seconds=30))
-        self.default_use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
+        self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
         self.json_default_method = DocumentConvention.json_default
         self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
         self.identity_parts_separator = "/";
