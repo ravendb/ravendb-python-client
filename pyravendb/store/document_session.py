@@ -198,9 +198,10 @@ class DocumentSession(object):
         self._known_missing_ids.add(self._documents_by_entity[entity]["key"])
         self._deleted_entities.add(entity)
 
-    def delete(self, key_or_entity):
+    def delete(self, key_or_entity, expected_change_vector=None):
         """
-        @param key_or_entity:can be the key or the entity we like to delete
+        @param str or object key_or_entity: Can be the key or the entity we like to delete
+        @param str expected_change_vector: A change vector to use for concurrency checks
         :type str or object:
         """
         if key_or_entity is None:
@@ -223,7 +224,7 @@ class DocumentSession(object):
             return
         self._known_missing_ids.add(key_or_entity)
         self._included_documents_by_id.pop(key_or_entity, None)
-        self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity))
+        self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity, expected_change_vector))
 
     def assert_no_non_unique_instance(self, entity, key):
         if not (key is None or key.endswith("/") or key not in self._documents_by_id

@@ -78,10 +78,10 @@ class DocumentStore(object):
                 "You cannot open a session or access the database commands before initializing the document store.\
                 Did you forget calling initialize()?")
 
-    def open_session(self, database=None, requests_executor=None):
+    def open_session(self, database=None, request_executor=None):
         self._assert_initialize()
         session_id = uuid.uuid4()
-        requests_executor = self.get_request_executor(database) if requests_executor is None else requests_executor
+        requests_executor = self.get_request_executor(database) if request_executor is None else request_executor
         return DocumentSession(database, self, requests_executor, session_id)
 
     def generate_id(self, db_name, entity):
