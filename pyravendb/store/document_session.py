@@ -33,6 +33,7 @@ class DocumentSession(object):
         self._defer_commands = set()
         self._number_of_requests_in_session = 0
         self._query = None
+        self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
         self.advanced = Advanced(self)
 
     def __enter__(self):
@@ -333,8 +334,8 @@ class DocumentSession(object):
             if key in self._documents_by_id:
                 existing_entity = self._documents_by_id[key]
                 if existing_entity in self._documents_by_entity:
-                    change_vector = self._documents_by_entity[existing_entity][
-                        "change_vector"] if self.advanced.use_optimistic_concurrency else None
+                    change_vector = self._documents_by_entity[existing_entity]["metadata"][
+                        "@change-vector"] if self.advanced.use_optimistic_concurrency else None
                 self._documents_by_entity.pop(existing_entity, None)
                 self._documents_by_id.pop(key, None)
             data.entities.append(existing_entity)
@@ -381,7 +382,8 @@ class DocumentSession(object):
 class Advanced(object):
     def __init__(self, session):
         self.session = session
-        self.use_optimistic_concurrency = False
+        self.use_optimistic_concurrency = session.use_optimistic_concurrency if session.use_optimistic_concurrency \
+            else session.conventions.use_optimistic_concurrency
 
     def number_of_requests_in_session(self):
         return self.session.number_of_requests_in_session
