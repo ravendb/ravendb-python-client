@@ -47,8 +47,17 @@ class DocumentStore(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
         if self.generator is not None:
             self.generator.return_unused_range()
+
+        if self.subscriptions:
+            self.subscriptions.close()
+
+        for _, request_executor in self._request_executors.items():
+            request_executor.close()
 
     def get_request_executor(self, db_name=None):
         self._assert_initialize()
