@@ -51,11 +51,8 @@ class Test(Exception):
 
 event = threading.Event()
 
-items_count = 0
 
-
-def process_documents(self, batch):
-    global items_count
+def process_documents(self, batch, items_count=1):
     items_count += len(batch.items)
     for b in batch.items:
         self.results.append(b.result)
@@ -70,14 +67,10 @@ class Test2(Test):
 
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://localhost:8084"], database="NorthWind") as store:
+    with DocumentStore(urls=["http://localhost:8081"], database="NorthWind") as store:
         store.initialize()
 
-    with store.open_session() as session:
-        user = User("Idan")
-        session.store(user)
-        session.save_changes()
-
-        key = session.advanced.get_document_id(user)
-        session.delete(user)
-        session.save_changes()
+        connection_options = SubscriptionWorkerOptions("testing")
+        with store.subscriptions.get_subscription_worker(connection_options) as subscription:
+            subscription.run(process_documents)
+            event.wait()
