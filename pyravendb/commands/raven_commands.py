@@ -70,7 +70,7 @@ class GetDocumentCommand(RavenCommand):
         if isinstance(self.key_or_keys, list):
             key_or_keys = collections.OrderedDict.fromkeys(self.key_or_keys)
             if self.metadata_only:
-                path += "&metadata-only=true"
+                path += "&metadataOnly=true"
 
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
@@ -283,7 +283,7 @@ class QueryCommand(RavenCommand):
         self.url = "{0}/databases/{1}/queries?query-hash={2}".format(server_node.url, server_node.database,
                                                                      self._index_query.get_query_hash())
         if self._metadata_only:
-            self.url += "&metadata-only=true"
+            self.url += "&metadataOnly=true"
         if self._index_entries_only:
             self.url += "&debug=entries"
 
