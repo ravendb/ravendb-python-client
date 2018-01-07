@@ -109,7 +109,7 @@ class NodeSelector(object):
 
     def get_current_node(self):
         if len(self.topology.nodes) == 0:
-            raise InvalidOperationException("Empty database topology, this shouldn't happen.")
+            raise InvalidOperationException("There are no nodes in the topology at all")
 
         return self.topology.nodes[self._current_node_index]
 

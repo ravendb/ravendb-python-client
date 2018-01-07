@@ -1,6 +1,7 @@
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.document_convention import DocumentConvention
+from pyravendb.changes.database_changes import DatabaseChanges
+from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
 from pyravendb.store.document_session import DocumentSession
 from pyravendb.subscriptions.document_subscriptions import DocumentSubscriptions
@@ -15,15 +16,17 @@ class DocumentStore(object):
             urls = [urls]
         self.urls = urls
         self.database = database
-        self.conventions = DocumentConvention()
+        self.conventions = DocumentConventions()
         self._certificate = certificate
         self._request_executors = {}
         self._initialize = False
         self.generator = None
         self._operations_executor = None
         self.lock = Lock()
+        self.add_change_lock = Lock()
         self._maintenance_operation_executor = None
         self.subscriptions = DocumentSubscriptions(self)
+        self._database_changes = {}
 
     @property
     def certificate(self):
@@ -58,6 +61,17 @@ class DocumentStore(object):
 
         for _, request_executor in self._request_executors.items():
             request_executor.close()
+
+    def changes(self, database=None):
+        self._assert_initialize()
+        with self.add_change_lock:
+            if database not in self._database_changes:
+                self._database_changes[database] = DatabaseChanges(self.get_request_executor(database), database,
+                                                                   self._on_close_change)
+            return self._database_changes[database]
+
+    def _on_close_change(self, database):
+        del self._database_changes[database]
 
     def get_request_executor(self, db_name=None):
         self._assert_initialize()
@@ -126,7 +140,7 @@ class MaintenanceOperationExecutor:
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self.request_executor.convention)
+        command = operation.get_command(self.request_executor.conventions)
         return self.request_executor.execute(command)
 
 
@@ -154,7 +168,7 @@ class ServerOperationExecutor:
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self.request_executor.convention)
+        command = operation.get_command(self.request_executor.conventions)
         return self.request_executor.execute(command)
 
 
@@ -197,5 +211,5 @@ class OperationExecutor(object):
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self._store, self.request_executor.convention)
+        command = operation.get_command(self._store, self.request_executor.conventions)
         return self.request_executor.execute(command)

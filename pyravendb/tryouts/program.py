@@ -69,15 +69,23 @@ class Test2(Test):
         self.number = number
 
 
+import time
+
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://localhost:8084"], database="NorthWind") as store:
-        store.initialize()
+    lock = threading.Lock()
+    event = threading.Event()
 
-    with store.open_session() as session:
-        user = User("Idan")
-        session.store(user)
-        session.save_changes()
 
-        key = session.advanced.get_document_id(user)
-        session.delete(user)
-        session.save_changes()
+    def go(name):
+        with lock:
+            time.sleep(3)
+            print("finish " + name)
+
+
+    t = threading.Thread(target=go, args=("t",), daemon=True)
+    t.start()
+    c = threading.Thread(target=go, args=("c",), daemon=True)
+    c.start()
+
+    t.join()
+    c.join()

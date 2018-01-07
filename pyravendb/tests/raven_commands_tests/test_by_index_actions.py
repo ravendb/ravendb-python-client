@@ -1,5 +1,5 @@
 import unittest
-from pyravendb.data.document_convention import DocumentConvention
+from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexFieldOptions, SortOptions, IndexDefinition
@@ -35,7 +35,7 @@ class TestByIndexActions(TestBase):
     def test_update_by_index_success(self):
         query_command = QueryCommand(
             index_query=IndexQuery(query="From INDEX 'Testing_Sort'", wait_for_non_stale_results=True),
-            conventions=DocumentConvention())
+            conventions=DocumentConventions())
         self.requests_executor.execute(query_command)
 
         patch_command = PatchByQueryOperation("From INDEX 'Testing_Sort' Update {{{0}}}".format(

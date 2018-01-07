@@ -2,8 +2,8 @@ from pyravendb.commands.raven_commands import GetTopologyCommand, GetStatisticsC
 from pyravendb.connection.requests_helpers import *
 from pyravendb.custom_exceptions import exceptions
 from OpenSSL import crypto
-from pyravendb.data.document_convention import DocumentConvention
-from threading import Lock, Thread
+from pyravendb.data.document_conventions import DocumentConventions
+from threading import Lock
 from pyravendb.tools.utils import Utils
 from datetime import datetime, timedelta
 import time
@@ -19,12 +19,12 @@ log = logging.getLogger()
 
 
 class RequestsExecutor(object):
-    def __init__(self, database_name, certificate, convention=None, **kwargs):
+    def __init__(self, database_name, certificate, conventions=None, **kwargs):
         self._database_name = database_name
         self._certificate = certificate
         self.topology_etag = kwargs.get("topology_etag", 0)
         self._last_return_response = datetime.utcnow()
-        self.convention = convention if convention is not None else DocumentConvention()
+        self.conventions = conventions if conventions is not None else DocumentConventions()
         self._node_selector = kwargs.get("node_selector", None)
         self._last_known_urls = None
 
@@ -45,8 +45,8 @@ class RequestsExecutor(object):
         self._closed = False
 
     @staticmethod
-    def create(urls, database_name, certificate, convention=None):
-        executor = RequestsExecutor(database_name, certificate, convention)
+    def create(urls, database_name, certificate, conventions=None):
+        executor = RequestsExecutor(database_name, certificate, conventions)
         executor.start_first_topology_thread(urls)
         return executor
 
@@ -59,6 +59,17 @@ class RequestsExecutor(object):
     def start_first_topology_thread(self, urls):
         self._first_topology_update = PropagatingThread(target=self.first_topology_update, args=(urls,), daemon=True)
         self._first_topology_update.start()
+
+    def ensure_node_selector(self):
+        if self._first_topology_update and self._first_topology_update.is_alive():
+            self._first_topology_update.join()
+
+        if not self._node_selector:
+            self._node_selector = NodeSelector(Topology(etag=self.topology_etag, nodes=self.topology_nodes))
+
+    def get_preferred_node(self):
+        self.ensure_node_selector()
+        return self._node_selector.get_current_node()
 
     def execute(self, raven_command, should_retry=True):
         if not hasattr(raven_command, 'raven_command'):
@@ -101,7 +112,7 @@ class RequestsExecutor(object):
                     raven_command.headers["Topology-Etag"] = "\"{0}\"".format(self.topology_etag)
 
                 data = None if raven_command.data is None else \
-                    json.dumps(raven_command.data, default=self.convention.json_default_method)
+                    json.dumps(raven_command.data, default=self.conventions.json_default_method)
                 start_time = time.time() * 1000
                 end_time = None
                 try:

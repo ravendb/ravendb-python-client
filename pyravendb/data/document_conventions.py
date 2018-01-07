@@ -6,14 +6,14 @@ from inflector import Inflector
 inflector = Inflector()
 
 
-class DocumentConvention(object):
+class DocumentConventions(object):
     def __init__(self, **kwargs):
         self.max_number_of_request_per_session = kwargs.get("max_number_of_request_per_session", 30)
         self.max_ids_to_catch = kwargs.get("max_ids_to_catch", 32)
         # timeout for wait to server in seconds
         self.timeout = kwargs.get("timeout", timedelta(seconds=30))
         self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
-        self.json_default_method = DocumentConvention.json_default
+        self.json_default_method = DocumentConventions.json_default
         self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
         self.identity_parts_separator = "/";
         self.disable_topology_update = kwargs.get("disable_topology_update", False)
@@ -45,14 +45,14 @@ class DocumentConvention(object):
     def default_transform_type_tag_name(name):
         count = sum(1 for c in name if c.isupper())
         if count <= 1:
-            return DocumentConvention.default_transform_plural(name.lower())
-        return DocumentConvention.default_transform_plural(name)
+            return DocumentConventions.default_transform_plural(name.lower())
+        return DocumentConventions.default_transform_plural(name)
 
     @staticmethod
     def build_default_metadata(entity):
         if entity is None:
             return {}
-        return {"@collection": DocumentConvention.default_transform_plural(entity.__class__.__name__),
+        return {"@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
                 "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
 
     @staticmethod

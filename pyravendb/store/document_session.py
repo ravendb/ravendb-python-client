@@ -372,7 +372,7 @@ class DocumentSession(object):
                 "The maximum number of requests ({0}) allowed for this session has been reached. Raven limits the number \
                 of remote calls that a session is allowed to make as an early warning system. Sessions are expected to \
                 be short lived, and Raven provides facilities like batch saves (call save_changes() only once).\
-                You can increase the limit by setting DocumentConvention.\
+                You can increase the limit by setting DocumentConventions.\
                 MaxNumberOfRequestsPerSession or MaxNumberOfRequestsPerSession, but it is advisable \
                 that you'll look into reducing the number of remote calls first, \
                 since that will speed up your application significantly and result in a\
