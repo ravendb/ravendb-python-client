@@ -151,3 +151,57 @@ with store.open_session() as session:
     foo_bar = session.load("FooBars/1", object_type=FooBar, includes=foo)
     
 ```
+
+##What`s new
+###Changes Api
+The RavenDB client offers a push notification feature that allows you to receive messages from a server about events that occurred there. 
+ou are able to subscribe to events for all documents, indexes and operations as well as to indicate a particular 
+one that you are interested in. This mechanism lets you notify users if something has changed without 
+the need to do any expensive polling.
+
+##### Example:
+```python
+with document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB") as store:
+    store.initialize() 
+    documents = []
+    indexes = []
+    
+    observer = store.changes().all_docuemts()
+    observer.subscribe(documents.append)
+    observer.ensure_subscribe_now()
+    
+    observer = store.changes().for_index('Users')
+    observer.subscribe(ActionObserver(on_next=indexes.append))
+    observer.ensure_subscribe_now()
+    
+    index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
+    index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+    
+    store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
+    
+    with store.open_session() as session:
+        session.store(User("Idan"), key="users/1")
+    session.save_changes()
+```
+
+In this example we want to observe to changes from all documents and for index with the name of Users.
+After we register the observable we can subscribe for the notification and decide what to do with them (like append).
+
+If you did not create an Observer for the subscription we will create one for you with the method you put.
+(To create Observer you can make any class that you want the will inherit from the class Observer
+can be found in pyravendb.changes.observers or to use the ActionObserver).
+
+```python
+class Observer(metaclass=ABCMeta):
+    @abstractmethod
+    def on_completed(self):
+        pass
+
+    @abstractmethod
+    def on_error(self, exception):
+        pass
+
+    @abstractmethod
+    def on_next(self, value):
+        pass
+```

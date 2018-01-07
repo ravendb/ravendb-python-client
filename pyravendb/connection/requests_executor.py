@@ -44,6 +44,10 @@ class RequestsExecutor(object):
 
         self._closed = False
 
+    @property
+    def certificate(self):
+        return self._certificate
+
     @staticmethod
     def create(urls, database_name, certificate, conventions=None):
         executor = RequestsExecutor(database_name, certificate, conventions)
