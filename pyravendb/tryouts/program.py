@@ -1,13 +1,10 @@
-from pyravendb.data.indexes import IndexDefinition, IndexFieldOptions, FieldIndexing
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
-from pyravendb.custom_exceptions import exceptions
 from pyravendb.store.document_store import DocumentStore
-from pyravendb.subscriptions.data import *
-import threading
+from pyravendb.changes.observers import ActionObserver
+import time
 
 
 class User:
-    def __init__(self, name=None, age=0, dog=None):
+    def __init__(self, name, age=0, dog=None):
         self.name = name
         self.dog = dog
         self.age = age
@@ -22,62 +19,31 @@ class Dog:
         return "The dog name is " + self.name + " and his brand is " + self.brand
 
 
-def test(batch):
-    for b in batch.items:
-        print(b.result)
-
-
-class Time(object):
-    def __init__(self, td, dt):
-        self.td = td
-        self.dt = dt
-
-
-class UsersByName:
-    def __init__(self):
-        self.index_map = """from doc in docs.Users
-                      select new{name = doc.name}"""
-
-        self.index_definition = IndexDefinition(name=UsersByName.__name__, maps=self.index_map,
-                                                fields={"name": IndexFieldOptions(indexing=FieldIndexing.search)})
-
-    def execute(self, document_store):
-        document_store.maintenance.send(PutIndexesOperation(self.index_definition))
-
-
-class Test(Exception):
-    pass
-
-
-event = threading.Event()
-
-items_count = 0
-
-
-def process_documents(self, batch):
-    global items_count
-    items_count += len(batch.items)
-    for b in batch.items:
-        self.results.append(b.result)
-    if self.items_count == self.expected_items_count:
-        event.set()
-
-
-class Test2(Test):
-    def __init__(self, number=0, message=""):
-        super(Test2, self).__init__(message)
-        self.number = number
-
-
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://localhost:8084"], database="NorthWind") as store:
+    with DocumentStore(urls=["http://localhost:8084"], database="Northwind") as store:
         store.initialize()
+        all_documents = []
+        for_document = []
 
-    with store.open_session() as session:
-        user = User("Idan")
-        session.store(user)
-        session.save_changes()
+        changes = store.changes()
+        all_observer = changes.for_all_documents()
+        all_observer.subscribe(all_documents.append)
+        all_observer.ensure_subscribe_now()
 
-        key = session.advanced.get_document_id(user)
-        session.delete(user)
-        session.save_changes()
+        observer = changes.for_document("users/1-A")
+        observer.subscribe(ActionObserver(on_next=for_document.append))
+        observer.ensure_subscribe_now()
+
+        observer = changes.for_document("users/2-A")
+        observer.subscribe(for_document.append)
+        observer.ensure_subscribe_now()
+
+        with store.open_session() as session:
+            session.store(User(name="Idan"), key="users/1-A")
+            session.store(User(name="Shalom"), key="users/2-A")
+            session.store(User(name="Ilay"), key="users/3-A")
+            session.save_changes()
+
+        time.sleep(1)
+        print(all_documents)
+        print(for_document)

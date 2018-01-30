@@ -1,5 +1,6 @@
 import logging
 import socket
+import ssl
 import sys
 from datetime import datetime
 from pyravendb.tools.utils import Utils
@@ -82,9 +83,13 @@ class SubscriptionWorker:
         self._my_socket.settimeout(30)
 
         # TODO: wrap SSL
-        # ssl_socket = ssl.wrap_socket(sub_socket, certfile=self._store.certificate,
-        #                              ssl_version=ssl.PROTOCOL_TLSv1_2, do_handshake_on_connect=True)
-        self._my_socket.connect((host, port))
+        if self._store.certificate:
+            self._my_socket = ssl.wrap_socket(self._my_socket, certfile=self._store.certificate,
+                                              ssl_version=ssl.PROTOCOL_TLSv1_2)
+        try:
+            self._my_socket.connect((host, port))
+        except Exception as e:
+            print(e)
 
         header = Utils.dict_to_bytes(
             {"Operation": "Subscription", "DatabaseName": self._database_name, "OperationVersion": 40})

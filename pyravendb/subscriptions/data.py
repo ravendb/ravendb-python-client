@@ -15,7 +15,7 @@ class SubscriptionOpeningStrategy(Enum):
     """
     The connecting client will successfully open a subscription even if there is another active subscription's consumer.
     If the new client takes over an existing client then the existing one will get a SubscriptionInUseException.
-          
+
     The subscription will always be held by the last connected client.
     """
     take_over = "TakeOver"
@@ -100,17 +100,22 @@ class SubscriptionState:
 
 
 LEXEME_RE = re.compile(r'[a-z0-9eE\.\+-]+|\S')
+IS_WEBSOCKET = False
 
 
 # The code imported from ijson to be able to receive json from socket
 class IncrementalJsonParser:
-    def __init__(self, socket):
+    def __init__(self, socket, is_websocket=False):
+        global IS_WEBSOCKET
+        IS_WEBSOCKET = is_websocket
         self.lexer = self.lexer(socket)
 
     @staticmethod
     def lexer(socket, buf_size=ijson.backend.BUFSIZE):
-        data = socket.recv(buf_size)
-        buf = data.decode('utf-8')
+        data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
+        if not data:
+            return
+        buf = data[1:-1] if IS_WEBSOCKET else data.decode('utf-8')
         pos = 0
         while True:
             match = LEXEME_RE.search(buf, pos)
@@ -130,20 +135,21 @@ class IncrementalJsonParser:
                             else:
                                 break
                         except ValueError:
-                            data = socket.recv(buf_size)
+                            data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
                                 raise ijson.backend.common.IncompleteJSONError('Incomplete string lexeme')
-                            buf += data.decode('utf-8')
+                            buf = data[1:-1] if IS_WEBSOCKET else data.decode('utf-8')
+
                     yield pos, buf[pos:end + 1]
                     pos = end + 1
                 else:
                     yield match.start(), lexeme
                     pos = match.end()
             else:
-                data = socket.recv(buf_size)
+                data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
                 if not data:
                     break
-                buf = data.decode('utf-8')
+                buf = data[1:-1] if IS_WEBSOCKET else data.decode('utf-8')
                 pos = 0
 
     def create_array(self, gen):
@@ -182,6 +188,8 @@ class IncrementalJsonParser:
 
         try:
             (_, text) = next(self.lexer)
+            if IS_WEBSOCKET and text == ',':
+                (_, text) = next(self.lexer)
         except StopIteration:
             return None
 

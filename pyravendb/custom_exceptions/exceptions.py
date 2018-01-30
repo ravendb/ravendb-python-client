@@ -62,6 +62,14 @@ class AggregateException(Exception):
     pass
 
 
+class ChangeProcessingException(Exception):
+    pass
+
+
+class ChangeProcessingException(Exception):
+    pass
+
+
 # <---------- Subscription Exceptions ---------->
 
 class SubscriptionException(Exception):

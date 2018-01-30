@@ -1,6 +1,5 @@
 from pyravendb.tests.test_base import *
 from pyravendb.raven_operations.maintenance_operations import *
-from pyravendb.commands.raven_commands import DeleteIndexCommand
 import unittest
 
 
