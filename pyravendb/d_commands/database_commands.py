@@ -239,8 +239,9 @@ class DatabaseCommands(object):
         pass
 
     @staticmethod
-    def _build_query_request_path(path, index_query, includes=None, metadata_only=False, index_entries_only=False,
+    def _build_query_request_path(index_query, includes=None, metadata_only=False, index_entries_only=False,
                                   include_query=True, add_page_size=True):
+        path = ""
         if index_query.default_operator is QueryOperator.AND:
             try:
                 operator = index_query.default_operator.value
@@ -301,7 +302,7 @@ class DatabaseCommands(object):
         if not isinstance(index_query, IndexQuery):
             raise ValueError("index_query must be IndexQuery type")
         path = "indexes/{0}?".format(Utils.quote_key(index_name))
-        path += self._build_query_request_path(path=path, index_query=index_query, includes=includes,
+        path += self._build_query_request_path(index_query=index_query, includes=includes,
                                                metadata_only=metadata_only, index_entries_only=index_entries_only)
         response = self._requests_handler.http_request_handler(path, "GET",
                                                                force_read_from_master=force_read_from_master).json()
@@ -330,9 +331,9 @@ class DatabaseCommands(object):
         data = None
         headers = None
         if method == "GET":
-            path += self._build_query_request_path(path=path, index_query=index_query, add_page_size=False)
+            path += self._build_query_request_path(index_query=index_query, add_page_size=False)
         else:
-            path += self._build_query_request_path(path=path, index_query=index_query, include_query=False,
+            path += self._build_query_request_path(index_query=index_query, include_query=False,
                                                    add_page_size=False)
             data = index_query.query
             headers = {'content-encoding': 'gzip'}
