@@ -380,10 +380,32 @@ class DocumentSession(object):
 
 
 class Advanced(object):
+
     def __init__(self, session):
         self.session = session
         self.use_optimistic_concurrency = session.use_optimistic_concurrency if session.use_optimistic_concurrency \
             else session.conventions.use_optimistic_concurrency
+
+    def stream(self, query):
+        from pyravendb.store.stream import IncrementalJsonParser
+        import ijson
+
+        index_query = query.get_index_query()
+        if index_query.wait_for_non_stale_results:
+            raise exceptions.NotSupportedException("Since stream() does not wait for indexing (by design), "
+                                                   "streaming query with wait_for_non_stale_results is not supported.")
+        self.session.increment_requests_count()
+        command = QueryStreamCommand(index_query)
+        response = self.session.requests_executor.execute(command)
+        basic_parse = IncrementalJsonParser.basic_parse(response)
+        parser = ijson.backend.common.parse(basic_parse)
+
+        results = ijson.backend.common.items(parser, "Results")
+        for result in next(results, None):
+            document, metadata, _ = Utils.convert_to_entity(result, query.object_type, self.session.conventions,
+                                                            query.nested_object_types)
+            yield {"document": document, "metadata": metadata, "id": metadata.get("@id", None),
+                   "change-vector": metadata.get("@change-vector", None)}
 
     def number_of_requests_in_session(self):
         return self.session.number_of_requests_in_session
@@ -394,12 +416,11 @@ class Advanced(object):
                 return self.session.documents_by_entity[instance]["key"]
         return None
 
-    """
-    The document store associated with this session
-    """
-
     @property
     def document_store(self):
+        """
+        The document store associated with this session
+        """
         return self.session._document_store
 
     def clear(self):

@@ -20,30 +20,17 @@ class Dog:
 
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://localhost:8084"], database="Northwind") as store:
+    with DocumentStore(urls=["http://localhost:8080"], database="Northwind") as store:
         store.initialize()
-        all_documents = []
-        for_document = []
-
-        changes = store.changes()
-        all_observer = changes.for_all_documents()
-        all_observer.subscribe(all_documents.append)
-        all_observer.ensure_subscribe_now()
-
-        observer = changes.for_document("users/1-A")
-        observer.subscribe(ActionObserver(on_next=for_document.append))
-        observer.ensure_subscribe_now()
-
-        observer = changes.for_document("users/2-A")
-        observer.subscribe(for_document.append)
-        observer.ensure_subscribe_now()
+        # with store.open_session() as session:
+        #     for i in range(0, 10000):
+        #         session.store(User("Idan", i))
+        #     session.save_changes()
 
         with store.open_session() as session:
-            session.store(User(name="Idan"), key="users/1-A")
-            session.store(User(name="Shalom"), key="users/2-A")
-            session.store(User(name="Ilay"), key="users/3-A")
-            session.save_changes()
-
-        time.sleep(1)
-        print(all_documents)
-        print(for_document)
+            query = session.query(object_type=User, index_name="UserByName")
+            results = session.advanced.stream(query)
+            result_counter = 0
+            for result in results:
+                result_counter += 1
+            print(result_counter)
