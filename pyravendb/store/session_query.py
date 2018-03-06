@@ -765,6 +765,12 @@ class Query(object):
         command = GetFacetsCommand(query=facet_query)
         return self.session.requests_executor.execute(command)
 
+    def get_index_query(self):
+        return IndexQuery(query=self.__str__(), query_parameters=self.query_parameters, start=self.start,
+                          page_size=self.page_size, cutoff_etag=self.cutoff_etag,
+                          wait_for_non_stale_results=self.wait_for_non_stale_results,
+                          wait_for_non_stale_results_timeout=self.timeout)
+
     def _execute_query(self):
         conventions = self.session.conventions
         end_time = time.time() + self.timeout.seconds
