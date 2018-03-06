@@ -374,5 +374,5 @@ class Advanced(object):
         for result in next(results, None):
             document, metadata, _ = Utils.convert_to_entity(result, object_type, self.session.conventions,
                                                             nested_object_types)
-            yield {"document": document, "metadata": metadata, "key": metadata.get(metadata["@id"], None),
-                   "etag": metadata.get(metadata["@etag"], None)}
+            yield {"document": document, "metadata": metadata, "key": metadata.get("@id", None),
+                   "etag": metadata.get("@etag", None)}
