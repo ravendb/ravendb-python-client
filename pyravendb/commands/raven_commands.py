@@ -523,6 +523,26 @@ class GetTcpInfoCommand(RavenCommand):
         return response.json()
 
 
+class QueryStreamCommand(RavenCommand):
+    def __init__(self, index_query):
+        super(QueryStreamCommand, self).__init__(method="POST", is_read_request=True, use_stream=True)
+        if not index_query:
+            raise ValueError("index_query cannot be None")
+
+        if index_query.wait_for_non_stale_results:
+            raise exceptions.NotSupportedException("Since stream() does not wait for indexing (by design), "
+                                                   "streaming query with wait_for_non_stale_results is not supported.")
+
+        self._index_query = index_query
+
+    def create_request(self, server_node):
+        self.url = "{0}/databases/{1}/streams/queries".format(server_node.url, server_node.database)
+        self.data = self._index_query.to_json()
+
+    def set_response(self, response):
+        return response
+
+
 # ------------------------SubscriptionCommands----------------------
 
 class CreateSubscriptionCommand(RavenCommand):
