@@ -5,6 +5,12 @@ from pyravendb.data.indexes import IndexDefinition, SortOptions, IndexFieldOptio
 import unittest
 
 
+class User:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+
 class Product(object):
     def __init__(self, name, key, order):
         self.name = name
@@ -195,6 +201,28 @@ class TestQuery(TestBase):
             for result in query_results:
                 self.assertEqual(len(result), 1)
                 self.assertTrue("order_and_id" in result)
+
+    def test_stream_query(self):
+        maps = ("from user in docs.Users "
+                "select new {"
+                "name = user.name,"
+                "age = user.age}")
+        index_definition = IndexDefinition(name="UserByName", maps=maps)
+
+        self.store.maintenance.send(PutIndexesOperation(index_definition))
+
+        with self.store.open_session() as session:
+            for i in range(0, 12000):
+                session.store(User("Idan", i))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = session.query(object_type=User, index_name="UserByName")
+            results = session.advanced.stream(query)
+            result_counter = 0
+            for _ in results:
+                result_counter += 1
+            self.assertTrue(result_counter == 12000)
 
 
 if __name__ == "__main__":
