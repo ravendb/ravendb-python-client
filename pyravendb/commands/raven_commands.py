@@ -540,7 +540,11 @@ class QueryStreamCommand(RavenCommand):
         self.data = self._index_query.to_json()
 
     def set_response(self, response):
-        return response
+        if response is None:
+            raise exceptions.ErrorResponseException("Invalid response")
+
+        if response.status_code == 200:
+            return response
 
 
 # ------------------------SubscriptionCommands----------------------
