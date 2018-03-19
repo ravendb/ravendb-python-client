@@ -11,7 +11,7 @@ import requests
 import json
 import hashlib
 import os
-
+import io
 import logging
 
 logging.basicConfig(filename='requests_executor_info.log', level=logging.DEBUG)
@@ -115,12 +115,18 @@ class RequestsExecutor(object):
                 if not self._disable_topology_updates:
                     raven_command.headers["Topology-Etag"] = "\"{0}\"".format(self.topology_etag)
 
-                data = None if raven_command.data is None else \
-                    json.dumps(raven_command.data, default=self.conventions.json_default_method)
+                data = raven_command.data
+                if data and not isinstance(data, io.BufferedIOBase):
+                    data = json.dumps(raven_command.data, default=self.conventions.json_default_method)
+
+                if raven_command.files:
+                    data = {"data": data}
+
                 start_time = time.time() * 1000
                 end_time = None
                 try:
                     response = session.request(raven_command.method, url=raven_command.url, data=data,
+                                               files=raven_command.files,
                                                cert=self._certificate, headers=raven_command.headers,
                                                stream=raven_command.use_stream)
                 except Exception as e:
@@ -154,7 +160,7 @@ class RequestsExecutor(object):
                     raise exceptions.AuthorizationException(
                         "Forbidden access to " + chosen_node.database + "@" + chosen_node.url + ", " +
                         ("a certificate is required." if self._certificate is None
-                        else name + " does not have permission to access it or is unknown.") +
+                         else name + " does not have permission to access it or is unknown.") +
                         response.request.method + " " + response.request.path_url)
                 if response.status_code == 410:
                     if should_retry:

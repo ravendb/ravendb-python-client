@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*- #
+from builtins import ValueError
+
 from pyravendb.subscriptions.data import SubscriptionState
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.utils import Utils
 from abc import abstractmethod
 from datetime import timedelta
 import collections
+import string
+import random
 import logging
 
 logging.basicConfig(filename='responses.log', level=logging.DEBUG)
@@ -13,7 +17,8 @@ log = logging.getLogger()
 
 # Todo update the commands
 class RavenCommand(object):
-    def __init__(self, url=None, method=None, data=None, headers=None, is_read_request=False, use_stream=False):
+    def __init__(self, url=None, method=None, data=None, files=None, headers=None, is_read_request=False,
+                 use_stream=False):
         self.url = url
         self.method = method
         self.data = data
@@ -26,6 +31,7 @@ class RavenCommand(object):
         self.failed_nodes = {}
         self.timeout = None
         self.requested_node = None
+        self.files = files
 
     @abstractmethod
     def create_request(self, server_node):
@@ -167,18 +173,32 @@ class BatchCommand(RavenCommand):
     def __init__(self, commands):
         super(BatchCommand, self).__init__(method="POST")
         self.commands_array = commands
+        self.files = None
 
     def create_request(self, server_node):
         data = []
         for command in self.commands_array:
             if not hasattr(command, 'command'):
                 raise ValueError("Not a valid command")
+            if command.type == "AttachmentPUT":
+                if not self.files:
+                    self.files = {}
+                self.files[command.name] = (
+                    command.name, command.stream, command.content_type, {"Command-Type": "AttachmentStream"})
             data.append(command.to_json())
+
+        if self.files and len(self.files) > 0:
+            self.use_stream = True
 
         self.url = "{0}/databases/{1}/bulk_docs".format(server_node.url, server_node.database)
         self.data = {"Commands": data}
 
     def set_response(self, response):
+        if response is None:
+            raise exceptions.InvalidOperationException(
+                "Got null response from the server after doing a batch, "
+                "something is very wrong. Probably a garbled response.")
+
         try:
             response = response.json()
             if "Error" in response:
@@ -401,8 +421,12 @@ class PutAttachmentCommand(RavenCommand):
             self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
 
     def set_response(self, response):
-        if response.status_code == 201:
-            return response.json()
+        try:
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.InvalidOperationException(response["Error"])
+        except ValueError:
+            raise response.raise_for_status()
 
 
 class GetFacetsCommand(RavenCommand):
@@ -542,9 +566,15 @@ class QueryStreamCommand(RavenCommand):
     def set_response(self, response):
         if response is None:
             raise exceptions.ErrorResponseException("Invalid response")
-
-        if response.status_code == 200:
-            return response
+        if response.status_code != 200:
+            try:
+                json_response = response.json()
+                if "Error" in json_response:
+                    raise Exception(json_response["Error"])
+                return response
+            except ValueError:
+                raise response.raise_for_status()
+        return response
 
 
 # ------------------------SubscriptionCommands----------------------

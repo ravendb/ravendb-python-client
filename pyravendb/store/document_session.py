@@ -2,7 +2,10 @@ from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
 from pyravendb.store.session_query import Query
 from pyravendb.commands import commands_data
 from pyravendb.commands.raven_commands import *
+from pyravendb.raven_operations.operations import GetAttachmentOperation
+from pyravendb.commands.commands_data import PutAttachmentCommandData, DeleteAttachmentCommandData, DeleteCommandData
 from pyravendb.tools.utils import Utils
+from pyravendb.data.operation import AttachmentType
 
 
 class _SaveChangesData(object):
@@ -61,6 +64,15 @@ class DocumentSession(object):
     @property
     def documents_by_id(self):
         return self._documents_by_id
+
+    def defer(self, command, *args):
+        self._defer_commands.add(command)
+        for arg in args:
+            self._defer_commands.add(arg)
+
+    @property
+    def defer_commands(self):
+        return self._defer_commands
 
     @property
     def known_missing_ids(self):
@@ -225,7 +237,7 @@ class DocumentSession(object):
             return
         self._known_missing_ids.add(key_or_entity)
         self._included_documents_by_id.pop(key_or_entity, None)
-        self._defer_commands.add(commands_data.DeleteCommandData(key_or_entity, expected_change_vector))
+        self.defer(commands_data.DeleteCommandData(key_or_entity, expected_change_vector))
 
     def assert_no_non_unique_instance(self, entity, key):
         if not (key is None or key.endswith("/") or key not in self._documents_by_id
@@ -385,6 +397,13 @@ class Advanced(object):
         self.session = session
         self.use_optimistic_concurrency = session.use_optimistic_concurrency if session.use_optimistic_concurrency \
             else session.conventions.use_optimistic_concurrency
+        self._attachment = None
+
+    @property
+    def attachment(self):
+        if not self._attachment:
+            self._attachment = _Attachment(self.session)
+        return self._attachment
 
     def stream(self, query):
         from pyravendb.store.stream import IncrementalJsonParser
@@ -429,3 +448,91 @@ class Advanced(object):
         self.session.deleted_entities.clear()
         self.session.included_documents_by_id.clear()
         self.session.known_missing_ids.clear()
+
+
+class _Attachment:
+    def __init__(self, session):
+        self._session = session
+        self._store = session.advanced.document_store
+        self._defer_commands = session.defer_commands
+
+    def _command_exists(self, document_id):
+        for command in self._defer_commands:
+            if not isinstance(command, (PutAttachmentCommandData, DeleteAttachmentCommandData, DeleteCommandData)):
+                continue
+
+            if command.key == document_id:
+                return command
+
+    def throw_not_in_session(self, entity):
+        raise ValueError(
+            repr(entity) + " is not associated with the session, cannot add attachment to it. "
+                           "Use documentId instead or track the entity in the session.")
+
+    def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
+        if not isinstance(entity_or_document_id, str):
+            entity = self._session.documents_by_entity.get(entity_or_document_id, None)
+            if not entity:
+                self.throw_not_in_session(entity_or_document_id)
+            entity_or_document_id = entity["metadata"]["@id"]
+
+        if not entity_or_document_id:
+            raise ValueError(entity_or_document_id)
+        if not name:
+            raise ValueError(name)
+
+        defer_command = self._command_exists(entity_or_document_id)
+        if defer_command:
+            message = "Can't store attachment {0} of document {1}".format(name, entity_or_document_id)
+            if defer_command.type == "DELETE":
+                message += ", there is a deferred command registered for this document to be deleted."
+            elif defer_command.type == "AttachmentPUT":
+                message += ", there is a deferred command registered to create an attachment with the same name."
+            elif defer_command.type == "AttachmentDELETE":
+                message += ", there is a deferred command registered to delete an attachment with the same name."
+            raise exceptions.InvalidOperationException(message)
+
+        entity = self._session.documents_by_id.get(entity_or_document_id, None)
+        if entity and entity in self._session.deleted_entities:
+            raise exceptions.InvalidOperationException(
+                "Can't store attachment " + name + " of document" + entity_or_document_id +
+                ", the document was already deleted in this session.")
+
+        self._session.defer(PutAttachmentCommandData(entity_or_document_id, name, stream, content_type, change_vector))
+
+    def delete(self, entity_or_document_id, name):
+        if not isinstance(entity_or_document_id, str):
+            entity = self._session.documents_by_entity.get(entity_or_document_id, None)
+            if not entity:
+                self.throw_not_in_session(entity_or_document_id)
+            entity_or_document_id = entity["metadata"]["@id"]
+
+        if not entity_or_document_id:
+            raise ValueError(entity_or_document_id)
+        if not name:
+            raise ValueError(name)
+
+        defer_command = self._command_exists(entity_or_document_id)
+        if defer_command:
+            if defer_command.type in ("Delete", "AttachmentDELETE"):
+                return
+            if defer_command.type == "AttachmentPUT":
+                raise exceptions.InvalidOperationException(
+                    "Can't delete attachment " + name + " of document " + entity_or_document_id +
+                    ",there is a deferred command registered to create an attachment with the same name.")
+
+        entity = self._session.documents_by_id.get(entity_or_document_id, None)
+        if entity and entity in self._session.deleted_entities:
+            return
+
+        self._session.defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
+
+    def get(self, entity_or_document_id, name):
+        if not isinstance(entity_or_document_id, str):
+            entity = self._session.documents_by_entity.get(entity_or_document_id, None)
+            if not entity:
+                self.throw_not_in_session(entity_or_document_id)
+            entity_or_document_id = entity["metadata"]["@id"]
+
+        operation = GetAttachmentOperation(entity_or_document_id, name, AttachmentType.document, None)
+        return self._store.operations.send(operation)
