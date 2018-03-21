@@ -1,6 +1,7 @@
 class _CommandData(object):
-    def __init__(self, key, change_vector=None, metadata=None):
+    def __init__(self, key, command_type, change_vector=None, metadata=None):
         self.key = key
+        self._type = command_type
         self.metadata = metadata
         self.change_vector = change_vector
         self.additionalData = None
@@ -13,11 +14,14 @@ class _CommandData(object):
     def command(self):
         return self.__command
 
+    @property
+    def type(self):
+        return self._type
+
 
 class PutCommandData(_CommandData):
     def __init__(self, key, change_vector=None, document=None, metadata=None):
-        super(PutCommandData, self).__init__(key, change_vector, metadata)
-        self._type = "PUT"
+        super(PutCommandData, self).__init__(key, "PUT", change_vector, metadata)
         self.document = document
 
     def to_json(self):
@@ -27,8 +31,7 @@ class PutCommandData(_CommandData):
 
 class DeleteCommandData(_CommandData):
     def __init__(self, key, change_vector=None):
-        super(DeleteCommandData, self).__init__(key, change_vector)
-        self._type = "DELETE"
+        super(DeleteCommandData, self).__init__(key, "DELETE", change_vector)
         self.additionalData = None
 
     def to_json(self):
@@ -55,10 +58,9 @@ class PatchCommandData(_CommandData):
 
         """
 
-        super(PatchCommandData, self).__init__(key, change_vector)
+        super(PatchCommandData, self).__init__(key, "PATCH", change_vector)
         if additional_data is None:
             additional_data = {}
-        self._type = "PATCH"
         self.scripted_patch = scripted_patch
         self.patch_if_missing = patch_if_missing
         self.additional_data = additional_data
@@ -73,3 +75,49 @@ class PatchCommandData(_CommandData):
             data["PatchIfMissing"] = self.patch_if_missing.to_json()
 
         return data
+
+
+class PutAttachmentCommandData(_CommandData):
+    def __init__(self, document_id, name, stream, content_type, change_vector):
+        """
+        @param document_id: The id of the document
+        @param name: Name of the attachment
+        @param stream: The attachment as bytes (ex.open("file_path", "rb"))
+        @param content_type: The type of the attachment (ex.image/png)
+        @param change_vector: The change vector of the document
+        """
+
+        if not document_id:
+            raise ValueError(document_id)
+        if not name:
+            raise ValueError(name)
+
+        super(PutAttachmentCommandData, self).__init__(document_id, "AttachmentPUT", change_vector)
+        self.name = name
+        self.stream = stream
+        self.content_type = content_type
+
+    def to_json(self):
+        return {"Id": self.key, "Name": self.name, "ContentType": self.content_type,
+                "ChangeVector": self.change_vector, "Type": self._type}
+
+
+class DeleteAttachmentCommandData(_CommandData):
+    def __init__(self, document_id, name, change_vector):
+        """
+        @param document_id: The id of the document
+        @param name: Name of the attachment
+        @param change_vector: The change vector of the document
+        """
+
+        if not document_id:
+            raise ValueError(document_id)
+        if not name:
+            raise ValueError(name)
+
+        super(DeleteAttachmentCommandData, self).__init__(document_id, "AttachmentDELETE", change_vector)
+        self.name = name
+
+    def to_json(self):
+        return {"Id": self.key, "Name": self.name,
+                "ChangeVector": self.change_vector, "Type": self._type}

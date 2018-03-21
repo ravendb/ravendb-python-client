@@ -1,4 +1,5 @@
 from pyravendb.store.document_store import DocumentStore
+from pyravendb.raven_operations.operations import *
 from pyravendb.changes.observers import ActionObserver
 import time
 
@@ -20,18 +21,24 @@ class Dog:
 
 
 if __name__ == "__main__":
+
     with DocumentStore(urls=["http://localhost.fiddler:8080"], database="Northwind") as store:
         store.initialize()
         # with store.open_session() as session:
-        #     for i in range(0, 10000):
-        #         session.store(User("Idan", i))
+        #     session.advanced.attachment.delete("users/1-A", "photo.jpg")
         #     session.save_changes()
 
+        # with store.open_session() as session:
+        #     session.store(User("Idan", 30), "users/1-A")
+        #     session.save_changes()
+
+        with open('output.txt', 'rb') as file_stream:
+            with store.open_session() as session:
+                # user = session.load("users/1-A")
+                session.advanced.attachment.store("users/1-A", "my_binary_list", file_stream, content_type="text/plain")
+                session.save_changes()
+
         with store.open_session() as session:
-            query = session.query(object_type=User, index_name="UserByName")
-            count = 0
-            results = session.advanced.stream(query)
-            for result in results:
-                # do something with this
-                user = result.get("document", None)
-                count += 1
+            attachment = session.advanced.attachment.get("users/1-A", "my_binary_list")
+            if attachment is not None:
+                print("yes")
