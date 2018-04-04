@@ -43,13 +43,15 @@ class SubscriptionCreationOptions:
 
 class SubscriptionWorkerOptions:
     def __init__(self, subscription_name, strategy=None, ignore_subscriber_errors=False,
-                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096, max_erroneous_period=None):
+                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096, max_erroneous_period=None,
+                 close_when_no_docs_left=False):
         """
         @param str subscription_name: The subscription name
         @param SubscriptionOpeningStrategy strategy: Options for opening a subscription
         @param ignore_subscriber_errors: Ignore subscriber errors
         @param time_to_wait_before_connection_retry: The time to wait for retry
         @param int max_docs_per_batch: The max docs to send in one batch
+        @param bool close_when_no_docs_left: Will continue the subscription work until the server have no more new documents to send
         """
         if not subscription_name:
             raise AttributeError("Value cannot be null or empty.", "subscription_name")
@@ -63,6 +65,7 @@ class SubscriptionWorkerOptions:
         self.max_erroneous_period = max_erroneous_period
         if max_erroneous_period is None:
             self.max_erroneous_period = timedelta(minutes=5)
+        self.close_when_no_docs_left = close_when_no_docs_left
 
     def to_json(self):
         return {"SubscriptionName": self.subscription_name,
