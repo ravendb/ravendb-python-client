@@ -59,7 +59,7 @@ if __name__ == "__main__":
     with DocumentStore(urls=["http://localhost.fiddler:8080"], database="demo") as store:
         store.initialize()
         companies = []
-        subscription_creation_options = SubscriptionCreationOptions("From Companies")
+        subscription_creation_options = SubscriptionCreationOptions("From Orders")
         subscription_name = store.subscriptions.create(subscription_creation_options)
 
         worker_options = SubscriptionWorkerOptions(subscription_name,
@@ -72,3 +72,5 @@ if __name__ == "__main__":
             except SubscriptionClosedException:
                 # That's expected
                 pass
+
+    print(len(companies))

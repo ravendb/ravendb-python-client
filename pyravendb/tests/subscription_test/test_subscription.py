@@ -142,8 +142,9 @@ class TestSubscription(TestBase):
 
     def test_subscription_with_close_when_no_docs_left(self):
         with self.store.open_session() as session:
-            session.store(User("Idan", "Shalom"))
-            session.store(User("Ilay", "Shalom"))
+            for _ in range(0, 1000):
+                session.store(User("Idan", "Shalom"))
+                session.store(User("Ilay", "Shalom"))
             session.save_changes()
 
         users = []
@@ -161,7 +162,7 @@ class TestSubscription(TestBase):
                 # That's expected
                 pass
 
-        self.assertEqual(len(users), 2)
+        self.assertEqual(len(users), 2000)
 
 
 if __name__ == "__main__":

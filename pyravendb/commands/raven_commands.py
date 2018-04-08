@@ -425,6 +425,7 @@ class PutAttachmentCommand(RavenCommand):
             response = response.json()
             if "Error" in response:
                 raise exceptions.InvalidOperationException(response["Error"])
+            return response
         except ValueError:
             raise response.raise_for_status()
 
