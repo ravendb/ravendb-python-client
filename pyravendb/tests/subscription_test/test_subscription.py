@@ -1,9 +1,9 @@
 import threading
-
+from functools import partial
 from pyravendb.subscriptions.data import *
 from pyravendb.commands.raven_commands import GetSubscriptionsCommand
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions.exceptions import SubscriptionInUseException
+from pyravendb.custom_exceptions.exceptions import SubscriptionInUseException, SubscriptionClosedException
 import unittest
 
 
@@ -139,6 +139,30 @@ class TestSubscription(TestBase):
         finally:
             subscription.close()
             subscription_throw.close()
+
+    def test_subscription_with_close_when_no_docs_left(self):
+        with self.store.open_session() as session:
+            for _ in range(0, 1000):
+                session.store(User("Idan", "Shalom"))
+                session.store(User("Ilay", "Shalom"))
+            session.save_changes()
+
+        users = []
+        subscription_creation_options = SubscriptionCreationOptions("From Users")
+        subscription_name = self.store.subscriptions.create(subscription_creation_options)
+
+        worker_options = SubscriptionWorkerOptions(subscription_name,
+                                                   strategy=SubscriptionOpeningStrategy.take_over,
+                                                   close_when_no_docs_left=True)
+        with self.store.subscriptions.get_subscription_worker(worker_options) as subscription_worker:
+            try:
+                subscription_worker.run(
+                    partial(lambda batch, x=users: x.extend([item.raw_result for item in batch.items]))).join()
+            except SubscriptionClosedException:
+                # That's expected
+                pass
+
+        self.assertEqual(len(users), 2000)
 
 
 if __name__ == "__main__":

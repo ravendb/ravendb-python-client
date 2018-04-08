@@ -11,6 +11,7 @@ from pyravendb.subscriptions.data import IncrementalJsonParser
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.custom_exceptions.exceptions import AggregateException
+import ijson
 
 
 class SubscriptionWorker:
@@ -183,12 +184,21 @@ class SubscriptionWorker:
                 try:
                     self._process_documents(self._batch)
                 except Exception as ex:
-                    self._logger.info(
-                        "Subscription '{0}'. Subscriber threw an exception on document batch : {1}".format(
-                            self._options.subscription_name, str(ex)))
+                    if sys.gettrace():
+                        self._logger.info(
+                            "Subscription '{0}'. Subscriber threw an exception on document batch : {1}".format(
+                                self._options.subscription_name, str(ex)))
                     if not self._options.ignore_subscriber_errors:
                         raise SubscriberErrorException(
                             "Subscriber threw an exception in subscription" + self._options.subscription_name, ex)
+
+                if self._options.close_when_no_docs_left:
+                    message = "Closing subscription {0} because there were no documents left " \
+                              "and client connected in 'close_when_no_docs_left' mode" \
+                        .format(self._options.subscription_name)
+                    if sys.gettrace():
+                        self._logger.info(message)
+                    raise SubscriptionClosedException(message)
 
                 header = Utils.dict_to_bytes(
                     {"ChangeVector": last_change_vector, "Type": "Acknowledge"})
@@ -224,7 +234,7 @@ class SubscriptionWorker:
                 SubscriptionInUseException, SubscriptionDoesNotExistException, SubscriptionClosedException,
                 SubscriptionInvalidStateException, DatabaseDoesNotExistException, AuthorizationException,
                 AllTopologyNodesDownException, SubscriberErrorException, ValueError, NotImplementedError,
-                AttributeError)):
+                AttributeError, ijson.backend.UnexpectedSymbol)):
             self.close()
             return False
         self.assert_last_connection_failure()

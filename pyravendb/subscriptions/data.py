@@ -3,6 +3,7 @@ from enum import Enum
 from datetime import timedelta
 import ijson
 from _elementtree import ParseError
+from socket import timeout
 import re
 
 
@@ -43,13 +44,15 @@ class SubscriptionCreationOptions:
 
 class SubscriptionWorkerOptions:
     def __init__(self, subscription_name, strategy=None, ignore_subscriber_errors=False,
-                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096, max_erroneous_period=None):
+                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096, max_erroneous_period=None,
+                 close_when_no_docs_left=False):
         """
         @param str subscription_name: The subscription name
         @param SubscriptionOpeningStrategy strategy: Options for opening a subscription
         @param ignore_subscriber_errors: Ignore subscriber errors
         @param time_to_wait_before_connection_retry: The time to wait for retry
         @param int max_docs_per_batch: The max docs to send in one batch
+        @param bool close_when_no_docs_left: Will continue the subscription work until the server have no more new documents to send
         """
         if not subscription_name:
             raise AttributeError("Value cannot be null or empty.", "subscription_name")
@@ -63,6 +66,7 @@ class SubscriptionWorkerOptions:
         self.max_erroneous_period = max_erroneous_period
         if max_erroneous_period is None:
             self.max_erroneous_period = timedelta(minutes=5)
+        self.close_when_no_docs_left = close_when_no_docs_left
 
     def to_json(self):
         return {"SubscriptionName": self.subscription_name,
@@ -99,7 +103,8 @@ class SubscriptionState:
                 "Disabled": self.closed}
 
 
-LEXEME_RE = re.compile(r'[a-z0-9eE\.\+-]+|\S')
+LEXEME_RE = re.compile(b'[a-z0-9eE\.\+-]+|\S')
+BYTE_ARRAY_CHARACTERS = bytearray(b',}:{"')
 IS_WEBSOCKET = False
 
 
@@ -115,18 +120,20 @@ class IncrementalJsonParser:
         data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
         if not data:
             return
-        buf = data[1:-1] if IS_WEBSOCKET else data.decode('utf-8')
+
+        buf = data[1:-1].encode('utf-8') if IS_WEBSOCKET else data
         pos = 0
+        discarded = 0
         while True:
             match = LEXEME_RE.search(buf, pos)
             if pos < len(buf) and match:
                 lexeme = match.group()
-                if lexeme == '"':
+                if lexeme == b'"':
                     pos = match.start()
                     start = pos + 1
                     while True:
                         try:
-                            end = buf.index('"', start)
+                            end = buf.index(b'"', start)
                             escpos = end - 1
                             while buf[escpos] == '\\':
                                 escpos -= 1
@@ -135,21 +142,34 @@ class IncrementalJsonParser:
                             else:
                                 break
                         except ValueError:
-                            data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
+                            data = socket.recv().encode('utf-8') if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
                                 raise ijson.backend.common.IncompleteJSONError('Incomplete string lexeme')
-                            buf = data[1:-1] if IS_WEBSOCKET else data.decode('utf-8')
 
-                    yield pos, buf[pos:end + 1]
+                            buf += data[1:-1] if IS_WEBSOCKET else data
+
+                    yield discarded + pos, buf[pos:end + 1].decode('utf-8')
                     pos = end + 1
                 else:
-                    yield match.start(), lexeme
+                    while match.end() == len(buf) and buf[pos] not in BYTE_ARRAY_CHARACTERS:
+                        try:
+                            data = socket.recv().encode('utf-8') if IS_WEBSOCKET else socket.recv(buf_size)
+                            if not data:
+                                break
+                            buf += data[1:-1].encode('utf-8') if IS_WEBSOCKET else data
+                            match = LEXEME_RE.search(buf, pos)
+                            lexeme = match.group()
+                        except timeout:
+                            break
+
+                    yield match.start(), lexeme.decode('utf-8')
                     pos = match.end()
             else:
-                data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
+                data = socket.recv().encode('utf-8') if IS_WEBSOCKET else socket.recv(buf_size)
                 if not data:
                     break
-                buf = data[1:-1] if IS_WEBSOCKET else data.decode('utf-8')
+                discarded += len(buf)
+                buf = data[1:-1] if IS_WEBSOCKET else data
                 pos = 0
 
     def create_array(self, gen):
