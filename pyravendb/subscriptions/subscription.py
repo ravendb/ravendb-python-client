@@ -192,14 +192,6 @@ class SubscriptionWorker:
                         raise SubscriberErrorException(
                             "Subscriber threw an exception in subscription" + self._options.subscription_name, ex)
 
-                if self._options.close_when_no_docs_left:
-                    message = "Closing subscription {0} because there were no documents left " \
-                              "and client connected in 'close_when_no_docs_left' mode" \
-                        .format(self._options.subscription_name)
-                    if sys.gettrace():
-                        self._logger.info(message)
-                    raise SubscriptionClosedException(message)
-
                 header = Utils.dict_to_bytes(
                     {"ChangeVector": last_change_vector, "Type": "Acknowledge"})
                 self._my_socket.sendall(header)

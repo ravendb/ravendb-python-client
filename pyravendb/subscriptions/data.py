@@ -72,7 +72,8 @@ class SubscriptionWorkerOptions:
         return {"SubscriptionName": self.subscription_name,
                 "TimeToWaitBeforeConnectionRetry": str(self.time_to_wait_before_connection_retry),
                 "Strategy": str(self.strategy), "MaxDocsPerBatch": self.max_docs_per_batch,
-                "IgnoreSubscriberErrors": self.ignore_subscriber_errors}
+                "IgnoreSubscriberErrors": self.ignore_subscriber_errors,
+                "CloseWhenNoDocsLeft": self.close_when_no_docs_left}
 
 
 class SubscriptionState:
