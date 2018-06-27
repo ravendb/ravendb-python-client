@@ -11,6 +11,8 @@
 /.idea
 *.pyc
 /s.py
+/dist
+/pyravendb.egg-info
 *.log
 *.raven-topology
 *.raven-cluster-topology
