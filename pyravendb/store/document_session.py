@@ -328,7 +328,7 @@ class DocumentSession(object):
                 if entity in self._documents_by_entity:
                     self._documents_by_id[item["@id"]] = entity
                     document_info = self._documents_by_entity[entity]
-                    document_info["change_vector"] = ["change_vector"]
+                    document_info["change_vector"] = item["@change-vector"]
                     item.pop("Type", None)
                     document_info["original_metadata"] = item.copy()
                     document_info["metadata"] = item
@@ -341,7 +341,6 @@ class DocumentSession(object):
             keys_to_delete.append(self._documents_by_entity[entity]["key"])
 
         for key in keys_to_delete:
-            existing_entity = None
             change_vector = None
             if key in self._documents_by_id:
                 existing_entity = self._documents_by_id[key]
@@ -350,7 +349,7 @@ class DocumentSession(object):
                         "@change-vector"] if self.advanced.use_optimistic_concurrency else None
                 self._documents_by_entity.pop(existing_entity, None)
                 self._documents_by_id.pop(key, None)
-            data.entities.append(existing_entity)
+                data.entities.append(existing_entity)
             data.commands.append(commands_data.DeleteCommandData(key, change_vector))
         self._deleted_entities.clear()
 

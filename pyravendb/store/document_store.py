@@ -96,7 +96,7 @@ class DocumentStore(object):
     def initialize(self):
         if not self._initialize:
             if self.urls is None or len(self.urls) == 0:
-                raise ValueError("Document store URLs cannot be empty", "urks")
+                raise ValueError("Document store URLs cannot be empty", "urls")
             if self.database is None:
                 raise exceptions.InvalidOperationException("None database is not valid")
 

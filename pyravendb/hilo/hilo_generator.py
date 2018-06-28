@@ -93,8 +93,6 @@ class MultiTypeHiLoKeyGenerator(object):
         tag = self._conventions.default_transform_type_tag_name(entity.__class__.__name__)
         if tag is None:
             return None
-        if tag in self.key_generators_by_tag:
-            value = self.key_generators_by_tag[tag]
         else:
             with self.lock:
                 if tag in self.key_generators_by_tag:

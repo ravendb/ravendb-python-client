@@ -155,7 +155,7 @@ with store.open_session() as session:
 ##What`s new
 ###Changes Api
 The RavenDB client offers a push notification feature that allows you to receive messages from a server about events that occurred there. 
-ou are able to subscribe to events for all documents, indexes and operations as well as to indicate a particular 
+You are able to subscribe to events for all documents, indexes and operations as well as to indicate a particular 
 one that you are interested in. This mechanism lets you notify users if something has changed without 
 the need to do any expensive polling.
 
@@ -188,7 +188,7 @@ In this example we want to observe to changes from all documents and for index w
 After we register the observable we can subscribe for the notification and decide what to do with them (like append).
 
 If you did not create an Observer for the subscription we will create one for you with the method you put.
-(To create Observer you can make any class that you want the will inherit from the class Observer
+(To create Observer you can make any class that you want that will inherit from the class Observer
 can be found in pyravendb.changes.observers or to use the ActionObserver).
 
 ```python
@@ -205,3 +205,6 @@ class Observer(metaclass=ABCMeta):
     def on_next(self, value):
         pass
 ```
+
+#####Bug Tracker
+http://issues.hibernatingrhinos.com/issues/RDBC
