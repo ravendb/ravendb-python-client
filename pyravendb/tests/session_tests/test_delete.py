@@ -4,7 +4,6 @@ import os
 sys.path.append(os.path.abspath(__file__ + "/../"))
 
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 import unittest
 
@@ -55,6 +54,19 @@ class TestDelete(TestBase):
             session.delete_by_entity(product)
             session.save_changes()
             self.assertIsNone(session.load("products/107"))
+
+    def test_delete_with_entity(self):
+        product = Product("Toys")
+        with self.store.open_session() as session:
+            session.store(product)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            product = session.load(product.Id)
+            session.delete(product)
+            session.save_changes()
+
+            self.assertIsNone(session.load(product.Id))
 
 
 if __name__ == "__main__":

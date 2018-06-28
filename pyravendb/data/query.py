@@ -1,6 +1,5 @@
 from pyravendb.tools.utils import Utils
 from abc import ABCMeta
-from datetime import timedelta
 from enum import Enum
 import json
 import xxhash

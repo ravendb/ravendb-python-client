@@ -26,7 +26,10 @@ class PutCommandData(_CommandData):
 
     def to_json(self):
         self.document["@metadata"] = self.metadata
-        return {"Type": self._type, "Id": self.key, "Document": self.document, "ChangeVector": self.change_vector}
+        data = {"Type": self._type, "Id": self.key, "Document": self.document}
+        if self.change_vector:
+            data["ChangeVector"] = self.change_vector
+        return data
 
 
 class DeleteCommandData(_CommandData):
@@ -35,7 +38,10 @@ class DeleteCommandData(_CommandData):
         self.additionalData = None
 
     def to_json(self):
-        return {"Id": self.key, "ChangeVector": self.change_vector, "Type": self._type}
+        data = {"Id": self.key, "ChangeVector": self.change_vector, "Type": self._type}
+        if self.change_vector:
+            data["ChangeVector"] = self.change_vector
+        return {"Id": self.key, "Type": self._type}
 
 
 class PatchCommandData(_CommandData):
@@ -67,9 +73,12 @@ class PatchCommandData(_CommandData):
         self.debug_Mode = debug_mode
 
     def to_json(self):
-        data = {"Id": self.key, "ChangeVector": self.change_vector, "Type": self._type,
+        data = {"Id": self.key, "Type": self._type,
                 "Patch": self.scripted_patch.to_json(),
                 "DebugMode": self.debug_Mode}
+
+        if self.change_vector:
+            data["ChangeVector"] = self.change_vector
 
         if self.patch_if_missing is not None:
             data["PatchIfMissing"] = self.patch_if_missing.to_json()
@@ -98,8 +107,12 @@ class PutAttachmentCommandData(_CommandData):
         self.content_type = content_type
 
     def to_json(self):
-        return {"Id": self.key, "Name": self.name, "ContentType": self.content_type,
-                "ChangeVector": self.change_vector, "Type": self._type}
+        data = {"Id": self.key, "Name": self.name, "ContentType": self.content_type, "Type": self._type}
+
+        if self.change_vector:
+            data["ChangeVector"] = self.change_vector
+
+        return data
 
 
 class DeleteAttachmentCommandData(_CommandData):
@@ -119,5 +132,9 @@ class DeleteAttachmentCommandData(_CommandData):
         self.name = name
 
     def to_json(self):
-        return {"Id": self.key, "Name": self.name,
-                "ChangeVector": self.change_vector, "Type": self._type}
+        data = {"Id": self.key, "Name": self.name, "Type": self._type}
+
+        if self.change_vector:
+            data["ChangeVector"] = self.change_vector
+
+        return data
