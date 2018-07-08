@@ -1,5 +1,4 @@
 from threading import Lock
-import collections
 
 
 class ConcurrentSet(set):
