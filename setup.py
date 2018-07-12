@@ -1,16 +1,13 @@
 from setuptools import setup, find_packages
 
-with open("README.md") as file:
-    long_description = file.read()
-
 setup(
     name='pyravendb',
     packages=find_packages(),
-    version='4.0.4.4',
-    long_description=long_description,
+    version='4.0.4.8',
+    long_description=open("README.rst").read(),
     description='This is the official python client for RavenDB v4.0 document database',
-    author='Idan Haim Shalom',
-    author_email='haimdude@gmail.com',
+    author='RavenDB',
+    author_email='support@ravendb.net',
     url='https://github.com/ravendb/RavenDB-Python-Client',
     license='MIT',
     keywords='pyravendb',
