@@ -11,8 +11,13 @@ import logging
 logging.basicConfig(filename='cluster_requests_executor_info.log', level=logging.DEBUG)
 log = logging.getLogger()
 
+TOPOLOGY_FILES_DIR = os.path.join(os.getcwd(), "topology_files")
+
 
 class ClusterRequestExecutor(RequestsExecutor):
+    def __new__(cls, *args, **kwargs):
+        return super(ClusterRequestExecutor, cls).__new__(cls)
+
     def __init__(self, certificate, convention=None, **kwargs):
         super(ClusterRequestExecutor, self).__init__(None, certificate, convention, **kwargs)
         self.update_cluster_topology_lock = Lock()
@@ -45,7 +50,7 @@ class ClusterRequestExecutor(RequestsExecutor):
                     "{0}".format(node.url).encode(
                         'utf-8')).hexdigest()
 
-                topology_file = "{0}\\{1}.raven-cluster-topology".format(os.getcwd(), hash_name)
+                topology_file = os.path.join(TOPOLOGY_FILES_DIR, hash_name + ".raven-cluster-topology")
                 try:
                     with open(topology_file, 'w') as outfile:
                         json.dump(response, outfile, ensure_ascii=False)
@@ -74,7 +79,7 @@ class ClusterRequestExecutor(RequestsExecutor):
         server_hash = hashlib.md5(
             "{0}{1}".format(url, self._database_name).encode(
                 'utf-8')).hexdigest()
-        cluster_topology_file_path = "{0}\\{1}.raven-cluster-topology".format(os.getcwd(), server_hash)
+        cluster_topology_file_path = os.path.join(TOPOLOGY_FILES_DIR, server_hash + ".raven-cluster-topology")
         try:
             with open(cluster_topology_file_path, 'r') as cluster_topology_file:
                 json_file = json.load(cluster_topology_file)
