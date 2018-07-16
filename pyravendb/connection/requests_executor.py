@@ -10,6 +10,7 @@ import time
 import requests
 import json
 import hashlib
+import errno
 import os
 import io
 import logging
@@ -17,8 +18,19 @@ import logging
 logging.basicConfig(filename='requests_executor_info.log', level=logging.DEBUG)
 log = logging.getLogger()
 
+TOPOLOGY_FILES_DIR = os.path.join(os.getcwd(), "topology_files")
+
 
 class RequestsExecutor(object):
+    def __new__(cls, *args, **kwargs):
+        instance = super(RequestsExecutor, cls).__new__(cls)
+        try:
+            os.makedirs(TOPOLOGY_FILES_DIR)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+        return instance
+
     def __init__(self, database_name, certificate, conventions=None, **kwargs):
         self._database_name = database_name
         self._certificate = certificate
@@ -232,7 +244,7 @@ class RequestsExecutor(object):
         server_hash = hashlib.md5(
             "{0}{1}".format(url, self._database_name).encode(
                 'utf-8')).hexdigest()
-        topology_file_path = "{0}\{1}.raven-topology".format(os.getcwd(), server_hash)
+        topology_file_path = os.path.join(TOPOLOGY_FILES_DIR, server_hash + ".raven-topology")
         try:
             with open(topology_file_path, 'r') as topology_file:
                 json_file = json.load(topology_file)
@@ -261,7 +273,7 @@ class RequestsExecutor(object):
                     "{0}{1}".format(node.url, node.database).encode(
                         'utf-8')).hexdigest()
 
-                topology_file = "{0}\{1}.raven-topology".format(os.getcwd(), hash_name)
+                topology_file = os.path.join(TOPOLOGY_FILES_DIR, hash_name + ".raven-topology")
                 try:
                     with open(topology_file, 'w') as outfile:
                         json.dump(response, outfile, ensure_ascii=False)
@@ -295,10 +307,10 @@ class RequestsExecutor(object):
                     self._failed_nodes_timers.update({chosen_node: node_status})
                     node_status.start_timer()
 
-            node_selector.on_failed_request(node_index)
-            current_node = node_selector.get_current_node()
-            if command.is_failed_with_node(current_node):
-                return False
+        node_selector.on_failed_request(node_index)
+        current_node = node_selector.get_current_node()
+        if command.is_failed_with_node(current_node):
+            return False
         return True
 
     def cancel_all_failed_nodes_timers(self):
