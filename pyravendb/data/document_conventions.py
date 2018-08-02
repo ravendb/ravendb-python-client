@@ -1,9 +1,9 @@
 from pyravendb.data.indexes import SortOptions
 from datetime import datetime, timedelta
 from pyravendb.tools.utils import Utils
-from inflector import Inflector
+import inflect
 
-inflector = Inflector()
+inflector = inflect.engine()
 
 
 class DocumentConventions(object):
@@ -39,7 +39,7 @@ class DocumentConventions(object):
 
     @staticmethod
     def default_transform_plural(name):
-        return inflector.conditional_plural(2, name)
+        return inflector.plural(name)
 
     @staticmethod
     def default_transform_type_tag_name(name):
