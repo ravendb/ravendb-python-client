@@ -16,7 +16,7 @@ class DocumentStore(object):
             urls = [urls]
         self.urls = urls
         self.database = database
-        self.conventions = DocumentConventions()
+        self._conventions = DocumentConventions()
         self._certificate = certificate
         self._request_executors = {}
         self._initialize = False
@@ -27,6 +27,17 @@ class DocumentStore(object):
         self._maintenance_operation_executor = None
         self.subscriptions = DocumentSubscriptions(self)
         self._database_changes = {}
+
+    @property
+    def conventions(self):
+        return self._conventions
+
+    @conventions.setter
+    def conventions(self, value):
+        if self._conventions.is_frozen():
+            raise exceptions.InvalidOperationException(
+                "Conventions has frozen after store.initialize() and no changes can be applied to them")
+        self._conventions = value
 
     @property
     def certificate(self):
@@ -84,23 +95,22 @@ class DocumentStore(object):
     def get_request_executor(self, db_name=None):
         self._assert_initialize()
 
+        db_name = db_name if db_name is not None else self.database
         if db_name is None:
-            db_name = self.database
+            raise ValueError("database name cannot be None")
 
         with self.lock:
-            if db_name not in self._request_executors:
-                self._request_executors[db_name] = RequestsExecutor.create(self.urls, db_name, self._certificate,
-                                                                           self.conventions)
+            self._request_executors.setdefault(db_name, RequestsExecutor.create(self.urls, db_name, self._certificate,
+                                                                                self.conventions))
         return self._request_executors[db_name]
 
     def initialize(self):
         if not self._initialize:
             if self.urls is None or len(self.urls) == 0:
                 raise ValueError("Document store URLs cannot be empty", "urls")
-            if self.database is None:
-                raise exceptions.InvalidOperationException("None database is not valid")
 
             self.generator = MultiDatabaseHiLoKeyGenerator(self)
+            self.conventions.freeze()
             self._initialize = True
 
     def _assert_initialize(self):
@@ -112,7 +122,7 @@ class DocumentStore(object):
     def open_session(self, database=None, request_executor=None):
         self._assert_initialize()
         session_id = uuid.uuid4()
-        requests_executor = self.get_request_executor(database) if request_executor is None else request_executor
+        requests_executor = request_executor if request_executor is not None else self.get_request_executor(database)
         return DocumentSession(database, self, requests_executor, session_id)
 
     def generate_id(self, db_name, entity):

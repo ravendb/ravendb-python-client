@@ -1,5 +1,4 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 import unittest
 

@@ -1,8 +1,10 @@
 from pyravendb.custom_exceptions import exceptions
 import OpenSSL.crypto
 from collections import Iterable
+from pyravendb.tools.projection import create_entity_with_mapper
 from datetime import datetime, timedelta
 from threading import Timer
+from copy import deepcopy
 import urllib
 import inspect
 import json
@@ -78,76 +80,83 @@ class Utils(object):
 
     @staticmethod
     def is_inherit(parent, child):
+        if child is None or parent is None:
+            return False
         if parent == child:
             return True
-        if child is None:
-            return False
         if parent != child:
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions, nested_object_types=None, fetch=False):
+    def initialize_object(obj, object_type):
+        initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__)
+        o = object_type(**initialize_dict)
+        if set_needed:
+            for key, value in obj.items():
+                setattr(o, key, value)
+        return o
+
+    @staticmethod
+    def convert_to_entity(document, object_type, conventions, nested_object_types=None):
         metadata = document.pop("@metadata")
-        original_metadata = metadata.copy()
+        original_document = deepcopy(document)
+        original_metadata = deepcopy(metadata)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
+        mapper = conventions.mappers.get(object_type, None)
+
         if object_type == dict:
-            return document, metadata, original_metadata
-        entity = _DynamicStructure(**document)
-        if not fetch:
-            object_from_metadata = None
-            if type_from_metadata is not None:
-                object_from_metadata = Utils.import_class(type_from_metadata)
+            return document, metadata, original_metadata, original_document
 
-            if object_from_metadata is None:
-                if object_type is not None:
-                    entity.__class__ = object_type
-                    metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
-            else:
-                if object_type and not Utils.is_inherit(object_type, object_from_metadata):
-                    raise exceptions.InvalidOperationException(
-                        "Unable to cast object of type {0} to type {1}".format(object_from_metadata, object_type))
-                entity.__class__ = object_from_metadata
-            # Checking the class for initialize
-            entity_initialize_dict = Utils.make_initialize_dict(document, entity.__class__.__init__)
+        if type_from_metadata is None:
+            if object_type is not None:
+                metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
+        else:
+            object_from_metadata = Utils.import_class(type_from_metadata)
+            if object_from_metadata is not None:
+                if object_type is None:
+                    object_type = object_from_metadata
 
-            temp_entity = entity.__class__(**entity_initialize_dict)
-            for key, value in entity.__dict__.items():
-                if key not in entity_initialize_dict:
-                    if hasattr(temp_entity, key):
-                        setattr(temp_entity, key, value)
-            entity = temp_entity
+                elif Utils.is_inherit(object_type, object_from_metadata):
+                    mapper = conventions.mappers.get(object_from_metadata, None) or mapper
+                    object_type = object_from_metadata
 
-        if nested_object_types:
-            for key in nested_object_types:
-                attr = getattr(entity, key)
-                if attr:
-                    try:
-                        if isinstance(attr, list):
-                            nested_list = []
-                            for attribute in attr:
-                                nested_list.append(nested_object_types[key](
-                                    **Utils.make_initialize_dict(attribute, nested_object_types[key].__init__)))
-                            setattr(entity, key, nested_list)
+        if nested_object_types is None and mapper:
+            entity = create_entity_with_mapper(document, mapper, object_type)
+        else:
+            entity = _DynamicStructure(**document)
+            entity.__class__ = object_type
 
-                        elif nested_object_types[key] is datetime:
-                            setattr(entity, key, Utils.string_to_datetime(attr))
-                        elif nested_object_types[key] is timedelta:
-                            setattr(entity, key, Utils.string_to_timedelta(attr))
-                        else:
-                            setattr(entity, key, nested_object_types[key](
-                                **Utils.make_initialize_dict(attr, nested_object_types[key].__init__)))
-                    except TypeError:
-                        pass
+            entity = Utils.initialize_object(document, object_type)
+
+            if nested_object_types:
+                for key in nested_object_types:
+                    attr = getattr(entity, key)
+                    if attr:
+                        try:
+                            if isinstance(attr, list):
+                                nested_list = []
+                                for attribute in attr:
+                                    nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
+                            elif nested_object_types[key] is datetime:
+                                setattr(entity, key, Utils.string_to_datetime(attr))
+                            elif nested_object_types[key] is timedelta:
+                                setattr(entity, key, Utils.string_to_timedelta(attr))
+                            else:
+                                setattr(entity, key, Utils.initialize_object(attr, nested_object_types[key]))
+                        except TypeError as e:
+                            print(e)
+                            pass
 
         if 'Id' in entity.__dict__:
             entity.Id = metadata.get('@id', None)
-        return entity, metadata, original_metadata
+        return entity, metadata, original_metadata, original_document
 
     @staticmethod
     def make_initialize_dict(document, entity_init):
         if entity_init is None:
             return document
 
+        set_needed = False
         entity_initialize_dict = {}
         args, __, keywords, defaults, _, _, _ = inspect.getfullargspec(entity_init)
         if (len(args) - 1) > len(document):
@@ -165,8 +174,11 @@ class Utils(object):
                 for key in document:
                     if key in args:
                         entity_initialize_dict[key] = document[key]
-
-        return entity_initialize_dict
+            if not entity_initialize_dict and len(args) - 1 > 0:
+                set_needed = True
+                for key in args[1:]:
+                    entity_initialize_dict[key] = None
+        return entity_initialize_dict, set_needed
 
     @staticmethod
     def dict_to_bytes(the_dict):

@@ -41,7 +41,6 @@ class Query(object):
         self._current_clause_depth = None
         self.is_intersect = None
         self.the_wait_for_non_stale_results = False
-        self.fetch = None
         self._query = None
         self.start = None
         self.page_size = None
@@ -92,7 +91,6 @@ class Query(object):
         self.cutoff_etag = None
         self.wait_for_non_stale_results = wait_for_non_stale_results
         self.timeout = timeout if timeout is not None else self.session.conventions.timeout
-        self.fetch = None
         self._query = None
         self.last_equality = None
         self.is_distinct = False
@@ -799,13 +797,13 @@ class Query(object):
         response_includes = response.pop("Includes", None)
         self.session.save_includes(response_includes)
         for result in response_results:
-            entity, metadata, original_metadata = Utils.convert_to_entity(result, self.object_type, conventions,
-                                                                          self.nested_object_types,
-                                                                          fetch=False if not self.fetch else True)
+            entity, metadata, original_metadata, original_document = Utils.convert_to_entity(result, self.object_type,
+                                                                                             conventions,
+                                                                                             self.nested_object_types)
             if self.object_type != dict and not self.fields_to_fetch:
                 self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
                                          original_metadata=original_metadata,
-                                         metadata=metadata, document=result)
+                                         metadata=metadata, original_document=original_document)
             results.append(entity)
 
         if self._with_statistics:
