@@ -6,6 +6,7 @@ from pyravendb.raven_operations.operations import GetAttachmentOperation
 from pyravendb.commands.commands_data import PutAttachmentCommandData, DeleteAttachmentCommandData, DeleteCommandData
 from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
+from copy import deepcopy
 
 
 class _SaveChangesData(object):
@@ -98,7 +99,7 @@ class DocumentSession(object):
                 if key not in self._documents_by_id:
                     self._included_documents_by_id[key] = value
 
-    def save_entity(self, key, entity, original_metadata, metadata, document, force_concurrency_check=False):
+    def save_entity(self, key, entity, original_metadata, metadata, original_document, force_concurrency_check=False):
         if key is not None:
             self._known_missing_ids.discard(key)
 
@@ -106,15 +107,17 @@ class DocumentSession(object):
                 self._documents_by_id[key] = entity
 
                 self._documents_by_entity[self._documents_by_id[key]] = {
-                    "original_value": document.copy(), "metadata": metadata,
+                    "original_value": original_document, "metadata": metadata,
                     "original_metadata": original_metadata, "change_vector": metadata.get("change_vector", None),
                     "key": key, "force_concurrency_check": force_concurrency_check}
 
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
+
         if key not in self._documents_by_id:
-            entity, metadata, original_metadata = Utils.convert_to_entity(document, object_type, self.conventions,
-                                                                          nested_object_types)
-            self.save_entity(key, entity, original_metadata, metadata, document)
+            entity, metadata, original_metadata, original_document = Utils.convert_to_entity(document, object_type,
+                                                                                             self.conventions,
+                                                                                             nested_object_types)
+            self.save_entity(key, entity, original_metadata, metadata, original_document)
 
     def _multi_load(self, keys, object_type, includes, nested_object_types):
         if len(keys) == 0:
@@ -251,7 +254,7 @@ class DocumentSession(object):
         :type object:
         @param key: Entity will be stored under this key, (None to generate automatically)
         :type str:
-        @param change_vector: Current entity change_vector, used for concurrency checks (null to skip check)
+        @param change_vector: Current entity change_vector, used for concurrency checks (None to skip check)
         :type str
         """
 
@@ -371,8 +374,10 @@ class DocumentSession(object):
                 data.commands.append(commands_data.PutCommandData(key, change_vector, document, metadata))
 
     def _has_change(self, entity):
-        if self._documents_by_entity[entity]["original_metadata"] != self._documents_by_entity[entity]["metadata"] \
-                or self._documents_by_entity[entity]["original_value"] != entity.__dict__:
+        import json
+        entity_to_dict = json.loads(json.dumps(entity, default=self.conventions.json_default_method))
+        if self._documents_by_entity[entity]["original_value"] != entity_to_dict or self._documents_by_entity[entity][
+            "original_metadata"] != self._documents_by_entity[entity]["metadata"]:
             return True
         return False
 
@@ -420,8 +425,8 @@ class Advanced(object):
 
             results = ijson.backend.common.items(parser, "Results")
             for result in next(results, None):
-                document, metadata, _ = Utils.convert_to_entity(result, query.object_type, self.session.conventions,
-                                                                query.nested_object_types)
+                document, metadata, _, _ = Utils.convert_to_entity(result, query.object_type, self.session.conventions,
+                                                                   query.nested_object_types)
                 yield {"document": document, "metadata": metadata, "id": metadata.get("@id", None),
                        "change-vector": metadata.get("@change-vector", None)}
 

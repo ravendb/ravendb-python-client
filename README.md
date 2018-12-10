@@ -7,7 +7,7 @@ The API can handle most CRUD scenarios, including full support for replication, 
 with document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
     store.initialize()
     with store.open_session() as session:
-    foo = session.load("foos/1")
+        foo = session.load("foos/1")
 ```
 
 ## Installation
@@ -115,7 +115,7 @@ with store.open_session() as session:
     query_result = list(session.query().where_equals("name", "test101")
     query_result = list(session.query(object_type=Foo).where_starts_with("name", "n"))
     query_result = list(session.query(object_type=Foo).where_ends_with("name", "7"))
-    query_result = list(session.query(object_type=FooBar,nested_object_types={"foo":Foo}).where(name="foo_bar"))
+    query_result = list(session.query(object_type=FooBar, nested_object_types={"foo":Foo}).where(name="foo_bar"))
 	
 ```
 
@@ -144,7 +144,7 @@ class FooBar(object):
         self.name = name
         self.foo = foo_key
         
-store =  document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB")
+store =  document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB")
 store.initialize() 
 with store.open_session() as session:
     query_result = list(session.query().where_equals("name", "testing_includes").include("foo")
@@ -152,7 +152,6 @@ with store.open_session() as session:
     
 ```
 
-##What`s new
 ###Changes Api
 The RavenDB client offers a push notification feature that allows you to receive messages from a server about events that occurred there. 
 You are able to subscribe to events for all documents, indexes and operations as well as to indicate a particular 
@@ -161,7 +160,7 @@ the need to do any expensive polling.
 
 ##### Example:
 ```python
-with document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB") as store:
+with document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
     store.initialize() 
     documents = []
     indexes = []
@@ -204,6 +203,59 @@ class Observer(metaclass=ABCMeta):
     @abstractmethod
     def on_next(self, value):
         pass
+```
+
+##What`s new
+### Mappers
+
+mappers have been added to `DocumentConvention` to be able to parse custom objects.
+For using the mappers, only update `conventions.mappers` from the `DocumentStore`
+with your own dict.
+The key of the mappers will be the type of the object you want to initialize and the value will be a key, value method:
+the key will be the property name inside the object and the value will be the value of the property inside the document.
+like before you must specify the `object_type` property to be able to fetch the mapper method that you supplied
+if `nested_object_types` is initialized the mappers won't work.
+
+##### Example:
+
+```python
+class Address:
+    def __init__(self, street, city, state):
+        self.street = street
+        self.city = city
+        self.state = state
+
+
+class Owner:
+    def __init__(self, name, address):
+        self.name = name
+        self.address = address
+
+
+class Dog:
+    def __init__(self, name, owner):
+        self.name = name
+        self.owner = owner
+
+# This method will be called for each of the object properties
+def get_dog(key, value):
+    if not value:
+        return None
+    if key == "address":
+        return Address(**value)
+    elif key == "owner":
+        return Owner(**value)
+
+
+address = Address("Rub", "Unknown", "Israel")
+owner = Owner("Idan", address)
+dog = Dog(name="Donald", owner=owner)
+
+with DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
+    store.conventions.mappers.update({Dog: get_dog})
+    store.initialize()
+    with store.open_session() as session:
+        result = session.load("dogs/1-A", object_type=Dog)
 ```
 
 #####Bug Tracker

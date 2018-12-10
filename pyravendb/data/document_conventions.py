@@ -1,8 +1,10 @@
 from pyravendb.data.indexes import SortOptions
+from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
 from pyravendb.tools.utils import Utils
 import inflect
 
+inflect.def_classical["names"] = False
 inflector = inflect.engine()
 
 
@@ -13,16 +15,37 @@ class DocumentConventions(object):
         # timeout for wait to server in seconds
         self.timeout = kwargs.get("timeout", timedelta(seconds=30))
         self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
-        self.json_default_method = DocumentConventions.json_default
+        self.json_default_method = DocumentConventions._json_default
         self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
-        self.identity_parts_separator = "/";
+        self.identity_parts_separator = "/"
         self.disable_topology_update = kwargs.get("disable_topology_update", False)
         # If set to 'true' then it will throw an exception when any query is performed (in session)
         # without explicit page size set
         self.raise_if_query_page_size_is_not_set = kwargs.get("raise_if_query_page_size_is_not_set", False)
+        # To be able to map objects. give mappers a dictionary
+        # with the object type that you want to map and a function(key, value) key will be the name of the property
+        # the mappers will be used in json.decode
+        self._mappers = kwargs.get("mappers", {})
+        self._frozen = False
+
+    def freeze(self):
+        self._frozen = True
+
+    def is_frozen(self):
+        return self._frozen
+
+    @property
+    def mappers(self):
+        return self._mappers
+
+    def update_mappers(self, mapper):
+        if self._frozen:
+            raise InvalidOperationException(
+                "Conventions has frozen after store.initialize() and no changes can be applied to them")
+        self._mappers.update(mapper)
 
     @staticmethod
-    def json_default(o):
+    def _json_default(o):
         if o is None:
             return None
 
@@ -32,6 +55,8 @@ class DocumentConventions(object):
             return Utils.timedelta_to_str(o)
         elif getattr(o, "__dict__", None):
             return o.__dict__
+        elif isinstance(o, set):
+            return list(o)
         elif isinstance(o, int) or isinstance(o, float):
             return str(o)
         else:

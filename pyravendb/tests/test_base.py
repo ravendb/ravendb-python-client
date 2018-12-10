@@ -41,10 +41,16 @@ class TestBase(unittest.TestCase):
             topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         return topology
 
+    def setConvention(self, conventions):
+        self.conventions = conventions
+
     def setUp(self):
-        self.default_urls = ["http://localhost.fiddler:8084"]
+        conventions = getattr(self, "conventions", None)
+        self.default_urls = ["http://localhost.fiddler:8080"]
         self.default_database = "NorthWindTest"
         self.store = DocumentStore(urls=self.default_urls, database=self.default_database)
+        if conventions:
+            self.store.conventions = conventions
         self.store.initialize()
         created = False
         while not created:

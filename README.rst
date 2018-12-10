@@ -157,7 +157,7 @@ The includes will save on the session cache.
             self.name = name
             self.foo = foo_key
 
-    store =  document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB")
+    store =  document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB")
     store.initialize()
 
     with store.open_session() as session:
@@ -165,8 +165,7 @@ The includes will save on the session cache.
         foo_bar = session.load("FooBars/1", object_type=FooBar, includes=foo)
 
 
-What`s new
-=============
+
 Changes Api
 ---------------
 The RavenDB client offers a push notification feature that allows you to receive messages from a server about events that occurred there.
@@ -178,7 +177,7 @@ the need to do any expensive polling.
 
 .. code-block:: python
 
-    with document_store.DocumentStore(url="http://localhost:8080", database="PyRavenDB") as store:
+    with document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
         store.initialize()
         documents = []
         indexes = []
@@ -222,6 +221,60 @@ can be found in pyravendb.changes.observers or to use the ActionObserver).
         def on_next(self, value):
            pass
 
+
+What`s new
+=============
+Mappers
+--------
+mappers have been added to ``DocumentConvention`` to be able to parse custom objects.
+For using the mappers, only update ``conventions.mappers`` from the ``DocumentStore``
+with your own dict.
+The key of the mappers will be the type of the object you want to initialize and the value will be a key, value method:
+the key will be the property name inside the object and the value will be the value of the property inside the document.
+like before you must specify the ``object_type`` property to be able to fetch the mapper method that you supplied
+if ``nested_object_types`` is initialized the mappers won't work.
+
+**Example:**
+
+.. code-block:: python
+
+    class Address:
+        def __init__(self, street, city, state):
+            self.street = street
+            self.city = city
+            self.state = state
+
+
+    class Owner:
+        def __init__(self, name, address):
+            self.name = name
+            self.address = address
+
+
+    class Dog:
+        def __init__(self, name, owner):
+            self.name = name
+            self.owner = owner
+
+    # This method will be called for each of the object properties
+    def get_dog(key, value):
+        if not value:
+            return None
+        if key == "address":
+            return Address(**value)
+        elif key == "owner":
+            return Owner(**value)
+
+
+    address = Address("Rub", "Unknown", "Israel")
+    owner = Owner("Idan", address)
+    dog = Dog(name="Donald", owner=owner)
+
+    with DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
+        store.conventions.mappers.update({Dog: get_dog})
+        store.initialize()
+        with store.open_session() as session:
+            result = session.load("dogs/1-A", object_type=Dog)
 
 Bug Tracker
 ************

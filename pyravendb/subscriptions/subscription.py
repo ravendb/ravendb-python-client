@@ -342,9 +342,9 @@ class SubscriptionBatch:
         last_change_vector = None
         for item in self.raw_items:
 
-            entity, metadata, _ = Utils.convert_to_entity(item['Data'], self._object_type,
-                                                          self._store.conventions,
-                                                          nested_object_types=self._nested_object_type)
+            entity, metadata, _, _ = Utils.convert_to_entity(item['Data'], self._object_type,
+                                                             self._store.conventions,
+                                                             nested_object_types=self._nested_object_type)
             if not metadata:
                 raise InvalidOperationException("Document must have a @metadata field")
             document_id = metadata.get('@id', None)
