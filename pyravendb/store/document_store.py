@@ -100,9 +100,10 @@ class DocumentStore(object):
             raise ValueError("database name cannot be None")
 
         with self.lock:
-            self._request_executors.setdefault(db_name, RequestsExecutor.create(self.urls, db_name, self._certificate,
+            if self._request_executors.get(db_name) is None:
+                self._request_executors.setdefault(db_name, RequestsExecutor.create(self.urls, db_name, self._certificate,
                                                                                 self.conventions))
-        return self._request_executors[db_name]
+            return self._request_executors[db_name]
 
     def initialize(self):
         if not self._initialize:
