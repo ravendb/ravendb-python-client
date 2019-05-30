@@ -85,7 +85,10 @@ class SubscriptionWorker:
 
         if self._store.certificate:
             try:
-                self._my_socket = ssl.wrap_socket(self._my_socket, certfile=self._store.certificate,
+                store_cert = self._store.certificate
+                (cert, key) = store_cert if isinstance(store_cert, tuple) else (store_cert, None)
+
+                self._my_socket = ssl.wrap_socket(self._my_socket, certfile=cert, keyfile=key,
                                                   ssl_version=ssl.PROTOCOL_TLSv1_2)
             except Exception as e:
                 raise NonRecoverableSubscriptionException("Failed to create SSL wrapper") from e
