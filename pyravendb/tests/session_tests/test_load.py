@@ -1,3 +1,4 @@
+from pyravendb.commands.raven_commands import PutDocumentCommand
 from pyravendb.tests.test_base import TestBase
 from pyravendb.custom_exceptions import exceptions
 import unittest
@@ -35,6 +36,16 @@ class Order(object):
         self.product_id = product_id
 
 
+class Box(object):
+    def __init__(self, items):
+        self.items = items
+
+
+class Item(object):
+    def __init__(self, name):
+        self.name = name
+
+
 class TestLoad(TestBase):
     def setUp(self):
         super(TestLoad, self).setUp()
@@ -49,6 +60,15 @@ class TestLoad(TestBase):
     def tearDown(self):
         super(TestLoad, self).tearDown()
         self.delete_all_topology_files()
+
+    def test_can_handle_nested_values(self):
+        request_executor = self.store.get_request_executor()
+        put_command = PutDocumentCommand(key="testing/1", document={"items": [{"name": "oren"}]})
+        request_executor.execute(put_command)
+        with self.store.open_session() as session:
+            i = session.load("testing/1", object_type=Box, nested_object_types={"items": Item})
+            self.assertEqual("oren", i.items[0].name)
+
 
     def test_load_success(self):
         with self.store.open_session() as session:
