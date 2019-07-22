@@ -100,7 +100,7 @@ class IndexDefinition(object):
         self.fields = kwargs.get("fields", {})
         
         # set "OutputReduceToCollection"
-        self.outputreducetocollection = kwargs.get("outputreducetocollection", None)
+        self.output_reduce_to_collection = kwargs.get("output_reduce_to_collection", None)
         
     @property
     def type(self):
