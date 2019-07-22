@@ -153,7 +153,7 @@ class DatabaseChanges:
         return observable
 
     def for_operation_id(self, operation_id):
-        observable = self.get_or_add_observable("OperationsStatusChange", "operations/" + operation_id,
+        observable = self.get_or_add_observable("OperationsStatusChange", "operations/" + str(operation_id),
                                                 "watch-operation", "unwatch-operation", str(operation_id))(
             lambda x: x["operationId"] == str(operation_id))
         return observable
