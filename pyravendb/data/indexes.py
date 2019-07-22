@@ -98,7 +98,10 @@ class IndexDefinition(object):
 
         # fields is a  key value dict. the key is the name of the field and the value is IndexFieldOptions
         self.fields = kwargs.get("fields", {})
-
+        
+        # set "OutputReduceToCollection"
+        self.outputreducetocollection = kwargs.get("outputreducetocollection", None)
+        
     @property
     def type(self):
         value = "Map"
@@ -136,7 +139,7 @@ class IndexDefinition(object):
                 "Maps": self.maps,
                 "Name": self.name,
                 "Reduce": self.reduce,
-                "OutputReduceToCollection": None,
+                "OutputReduceToCollection": self.outputreducetocollection,
                 "Priority": str(self.priority) if self.priority else None,
                 "Type": self.type}
 
