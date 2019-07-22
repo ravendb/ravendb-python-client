@@ -139,7 +139,7 @@ class IndexDefinition(object):
                 "Maps": self.maps,
                 "Name": self.name,
                 "Reduce": self.reduce,
-                "OutputReduceToCollection": self.outputreducetocollection,
+                "OutputReduceToCollection": self.output_reduce_to_collection,
                 "Priority": str(self.priority) if self.priority else None,
                 "Type": self.type}
 
