@@ -26,7 +26,7 @@ class DeleteIndexOperation(MaintenanceOperation):
         self._index_name = index_name
 
     def get_command(self, conventions):
-        return self.DeleteIndexCommand(self._index_name)
+        return self._DeleteIndexCommand(self._index_name)
 
     class _DeleteIndexCommand(RavenCommand):
         def __init__(self, index_name):
