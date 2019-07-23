@@ -2,6 +2,10 @@ class InvalidOperationException(Exception):
     pass
 
 
+class NonRecoverableSubscriptionException(Exception):
+    pass
+
+
 class ErrorResponseException(Exception):
     pass
 

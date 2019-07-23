@@ -179,13 +179,16 @@ class IncrementalJsonParser:
         for (token, val) in gen:
             if token == "end_array":
                 return arr
-            arr.append(self.get_value(gen))
+            arr.append(self.get_value_from_token(gen, token, val))
 
         raise ParseError("End array expected, but the generator ended before we got it")
 
     def get_value(self, gen):
         (token, val) = next(gen)
 
+        return self.get_value_from_token(gen, token, val)
+
+    def get_value_from_token(self, gen, token, val):
         if token == "start_array":
             return self.create_array(gen)
 
