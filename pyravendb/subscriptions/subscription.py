@@ -83,14 +83,17 @@ class SubscriptionWorker:
         self._my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, receive_buffer_size)
         self._my_socket.settimeout(30)
 
-        # TODO: wrap SSL
         if self._store.certificate:
-            self._my_socket = ssl.wrap_socket(self._my_socket, certfile=self._store.certificate,
-                                              ssl_version=ssl.PROTOCOL_TLSv1_2)
-        try:
-            self._my_socket.connect((host, port))
-        except Exception as e:
-            print(e)
+            try:
+                store_cert = self._store.certificate
+                (cert, key) = store_cert if isinstance(store_cert, tuple) else (store_cert, None)
+
+                self._my_socket = ssl.wrap_socket(self._my_socket, certfile=cert, keyfile=key,
+                                                  ssl_version=ssl.PROTOCOL_TLSv1_2)
+            except Exception as e:
+                raise NonRecoverableSubscriptionException("Failed to create SSL wrapper") from e
+
+        self._my_socket.connect((host, port))
 
         header = Utils.dict_to_bytes(
             {"Operation": "Subscription", "DatabaseName": self._database_name, "OperationVersion": 40})
@@ -149,18 +152,16 @@ class SubscriptionWorker:
                 self.process_subscription()
             except Exception as ex:
                 try:
-                    if sys.gettrace():
-                        self._logger.info("Subscription '{0}'. Pulling task threw the following exception : {1}".format(
-                            self._options.subscription_name, ex))
+                    self._logger.warning("Subscription '{0}'. Pulling task threw the following exception : {1}".format(
+                        self._options.subscription_name, ex))
                     if self.should_try_to_reconnect(ex):
                         time.sleep(self._options.time_to_wait_before_connection_retry.seconds)
                         if self.on_subscription_connection_retry:
                             self.on_subscription_connection_retry(ex)
                     else:
-                        if sys.gettrace():
-                            self._logger.info(
-                                "Connection to subscription '{0}'. have been shut down because of an error : {1}".format(
-                                    self._options.subscription_name, ex))
+                        self._logger.warning(
+                            "Connection to subscription '{0}'. have been shut down because of an error : {1}".format(
+                                self._options.subscription_name, ex))
                         raise
                 except Exception as e:
                     if e == ex:
@@ -184,10 +185,9 @@ class SubscriptionWorker:
                 try:
                     self._process_documents(self._batch)
                 except Exception as ex:
-                    if sys.gettrace():
-                        self._logger.info(
-                            "Subscription '{0}'. Subscriber threw an exception on document batch : {1}".format(
-                                self._options.subscription_name, str(ex)))
+                    self._logger.warning(
+                        "Subscription '{0}'. Subscriber threw an exception on document batch : {1}".format(
+                            self._options.subscription_name, str(ex)))
                     if not self._options.ignore_subscriber_errors:
                         raise SubscriberErrorException(
                             "Subscriber threw an exception in subscription" + self._options.subscription_name, ex)
@@ -224,9 +224,9 @@ class SubscriptionWorker:
             return True
         if isinstance(exception, (
                 SubscriptionInUseException, SubscriptionDoesNotExistException, SubscriptionClosedException,
-                SubscriptionInvalidStateException, DatabaseDoesNotExistException, AuthorizationException,
-                AllTopologyNodesDownException, SubscriberErrorException, ValueError, NotImplementedError,
-                AttributeError, ijson.backend.UnexpectedSymbol)):
+                NonRecoverableSubscriptionException, SubscriptionInvalidStateException, DatabaseDoesNotExistException,
+                AuthorizationException, AllTopologyNodesDownException, SubscriberErrorException,
+                ValueError, NotImplementedError, AttributeError, ijson.backend.UnexpectedSymbol)):
             self.close()
             return False
         self.assert_last_connection_failure()

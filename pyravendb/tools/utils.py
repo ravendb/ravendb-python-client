@@ -110,6 +110,8 @@ class Utils(object):
         if type_from_metadata is None:
             if object_type is not None:
                 metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
+            else:  # no type defined on document or during load, return a dict
+                return _DynamicStructure(**document), metadata, original_metadata, original_document
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
             if object_from_metadata is not None:
@@ -137,6 +139,7 @@ class Utils(object):
                                 nested_list = []
                                 for attribute in attr:
                                     nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
+                                setattr(entity, key, nested_list)
                             elif nested_object_types[key] is datetime:
                                 setattr(entity, key, Utils.string_to_datetime(attr))
                             elif nested_object_types[key] is timedelta:

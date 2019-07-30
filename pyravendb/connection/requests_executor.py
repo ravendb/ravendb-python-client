@@ -166,7 +166,11 @@ class RequestsExecutor(object):
                     return raven_command.set_response(None)
                 if response.status_code == 403:
                     if self._certificate is not None:
-                        with open(self._certificate, 'rb') as pem:
+                        cert = self._certificate
+                        if isinstance(cert, tuple):
+                            (cert, _) = cert
+
+                        with open(cert, 'rb') as pem:
                             cert = crypto.load_certificate(crypto.FILETYPE_PEM, pem.read())
                             name = str(cert.get_subject().get_components()[0][1])
                     raise exceptions.AuthorizationException(
