@@ -27,6 +27,6 @@ class QueryOperation:
 
     def create_request(self):
         self._session.increment_requests_count()
-        logging.info("Executing query '{0}' on index '{1}'".format(self._index_query.query, self._index_name))
+        logging.debug("Executing query '{0}' on index '{1}'".format(self._index_query.query, self._index_name))
 
         return QueryCommand(self._session.conventions, self._index_query, self._metadata_only, self._index_entries_only)
