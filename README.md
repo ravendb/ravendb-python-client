@@ -152,7 +152,7 @@ with store.open_session() as session:
     
 ```
 
-###Changes Api
+### Changes Api
 The RavenDB client offers a push notification feature that allows you to receive messages from a server about events that occurred there. 
 You are able to subscribe to events for all documents, indexes and operations as well as to indicate a particular 
 one that you are interested in. This mechanism lets you notify users if something has changed without 
@@ -165,7 +165,7 @@ with document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRa
     documents = []
     indexes = []
     
-    observer = store.changes().all_docuemts()
+    observer = store.changes().for_all_documents()
     observer.subscribe(documents.append)
     observer.ensure_subscribe_now()
     
@@ -205,7 +205,7 @@ class Observer(metaclass=ABCMeta):
         pass
 ```
 
-##What`s new
+## What`s new
 ### Mappers
 
 mappers have been added to `DocumentConvention` to be able to parse custom objects.
@@ -258,5 +258,5 @@ with DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as stor
         result = session.load("dogs/1-A", object_type=Dog)
 ```
 
-#####Bug Tracker
+##### Bug Tracker
 http://issues.hibernatingrhinos.com/issues/RDBC

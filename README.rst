@@ -182,7 +182,7 @@ the need to do any expensive polling.
         documents = []
         indexes = []
 
-        observer = store.changes().all_docuemts()
+        observer = store.changes().for_all_documents()
         observer.subscribe(documents.append)
         observer.ensure_subscribe_now()
 
