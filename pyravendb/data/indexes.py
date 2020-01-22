@@ -102,6 +102,10 @@ class IndexDefinition(object):
         # set "OutputReduceToCollection"
         self.output_reduce_to_collection = kwargs.get("output_reduce_to_collection", None)
         
+        # set "PatternForOutputReduceToCollectionReferences"
+        self.pattern_for_output_reduce_to_collection_references = kwargs.get(
+            "pattern_for_output_reduce_to_collection_references", None)
+        
     @property
     def type(self):
         value = "Map"
@@ -140,6 +144,7 @@ class IndexDefinition(object):
                 "Name": self.name,
                 "Reduce": self.reduce,
                 "OutputReduceToCollection": self.output_reduce_to_collection,
+                "PatternForOutputReduceToCollectionReferences": self.pattern_for_output_reduce_to_collection_references,
                 "Priority": str(self.priority) if self.priority else None,
                 "Type": self.type}
 
