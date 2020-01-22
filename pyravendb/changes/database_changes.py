@@ -50,7 +50,12 @@ class DatabaseChanges:
             try:
                 if not self.client_websocket.connected:
                     if self._request_executor.certificate:
-                        self.client_websocket.sock_opt.sslopt.update({'ca_certs': self._request_executor.certificate})
+                        if isinstance(self._request_executor.certificate, tuple):
+                            (crt, key) = self._request_executor.certificate
+                            self.client_websocket.sock_opt.sslopt.update(
+                                {'certfile': crt, 'keyfile': key})
+                        else:
+                            self.client_websocket.sock_opt.sslopt.update({'ca_certs': self._request_executor.certificate})
                     self.client_websocket.connect(url)
                     for observables in self._observables.values():
                         for observer in observables.values():
