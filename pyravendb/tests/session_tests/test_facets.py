@@ -45,5 +45,6 @@ class TestFacets(TestBase):
                 "price_per_unit", 99).to_facets(self.facets)
             assert len(query_results['Results']) > 0
 
+
 if __name__ == "__main__":
     unittest.main()

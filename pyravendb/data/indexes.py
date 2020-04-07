@@ -167,6 +167,6 @@ class IndexFieldOptions(object):
                 "Indexing": str(self.indexing) if self.indexing else None,
                 "Sort": str(self.sort_options) if self.sort_options else None,
                 "Spatial": None,
-                "Storage": None if self.storage is None else "Yes" if self.storage == True else "No",
+                "Storage": None if self.storage is None else "Yes" if self.storage is True else "No",
                 "Suggestions": self.suggestions,
                 "TermVector": str(self.term_vector) if self.term_vector else None}

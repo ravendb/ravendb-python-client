@@ -274,7 +274,7 @@ class Query(object):
             write = "".join(write_builder)
 
         if write is None:
-            raise AttributeError("token.token don't match any of the cases for rql builder")
+            raise AttributeError(f"{token.token} don't match any of the cases for rql builder")
         return write
 
     @staticmethod
