@@ -350,3 +350,137 @@ class GetMultiFacetsOperation(Operation):
         def set_response(self, response):
             results = self._command.set_response(response)
             return [result for result in results["Result"]]
+
+
+class TimeSeriesRange(object):
+    def __init__(self, name, from_, to):
+        self.Name = name
+        self.From = from_
+        self.To = to
+
+
+class GetTimeSeriesOperation (Operation):
+    def __init__(self, docId, ranges, start = 0, pageSize = 2**31):
+        if isinstance(ranges, TimeSeriesRange):
+            ranges = [ranges]
+
+        if ranges is None or len(ranges) == 0:
+            raise ValueError("Invalid time series range")
+
+        self._docId = docId
+        self._ranges = ranges
+        self._start = start
+        self._pageSize = pageSize
+
+        super(GetTimeSeriesOperation, self).__init__()
+
+    def get_command(self, store, conventions, cache=None):
+        return self._GetTimeSeriesCommand(self._docId, self._ranges, self._start, self._pageSize)
+
+    class _GetTimeSeriesCommand(RavenCommand):
+        def __init__(self, docId, ranges, start, pageSize):
+            super(GetTimeSeriesOperation._GetTimeSeriesCommand, self).__init__(method="GET", is_read_request=True)
+            self._docId = docId
+            self._ranges = ranges
+            self._start = start
+            self._pageSize = pageSize
+
+        def create_request(self, server_node):
+
+            self.url = "{0}/databases/{1}/timeseries?id={2}".format(server_node.url,
+                                                                                   server_node.database,
+                                                                                   Utils.quote_key(self._docId))
+            if self._start > 0:
+                self.url += "&start="+self._start
+
+            if self._pageSize < 2**31:
+                self.url += "&pageSize=" + self._pageSize
+
+            for range in self._ranges:
+                self.url += "&name=" + Utils.quote_key(range.Name) + \
+                            "&from=" + Utils.datetime_to_string(range.From) + \
+                            "&to=" + Utils.datetime_to_string(range.To)
+
+        def set_response(self, response):
+            if response.status_code == 200:
+                return response.json()
+
+
+class TimeSeriesBatch(object):
+    def __init__(self):
+        self.Documents = []
+
+    def append(self, docId, name, timestamp, values, tag):
+        op = next((x for x in self.Documents if x.DocumentID == docId), None)
+        if op is None:
+            op = TimeSeriesOperation(docId)
+            self.Documents.append(op)
+
+        op.Appends.append(TimeSeriesOperation.AppendOperation(name, timestamp, values, tag))
+
+    def to_json(self):
+        return {"Documents": self.Documents}
+
+
+class TimeSeriesOperation(object):
+    def __init__(self, docId):
+        self.DocumentId = docId
+        self.Appends = []
+        self.Removals = []
+
+    def to_json(self):
+        return {"DocumentId": self.DocumentId, "Appends": [a.to_json() for a in self.Appends], "Removals": [r.to_json() for r in self.Removals]}
+
+    class AppendOperation(object):
+        def __init__(self, name, timestamp, values, tag):
+            if not isinstance(values, float):
+                values = [values]
+            self.Name = name
+            self.Timestamp = timestamp
+            self.Values = values
+            self.Tag = tag
+
+        def to_json(self):
+            return {"Name": self.Name,
+                    "Timestamp": Utils.datetime_to_string(self.DateTime),
+                    "Values": self.Values,
+                    "Tag": self.Tag}
+
+    class RemoveOperation(object):
+        def __init__(self, name, from_, to):
+            self.Name = name
+            self.From = from_
+            self.To = to
+
+        def to_json(self):
+            return {"Name": self.Name,
+                    "From": Utils.datetime_to_string(self.From),
+                    "To": Utils.datetime_to_string(self.To)}
+
+
+class TimeSeriesBatchOperation (Operation):
+    def __init__(self, batch):
+        if not isinstance(batch, TimeSeriesBatch):
+            raise ValueError("Invalid operation")
+
+        self._batch = batch
+
+        super(TimeSeriesBatchOperation , self).__init__()
+
+    def get_command(self, store, conventions, cache=None):
+        return self._TimeSeriesBatchCommand(self._batch)
+
+    class _TimeSeriesBatchCommand(RavenCommand):
+        def __init__(self, batch):
+            super(TimeSeriesBatchOperation._TimeSeriesBatchCommand, self).__init__(method="POST", is_read_request=False)
+            self._batch = batch
+
+        def create_request(self, server_node):
+
+            self.url = "{0}/databases/{1}/timeseries".format(server_node.url, server_node.database)
+
+            self.data = self._batch.to_json()
+
+        def set_response(self, response):
+            if response.status_code == 200:
+                return response.json()
