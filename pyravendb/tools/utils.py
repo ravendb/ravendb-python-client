@@ -199,7 +199,7 @@ class Utils(object):
 
     @staticmethod
     def datetime_to_string(datetime_obj):
-        return datetime_obj.strftime("%Y-%m-%dT%H:%M:%S.%f0")
+        return datetime_obj.strftime("%Y-%m-%dT%H:%M:%S.%f0") if datetime_obj else ''
 
     @staticmethod
     def start_a_timer(interval, function, args=None, name=None, daemon=False):
@@ -359,3 +359,14 @@ class Utils(object):
             if c in text:
                 return True
         return False
+
+    @staticmethod
+    def sort_iterable(iterable, key=None):
+        """
+        This function will take an iterable and try to sort it by the key
+        if the key is not given will use the sorted default one.
+        return a generator
+        """
+        if not iterable:
+            return iterable
+        yield sorted(iterable, key=key)
