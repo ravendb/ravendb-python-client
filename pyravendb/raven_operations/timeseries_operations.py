@@ -17,12 +17,17 @@ class TimeSeriesRange:
 
 
 class GetTimeSeriesOperation(Operation):
-    def __init__(self, document_id: str, ranges: Iterable[TimeSeriesRange] or TimeSeriesRange = None,
+    def __init__(self, document_id: str, ranges: Iterable[TimeSeriesRange] or TimeSeriesRange,
                  start: int = 0, page_size: int = sys.maxsize):
         """
-        Build the time series get operations construct with ranges or from_date and to_date.
+        Build the time series get operations.
         """
         super().__init__()
+        if not document_id:
+            raise ValueError("Invalid document Id, please provide a valid value and try again")
+        if not ranges:
+            raise ValueError("Ranges property Cannot be empty or None, please put a valid value and try again")
+
         if isinstance(ranges, TimeSeriesRange):
             ranges = [ranges]
 
@@ -40,7 +45,10 @@ class GetTimeSeriesOperation(Operation):
             super().__init__(method="GET", is_read_request=True)
 
             if not document_id:
-                raise ValueError("Invalid document_id")
+                raise ValueError("Invalid document Id, please provide a valid value and try again")
+
+            if not ranges:
+                raise ValueError("Ranges property Cannot be empty or None, please put a valid value and try again")
 
             self._document_id = document_id
             self._ranges = ranges
@@ -53,11 +61,10 @@ class GetTimeSeriesOperation(Operation):
                         f"{f'&start={self._start}' if self._start > 0 else ''}"
                         f"{f'&pageSize={self._page_size}' if self._page_size < sys.maxsize else ''}")
 
-            if self._ranges is not None:
-                for range_ in self._ranges:
-                    self.url += (f"&name={Utils.quote_key(range_.name)}"
-                                 f"&from={Utils.datetime_to_string(range_.from_date)}"
-                                 f"&to={Utils.datetime_to_string(range_.to_date)}")
+            for range_ in self._ranges:
+                self.url += (f"&name={Utils.quote_key(range_.name)}"
+                             f"&from={Utils.datetime_to_string(range_.from_date)}"
+                             f"&to={Utils.datetime_to_string(range_.to_date)}")
 
         def set_response(self, response):
             if response is None:
@@ -65,7 +72,7 @@ class GetTimeSeriesOperation(Operation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.ErrorResponseException(response["Error"])
+                    raise exceptions.ErrorResponseException(response["Message"], response["Type"])
             except ValueError as e:
                 raise exceptions.ErrorResponseException(e)
 
@@ -77,18 +84,22 @@ class TimeSeriesOperation:
     def __init__(self, name: str, appends: Optional[List["RemoveOperation"]] = None,
                  removals: [List["RemoveOperation"]] = None):
         self.name = name
-        self.appends = [] if not appends else Utils.sort_iterable(appends, key=lambda ao: ao.timestamp.timestamp())
-        self.removals = [] if removals is None else removals
+        self.appends = appends
+        self.removals = removals
 
     def append(self, timestamp: datetime, values: List[float] or float, tag: Optional[str] = None):
+        if not self.appends:
+            self.appends = []
         self.appends.append(TimeSeriesOperation.AppendOperation(timestamp, values, tag))
 
-    def remove(self, from_date: datetime, to_date: datetime):
+    def remove(self, from_date: datetime = None, to_date: datetime = None):
+        if not self.removals:
+            self.removals = []
         self.removals.append(TimeSeriesOperation.RemoveOperation(from_date, to_date))
 
     def to_json(self):
-        if self.appends and isinstance(self.appends, Generator):
-            self.appends = next(self.appends)
+        if self.appends:
+            self.appends = next(Utils.sort_iterable(self.appends, key=lambda ao: ao.timestamp.timestamp()))
         return {"Name": self.name, "Appends": [a.to_json() for a in self.appends] if self.appends else self.appends,
                 "Removals": [r.to_json() for r in self.removals] if self.removals else self.removals}
 
@@ -116,17 +127,12 @@ class TimeSeriesOperation:
             return _dict
 
     class RemoveOperation:
-        def __init__(self, from_date: datetime, to_date: datetime):
-            if not from_date:
-                raise ValueError("Missing from_date property")
-            if not to_date:
-                raise ValueError("Missing to_date property")
-
-            self.from_date = from_date
-            self.to_date = to_date
+        def __init__(self, from_date: datetime = None, to_date: datetime = None):
+            self.from_date = from_date if from_date else datetime.min
+            self.to_date = to_date if to_date else datetime.max
 
         def to_json(self):
-            return {"From": self.from_date, "To": self.to_date}
+            return {"From": Utils.datetime_to_string(self.from_date), "To": Utils.datetime_to_string(self.to_date)}
 
 
 class TimeSeriesBatchOperation(Operation):
@@ -156,6 +162,6 @@ class TimeSeriesBatchOperation(Operation):
             self.data = self._operation.to_json()
 
         def set_response(self, response):
-            if response and response.status_code != 204:
+            if response is not None and response.status_code != 204:
                 response = response.json()
-                raise exceptions.ErrorResponseException(response["Error"])
+                raise exceptions.ErrorResponseException(response["Message"], response["Type"])

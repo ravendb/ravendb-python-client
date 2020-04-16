@@ -199,7 +199,8 @@ class Utils(object):
 
     @staticmethod
     def datetime_to_string(datetime_obj):
-        return datetime_obj.strftime("%Y-%m-%dT%H:%M:%S.%f0") if datetime_obj else ''
+        add_suffix = '0' if datetime_obj != datetime.max else '9'
+        return datetime_obj.strftime(f"%Y-%m-%dT%H:%M:%S.%f{add_suffix}") if datetime_obj else ''
 
     @staticmethod
     def start_a_timer(interval, function, args=None, name=None, daemon=False):

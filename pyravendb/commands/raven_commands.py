@@ -202,7 +202,7 @@ class BatchCommand(RavenCommand):
         try:
             response = response.json()
             if "Error" in response:
-                raise ValueError(response["Error"])
+                raise ValueError(response["Message"])
             return response["Results"]
         except ValueError as e:
             raise exceptions.InvalidOperationException(e)
