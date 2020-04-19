@@ -6,6 +6,7 @@ from pyravendb.raven_operations.operations import GetAttachmentOperation
 from pyravendb.commands.commands_data import PutAttachmentCommandData, DeleteAttachmentCommandData, DeleteCommandData
 from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
+from .session_timeseries import TimeSeries
 from copy import deepcopy
 
 
@@ -32,6 +33,7 @@ class DocumentSession(object):
         self._included_documents_by_id = {}
         self._deleted_entities = set()
         self._documents_by_entity = {}
+        self._time_series_by_document_id = {}
         self._known_missing_ids = set()
         self.id_value = None
         self._defer_commands = set()
@@ -453,6 +455,14 @@ class Advanced(object):
         self.session.included_documents_by_id.clear()
         self.session.known_missing_ids.clear()
 
+    # TODO: complete time_series in the session
+    def time_series_for(self, entity_or_document_id, name):
+        """
+        Get A time series object associated with the document
+        """
+        raise NotImplemented("Time-series from the session is not implemented")
+        # return TimeSeries(self, entity_or_document_id, name)
+
 
 class _Attachment:
     def __init__(self, session):
@@ -471,7 +481,7 @@ class _Attachment:
     def throw_not_in_session(self, entity):
         raise ValueError(
             repr(entity) + " is not associated with the session, cannot add attachment to it. "
-                           "Use documentId instead or track the entity in the session.")
+                           "Use document Id instead or track the entity in the session.")
 
     def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
         if not isinstance(entity_or_document_id, str):
