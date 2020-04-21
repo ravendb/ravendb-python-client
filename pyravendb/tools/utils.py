@@ -88,8 +88,8 @@ class Utils(object):
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
-    def initialize_object(obj, object_type):
-        initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__)
+    def initialize_object(obj, object_type, convert_to_snake_case=None):
+        initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
         o = object_type(**initialize_dict)
         if set_needed:
             for key, value in obj.items():
@@ -155,7 +155,24 @@ class Utils(object):
         return entity, metadata, original_metadata, original_document
 
     @staticmethod
-    def make_initialize_dict(document, entity_init):
+    def make_initialize_dict(document, entity_init, convert_to_snake_case=None):
+        """
+            This method will create an entity from document
+            In case convert_to_snake_case is empty will convert document keys to snake_case
+            convert_to_snake_case can be dictionary with special words you can change ex. From -> from_date
+        """
+        if convert_to_snake_case:
+            convert_to_snake_case = {} if convert_to_snake_case is True else convert_to_snake_case
+            try:
+                converted_document = {}
+                for key in document:
+
+                    converted_key = convert_to_snake_case.get(key, key)
+                    converted_document[Utils.convert_to_snake_case(converted_key)] = document[key]
+                document = converted_document
+            except:
+                pass
+
         if entity_init is None:
             return document
 

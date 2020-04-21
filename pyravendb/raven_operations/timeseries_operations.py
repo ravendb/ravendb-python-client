@@ -1,19 +1,11 @@
-from typing import Optional, Iterable, List, Generator
+from typing import Optional, Iterable, List
+from pyravendb.data.timeseries import TimeSeriesRange
 from pyravendb.commands.raven_commands import *
 from pyravendb.tools.utils import Utils
 from .operations import Operation
 from datetime import datetime
 
 import sys
-
-
-class TimeSeriesRange:
-    def __init__(self, name, from_date: Optional[datetime] = None, to_date: Optional[datetime] = None):
-        if not name:
-            raise ValueError("TimeSeriesRange must include name")
-        self.name = name
-        self.from_date = from_date
-        self.to_date = to_date
 
 
 class GetTimeSeriesOperation(Operation):
@@ -81,7 +73,7 @@ class GetTimeSeriesOperation(Operation):
 
 class TimeSeriesOperation:
 
-    def __init__(self, name: str, appends: Optional[List["RemoveOperation"]] = None,
+    def __init__(self, name: str, appends: Optional[List["AppendOperation"]] = None,
                  removals: [List["RemoveOperation"]] = None):
         self.name = name
         self.appends = appends
@@ -136,6 +128,38 @@ class TimeSeriesOperation:
 
 
 class TimeSeriesBatchOperation(Operation):
+    def __init__(self, document_id: str, operation: TimeSeriesOperation):
+
+        super().__init__()
+        self._document_id = document_id
+        self.__operation = operation
+
+    def get_command(self, store, conventions, cache=None):
+        return self._TimeSeriesBatchCommand(self._document_id, self.__operation)
+
+    class _TimeSeriesBatchCommand(RavenCommand):
+        def __init__(self, document_id: str, operation: TimeSeriesOperation):
+            super().__init__(method="POST")
+
+            if not document_id:
+                raise ValueError("Invalid document_id")
+
+            self._document_id = document_id
+            self._operation = operation
+
+        def create_request(self, server_node):
+            self.url = (f"{server_node.url}/databases/{server_node.database}"
+                        f"/timeseries?id={Utils.quote_key(self._document_id)}")
+
+            self.data = self._operation.to_json()
+
+        def set_response(self, response):
+            if response is not None and response.status_code != 204:
+                response = response.json()
+                raise exceptions.ErrorResponseException(response["Message"], response["Type"])
+
+
+class ConfigureTimeSeriesOperation(Operation):
     def __init__(self, document_id: str, operation: TimeSeriesOperation):
 
         super().__init__()

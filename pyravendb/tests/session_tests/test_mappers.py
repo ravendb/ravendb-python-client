@@ -1,5 +1,7 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.document_conventions import DocumentConventions
+from datetime import datetime
+from pyravendb.tools.utils import Utils
 import unittest
 
 
@@ -17,9 +19,10 @@ class Owner:
 
 
 class Dog:
-    def __init__(self, name, owner):
+    def __init__(self, name, owner, date = None):
         self.name = name
         self.owner = owner
+        self.date = date if date else datetime.now()
 
 
 def get_dog(key, value):
@@ -30,6 +33,8 @@ def get_dog(key, value):
         return Address(**value)
     elif key == "owner":
         return Owner(**value)
+    elif key == "date":
+        return Utils.string_to_datetime(value)
 
 
 class TestMappers(TestBase):
@@ -67,6 +72,12 @@ class TestMappers(TestBase):
             self.assertIsNotNone(dogs)
             for dog in dogs:
                 self._check_dog_type(dog)
+
+    def test_date_time_convert(self):
+        with self.store.open_session() as session:
+            dog = session.load("Dogs/1-A", object_type=Dog)
+            self.assertIsNotNone(dog)
+            self.assertTrue(isinstance(dog.date, datetime))
 
     def _check_dog_type(self, obj):
         self.assertTrue(isinstance(obj, Dog))

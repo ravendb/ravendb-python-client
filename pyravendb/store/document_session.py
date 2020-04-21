@@ -6,8 +6,9 @@ from pyravendb.raven_operations.operations import GetAttachmentOperation
 from pyravendb.commands.commands_data import PutAttachmentCommandData, DeleteAttachmentCommandData, DeleteCommandData
 from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
+from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
-from copy import deepcopy
+from typing import Dict, List
 
 
 class _SaveChangesData(object):
@@ -40,6 +41,8 @@ class DocumentSession(object):
         self._number_of_requests_in_session = 0
         self._query = None
         self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
+        self.no_tracking = kwargs.get("no_tracking", False)
+        self.no_caching = kwargs.get("no_caching", False)
         self.advanced = Advanced(self)
 
     def __enter__(self):
@@ -67,6 +70,10 @@ class DocumentSession(object):
     @property
     def documents_by_id(self):
         return self._documents_by_id
+
+    @property
+    def time_series_by_document_id(self) -> Dict[str, Dict[str, List[TimeSeriesRangeResult]]]:
+        return self._time_series_by_document_id
 
     def defer(self, command, *args):
         self._defer_commands.add(command)
@@ -307,6 +314,14 @@ class DocumentSession(object):
 
         return "disabled" if change_vector is None else "forced"
 
+        # TODO: complete time_series in the session
+
+    def time_series_for(self, entity_or_document_id, name):
+        """
+        Get A time series object associated with the document
+        """
+        return TimeSeries(self, entity_or_document_id, name)
+
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
         self._defer_commands.clear()
@@ -454,14 +469,6 @@ class Advanced(object):
         self.session.deleted_entities.clear()
         self.session.included_documents_by_id.clear()
         self.session.known_missing_ids.clear()
-
-    # TODO: complete time_series in the session
-    def time_series_for(self, entity_or_document_id, name):
-        """
-        Get A time series object associated with the document
-        """
-        raise NotImplemented("Time-series from the session is not implemented")
-        # return TimeSeries(self, entity_or_document_id, name)
 
 
 class _Attachment:
