@@ -1,3 +1,6 @@
+from typing import List, Optional
+
+
 class _CommandData(object):
     def __init__(self, key, command_type, change_vector=None, metadata=None):
         self.key = key
@@ -138,3 +141,23 @@ class DeleteAttachmentCommandData(_CommandData):
             data["ChangeVector"] = self.change_vector
 
         return data
+
+
+class TimeSeriesBatchCommandData(_CommandData):
+    def __init__(self, document_id: str, name: str, operation: "TimeSeriesOperation", change_vector=None):
+
+        if not document_id:
+            raise ValueError("None or empty document id is Invalid")
+
+        if not name:
+            raise ValueError("None or empty name is Invalid")
+
+        super().__init__(key=document_id, command_type="TimeSeries", change_vector=change_vector)
+        self._time_series = operation
+
+    @property
+    def time_series(self):
+        return self._time_series
+
+    def to_json(self):
+        return {"Id": self.key, "TimeSeries": self.time_series.to_json(), "Type": self.type}

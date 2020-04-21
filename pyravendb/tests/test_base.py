@@ -46,7 +46,7 @@ class TestBase(unittest.TestCase):
 
     def setUp(self):
         conventions = getattr(self, "conventions", None)
-        self.default_urls = ["http://localhost:8080"]
+        self.default_urls = ["http://127.0.0.1:8080"]
         self.default_database = "NorthWindTest"
         self.store = DocumentStore(urls=self.default_urls, database=self.default_database)
         if conventions:
