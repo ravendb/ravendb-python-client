@@ -121,6 +121,9 @@ class Utils(object):
                 elif Utils.is_inherit(object_type, object_from_metadata):
                     mapper = conventions.mappers.get(object_from_metadata, None) or mapper
                     object_type = object_from_metadata
+                elif object_type is not object_from_metadata:
+                    raise exceptions.InvalidOperationException(
+                        f"Cannot covert document from type {object_from_metadata} to {object_type}")
 
         if nested_object_types is None and mapper:
             entity = create_entity_with_mapper(document, mapper, object_type)
@@ -158,7 +161,7 @@ class Utils(object):
     def make_initialize_dict(document, entity_init, convert_to_snake_case=None):
         """
             This method will create an entity from document
-            In case convert_to_snake_case is empty will convert document keys to snake_case
+            In case convert_to_snake_case will convert document keys to snake_case
             convert_to_snake_case can be dictionary with special words you can change ex. From -> from_date
         """
         if convert_to_snake_case:
@@ -166,7 +169,6 @@ class Utils(object):
             try:
                 converted_document = {}
                 for key in document:
-
                     converted_key = convert_to_snake_case.get(key, key)
                     converted_document[Utils.convert_to_snake_case(converted_key)] = document[key]
                 document = converted_document

@@ -22,6 +22,16 @@ class IndexPriority(Enum):
         return self.value
 
 
+class IndexSourceType(Enum):
+    none = "None"
+    documents = "Documents"
+    time_series = "TimeSeries"
+    counters = "Counters"
+
+    def __str__(self):
+        return self.value
+
+
 # The sort options to use for a particular field
 class SortOptions(Enum):
     # No sort options
@@ -98,10 +108,27 @@ class IndexDefinition(object):
 
         # fields is a  key value dict. the key is the name of the field and the value is IndexFieldOptions
         self.fields = kwargs.get("fields", {})
-        
+
         # set "OutputReduceToCollection"
         self.output_reduce_to_collection = kwargs.get("output_reduce_to_collection", None)
-        
+
+        self._index_source_type = None
+
+    @property
+    def source_type(self):
+        if self._index_source_type is None:
+            if not self.maps:
+                raise ValueError("Index definition contains no maps")
+
+            first_map = self.map[:50].lower()
+            if "timeseries" in first_map:
+                self._index_source_type = IndexSourceType.time_series
+            elif "counters" in first_map:
+                self._index_source_type = IndexSourceType.counters
+            else:
+                self._index_source_type = IndexSourceType.documents
+        return self._index_source_type
+
     @property
     def type(self):
         value = "Map"
@@ -141,7 +168,8 @@ class IndexDefinition(object):
                 "Reduce": self.reduce,
                 "OutputReduceToCollection": self.output_reduce_to_collection,
                 "Priority": str(self.priority) if self.priority else None,
-                "Type": self.type}
+                "Type": self.type,
+                "SourceType": self.source_type}
 
 
 class IndexFieldOptions(object):

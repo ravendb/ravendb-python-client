@@ -165,6 +165,90 @@ class PutIndexesOperation(MaintenanceOperation):
                 response.raise_for_status()
 
 
+class StopIndexingOperation(MaintenanceOperation):
+    def __init__(self):
+        super().__init__()
+
+    def get_command(self, conventions):
+        return self._StopIndexingCommand()
+
+    class _StopIndexingCommand(RavenCommand):
+        def __init__(self):
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/stop"
+
+        def set_response(self, response):
+            pass
+
+
+class StartIndexingOperation(MaintenanceOperation):
+    def __init__(self):
+        super().__init__()
+
+    def get_command(self, conventions):
+        return self._StartIndexingCommand()
+
+    class _StartIndexingCommand(RavenCommand):
+        def __init__(self):
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/start"
+
+        def set_response(self, response):
+            pass
+
+
+class StartIndexOperation(MaintenanceOperation):
+    def __init__(self, index_name):
+        if not index_name:
+            raise ValueError("Index name can't be None or empty")
+        self._index_name = index_name
+        super().__init__(self._index_name)
+
+    def get_command(self, conventions):
+        return self._StartIndexCommand(self._index_name)
+
+    class _StartIndexCommand(RavenCommand):
+        def __init__(self, index_name):
+            if not index_name:
+                raise ValueError("Index name can't be None or empty")
+            self._index_name = index_name
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/start?name={Utils.quote_key(self._index_name)}"
+
+        def set_response(self, response):
+            pass
+
+
+class StopIndexOperation(MaintenanceOperation):
+    def __init__(self, index_name):
+        if not index_name:
+            raise ValueError("Index name can't be None or empty")
+        self._index_name = index_name
+        super().__init__(self._index_name)
+
+    def get_command(self, conventions):
+        return self._StopIndexCommand(self._index_name)
+
+    class _StopIndexCommand(RavenCommand):
+        def __init__(self, index_name):
+            if not index_name:
+                raise ValueError("Index name can't be None or empty")
+            self._index_name = index_name
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/stop?name={Utils.quote_key(self._index_name)}"
+
+        def set_response(self, response):
+            pass
+
+
 class GetStatisticsOperation(MaintenanceOperation):
     def get_command(self, conventions):
         return GetStatisticsCommand()

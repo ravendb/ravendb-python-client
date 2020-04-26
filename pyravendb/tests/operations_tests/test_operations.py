@@ -60,8 +60,12 @@ class TestOperations(TestBase):
         operation = PatchByQueryOperation(
             query_to_update=IndexQuery(query="FROM INDEX 'None' UPDATE {{this.name='NotExist'}}",
                                        wait_for_non_stale_results=True), options=options)
-        with self.assertRaises(exceptions.ErrorResponseException):
-            self.store.operations.send(operation)
+        with self.assertRaises(exceptions.InvalidOperationException):
+            result = self.store.operations.send(operation)
+            if result:
+                self.store.operations.wait_for_operation_complete(result['operation_id'])
+            else:
+                raise exceptions.ErrorResponseException("Got empty or None response from the server")
 
     def test_delete_by_index(self):
         self.store.maintenance.send(PutIndexesOperation(

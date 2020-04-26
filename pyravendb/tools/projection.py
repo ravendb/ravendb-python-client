@@ -2,7 +2,7 @@ def create_entity_with_mapper(dict_obj, mapper, object_type, convert_to_snake_ca
     """
     This method will create an entity from dict_obj and mapper
     In case convert_to_snake_case is empty will convert dict_obj keys to snake_case
-    convert_to_snake_case can be dictionary with special words you can change ex. from -> from_date
+    convert_to_snake_case can be dictionary with special words you can change ex. From -> from_date
     """
     from pyravendb.tools.utils import Utils
 

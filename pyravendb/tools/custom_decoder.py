@@ -7,7 +7,7 @@ class JsonDecoder(json.JSONDecoder):
     This custom JsonDecoder can add to json.loads function to work with pyravendb mappers solution.
     just use it like this json.loads(YOUR_OBJECT, cls=JsonDecoder, object_mapper=YOUR_MAPPER)
     Note that that last object that returns from the loads function will be a dict.
-    To get the dict as you custom object you can create it with the return dict or use the parse_json method
+    To get the dict as your custom object you can create it with the return dict or use the parse_json method
     """
 
     def __init__(self, **kwargs):
@@ -25,7 +25,7 @@ class JsonDecoder(json.JSONDecoder):
         return self.step_down
 
 
-def parse_json(json_string, object_type, mappers):
+def parse_json(json_string, object_type, mappers, convert_to_snake_case=False):
     """
     This function will use the custom JsonDecoder and the conventions.mappers to recreate your custom object
     in the parse json string state just call this method with the json_string your complete object_type and with your
@@ -40,7 +40,7 @@ def parse_json(json_string, object_type, mappers):
         try:
             obj = object_type(**obj)
         except TypeError:
-            initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__)
+            initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
             o = object_type(**initialize_dict)
             if set_needed:
                 for key, value in obj.items():
