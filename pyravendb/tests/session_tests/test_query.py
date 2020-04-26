@@ -137,19 +137,21 @@ class TestQuery(TestBase):
     def test_query_with_order_by(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(wait_for_non_stale_results=True).where_not_none("order").order_by("order"))
+                session.query(wait_for_non_stale_results=True, collection_name="products").where_not_none(
+                    "order").order_by("order"))
             self.assertEqual(query_results[0].order, "a")
 
     def test_query_with_order_by_descending(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(wait_for_non_stale_results=True).where_not_none("order").order_by_descending("order"))
+                session.query(wait_for_non_stale_results=True, ).where_not_none("order").order_by_descending("order"))
             self.assertEqual(query_results[0].order, "d")
 
     def test_where_not_None(self):
         found_none = False
         with self.store.open_session() as session:
-            query_results = list(session.query(wait_for_non_stale_results=True).where_not_none("order"))
+            query_results = list(
+                session.query(wait_for_non_stale_results=True, collection_name="products").where_not_none("order"))
             for result in query_results:
                 if result.order is None:
                     found_none = True

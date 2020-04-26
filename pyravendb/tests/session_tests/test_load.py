@@ -69,7 +69,6 @@ class TestLoad(TestBase):
             i = session.load("testing/1", object_type=Box, nested_object_types={"items": Item})
             self.assertEqual("oren", i.items[0].name)
 
-
     def test_load_success(self):
         with self.store.open_session() as session:
             product = session.load("products/101")

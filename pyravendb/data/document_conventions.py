@@ -2,6 +2,7 @@ from pyravendb.data.indexes import SortOptions
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
 from pyravendb.tools.utils import Utils
+from enum import Enum
 import inflect
 
 inflect.def_classical["names"] = False
@@ -53,6 +54,8 @@ class DocumentConventions(object):
             return Utils.datetime_to_string(o)
         elif isinstance(o, timedelta):
             return Utils.timedelta_to_str(o)
+        elif isinstance(o, Enum):
+            return o.value
         elif getattr(o, "__dict__", None):
             return o.__dict__
         elif isinstance(o, set):

@@ -55,7 +55,8 @@ class DatabaseChanges:
                             self.client_websocket.sock_opt.sslopt.update(
                                 {'certfile': crt, 'keyfile': key})
                         else:
-                            self.client_websocket.sock_opt.sslopt.update({'ca_certs': self._request_executor.certificate})
+                            self.client_websocket.sock_opt.sslopt.update(
+                                {'ca_certs': self._request_executor.certificate})
                     self.client_websocket.connect(url)
                     for observables in self._observables.values():
                         for observer in observables.values():
@@ -97,7 +98,8 @@ class DatabaseChanges:
                     else:
                         value = response.get("Value", None)
                         if value:
-                            if response_type not in ("DocumentChange", "IndexChange", "OperationsStatusChange"):
+                            if response_type not in (
+                                    "DocumentChange", "IndexChange", "TimeSeriesChange", "OperationsStatusChange"):
                                 raise NotSupportedException(response_type)
                             self._notify_subscribers(value, copy.copy(self._observables[response_type]))
             except Exception as e:
@@ -130,12 +132,9 @@ class DatabaseChanges:
         if self.on_error:
             self.on_error(e)
 
-        for observables in self._observables.values():
+        for _, observables in self._observables.items():
             for observer in observables.values():
                 observer.error(e)
-
-        for _, observable in self._observables.items():
-            observable.error(e)
 
     def for_all_documents(self):
         observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None)(
@@ -177,10 +176,46 @@ class DatabaseChanges:
     def for_documents_in_collection(self, collection_name):
         observable = self.get_or_add_observable("DocumentChange", "collections/" + collection_name, "watch-collection",
                                                 "unwatch-collection", collection_name)(
-            lambda x: x["CollectionName"].casefold().starts_with(collection_name.casefold()))
+            lambda x: x["CollectionName"].casefold() == collection_name.casefold())
         return observable
 
-    def get_or_add_observable(self, group, name, watch_command, unwatch_command, value):
+    def for_all_time_series(self):
+        observable = self.get_or_add_observable("TimeSeriesChange", "all-timeseries", "watch-all-timeseries",
+                                                "unwatch-all-timeseries", None)(lambda x: True)
+        return observable
+
+    def for_time_series(self, time_series_name):
+        if not time_series_name:
+            raise ValueError("time_series_name cannot be None or empty")
+        observable = self.get_or_add_observable("TimeSeriesChange", f"timeseries/{time_series_name}",
+                                                "watch-timeseries", "unwatch-timeseries", time_series_name)(
+            lambda x: x["Name"].casefold() == time_series_name.casefold())
+        return observable
+
+    def for_time_series_of_document(self, doc_id, time_series_name=None):
+        """
+        Can subscribe to all time series changes that associated with the document or
+        by passing the time series name only for a specific time series
+        """
+        if not doc_id:
+            raise ValueError("doc_id cannot be None or empty")
+
+        def get_lambda():
+            if time_series_name:
+                return lambda x: x["DocumentId"].casefold() == doc_id.casefold() and x["Name"].casefold()
+            return lambda x: x["DocumentId"].casefold() == doc_id.casefold()
+
+        name = f"document/{doc_id}/timeseries{f'/{time_series_name}' if time_series_name else ''}"
+        watch_command = "watch-document-timeseries" if time_series_name else "watch-all-document-timeseries"
+        unwatch_command = "unwatch-document-timeseries" if time_series_name else "unwatch-all-document-timeseries"
+        value = doc_id if time_series_name is None else None
+        values = [doc_id, time_series_name] if time_series_name is not None else None
+        observable = self.get_or_add_observable("TimeSeriesChange", name, watch_command, unwatch_command, value=value,
+                                                values=values)(
+            get_lambda())
+        return observable
+
+    def get_or_add_observable(self, group, name, watch_command, unwatch_command, value, values=None):
         if group not in self._observables:
             self._observables[group] = {}
 
@@ -188,12 +223,12 @@ class DatabaseChanges:
             def on_disconnect():
                 try:
                     if self.client_websocket.connected:
-                        self.send(unwatch_command, value)
+                        self.send(unwatch_command, value, values)
                 except websocket.WebSocketException:
                     pass
 
             def on_connect():
-                self.send(watch_command, value)
+                self.send(watch_command, value, values)
 
             observable = Observable(on_connect=on_connect, on_disconnect=on_disconnect, executor=self._executor)
             self._observables[group][name] = observable
@@ -201,14 +236,17 @@ class DatabaseChanges:
                 observable.set(self._executor.submit(observable.on_connect))
         return self._observables[group][name]
 
-    def send(self, command, value):
+    def send(self, command, value, values=None):
         current_command_id = 0
         future = Future()
         try:
             with self.send_lock:
                 self._command_id += 1
                 current_command_id += self._command_id
-                data = Utils.dict_to_bytes({"CommandId": current_command_id, "Command": command, "Param": value})
+                data_dict = {"CommandId": current_command_id, "Command": command, "Param": value}
+                if values:
+                    data_dict["Params"] = values
+                data = Utils.dict_to_bytes(data_dict)
                 with self._confirmations_lock:
                     self._confirmations[current_command_id] = future
                 self.client_websocket.send(data)
@@ -217,7 +255,7 @@ class DatabaseChanges:
                     future.result(timeout=15)
                 except TimeoutError:
                     future.cancel()
-                    raise TimeoutError("Did not get a confirmation for command #" + current_command_id)
+                    raise TimeoutError("Did not get a confirmation for command #" + str(current_command_id))
                 except Exception as e:
                     if getattr(sys, 'gettrace', None):
                         self._logger.info('The coroutine raised an exception: {!r}'.format(e))

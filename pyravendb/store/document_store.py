@@ -218,7 +218,7 @@ class OperationExecutor(object):
                 if response["Status"] == "Completed":
                     return response
                 if response["Status"] == "Faulted":
-                    raise exceptions.InvalidOperationException(response["Result"]["Error"])
+                    raise exceptions.InvalidOperationException(response["Result"]["Message"])
                 time.sleep(0.5)
         except ValueError as e:
             raise exceptions.InvalidOperationException(e)

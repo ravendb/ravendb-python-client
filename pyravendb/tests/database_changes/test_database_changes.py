@@ -2,6 +2,7 @@ from pyravendb.tests.test_base import TestBase
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.changes.observers import ActionObserver
+from datetime import datetime, timedelta
 import unittest
 from threading import Event
 from time import sleep
@@ -160,6 +161,112 @@ class TestDatabaseChanges(TestBase):
         self.assertEqual(3, len(documents))
         for document in documents:
             self.assertTrue(document['Id'].startswith('users'))
+
+    def test_for_all_time_series(self):
+        event = Event()
+        changes = []
+
+        def on_next(value):
+            changes.append(value)
+            if len(changes) == 2:
+                event.set()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.store(User("Idan"), key="users/2-A")
+            session.save_changes()
+
+        all_observer = self.store.changes().for_all_time_series()
+        all_observer.subscribe(ActionObserver(on_next=on_next))
+        all_observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for("users/1-A", "Heartrate")
+            tsf.append(datetime.now(), values=86)
+            tsf = session.time_series_for("users/2-A", "Likes")
+            tsf.append(datetime.now(), values=567)
+
+            session.save_changes()
+
+        event.wait(1)
+        self.assertEqual(len(changes), 2)
+
+    def test_for_time_series_of_document(self):
+        changes = []
+
+        observer = self.store.changes().for_time_series_of_document("users/1-A")
+        observer.subscribe(changes.append)
+        observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.store(User("Idan"), key="users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for("users/1-A", "Likes")
+            tsf.append(datetime.now(), values=33)
+            tsf = session.time_series_for("users/1-A", "Heartrate")
+            tsf.append(datetime.now(), values=76)
+            tsf = session.time_series_for("users/2-A", "Heartrate")
+            tsf.append(datetime.now(), values=67)
+            session.save_changes()
+
+        sleep(1)
+        self.assertTrue(len(changes) == 2)
+        self.assertEqual("users/1-A", changes[0]["DocumentId"])
+
+    def test_for_time_series_of_document_with_time_series_name(self):
+        changes = []
+
+        observer = self.store.changes().for_time_series_of_document("users/1-A", time_series_name="Heartrate")
+        observer.subscribe(changes.append)
+        observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for("users/1-A", "Likes")
+            tsf.append(datetime.now(), values=33)
+            tsf2 = session.time_series_for("users/1-A", "Heartrate")
+            tsf2.append(datetime.now(), values=76)
+            session.save_changes()
+
+        sleep(1)
+        self.assertTrue(len(changes) == 1)
+        self.assertEqual("users/1-A", changes[0]["DocumentId"])
+        self.assertEqual('Put', changes[0]["Type"])
+        self.assertEqual("Heartrate", changes[0]["Heartrate"])
+
+    def test_for_time_series(self):
+        changes = []
+
+        observer = self.store.changes().for_time_series("Likes")
+        observer.subscribe(changes.append)
+        observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.store(User("Idan"), key="users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for("users/1-A", "Likes")
+            tsf.append(datetime.now(), values=33)
+            tsf = session.time_series_for("users/1-A", "Heartrate")
+            tsf.append(datetime.now(), values=76)
+            tsf = session.time_series_for("users/2-A", "Likes")
+            tsf.append(datetime.now(), values=67)
+            session.save_changes()
+
+        sleep(1)
+        self.assertTrue(len(changes) == 2)
+        self.assertEqual("users/2-A", changes[0]["DocumentId"])
+        self.assertEqual("Likes", changes[0]["Name"])
+        self.assertEqual("users/1-A", changes[1]["DocumentId"])
+        self.assertEqual("Likes", changes[1]["Name"])
 
 
 if __name__ == "__main__":

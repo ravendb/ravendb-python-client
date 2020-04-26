@@ -1,13 +1,28 @@
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.raven_operations.timeseries_operations import \
     GetTimeSeriesOperation, TimeSeriesRange, TimeSeriesBatchOperation, TimeSeriesOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, IndexDefinition
 from pyravendb.raven_operations.server_operations import CreateDatabaseOperation
 from datetime import datetime, timedelta, timezone
+from time import sleep
 
 
 class User:
-    def __init__(self, name):
+    def __init__(self, name, address):
+        self.Id = None
         self.name = name
+        self.address = address
+
+
+class Address:
+    def __init__(self, street):
+        self.street = street
+
+
+def get_user(key, value):
+    if key == "address":
+        return Address(**value)
+    return value
 
 
 if __name__ == "__main__":
@@ -15,23 +30,23 @@ if __name__ == "__main__":
         store.initialize()
 
         with store.open_session() as session:
-            session.store(User("idan"), key="users/1-A")
+            user = User("Idan", Address("Rubin"))
+            session.store(user, "users/1")
             session.save_changes()
 
         with store.open_session() as session:
-            tsf = session.time_series_for("users/1-A", "heartrate")
-            tsf.append(datetime.now(), values=10, tag="fizz/ozz")
-            tsf.append(datetime.now() - timedelta(hours=10), values=[11, 23, 45], tag="fizz/ozz")
+            user = session.load(user.Id, object_type=User)
+            session.time_series_for(user, "Beat").append(datetime.now(), values=98)
             session.save_changes()
 
-        with store.open_session() as session:
-            tsf = session.time_series_for("users/1-A", "heartrate")
-            v = tsf.get()
-            tsf.remove(datetime.now(), datetime.now() + timedelta(hours=1))
-            tsf.remove(datetime.now() - timedelta(days=2), datetime.now())
-            session.save_changes()
+        map_ = (
+                "timeseries.Users.HeartRate.SelectMany(ts => ts.Entries, (ts, entry) => new {" +
+                "   Beat = entry.Values[0], " +
+                "   Date = entry.Timestamp.Date, " +
+                "   User = ts.DocumentId " +
+                "});")
+        index_definition = IndexDefinition(name="test_index", maps=map_)
+        c = index_definition.to_json()
+        store.maintenance.send(PutIndexesOperation(index_definition))
 
-        with store.open_session() as session:
-            c = session.time_series_for("users/1-A", "Heartrate")
-            v = c.get()
-        print(v)
+        print("Tryouts")

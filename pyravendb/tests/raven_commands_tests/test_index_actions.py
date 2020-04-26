@@ -1,8 +1,14 @@
 import unittest
-from pyravendb.data.indexes import IndexDefinition
+from pyravendb.data.indexes import IndexDefinition, IndexSourceType
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetIndexOperation
 from pyravendb.commands.raven_commands import DeleteIndexCommand
 from pyravendb.tests.test_base import TestBase
+from datetime import datetime
+
+
+class User:
+    def __init__(self, name):
+        self.name = name
 
 
 class TestIndexActions(TestBase):
@@ -36,6 +42,27 @@ class TestIndexActions(TestBase):
     def test_delete_index_fail(self):
         with self.assertRaises(ValueError):
             self.requests_executor.execute(DeleteIndexCommand(None))
+
+    def test_timeseries_index_creation(self):
+        with self.store.open_session() as session:
+            user = User("Idan")
+            session.store(user, "users/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.time_series_for("users/1", "Beat").append(datetime.now(), values=98)
+            session.save_changes()
+
+        map_ = (
+                "timeseries.Users.HeartRate.SelectMany(ts => ts.Entries, (ts, entry) => new {" +
+                "   Beat = entry.Values[0], " +
+                "   Date = entry.Timestamp.Date, " +
+                "   User = ts.DocumentId " +
+                "});")
+        index_definition = IndexDefinition(name="test_index", maps=map_)
+        self.store.maintenance.send(PutIndexesOperation(index_definition))
+
+        self.assertEqual(index_definition.source_type, IndexSourceType.time_series)
 
 
 if __name__ == "__main__":

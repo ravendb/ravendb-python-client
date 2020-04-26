@@ -3,6 +3,12 @@ from pyravendb.data.indexes import IndexDefinition
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 import unittest
+import os
+
+parent_path = os.path.dirname(os.getcwd())
+if not parent_path.endswith("tests"):
+    parent_path += "\\tests"
+OUT_PUT_FILE_PATH = f"{parent_path}\\output.txt"
 
 
 class User:
@@ -44,7 +50,7 @@ class TestAdvanced(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            with open("output.txt", "rb") as binary_list:
+            with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 user = session.load("users/1-A")
                 session.advanced.attachment.store(user, "my_text_file", binary_list, content_type="text/plain")
                 session.save_changes()
@@ -59,7 +65,7 @@ class TestAdvanced(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            with open("output.txt", "rb") as binary_list:
+            with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 session.store(User("Ilay", 4), "users/2-A")
                 session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 session.save_changes()
@@ -77,7 +83,7 @@ class TestAdvanced(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            with open("output.txt", "rb") as binary_list:
+            with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 session.save_changes()
 
@@ -95,7 +101,7 @@ class TestAdvanced(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            with open("output.txt", "rb") as binary_list:
+            with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 with self.assertRaises(InvalidOperationException):
                     session.advanced.attachment.delete("users/1-A", "my_text_file")

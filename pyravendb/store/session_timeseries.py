@@ -29,7 +29,7 @@ class TimeSeries:
             entity = self._session.documents_by_entity.get(entity_or_document_id, None)
             if not entity:
                 self.raise_not_in_session(entity_or_document_id)
-            entity_or_document_id = entity["metadata"]["@id"]
+            entity_or_document_id = entity.get("key", None)
 
         if not entity_or_document_id:
             raise ValueError(entity_or_document_id)
@@ -43,6 +43,7 @@ class TimeSeries:
         start_date = from_date
         index = 0
         time_series_ranges = []
+        # Get the missing ranges we need to fetch from the server (only if needed)
         for range_ in ranges:
             if range_.from_date <= start_date:
                 if range_.to_date >= to_date:
@@ -67,6 +68,8 @@ class TimeSeries:
         if start_date:
             time_series_ranges.insert(index, TimeSeriesRange(self._name, start_date, to_date))
 
+        self._session.increment_requests_count()
+
         details = self._session.advanced.document_store.operations.send(
             GetTimeSeriesOperation(self._document_id, time_series_ranges, start, page_size))
 
@@ -78,10 +81,12 @@ class TimeSeries:
         cache_merge = []
 
         for range_ in ranges:
+            # Add all the entries from the ranges to the result we fetched from the server
+            # build the cache again, merge ranges if needed
             if range_.from_date <= from_date and range_.to_date >= to_date or \
                     range_.from_date >= from_date and range_.to_date <= to_date or \
-                    range_.from_date <= from_date and range_.to_date <= to_date or \
-                    range_.from_date >= from_date and range_.to_date >= to_date:
+                    range_.from_date <= from_date and range_.to_date <= to_date and range_.to_date >= from_date or \
+                    range_.from_date >= from_date and range_.from_date<= to_date and range_.to_date >= to_date:
                 if time_series_range_result is None:
                     time_series_range_result = TimeSeriesRangeResult(None, None, entries=[])
                     for result in results:
@@ -99,14 +104,18 @@ class TimeSeries:
                     cache_merge.append(time_series_range_result)
                 cache_merge.append(range_)
 
+        # Sort all the entries and add them to cache after we merged them.
         if time_series_range_result:
             time_series_range_result.entries = next(
                 Utils.sort_iterable(time_series_range_result.entries, key=lambda ao: ao.timestamp.timestamp()))
-            time_series_range_result.from_date = start_from
-            time_series_range_result.to_date = end_from
-            if not cache_merge:
-                cache_merge.append(time_series_range_result)
+            time_series_range_result.from_date = start_from if start_from < time_series_ranges[0].from_date else \
+                time_series_ranges[0].from_date
+            time_series_range_result.to_date = end_from if end_from > time_series_ranges[0].to_date else \
+                time_series_ranges[-1].to_date
 
+            cache_merge.append(time_series_range_result)
+
+        # build the entries we need to return
         entries_to_return = []
         for entry in time_series_range_result.entries:
             if entry.timestamp >= from_date or entry.timestamp <= to_date:
@@ -123,6 +132,9 @@ class TimeSeries:
         document = self._session.documents_by_id.get(self._document_id, None)
         if document and "HasTimeSeries" not in document.get('@metadata', {}).get('@flags', {}):
             return []
+
+        from_date = from_date if from_date else datetime.min
+        to_date = to_date if to_date else datetime.max
 
         cache = self._session.time_series_by_document_id.get(self._document_id, None)
         ranges_result = cache.get(self._name, None) if cache else None

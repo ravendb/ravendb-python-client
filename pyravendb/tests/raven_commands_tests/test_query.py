@@ -54,8 +54,7 @@ class TestQuery(TestBase):
         self.assertIsNone(self.requests_executor.execute(query_command))
 
     def test_fail_with_wrong_query(self):
-        with self.assertRaises(ErrorResponseException):
-            query_command = QueryCommand(index_query=IndexQuery(query="From INDEX IndexIsNotExists WHERE Tag=products",
-                                                                wait_for_non_stale_results=True),
-                                         conventions=DocumentConventions())
-            self.assertIsNone(self.requests_executor.execute(query_command))
+        query_command = QueryCommand(index_query=IndexQuery(query="From INDEX IndexIsNotExists WHERE Tag=products",
+                                                            wait_for_non_stale_results=True),
+                                     conventions=DocumentConventions())
+        self.assertIsNone(self.requests_executor.execute(query_command))

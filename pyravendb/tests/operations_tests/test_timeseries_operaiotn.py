@@ -3,9 +3,9 @@ from pyravendb.raven_operations.timeseries_operations import *
 import unittest
 
 
-class TestOperations(TestBase):
+class TestTimeSeriesOperations(TestBase):
     def setUp(self):
-        super(TestOperations, self).setUp()
+        super(TestTimeSeriesOperations, self).setUp()
         self.timeseries_range = TimeSeriesRange("Heartrate")
         with self.store.open_session() as session:
             user = User(name="Idan", age="29")
@@ -13,7 +13,7 @@ class TestOperations(TestBase):
             session.save_changes()
 
     def tearDown(self):
-        super(TestOperations, self).tearDown()
+        super(TestTimeSeriesOperations, self).tearDown()
         TestBase.delete_all_topology_files()
 
     def add_timeseries(self):
