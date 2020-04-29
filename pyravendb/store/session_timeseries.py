@@ -130,7 +130,8 @@ class TimeSeries:
         """
 
         document = self._session.documents_by_id.get(self._document_id, None)
-        if document and "HasTimeSeries" not in document.get('@metadata', {}).get('@flags', {}):
+        info = self._session.documents_by_entity.get(document, None) if document else None
+        if info and "HasTimeSeries" not in info.get('@metadata', {}).get('@flags', {}):
             return []
 
         from_date = from_date if from_date else datetime.min

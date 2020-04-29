@@ -3,6 +3,7 @@ import OpenSSL.crypto
 from collections import Iterable
 from pyravendb.tools.projection import create_entity_with_mapper
 from datetime import datetime, timedelta
+from enum import Enum
 from threading import Timer
 from copy import deepcopy
 import urllib
@@ -390,3 +391,24 @@ class Utils(object):
         if not iterable:
             return iterable
         yield sorted(iterable, key=key)
+
+    @staticmethod
+    def json_default(o):
+        if o is None:
+            return None
+
+        if isinstance(o, datetime):
+            return Utils.datetime_to_string(o)
+        elif isinstance(o, timedelta):
+            return Utils.timedelta_to_str(o)
+        elif isinstance(o, Enum):
+            return o.value
+        elif getattr(o, "__dict__", None):
+            return o.__dict__
+        elif isinstance(o, set):
+            return list(o)
+        elif isinstance(o, int) or isinstance(o, float):
+            return str(o)
+        else:
+            raise TypeError(repr(o) + " is not JSON serializable")
+        

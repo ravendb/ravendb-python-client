@@ -1,6 +1,7 @@
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.raven_operations.timeseries_operations import \
     GetTimeSeriesOperation, TimeSeriesRange, TimeSeriesBatchOperation, TimeSeriesOperation
+from pyravendb.raven_operations.counters_operations import *
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, IndexDefinition
 from pyravendb.raven_operations.server_operations import CreateDatabaseOperation
 from datetime import datetime, timedelta, timezone
@@ -30,23 +31,28 @@ if __name__ == "__main__":
         store.initialize()
 
         with store.open_session() as session:
-            user = User("Idan", Address("Rubin"))
-            session.store(user, "users/1")
+            counters = session.counters_for('users/2')
+            counters.increment("likes", delta=20)
+            counters.increment("love", delta=10)
             session.save_changes()
 
         with store.open_session() as session:
-            user = session.load(user.Id, object_type=User)
-            session.time_series_for(user, "Beat").append(datetime.now(), values=98)
+            counters = session.counters_for('users/2')
+            counters.delete("likes")
             session.save_changes()
 
-        map_ = (
-                "timeseries.Users.HeartRate.SelectMany(ts => ts.Entries, (ts, entry) => new {" +
-                "   Beat = entry.Values[0], " +
-                "   Date = entry.Timestamp.Date, " +
-                "   User = ts.DocumentId " +
-                "});")
-        index_definition = IndexDefinition(name="test_index", maps=map_)
-        c = index_definition.to_json()
-        store.maintenance.send(PutIndexesOperation(index_definition))
+        names = []
+        for i in range(1033):
+            names.append(f"likes{i}")
+        names.append(None)
+        xc = store.operations.send(GetCountersOperation("users/2", counters=names))
+        print(xc)
+        print(len(xc["Counters"]))
 
-        print("Tryouts")
+        # d = DocumentCountersOperation(document_id='users/2')
+        # d.add_operations(CounterOperation("dooms", counter_operation_type=CounterOperationType.increment, delta=4))
+        # d.add_operations(CounterOperation("dooms", counter_operation_type=CounterOperationType.delete))
+        #
+        # counter_batch = CounterBatch([d])
+        # v = store.operations.send(CounterBatchOperation(counter_batch))
+        # print(v)

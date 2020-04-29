@@ -8,6 +8,7 @@ from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
+from .session_counters import DocumentCounters
 from typing import Dict, List
 
 
@@ -35,6 +36,7 @@ class DocumentSession(object):
         self._deleted_entities = set()
         self._documents_by_entity = {}
         self._time_series_by_document_id = {}
+        self._counters_by_document_id = {}
         self._known_missing_ids = set()
         self.id_value = None
         self._defer_commands = set()
@@ -74,6 +76,10 @@ class DocumentSession(object):
     @property
     def time_series_by_document_id(self) -> Dict[str, Dict[str, List[TimeSeriesRangeResult]]]:
         return self._time_series_by_document_id
+
+    @property
+    def counters_by_document_id(self) -> Dict[str, Dict[str, float]]:
+        return self._counters_by_document_id
 
     def defer(self, command, *args):
         self._defer_commands.add(command)
@@ -314,13 +320,17 @@ class DocumentSession(object):
 
         return "disabled" if change_vector is None else "forced"
 
-        # TODO: complete time_series in the session
-
     def time_series_for(self, entity_or_document_id, name):
         """
         Get A time series object associated with the document
         """
         return TimeSeries(self, entity_or_document_id, name)
+
+    def counters_for(self, entity_or_document_id):
+        """
+        Get A counters object associated with the document
+        """
+        return DocumentCounters(self, entity_or_document_id)
 
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
