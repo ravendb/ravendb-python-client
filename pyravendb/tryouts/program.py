@@ -41,6 +41,12 @@ if __name__ == "__main__":
             counters.delete("likes")
             session.save_changes()
 
+        with store.open_session() as session:
+            document_counter = session.counters_for("users/2")
+            counters = document_counter.get_all()
+            like = document_counter.get("likes0")
+            print(like)
+
         names = []
         for i in range(1033):
             names.append(f"likes{i}")

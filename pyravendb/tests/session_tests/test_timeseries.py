@@ -1,5 +1,4 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions import exceptions
 from datetime import datetime, timedelta
 import unittest
 

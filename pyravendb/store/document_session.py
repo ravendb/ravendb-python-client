@@ -35,7 +35,9 @@ class DocumentSession(object):
         self._included_documents_by_id = {}
         self._deleted_entities = set()
         self._documents_by_entity = {}
+        self._timeseries_defer_commands = {}
         self._time_series_by_document_id = {}
+        self._counters_defer_commands = {}
         self._counters_by_document_id = {}
         self._known_missing_ids = set()
         self.id_value = None
@@ -78,7 +80,7 @@ class DocumentSession(object):
         return self._time_series_by_document_id
 
     @property
-    def counters_by_document_id(self) -> Dict[str, Dict[str, float]]:
+    def counters_by_document_id(self):
         return self._counters_by_document_id
 
     def defer(self, command, *args):
@@ -89,6 +91,14 @@ class DocumentSession(object):
     @property
     def defer_commands(self):
         return self._defer_commands
+
+    @property
+    def counters_defer_commands(self):
+        return self._counters_defer_commands
+
+    @property
+    def timeseries_defer_commands(self):
+        return self._timeseries_defer_commands
 
     @property
     def known_missing_ids(self):
@@ -351,18 +361,31 @@ class DocumentSession(object):
 
         i = data.deferred_command_count
         batch_result_length = len(batch_result)
-        while i < batch_result_length:
-            item = batch_result[i]
-            if item["Type"] == "PUT":
-                entity = data.entities[i - data.deferred_command_count]
-                if entity in self._documents_by_entity:
-                    self._documents_by_id[item["@id"]] = entity
-                    document_info = self._documents_by_entity[entity]
-                    document_info["change_vector"] = item["@change-vector"]
-                    item.pop("Type", None)
-                    document_info["original_metadata"] = item.copy()
-                    document_info["metadata"] = item
-                    document_info["original_value"] = entity.__dict__.copy()
+        while i <= batch_result_length:
+            item = batch_result[i - 1]
+            if isinstance(item, dict) and "Type" in item:
+                if item["Type"] == "PUT":
+                    entity = data.entities[i - data.deferred_command_count]
+                    if entity in self._documents_by_entity:
+                        self._documents_by_id[item["@id"]] = entity
+                        document_info = self._documents_by_entity[entity]
+                        document_info["change_vector"] = item["@change-vector"]
+                        item.pop("Type", None)
+                        document_info["original_metadata"] = item.copy()
+                        document_info["metadata"] = item
+                        document_info["original_value"] = entity.__dict__.copy()
+                elif item["Type"] == "Counters":
+                    cache = self._counters_by_document_id.get(item["Id"], None)
+                    if not cache:
+                        self._counters_by_document_id[item["Id"]] = [False, {}]
+                        cache = self._counters_by_document_id[item["Id"]]
+
+                    for counter in item["CountersDetail"]["Counters"]:
+                        cache[1][counter["CounterName"]] = counter["TotalValue"]
+
+                    self._counters_defer_commands.clear()
+                elif item["Type"] == "TimeSeries":
+                    self._timeseries_defer_commands.clear()
             i += 1
 
     def _prepare_for_delete_commands(self, data):
