@@ -268,6 +268,121 @@ class TestDatabaseChanges(TestBase):
         self.assertEqual("users/1-A", changes[1]["DocumentId"])
         self.assertEqual("Likes", changes[1]["Name"])
 
+    def test_for_all_counters(self):
+        event = Event()
+        changes = []
+
+        def on_next(value):
+            changes.append(value)
+            if len(changes) == 2:
+                event.set()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.store(User("Idan"), key="users/2-A")
+            session.save_changes()
+
+        all_observer = self.store.changes().for_all_counters()
+        all_observer.subscribe(ActionObserver(on_next=on_next))
+        all_observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            document_counter = session.counters_for("users/1-A")
+            document_counter.increment("Likes", delta=10)
+            document_counter = session.counters_for("users/2-A")
+            document_counter.increment("Shares", delta=200)
+
+            session.save_changes()
+
+        event.wait(1)
+        self.assertEqual(len(changes), 2)
+
+    def test_for_counters_of_document(self):
+        changes = []
+
+        observer = self.store.changes().for_counters_of_document("users/1-A")
+        observer.subscribe(changes.append)
+        observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.store(User("Idan"), key="users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            document_counter = session.counters_for("users/1-A")
+            document_counter.increment("Likes", delta=10)
+            document_counter.increment("Shares", delta=100)
+            document_counter = session.counters_for("users/2-A")
+            document_counter.increment("Shares", delta=200)
+
+            session.save_changes()
+
+        sleep(1)
+        self.assertTrue(len(changes) == 2)
+        self.assertTrue(all("users/1-A" == change["DocumentId"] for change in changes))
+
+    def test_for_counter_of_document(self):
+        changes = []
+
+        observer = self.store.changes().for_counter_of_document("users/1-A", counter_name="Shares")
+        observer.subscribe(changes.append)
+        observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            document_counter = session.counters_for("users/1-A")
+            document_counter.increment("Likes", delta=10)
+            document_counter.increment("Shares", delta=100)
+            session.save_changes()
+
+        sleep(1)
+        self.assertTrue(len(changes) == 1)
+        self.assertEqual("users/1-A", changes[0]["DocumentId"])
+        self.assertEqual('Put', changes[0]["Type"])
+        self.assertEqual("Shares", changes[0]["Name"])
+
+    def test_for_counter(self):
+        changes = []
+
+        observer = self.store.changes().for_counter("Likes")
+        observer.subscribe(changes.append)
+        observer.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("Idan"), key="users/1-A")
+            session.store(User("Idan"), key="users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            document_counter_1 = session.counters_for("users/1-A")
+            document_counter_1.increment("Likes", delta=10)
+            document_counter_1.increment("Shares", delta=100)
+            document_counter_2 = session.counters_for("users/2-A")
+            document_counter_2.increment("shares", delta=200)
+            document_counter_2.increment("Likes", delta=10)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            document_counter_1 = session.counters_for("users/1-A")
+            document_counter_1.increment("Likes", delta=18)
+            session.save_changes()
+
+        sleep(1)
+        self.assertTrue(len(changes) == 3)
+        self.assertEqual("users/2-A", changes[0]["DocumentId"])
+        self.assertEqual("Likes", changes[0]["Name"])
+        self.assertEqual('Put', changes[0]["Type"])
+        self.assertEqual("users/1-A", changes[1]["DocumentId"])
+        self.assertEqual("Likes", changes[1]["Name"])
+        self.assertEqual('Put', changes[1]["Type"])
+        self.assertEqual("users/1-A", changes[2]["DocumentId"])
+        self.assertEqual("Likes", changes[2]["Name"])
+        self.assertEqual('Put', changes[3]["Increment"])
+
 
 if __name__ == "__main__":
     unittest.main()

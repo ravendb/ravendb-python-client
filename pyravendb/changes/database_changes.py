@@ -99,7 +99,8 @@ class DatabaseChanges:
                         value = response.get("Value", None)
                         if value:
                             if response_type not in (
-                                    "DocumentChange", "IndexChange", "TimeSeriesChange", "OperationsStatusChange"):
+                                    "DocumentChange", "IndexChange", "TimeSeriesChange",
+                                    "CounterChange", "OperationsStatusChange"):
                                 raise NotSupportedException(response_type)
                             self._notify_subscribers(value, copy.copy(self._observables[response_type]))
             except Exception as e:
@@ -213,6 +214,46 @@ class DatabaseChanges:
         observable = self.get_or_add_observable("TimeSeriesChange", name, watch_command, unwatch_command, value=value,
                                                 values=values)(
             get_lambda())
+        return observable
+
+    def for_all_counters(self):
+        observable = self.get_or_add_observable("CounterChange", "all-counters", "watch-counters",
+                                                "unwatch-counters", None)(lambda x: True)
+        return observable
+
+    def for_counter(self, counter_name):
+        if not counter_name:
+            raise ValueError("counter_name cannot be None or empty")
+        observable = self.get_or_add_observable("CounterChange", f"counter/{counter_name}", "watch-counter",
+                                                "unwatch-counter", counter_name)(
+            lambda x: x["Name"].casefold() == counter_name.casefold())
+        return observable
+
+    def for_counters_of_document(self, doc_id):
+        """
+        Can subscribe to all counters changes that associated with the document or
+        """
+        if not doc_id:
+            raise ValueError("doc_id cannot be None or empty")
+
+        observable = self.get_or_add_observable("CounterChange", f"document/{doc_id}/counter",
+                                                "watch-document-counters", "unwatch-document-counters", value=doc_id,
+                                                values=None)(lambda x: x["DocumentId"].casefold() == doc_id.casefold())
+        return observable
+
+    def for_counter_of_document(self, doc_id, counter_name):
+        """
+        Can subscribe to all counters changes that associated with the document and for counter name
+        """
+        if not doc_id:
+            raise ValueError("doc_id cannot be None or empty")
+        if not counter_name:
+            raise ValueError("counter_name cannot be None or empty")
+
+        observable = self.get_or_add_observable("CounterChange", f"document/{doc_id}/counter/{counter_name}",
+                                                "watch-document-counter", "unwatch-document-counter", value=None,
+                                                values=[doc_id, counter_name])(
+            lambda x: x["DocumentId"].casefold() == doc_id.casefold() and x["Name"].casefold())
         return observable
 
     def get_or_add_observable(self, group, name, watch_command, unwatch_command, value, values=None):

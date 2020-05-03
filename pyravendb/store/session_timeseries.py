@@ -37,7 +37,6 @@ class TimeSeries:
             raise ValueError(name)
         self._name = name
         self._document_id = entity_or_document_id
-        self._timeseries_defer_commands = {}
 
     def _add_to_cache(self, ranges, from_date, to_date, start, page_size):
         start_date = from_date
@@ -86,7 +85,7 @@ class TimeSeries:
             if range_.from_date <= from_date and range_.to_date >= to_date or \
                     range_.from_date >= from_date and range_.to_date <= to_date or \
                     range_.from_date <= from_date and range_.to_date <= to_date and range_.to_date >= from_date or \
-                    range_.from_date >= from_date and range_.from_date<= to_date and range_.to_date >= to_date:
+                    range_.from_date >= from_date and range_.from_date <= to_date and range_.to_date >= to_date:
                 if time_series_range_result is None:
                     time_series_range_result = TimeSeriesRangeResult(None, None, entries=[])
                     for result in results:
@@ -130,7 +129,8 @@ class TimeSeries:
         """
 
         document = self._session.documents_by_id.get(self._document_id, None)
-        if document and "HasTimeSeries" not in document.get('@metadata', {}).get('@flags', {}):
+        info = self._session.documents_by_entity.get(document, None) if document else None
+        if info and "HasTimeSeries" not in info.get('@metadata', {}).get('@flags', {}):
             return []
 
         from_date = from_date if from_date else datetime.min
@@ -184,14 +184,14 @@ class TimeSeries:
 
         if not isinstance(values, list):
             values = [values]
-        command = self._timeseries_defer_commands.get(self._document_id, None)
+        command = self._session.timeseries_defer_commands.get(self._document_id, None)
         if command:
             command.time_series.append(timestamp, values, tag)
         else:
             operation = TimeSeriesOperation(self._name)
             operation.append(timestamp, values, tag)
             command = TimeSeriesBatchCommandData(self._document_id, self._name, operation=operation)
-            self._timeseries_defer_commands[self._document_id] = command
+            self._session.timeseries_defer_commands[self._document_id] = command
             self._session.defer(command)
 
     def remove(self, from_date: datetime, to_date: Optional[datetime] = None):
@@ -202,12 +202,12 @@ class TimeSeries:
         if to_date is None:
             to_date = from_date
 
-        command = self._timeseries_defer_commands.get(self._document_id, None)
+        command = self._session.timeseries_defer_commands.get(self._document_id, None)
         if command:
             command.time_series.remove(from_date, to_date)
         else:
             operation = TimeSeriesOperation(self._name)
             operation.remove(from_date, to_date)
             command = TimeSeriesBatchCommandData(self._document_id, self._name, operation=operation)
-            self._timeseries_defer_commands[self._document_id] = command
+            self._session.timeseries_defer_commands[self._document_id] = command
             self._session.defer(command)

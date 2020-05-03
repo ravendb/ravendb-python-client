@@ -8,7 +8,7 @@ class TestTimeSeriesOperations(TestBase):
         super(TestTimeSeriesOperations, self).setUp()
         self.timeseries_range = TimeSeriesRange("Heartrate")
         with self.store.open_session() as session:
-            user = User(name="Idan", age="29")
+            user = User(name="Idan", age="31")
             session.store(user, key="users/1-A")
             session.save_changes()
 

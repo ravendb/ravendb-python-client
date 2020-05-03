@@ -132,10 +132,10 @@ class TimeSeriesBatchOperation(Operation):
 
         super().__init__()
         self._document_id = document_id
-        self.__operation = operation
+        self._operation = operation
 
     def get_command(self, store, conventions, cache=None):
-        return self._TimeSeriesBatchCommand(self._document_id, self.__operation)
+        return self._TimeSeriesBatchCommand(self._document_id, self._operation)
 
     class _TimeSeriesBatchCommand(RavenCommand):
         def __init__(self, document_id: str, operation: TimeSeriesOperation):

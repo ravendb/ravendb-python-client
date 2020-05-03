@@ -8,6 +8,7 @@ from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
+from .session_counters import DocumentCounters
 from typing import Dict, List
 
 
@@ -34,7 +35,10 @@ class DocumentSession(object):
         self._included_documents_by_id = {}
         self._deleted_entities = set()
         self._documents_by_entity = {}
+        self._timeseries_defer_commands = {}
         self._time_series_by_document_id = {}
+        self._counters_defer_commands = {}
+        self._counters_by_document_id = {}
         self._known_missing_ids = set()
         self.id_value = None
         self._defer_commands = set()
@@ -75,6 +79,10 @@ class DocumentSession(object):
     def time_series_by_document_id(self) -> Dict[str, Dict[str, List[TimeSeriesRangeResult]]]:
         return self._time_series_by_document_id
 
+    @property
+    def counters_by_document_id(self):
+        return self._counters_by_document_id
+
     def defer(self, command, *args):
         self._defer_commands.add(command)
         for arg in args:
@@ -83,6 +91,14 @@ class DocumentSession(object):
     @property
     def defer_commands(self):
         return self._defer_commands
+
+    @property
+    def counters_defer_commands(self):
+        return self._counters_defer_commands
+
+    @property
+    def timeseries_defer_commands(self):
+        return self._timeseries_defer_commands
 
     @property
     def known_missing_ids(self):
@@ -314,13 +330,17 @@ class DocumentSession(object):
 
         return "disabled" if change_vector is None else "forced"
 
-        # TODO: complete time_series in the session
-
     def time_series_for(self, entity_or_document_id, name):
         """
         Get A time series object associated with the document
         """
         return TimeSeries(self, entity_or_document_id, name)
+
+    def counters_for(self, entity_or_document_id):
+        """
+        Get A counters object associated with the document
+        """
+        return DocumentCounters(self, entity_or_document_id)
 
     def save_changes(self):
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
@@ -341,18 +361,31 @@ class DocumentSession(object):
 
         i = data.deferred_command_count
         batch_result_length = len(batch_result)
-        while i < batch_result_length:
-            item = batch_result[i]
-            if item["Type"] == "PUT":
-                entity = data.entities[i - data.deferred_command_count]
-                if entity in self._documents_by_entity:
-                    self._documents_by_id[item["@id"]] = entity
-                    document_info = self._documents_by_entity[entity]
-                    document_info["change_vector"] = item["@change-vector"]
-                    item.pop("Type", None)
-                    document_info["original_metadata"] = item.copy()
-                    document_info["metadata"] = item
-                    document_info["original_value"] = entity.__dict__.copy()
+        while i <= batch_result_length:
+            item = batch_result[i - 1]
+            if isinstance(item, dict) and "Type" in item:
+                if item["Type"] == "PUT":
+                    entity = data.entities[i - data.deferred_command_count]
+                    if entity in self._documents_by_entity:
+                        self._documents_by_id[item["@id"]] = entity
+                        document_info = self._documents_by_entity[entity]
+                        document_info["change_vector"] = item["@change-vector"]
+                        item.pop("Type", None)
+                        document_info["original_metadata"] = item.copy()
+                        document_info["metadata"] = item
+                        document_info["original_value"] = entity.__dict__.copy()
+                elif item["Type"] == "Counters":
+                    cache = self._counters_by_document_id.get(item["Id"], None)
+                    if not cache:
+                        self._counters_by_document_id[item["Id"]] = [False, {}]
+                        cache = self._counters_by_document_id[item["Id"]]
+
+                    for counter in item["CountersDetail"]["Counters"]:
+                        cache[1][counter["CounterName"]] = counter["TotalValue"]
+
+                    self._counters_defer_commands.clear()
+                elif item["Type"] == "TimeSeries":
+                    self._timeseries_defer_commands.clear()
             i += 1
 
     def _prepare_for_delete_commands(self, data):

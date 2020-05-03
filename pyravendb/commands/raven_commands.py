@@ -7,8 +7,6 @@ from pyravendb.tools.utils import Utils
 from abc import abstractmethod
 from datetime import timedelta
 import collections
-import string
-import random
 import logging
 
 logging.basicConfig(filename='responses.log', level=logging.DEBUG)

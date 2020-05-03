@@ -50,19 +50,41 @@ class TestIndexActions(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.time_series_for("users/1", "Beat").append(datetime.now(), values=98)
+            session.time_series_for("users/1", "HeartRate").append(datetime.now(), values=98)
             session.save_changes()
 
         map_ = (
                 "timeseries.Users.HeartRate.SelectMany(ts => ts.Entries, (ts, entry) => new {" +
-                "   Beat = entry.Values[0], " +
-                "   Date = entry.Timestamp.Date, " +
-                "   User = ts.DocumentId " +
+                "   beat = entry.Values[0], " +
+                "   date = entry.Timestamp.Date, " +
+                "   user = ts.DocumentId " +
                 "});")
         index_definition = IndexDefinition(name="test_index", maps=map_)
         self.store.maintenance.send(PutIndexesOperation(index_definition))
 
         self.assertEqual(index_definition.source_type, IndexSourceType.time_series)
+
+    def test_counters_index_creation(self):
+        with self.store.open_session() as session:
+            user = User("Idan")
+            session.store(user, "users/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1").increment("Shares", 1)
+            session.save_changes()
+
+        map_ = (
+                "from counter in counters.Users.Shares " +
+                "select new { " +
+                "   delta = counter.Value, " +
+                "   name = counter.Name," +
+                "   user = counter.DocumentId " +
+                "}")
+        index_definition = IndexDefinition(name="counters_index", maps=map_)
+        self.store.maintenance.send(PutIndexesOperation(index_definition))
+
+        self.assertEqual(index_definition.source_type, IndexSourceType.counters)
 
 
 if __name__ == "__main__":
