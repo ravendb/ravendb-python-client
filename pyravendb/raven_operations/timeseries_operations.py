@@ -49,7 +49,7 @@ class GetTimeSeriesOperation(Operation):
 
         def create_request(self, server_node):
             self.url = (f"{server_node.url}/databases/{server_node.database}"
-                        f"/timeseries?id={Utils.quote_key(self._document_id)}"
+                        f"/timeseries?docId={Utils.quote_key(self._document_id)}"
                         f"{f'&start={self._start}' if self._start > 0 else ''}"
                         f"{f'&pageSize={self._page_size}' if self._page_size < sys.maxsize else ''}")
 
@@ -149,7 +149,7 @@ class TimeSeriesBatchOperation(Operation):
 
         def create_request(self, server_node):
             self.url = (f"{server_node.url}/databases/{server_node.database}"
-                        f"/timeseries?id={Utils.quote_key(self._document_id)}")
+                        f"/timeseries?docId={Utils.quote_key(self._document_id)}")
 
             self.data = self._operation.to_json()
 
@@ -158,34 +158,3 @@ class TimeSeriesBatchOperation(Operation):
                 response = response.json()
                 raise exceptions.ErrorResponseException(response["Message"], response["Type"])
 
-
-class ConfigureTimeSeriesOperation(Operation):
-    def __init__(self, document_id: str, operation: TimeSeriesOperation):
-
-        super().__init__()
-        self._document_id = document_id
-        self.__operation = operation
-
-    def get_command(self, store, conventions, cache=None):
-        return self._TimeSeriesBatchCommand(self._document_id, self.__operation)
-
-    class _TimeSeriesBatchCommand(RavenCommand):
-        def __init__(self, document_id: str, operation: TimeSeriesOperation):
-            super().__init__(method="POST")
-
-            if not document_id:
-                raise ValueError("Invalid document_id")
-
-            self._document_id = document_id
-            self._operation = operation
-
-        def create_request(self, server_node):
-            self.url = (f"{server_node.url}/databases/{server_node.database}"
-                        f"/timeseries?id={Utils.quote_key(self._document_id)}")
-
-            self.data = self._operation.to_json()
-
-        def set_response(self, response):
-            if response is not None and response.status_code != 204:
-                response = response.json()
-                raise exceptions.ErrorResponseException(response["Message"], response["Type"])
