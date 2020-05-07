@@ -139,7 +139,7 @@ class PutIndexesOperation(MaintenanceOperation):
             :type args of IndexDefinition
             :rtype dict (etag, transformer)
             """
-            super(PutIndexesOperation._PutIndexesCommand, self).__init__(method="PUT")
+            super(PutIndexesOperation._PutIndexesCommand, self).__init__(method="PUT", is_raft_request=True)
             if index_to_add is None:
                 raise ValueError("None indexes_to_add is not valid")
 

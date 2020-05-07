@@ -41,7 +41,7 @@ class RequestsExecutor(object):
         self._last_known_urls = None
 
         self.headers = {"Accept": "application/json",
-                        "Raven-Client-Version": "5.0.0.0"}
+                        "Raven-Client-Version": "5.0.0.1"}
 
         self.update_topology_lock = Lock()
         self.update_timer_lock = Lock()
@@ -123,6 +123,9 @@ class RequestsExecutor(object):
             node_index = 0 if self._node_selector is None else self._node_selector.current_node_index
 
             with requests.session() as session:
+                if raven_command.is_raft_request:
+                    prefix = '&' if '?' in raven_command.url else '?'
+                    raven_command.url += f"{prefix}raft-request-id={raven_command.raft_unique_request_id}"
                 raven_command.headers.update(self.headers)
                 if not self._disable_topology_updates:
                     raven_command.headers["Topology-Etag"] = "\"{0}\"".format(self.topology_etag)

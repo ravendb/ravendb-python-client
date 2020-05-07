@@ -3,7 +3,7 @@ from pyravendb.raven_operations.timeseries_operations import \
     GetTimeSeriesOperation, TimeSeriesRange, TimeSeriesBatchOperation, TimeSeriesOperation
 from pyravendb.raven_operations.counters_operations import *
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, IndexDefinition
-from pyravendb.raven_operations.server_operations import CreateDatabaseOperation
+from pyravendb.raven_operations.server_operations import CreateDatabaseOperation, DeleteDatabaseOperation
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
@@ -27,33 +27,42 @@ def get_user(key, value):
 
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://127.0.0.1:8080"], database="NorthWind") as store:
+    with DocumentStore(urls=["http://127.0.0.1:8080"], database="NorthWindTestNew") as store:
         store.initialize()
 
+        # store.maintenance.server.send(CreateDatabaseOperation("NorthWindccxx"))
+        store.maintenance.server.send(DeleteDatabaseOperation("NorthWindccxx", hard_delete=True))
         with store.open_session() as session:
-            counters = session.counters_for('users/2')
-            counters.increment("likes", delta=20)
-            counters.increment("love", delta=10)
+            session.store(User("idan", address="mm"), "users/1")
             session.save_changes()
 
         with store.open_session() as session:
-            counters = session.counters_for('users/2')
-            counters.delete("likes")
-            session.save_changes()
+            user = session.load('users/1', object_type=User)
 
-        with store.open_session() as session:
-            document_counter = session.counters_for("users/2")
-            counters = document_counter.get_all()
-            like = document_counter.get("likes0")
-            print(like)
-
-        names = []
-        for i in range(1033):
-            names.append(f"likes{i}")
-        names.append(None)
-        xc = store.operations.send(GetCountersOperation("users/2", counters=names))
-        print(xc)
-        print(len(xc["Counters"]))
+        # with store.open_session() as session:
+        #     counters = session.counters_for('users/2')
+        #     counters.increment("likes", delta=20)
+        #     counters.increment("love", delta=10)
+        #     session.save_changes()
+        #
+        # with store.open_session() as session:
+        #     counters = session.counters_for('users/2')
+        #     counters.delete("likes")
+        #     session.save_changes()
+        #
+        # with store.open_session() as session:
+        #     document_counter = session.counters_for("users/2")
+        #     counters = document_counter.get_all()
+        #     like = document_counter.get("likes0")
+        #     print(like)
+        #
+        # names = []
+        # for i in range(1033):
+        #     names.append(f"likes{i}")
+        # names.append(None)
+        # xc = store.operations.send(GetCountersOperation("users/2", counters=names))
+        # print(xc)
+        # print(len(xc["Counters"]))
 
         # d = DocumentCountersOperation(document_id='users/2')
         # d.add_operations(CounterOperation("dooms", counter_operation_type=CounterOperationType.increment, delta=4))
