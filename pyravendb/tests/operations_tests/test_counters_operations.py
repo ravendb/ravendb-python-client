@@ -40,10 +40,11 @@ class TestCountersOperations(TestBase):
         self.assertIsNotNone(details.get("Counters", None))
         counters = details["Counters"]
         self.assertEqual(len(counters), 2)
-        self.assertEqual(counters[0]["TotalValue"], 10)
-        self.assertEqual(counters[0]["CounterName"], "Likes")
-        self.assertEqual(counters[1]["TotalValue"], 120)
-        self.assertEqual(counters[1]["CounterName"], "Shares")
+        for counter in counters:
+            if counter["CounterName"] == "Likes":
+                self.assertEqual(counter["TotalValue"], 10)
+            else:
+                self.assertEqual(counter["TotalValue"], 120)
 
     def test_increment_counters(self):
         counter_operation = DocumentCountersOperation(document_id='users/1-A')

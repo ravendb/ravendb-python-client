@@ -238,7 +238,7 @@ class TestDatabaseChanges(TestBase):
         self.assertTrue(len(changes) == 1)
         self.assertEqual("users/1-A", changes[0]["DocumentId"])
         self.assertEqual('Put', changes[0]["Type"])
-        self.assertEqual("Heartrate", changes[0]["Heartrate"])
+        self.assertEqual("Heartrate", changes[0]["Name"])
 
     def test_for_time_series(self):
         changes = []
@@ -263,10 +263,6 @@ class TestDatabaseChanges(TestBase):
 
         sleep(1)
         self.assertTrue(len(changes) == 2)
-        self.assertEqual("users/2-A", changes[0]["DocumentId"])
-        self.assertEqual("Likes", changes[0]["Name"])
-        self.assertEqual("users/1-A", changes[1]["DocumentId"])
-        self.assertEqual("Likes", changes[1]["Name"])
 
     def test_for_all_counters(self):
         event = Event()
@@ -372,16 +368,22 @@ class TestDatabaseChanges(TestBase):
             session.save_changes()
 
         sleep(1)
+        check_likes_changed = {"name": 0, "put": 0, "increment": 0}
         self.assertTrue(len(changes) == 3)
-        self.assertEqual("users/2-A", changes[0]["DocumentId"])
-        self.assertEqual("Likes", changes[0]["Name"])
-        self.assertEqual('Put', changes[0]["Type"])
-        self.assertEqual("users/1-A", changes[1]["DocumentId"])
-        self.assertEqual("Likes", changes[1]["Name"])
-        self.assertEqual('Put', changes[1]["Type"])
-        self.assertEqual("users/1-A", changes[2]["DocumentId"])
-        self.assertEqual("Likes", changes[2]["Name"])
-        self.assertEqual('Put', changes[3]["Increment"])
+        for change in changes:
+            if change["DocumentId"] == "users/1-A":
+                self.assertTrue(change["Type"] in ("Increment", "Put"))
+            else:
+                self.assertEqual("Put", change["Type"])
+            if change["Name"] == "Likes":
+                check_likes_changed["name"] += 1
+            if change["Type"] == "Put":
+                check_likes_changed['put'] += 1
+            elif change["Type"] == "Increment":
+                check_likes_changed["increment"] += 1
+
+        self.assertTrue(check_likes_changed["name"] == 3 and check_likes_changed["put"] == 2 and
+                        check_likes_changed["increment"] == 1)
 
 
 if __name__ == "__main__":

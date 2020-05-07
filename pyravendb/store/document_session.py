@@ -359,10 +359,10 @@ class DocumentSession(object):
 
     def _update_batch_result(self, batch_result, data):
 
-        i = data.deferred_command_count
+        i = 0
         batch_result_length = len(batch_result)
-        while i <= batch_result_length:
-            item = batch_result[i - 1]
+        while i < batch_result_length:
+            item = batch_result[i]
             if isinstance(item, dict) and "Type" in item:
                 if item["Type"] == "PUT":
                     entity = data.entities[i - data.deferred_command_count]
