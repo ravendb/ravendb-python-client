@@ -221,7 +221,7 @@ class DeleteIndexCommand(RavenCommand):
         @param str index_name: Name of the index you like to get or delete
         @param str database_name: Name of the index database
         """
-        super(DeleteIndexCommand, self).__init__(method="DELETE")
+        super(DeleteIndexCommand, self).__init__(method="DELETE", is_raft_request=True)
         self.index_name = index_name
         self.database_name = database_name
 
@@ -596,7 +596,7 @@ class CreateSubscriptionCommand(RavenCommand):
         @param SubscriptionCreationOptions options: Subscription options
         """
 
-        super(CreateSubscriptionCommand, self).__init__(method="PUT")
+        super(CreateSubscriptionCommand, self).__init__(method="PUT", is_raft_request=True)
         self._options = options
 
     def create_request(self, server_node):
@@ -615,7 +615,7 @@ class CreateSubscriptionCommand(RavenCommand):
 
 class DeleteSubscriptionCommand(RavenCommand):
     def __init__(self, name):
-        super(DeleteSubscriptionCommand, self).__init__(method="DELETE")
+        super(DeleteSubscriptionCommand, self).__init__(method="DELETE", is_raft_request=True)
         self._name = name
 
     def create_request(self, server_node):
@@ -628,7 +628,7 @@ class DeleteSubscriptionCommand(RavenCommand):
 
 class DropSubscriptionConnectionCommand(RavenCommand):
     def __init__(self, name):
-        super(DropSubscriptionConnectionCommand, self).__init__(method="POST")
+        super(DropSubscriptionConnectionCommand, self).__init__(method="POST", is_raft_request=True)
         self._name = name
 
     def create_request(self, server_node):

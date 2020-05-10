@@ -16,3 +16,4 @@
 *.log
 *.raven-topology
 *.raven-cluster-topology
+/build/lib/pyravendb
