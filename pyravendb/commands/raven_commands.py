@@ -503,6 +503,9 @@ class GetDatabaseRecordCommand(RavenCommand):
         self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_name)
 
     def set_response(self, response):
+        if response is None:
+            return None
+
         try:
             response = response.json()
             if "Error" in response:

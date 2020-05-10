@@ -184,14 +184,14 @@ class TimeSeries:
 
         if not isinstance(values, list):
             values = [values]
-        command = self._session.timeseries_defer_commands.get(self._document_id, None)
+        command = self._session.timeseries_defer_commands.get((self._document_id, "TimeSeries", self._name), None)
         if command:
             command.time_series.append(timestamp, values, tag)
         else:
             operation = TimeSeriesOperation(self._name)
             operation.append(timestamp, values, tag)
             command = TimeSeriesBatchCommandData(self._document_id, self._name, operation=operation)
-            self._session.timeseries_defer_commands[self._document_id] = command
+            self._session.timeseries_defer_commands[(self._document_id, "TimeSeries", self._name)] = command
             self._session.defer(command)
 
     def remove(self, from_date: datetime, to_date: Optional[datetime] = None):

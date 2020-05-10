@@ -37,7 +37,7 @@ class TestBase(unittest.TestCase):
     @staticmethod
     def wait_for_database_topology(store, database_name, replication_factor=1):
         topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
-        while len(topology["Members"]) < replication_factor:
+        while topology is not None and len(topology["Members"]) < replication_factor:
             topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         return topology
 

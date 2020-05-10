@@ -59,7 +59,7 @@ class CreateDatabaseOperation(ServerOperation):
 
         def create_request(self, server_node):
             self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_record["DatabaseName"])
-            self.url += "&replication-factor=" + str(self._replication_factor)
+            self.url += "&replicationFactor=" + str(self._replication_factor)
 
             self.data = self._database_record
 
@@ -67,13 +67,12 @@ class CreateDatabaseOperation(ServerOperation):
             if response is None:
                 raise ValueError("response is invalid.")
 
-            if response.status_code == 201:
-                return response.json()
-
-            if response.status_code == 400:
+            try:
                 response = response.json()
                 if "Error" in response:
-                    raise RequestException(response["Error"])
+                    raise RequestException(response["Message"], response["Type"])
+            except ValueError:
+                raise response.raise_for_status()
 
 
 class DeleteDatabaseOperation(ServerOperation):
@@ -107,7 +106,7 @@ class DeleteDatabaseOperation(ServerOperation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.DatabaseDoesNotExistException(response["Message"])
+                    raise exceptions.DatabaseDoesNotExistException(response["Message"], response["Type"])
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
