@@ -51,7 +51,7 @@ class CreateDatabaseOperation(ServerOperation):
         def __init__(self, database_record, replication_factor, convention):
             if convention is None:
                 raise ValueError("Invalid convention")
-            super(CreateDatabaseOperation._CreateDatabaseCommand, self).__init__(method="PUT")
+            super(CreateDatabaseOperation._CreateDatabaseCommand, self).__init__(method="PUT", is_raft_request=True)
 
             self._database_record = database_record
             self._replication_factor = replication_factor
@@ -65,7 +65,7 @@ class CreateDatabaseOperation(ServerOperation):
 
         def set_response(self, response):
             if response is None:
-                raise ValueError("response is invalid.")
+                raise ValueError("Invalid response")
 
             try:
                 response = response.json()
@@ -96,7 +96,7 @@ class DeleteDatabaseOperation(ServerOperation):
 
             self._parameters = parameters
 
-            super(DeleteDatabaseOperation._DeleteDatabaseCommand, self).__init__(method="DELETE")
+            super(DeleteDatabaseOperation._DeleteDatabaseCommand, self).__init__(method="DELETE", is_raft_request=True)
 
         def create_request(self, server_node):
             self.url = "{0}/admin/databases".format(server_node.url)

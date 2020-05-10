@@ -8,6 +8,7 @@ from abc import abstractmethod
 from datetime import timedelta
 import collections
 import logging
+import uuid
 
 logging.basicConfig(filename='responses.log', level=logging.DEBUG)
 log = logging.getLogger()
@@ -16,7 +17,7 @@ log = logging.getLogger()
 # Todo update the commands
 class RavenCommand(object):
     def __init__(self, url=None, method=None, data=None, files=None, headers=None, is_read_request=False,
-                 use_stream=False):
+                 is_raft_request=False, use_stream=False):
         self.url = url
         self.method = method
         self.data = data
@@ -30,6 +31,10 @@ class RavenCommand(object):
         self.timeout = None
         self.requested_node = None
         self.files = files
+        self.is_raft_request = is_raft_request
+        self._raft_unique_request_id = None
+        if is_raft_request:
+            self._raft_unique_request_id = uuid.uuid4()
 
     @abstractmethod
     def create_request(self, server_node):
@@ -42,6 +47,10 @@ class RavenCommand(object):
     @property
     def raven_command(self):
         return self.__raven_command
+
+    @property
+    def raft_unique_request_id(self):
+        return str(self._raft_unique_request_id)
 
     def is_failed_with_node(self, node):
         return len(self.failed_nodes) > 0 and node in self.failed_nodes
