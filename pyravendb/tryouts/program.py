@@ -2,8 +2,10 @@ from pyravendb.store.document_store import DocumentStore
 from pyravendb.raven_operations.timeseries_operations import \
     GetTimeSeriesOperation, TimeSeriesRange, TimeSeriesBatchOperation, TimeSeriesOperation
 from pyravendb.raven_operations.counters_operations import *
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, IndexDefinition
-from pyravendb.raven_operations.server_operations import CreateDatabaseOperation, DeleteDatabaseOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, IndexDefinition, \
+    PutConnectionStringOperation, ConnectionString, UpdateExternalReplicationOperation, ExternalReplication, \
+    PutPullReplicationAsHubOperation, PullReplicationDefinition, UpdatePullReplicationAsSinkOperation, \
+    PullReplicationAsSink
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
@@ -27,17 +29,26 @@ def get_user(key, value):
 
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://127.0.0.1:8080"], database="NorthWindTestNew") as store:
+    with DocumentStore(urls=["http://live-test.ravendb.net"], database="demo") as store:
         store.initialize()
 
-        # store.maintenance.server.send(CreateDatabaseOperation("NorthWindccxx"))
-        store.maintenance.server.send(DeleteDatabaseOperation("NorthWindccxx", hard_delete=True))
-        with store.open_session() as session:
-            session.store(User("idan", address="mm"), "users/1")
-            session.save_changes()
+        # store.maintenance.send(PutConnectionStringOperation(ConnectionString.raven(
+        #     "con_str", "Northwind", ["http://live-test.ravendb.net"]
+        # )))
+        #
 
-        with store.open_session() as session:
-            user = session.load('users/1', object_type=User)
+        store.maintenance.send(UpdatePullReplicationAsSinkOperation(PullReplicationAsSink(
+            "foo", "con_str", None, None
+        )))
+
+        # store.maintenance.server.send(CreateDatabaseOperation("NorthWindccxx"))
+        # store.maintenance.server.send(DeleteDatabaseOperation("NorthWindccxx", hard_delete=True))
+        # with store.open_session() as session:
+        #     session.store(User("idan", address="mm"), "users/1")
+        #     session.save_changes()
+        #
+        # with store.open_session() as session:
+        #     user = session.load('users/1', object_type=User)
 
         # with store.open_session() as session:
         #     counters = session.counters_for('users/2')
