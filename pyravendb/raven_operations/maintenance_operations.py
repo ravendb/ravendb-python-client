@@ -21,11 +21,11 @@ class MaintenanceOperation(object):
 
 
 class PullReplicationDefinition:
-    def __init__(self, name, certificats, mentor_node=None, delayed_replication_for=None):
+    def __init__(self, name, certificates, mentor_node=None, delayed_replication_for=None):
         self.DelayedReplicationFor = delayed_replication_for
         self.Name = name
         self.MentorNode = mentor_node
-        self.Certificates = certificats
+        self.Certificates = certificates
 
 
 class ExternalReplication:

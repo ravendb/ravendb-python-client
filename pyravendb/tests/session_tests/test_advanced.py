@@ -22,6 +22,14 @@ class TestAdvanced(TestBase):
         super(TestAdvanced, self).tearDown()
         self.delete_all_topology_files()
 
+    def test_get_document_id_after_save(self):
+        with self.store.open_session() as s:
+            user = User("U", 1)
+            s.store(user, "test/")
+            s.save_changes()
+            id = s.advanced.get_document_id(user)
+            self.assertFalse(id.endswith('/'))
+
     def test_stream_query(self):
         maps = ("from user in docs.Users "
                 "select new {"

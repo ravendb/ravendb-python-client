@@ -373,6 +373,7 @@ class DocumentSession(object):
                         item.pop("Type", None)
                         document_info["original_metadata"] = item.copy()
                         document_info["metadata"] = item
+                        document_info["key"] = item["@id"]
                         document_info["original_value"] = entity.__dict__.copy()
                 elif item["Type"] == "Counters":
                     cache = self._counters_by_document_id.get(item["Id"], None)
