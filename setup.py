@@ -15,7 +15,6 @@ setup(
     install_requires=
     [
         'requests >= 2.18.4',
-        'xxhash >= 1.0.1',
         'pyOpenSSL >= 17.2.0',
         'ijson == 2.3',
         'websocket-client >= 0.46.0',

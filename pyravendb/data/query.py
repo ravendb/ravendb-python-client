@@ -2,7 +2,6 @@ from pyravendb.tools.utils import Utils
 from abc import ABCMeta
 from enum import Enum
 import json
-import xxhash
 import sys
 
 
@@ -110,21 +109,9 @@ class IndexQuery(IndexQueryBase):
         return data
 
     def get_query_hash(self):
-        query_hash = xxhash.xxh64()
-        query_hash.update(self.query)
-        query_hash.update(bytes(self.wait_for_non_stale_results))
-        if self.wait_for_non_stale_results_timeout:
-            query_hash.update(bytes(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout)))
-        query_hash.update(bytes(self.show_timings))
-        if self.cutoff_etag:
-            query_hash.update(bytes(self.cutoff_etag))
-        query_hash.update(bytes(self.start))
-        query_hash.update(self.page_size.to_bytes(8, byteorder='big'))
-        if self.query_parameters:
-            str_query_parameters = json.dumps(self.query_parameters).encode('utf-8')
-            query_hash.update(str_query_parameters)
-        return query_hash.intdigest()
-
+        return hash((self.query,self.wait_for_non_stale_results, self.wait_for_non_stale_results_timeout,
+                     self.show_timings, self.cutoff_etag, self.cutoff_etag, self.start, self.page_size,
+                     json.dumps(self.query_parameters)))
 
 class FacetQuery(IndexQueryBase):
     def __init__(self, query="", facet_setup_doc=None, facets=None, start=0, page_size=None, **kwargs):
@@ -139,25 +126,9 @@ class FacetQuery(IndexQueryBase):
         self.facet_setup_doc = facet_setup_doc
 
     def get_query_hash(self):
-        query_hash = xxhash.xxh64()
-        query_hash.update(self.query)
-        query_hash.update(bytes(self.wait_for_non_stale_results))
-        if self.wait_for_non_stale_results_timeout:
-            query_hash.update(bytes(Utils.timedelta_tick(self.wait_for_non_stale_results_timeout)))
-        if self.cutoff_etag:
-            query_hash.update(bytes(self.cutoff_etag))
-        query_hash.update(bytes(self.start))
-        query_hash.update(self.page_size.to_bytes(8, byteorder='big'))
-        if self.query_parameters:
-            str_query_parameters = json.dumps(self.query_parameters).encode('utf-8')
-            query_hash.update(str_query_parameters)
-        if self.facet_setup_doc:
-            query_hash.update(bytes(self.facet_setup_doc))
-        if self.facets:
-            json_facets = [facet.to_json() for facet in self.facets]
-            str_facets = json.dumps(json_facets).encode('utf-8')
-            query_hash.update(str_facets)
-        return query_hash.intdigest()
+        return hash((self.query,self.wait_for_non_stale_results, self.wait_for_non_stale_results_timeout,
+                    self.cutoff_etag, self.start,self.page_size, json.dumps(self.query_parameters),
+                    self.facet_setup_doc,json.dumps([facet.to_json() for facet in self.facets])))
 
     def to_json(self):
         data = {"Query": self.query, "CutoffEtag": self.cutoff_etag}
