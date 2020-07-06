@@ -30,7 +30,7 @@ class TestTimeSeriesOperations(TestBase):
         self.add_timeseries()
         # Fetch all time_series from the document
         time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
-        entries = time_series['Values']["Heartrate"][0]['Entries']
+        entries = time_series['Entries']
         self.assertEqual(len(entries), 3)
 
     def test_remove_timeseries_with_range(self):
@@ -43,7 +43,7 @@ class TestTimeSeriesOperations(TestBase):
                                                                operation=time_series_operation_remove)
         self.store.operations.send(time_series_batch_operation)
         time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
-        entries = time_series['Values']["Heartrate"][0]['Entries']
+        entries = time_series['Entries']
         self.assertEqual(len(entries), 1)
 
     def test_remove_timeseries_without_range(self):
@@ -55,22 +55,21 @@ class TestTimeSeriesOperations(TestBase):
                                                                operation=time_series_operation_remove)
         self.store.operations.send(time_series_batch_operation)
         time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
-        entries = time_series['Values']["Heartrate"][0]['Entries']
-        self.assertEqual(len(entries), 0)
+        self.assertIsNone(time_series)
 
     def test_get_timeseries_with_range(self):
         self.add_timeseries()
         time_series_range = TimeSeriesRange("Heartrate", from_date=datetime.now() - timedelta(days=2),
                                             to_date=datetime.now() + timedelta(days=2))
         time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=time_series_range))
-        entries = time_series['Values']["Heartrate"][0]['Entries']
+        entries = time_series['Entries']
         self.assertEqual(len(entries), 2)
 
     def test_get_timeseries_without_range(self):
         self.add_timeseries()
         time_series_range = TimeSeriesRange("Heartrate")
         time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=time_series_range))
-        entries = time_series['Values']["Heartrate"][0]['Entries']
+        entries = time_series['Entries']
         self.assertEqual(len(entries), 3)
 
 

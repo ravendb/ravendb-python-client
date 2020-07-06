@@ -72,8 +72,7 @@ class TimeSeries:
         details = self._session.advanced.document_store.operations.send(
             GetTimeSeriesOperation(self._document_id, time_series_ranges, start, page_size))
 
-        results = [TimeSeriesRangeResult.create_time_series_range_entity(details["Values"][self._name][i]) for i in
-                   range(len(details["Values"][self._name]))]
+        results = [TimeSeriesRangeResult.create_time_series_range_entity(i) for i in details['Entries']]
 
         time_series_range_result = None
         start_from, end_from = None, None
@@ -147,7 +146,7 @@ class TimeSeries:
                     GetTimeSeriesOperation(self._document_id, ranges, start, page_size))
 
                 time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(
-                    details["Values"][self._name][0])
+                    details)
 
                 if not self._session.no_tracking:
                     index = 0 if ranges_result[0].from_date > to_date else len(ranges_result)
@@ -162,12 +161,14 @@ class TimeSeries:
             return entries_to_return
 
         self._session.increment_requests_count()
-        ranges = TimeSeriesRange(name=self._name, from_date=from_date, to_date=to_date)
+        range = TimeSeriesRange(name=self._name, from_date=from_date, to_date=to_date)
         details = self._session.advanced.document_store.operations.send(
-            GetTimeSeriesOperation(self._document_id, ranges, start, page_size))
+            GetTimeSeriesOperation(self._document_id, range, start, page_size))
 
         time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(
-            details["Values"][self._name][0])
+            details)
+        if time_series_range_result is None:
+            return []
         entries = time_series_range_result.entries
         if not self._session.no_tracking and entries:
             if cache:
