@@ -34,6 +34,34 @@ There are three ways to install pyravendb.
     python setup.py install
 	```
 
+## Working with secured servers
+
+You can use either PEM files (cert / key) or PFX/P12 files to authenticate against a remote RavenDB cluster.
+Here is how to setup the Python RavenDB client to support it. 
+
+ ```python
+from pyravendb.store import document_store
+
+urls = ["https://a.prod.roll.ravendb.cloud",
+        "https://b.prod.roll.ravendb.cloud",
+        "https://c.prod.roll.ravendb.cloud"]
+
+# use PFX file
+cert = {"pfx": "/path/to/cert.pfx", "password": "optional password"}
+
+# use PEM file
+# cert = ("/path/to/cert.pem")
+
+# use cert / key files
+# cert = ("/path/to/cert.crt", "/path/to/cert.key")
+
+store =  document_store.DocumentStore(urls=urls, database="PyRavenDB", certificate=cert)
+store.initialize() 
+with store.open_session() as session:
+    foo = session.load("foos/1")
+```
+
+
 ## Usage
 ##### Load a single or several document\s from the store:
  ```python

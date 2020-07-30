@@ -1,3 +1,5 @@
+from requests_pkcs12 import Pkcs12Adapter
+
 from pyravendb.commands.raven_commands import GetTopologyCommand, GetStatisticsCommand
 from pyravendb.connection.requests_helpers import *
 from pyravendb.custom_exceptions import exceptions
@@ -31,9 +33,18 @@ class RequestsExecutor(object):
                 raise
         return instance
 
+    @staticmethod
+    def initialize_certificate(certificate):
+        if not isinstance(certificate, dict):
+            return certificate, None
+        pfx = certificate["pfx"]
+        password = certificate.get("password", None)
+        adapter = Pkcs12Adapter(pkcs12_data=pfx, pkcs12_password=password)
+        return None, adapter
+
     def __init__(self, database_name, certificate, conventions=None, **kwargs):
         self._database_name = database_name
-        self._certificate = certificate
+        (self._certificate, self._adapter) = self.initialize_certificate(certificate)
         self.topology_etag = kwargs.get("topology_etag", 0)
         self._last_return_response = datetime.utcnow()
         self.conventions = conventions if conventions is not None else DocumentConventions()
@@ -123,6 +134,8 @@ class RequestsExecutor(object):
             node_index = 0 if self._node_selector is None else self._node_selector.current_node_index
 
             with requests.session() as session:
+                if self._adapter is not None:
+                    session.mount("https://", self._adapter)
                 if raven_command.is_raft_request:
                     prefix = '&' if '?' in raven_command.url else '?'
                     raven_command.url += f"{prefix}raft-request-id={raven_command.raft_unique_request_id}"

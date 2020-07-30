@@ -15,6 +15,7 @@ setup(
     install_requires=
     [
         'requests >= 2.18.4',
+        'requests-pkcs12 >= 1.7',
         'pyOpenSSL >= 17.2.0',
         'ijson == 2.3',
         'websocket-client >= 0.46.0',

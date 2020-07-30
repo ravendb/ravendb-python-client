@@ -8,7 +8,7 @@ from pyravendb.raven_operations.maintenance_operations import PutIndexesOperatio
     PullReplicationAsSink
 from datetime import datetime, timedelta, timezone
 from time import sleep
-
+import OpenSSL
 
 class User:
     def __init__(self, name, address):
@@ -27,58 +27,30 @@ def get_user(key, value):
         return Address(**value)
     return value
 
+def pkcs12_to_pem(pkcs12_data, password):
+    if isinstance(password, str):
+        password_bytes = password.encode('utf8')
+    else:
+        password_bytes = password
+    p12 = OpenSSL.crypto.load_pkcs12(pkcs12_data, password_bytes)
+    p12_cert = p12.get_certificate()
+    p12_key = p12.get_privatekey()
+    pem_cert = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, p12_cert)
+    pem_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, p12_key)
+    pem = pem_cert + pem_key
+    return pem
 
 if __name__ == "__main__":
-    with DocumentStore(urls=["http://live-test.ravendb.net"], database="demo") as store:
+    path = "C:\\Users\\ayende\\Downloads\\free.roll.client.certificate (1)\\PEM\\"
+    pfx = path + "..\\free.roll.client.certificate.with.password.pfx"
+    with open(pfx, 'rb') as pkcs12_file:
+        pkcs12_data = pkcs12_file.read()
+        #c = pkcs12_to_pem(pkcs12_data, "E9302BBF95723A2EC0E44FEF48DD22")
+
+    with DocumentStore(urls=["https://a.free.roll.ravendb.cloud"], database="demo",
+                       certificate={"pfx": pkcs12_data, "password": "E9302BBF95723A2EC0E44FEF48DD22"}) as store:
         store.initialize()
 
-        # store.maintenance.send(PutConnectionStringOperation(ConnectionString.raven(
-        #     "con_str", "Northwind", ["http://live-test.ravendb.net"]
-        # )))
-        #
-
-        store.maintenance.send(UpdatePullReplicationAsSinkOperation(PullReplicationAsSink(
-            "foo", "con_str", None, None
-        )))
-
-        # store.maintenance.server.send(CreateDatabaseOperation("NorthWindccxx"))
-        # store.maintenance.server.send(DeleteDatabaseOperation("NorthWindccxx", hard_delete=True))
-        # with store.open_session() as session:
-        #     session.store(User("idan", address="mm"), "users/1")
-        #     session.save_changes()
-        #
-        # with store.open_session() as session:
-        #     user = session.load('users/1', object_type=User)
-
-        # with store.open_session() as session:
-        #     counters = session.counters_for('users/2')
-        #     counters.increment("likes", delta=20)
-        #     counters.increment("love", delta=10)
-        #     session.save_changes()
-        #
-        # with store.open_session() as session:
-        #     counters = session.counters_for('users/2')
-        #     counters.delete("likes")
-        #     session.save_changes()
-        #
-        # with store.open_session() as session:
-        #     document_counter = session.counters_for("users/2")
-        #     counters = document_counter.get_all()
-        #     like = document_counter.get("likes0")
-        #     print(like)
-        #
-        # names = []
-        # for i in range(1033):
-        #     names.append(f"likes{i}")
-        # names.append(None)
-        # xc = store.operations.send(GetCountersOperation("users/2", counters=names))
-        # print(xc)
-        # print(len(xc["Counters"]))
-
-        # d = DocumentCountersOperation(document_id='users/2')
-        # d.add_operations(CounterOperation("dooms", counter_operation_type=CounterOperationType.increment, delta=4))
-        # d.add_operations(CounterOperation("dooms", counter_operation_type=CounterOperationType.delete))
-        #
-        # counter_batch = CounterBatch([d])
-        # v = store.operations.send(CounterBatchOperation(counter_batch))
-        # print(v)
+        with store.open_session() as s:
+            s.store(User("Oren", "Binyamina"))
+            s.save_changes()
