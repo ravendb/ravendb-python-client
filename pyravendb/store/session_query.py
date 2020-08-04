@@ -436,7 +436,7 @@ class Query(object):
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
-        self._where_tokens.append(_Token(field_name=field_name, value=None, token="exists", write=")"))
+        self._where_tokens.append(_Token(field_name=field_name, value=None, token="exists", write="exists(" +  field_name +")"))
         return self
 
     def where_true(self):

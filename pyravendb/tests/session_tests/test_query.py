@@ -72,6 +72,10 @@ class TestQuery(TestBase):
             query_results = list(session.query(collection_name="Products").where_equals("name", "test101"))
             self.assertEqual(query_results[0].name, "test101")
 
+    def test_can_use_exists_field(self):
+        with self.store.open_session() as session:
+            list(session.query(collection_name="Products").where_exists("name"))
+
     def test_where_not_equal(self):
         with self.store.open_session() as session:
             query_results = list(session.query(collection_name="Products").where_not_equals("name", "test101"))
