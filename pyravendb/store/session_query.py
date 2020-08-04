@@ -432,11 +432,15 @@ class Query(object):
         return self.where_equals(field_name, value, exact)
 
     def where_exists(self, field_name):
+        if field_name is None:
+            raise ValueError("None field_name is invalid")
+
         field_name = Query.escape_if_needed(field_name)
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
-        self._where_tokens.append(_Token(field_name=field_name, value=None, token="exists", write="exists(" +  field_name +")"))
+        self._where_tokens.append(_Token(field_name=field_name, value=None, token="exists", write="exists(" +
+                                                                                                  field_name + ")"))
         return self
 
     def where_true(self):
