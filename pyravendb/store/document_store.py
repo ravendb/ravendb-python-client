@@ -12,6 +12,13 @@ import time
 
 class DocumentStore(object):
     def __init__(self, urls=None, database=None, certificate=None):
+        """
+        :type urls: [str]
+        :type database: str
+        :type certificate: {"pfx": "/path/to/cert.pfx", "password": "optional password"}
+                       OR  cert = ("/path/to/cert.pem")
+                       OR cert = ("/path/to/cert.crt", "/path/to/cert.key")
+        """
         if not isinstance(urls, list):
             urls = [urls]
         self.urls = urls
