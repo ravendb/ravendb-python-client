@@ -35,6 +35,11 @@ class DocumentStore(object):
         self._maintenance_operation_executor = None
         self.subscriptions = DocumentSubscriptions(self)
         self._database_changes = {}
+        self._events = DocumentEvents()
+
+    @property
+    def events(self):
+        return self._events
 
     @property
     def conventions(self):
@@ -133,11 +138,29 @@ class DocumentStore(object):
         self._assert_initialize()
         session_id = uuid.uuid4()
         requests_executor = request_executor if request_executor is not None else self.get_request_executor(database)
-        return DocumentSession(database, self, requests_executor, session_id)
+        session = DocumentSession(database, self, requests_executor, session_id)
+        self.events.session_created(session)
+        return session
 
     def generate_id(self, db_name, entity):
         if self.generator:
             return self.generator.generate_document_key(db_name, entity)
+
+
+class DocumentEvents:
+    def __init__(self):
+        self.before_store = lambda session, doc_id, entity: None
+        self.before_query = lambda session, query: None
+        self.after_save_change = lambda session, doc_id, entity: None
+        self.before_delete = lambda session, doc_id, entity: None
+        self.session_created = lambda session: None
+        self.before_conversion_to_entity = lambda document, metadata, type_from_metadata: None
+        self.after_conversion_to_entity = lambda entity, document, metadata: None
+
+    def clone(self):
+        other = DocumentEvents()
+        other.__dict__ = self.__dict__.copy()
+        return other
 
 
 # ------------------------------Operation executors ---------------------------->

@@ -10,6 +10,11 @@ class Time(object):
         self.dt = dt
 
 
+class Item(object):
+    def __init__(self, val):
+        self.val = val
+
+
 class TestConversion(TestBase):
     def setUp(self):
         super(TestConversion, self).setUp()
@@ -24,6 +29,20 @@ class TestConversion(TestBase):
     def tearDown(self):
         super(TestConversion, self).tearDown()
         self.delete_all_topology_files()
+
+    def test_before_store(self):
+        def update_item(session, doc_id, entity):
+            entity.val = 2
+
+        with self.store.open_session() as session:
+            session.events.before_store = update_item
+            session.store(Item(1), "item/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            time = session.load("item/1", object_type=Item)
+            self.assertEqual(2, time.val)
+
 
     def test_load_timedelta_and_datetime(self):
         with self.store.open_session() as session:

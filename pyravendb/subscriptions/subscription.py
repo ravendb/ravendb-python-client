@@ -344,6 +344,7 @@ class SubscriptionBatch:
 
             entity, metadata, _, _ = Utils.convert_to_entity(item['Data'], self._object_type,
                                                              self._store.conventions,
+                                                             self._store.events,
                                                              nested_object_types=self._nested_object_type)
             if not metadata:
                 raise InvalidOperationException("Document must have a @metadata field")

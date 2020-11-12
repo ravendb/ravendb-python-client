@@ -48,6 +48,19 @@ class DocumentSession(object):
         self.no_tracking = kwargs.get("no_tracking", False)
         self.no_caching = kwargs.get("no_caching", False)
         self.advanced = Advanced(self)
+        self._events = None
+
+    @property
+    def readonly_events(self):
+        if self._events is None:
+            return self._document_store.events.clone()
+        return self._events
+
+    @property
+    def events(self):
+        if self._events is None:
+            self._events = self._document_store.events.clone()
+        return self._events
 
     def __enter__(self):
         return self
@@ -141,6 +154,7 @@ class DocumentSession(object):
         if key not in self._documents_by_id:
             entity, metadata, original_metadata, original_document = Utils.convert_to_entity(document, object_type,
                                                                                              self.conventions,
+                                                                                             self.readonly_events,
                                                                                              nested_object_types)
             self.save_entity(key, entity, original_metadata, metadata, original_document)
 
@@ -235,6 +249,7 @@ class DocumentSession(object):
         if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
             raise exceptions.InvalidOperationException(
                 "{0} is marked as read only and cannot be deleted".format(entity))
+
         self._included_documents_by_id.pop(self._documents_by_entity[entity]["key"], None)
         self._known_missing_ids.add(self._documents_by_entity[entity]["key"])
         self._deleted_entities.add(entity)
@@ -375,6 +390,8 @@ class DocumentSession(object):
                         document_info["metadata"] = item
                         document_info["key"] = item["@id"]
                         document_info["original_value"] = entity.__dict__.copy()
+                        self.readonly_events.after_save_change(self, item["@id"], entity)
+
                 elif item["Type"] == "Counters":
                     cache = self._counters_by_document_id.get(item["Id"], None)
                     if not cache:
@@ -415,13 +432,15 @@ class DocumentSession(object):
                 change_vector = None
                 if self.advanced.use_optimistic_concurrency and self._documents_by_entity[entity][
                     "force_concurrency_check"] != "disabled" or self._documents_by_entity[entity][
-                    "force_concurrency_check"] == "forced":
+                        "force_concurrency_check"] == "forced":
                     change_vector = self._documents_by_entity[entity]["change_vector"]
+                self.readonly_events.before_store(self, key, entity)
                 data.entities.append(entity)
                 if key:
                     self._documents_by_id.pop(key)
                     document = entity.__dict__.copy()
                     document.pop('Id', None)
+
                 data.commands.append(commands_data.PutCommandData(key, change_vector, document, metadata))
 
     def _has_change(self, entity):
@@ -477,6 +496,7 @@ class Advanced(object):
             results = ijson.backend.common.items(parser, "Results")
             for result in next(results, None):
                 document, metadata, _, _ = Utils.convert_to_entity(result, query.object_type, self.session.conventions,
+                                                                   self.session.readonly_events,
                                                                    query.nested_object_types)
                 yield {"document": document, "metadata": metadata, "id": metadata.get("@id", None),
                        "change-vector": metadata.get("@change-vector", None)}

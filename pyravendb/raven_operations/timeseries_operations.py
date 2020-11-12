@@ -93,7 +93,7 @@ class TimeSeriesOperation:
         if self.appends:
             self.appends = next(Utils.sort_iterable(self.appends, key=lambda ao: ao.timestamp.timestamp()))
         return {"Name": self.name, "Appends": [a.to_json() for a in self.appends] if self.appends else self.appends,
-                "Removals": [r.to_json() for r in self.removals] if self.removals else self.removals}
+                "Deletes": [r.to_json() for r in self.removals] if self.removals else self.removals}
 
     class AppendOperation:
         def __init__(self, timestamp: datetime, values: List[float] or float, tag: Optional[str] = None):

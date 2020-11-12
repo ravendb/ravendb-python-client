@@ -802,7 +802,8 @@ class Query(object):
         self.session.save_includes(response_includes)
         for result in response_results:
             entity, metadata, original_metadata, original_document = Utils.convert_to_entity(result, self.object_type,
-                                                                                             conventions,
+                                                                                             self.session.conventions,
+                                                                                             self.session.readonly_events,
                                                                                              self.nested_object_types)
             if self.object_type != dict and not self.fields_to_fetch:
                 self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,

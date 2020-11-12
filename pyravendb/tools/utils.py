@@ -98,21 +98,27 @@ class Utils(object):
         return o
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions, nested_object_types=None):
+    def convert_to_entity(document, object_type, conventions, events, nested_object_types=None):
+
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         original_metadata = deepcopy(metadata)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         mapper = conventions.mappers.get(object_type, None)
 
+        events.before_conversion_to_entity(document, metadata, type_from_metadata)
+
         if object_type == dict:
+            events.after_conversion_to_entity(document, document, metadata)
             return document, metadata, original_metadata, original_document
 
         if type_from_metadata is None:
             if object_type is not None:
                 metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
             else:  # no type defined on document or during load, return a dict
-                return _DynamicStructure(**document), metadata, original_metadata, original_document
+                dyn = _DynamicStructure(**document)
+                events["after_conversion_to_entity"](dyn, document, metadata)
+                return dyn, metadata, original_metadata, original_document
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
             if object_from_metadata is not None:
@@ -156,6 +162,7 @@ class Utils(object):
 
         if 'Id' in entity.__dict__:
             entity.Id = metadata.get('@id', None)
+        events.after_conversion_to_entity(entity, document, metadata)
         return entity, metadata, original_metadata, original_document
 
     @staticmethod

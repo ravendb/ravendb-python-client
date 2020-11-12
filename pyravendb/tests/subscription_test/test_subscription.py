@@ -61,7 +61,7 @@ class TestSubscription(TestBase):
         self.assertEqual(len(self.results), 0)
         with self.store.subscriptions.get_subscription_worker(connection_options, object_type=User) as subscription:
             subscription.run(self.process_documents)
-            self.event.wait(timeout=5)
+            self.event.wait(timeout=60)
 
         self.assertEqual(len(self.results), 2)
         for item in self.results:
