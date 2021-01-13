@@ -479,6 +479,9 @@ class Advanced(object):
             self._attachment = _Attachment(self.session)
         return self._attachment
 
+    def get_metadata_for(self, entity):
+        return self.session.documents_by_entity[entity]['metadata']
+
     def stream(self, query):
         from pyravendb.store.stream import IncrementalJsonParser
         import ijson

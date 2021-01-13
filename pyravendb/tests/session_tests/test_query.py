@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pyravendb.tests.test_base import TestBase
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.custom_exceptions import exceptions
@@ -75,6 +77,14 @@ class TestQuery(TestBase):
     def test_can_use_exists_field(self):
         with self.store.open_session() as session:
             list(session.query(collection_name="Products").where_exists("name"))
+
+    def test_can_query_on_date_time(self):
+        with self.store.open_session() as session:
+            list(session.query(collection_name="Products").where_equals("at", datetime.now()))
+
+    def test_can_query_on_date_time_range(self):
+        with self.store.open_session() as session:
+            list(session.query(collection_name="Products").where_between("at", datetime.now(), datetime.now()))
 
     def test_where_not_equal(self):
         with self.store.open_session() as session:

@@ -3,7 +3,7 @@ from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.commands.raven_commands import GetFacetsCommand
 from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType, FacetQuery
 from pyravendb.tools.utils import Utils
-from datetime import timedelta
+from datetime import timedelta, datetime
 import time
 import re
 
@@ -350,6 +350,13 @@ class Query(object):
             self._where_tokens.append(_Token(write="NOT"))
 
     def add_query_parameter(self, value):
+
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+        elif isinstance(value, datetime):
+            value = Utils.datetime_to_string(value)
+
+
         parameter_name = "p{0}".format(len(self.query_parameters))
         self.query_parameters[parameter_name] = value
         return parameter_name
@@ -556,11 +563,6 @@ class Query(object):
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
-
-        if isinstance(start, timedelta):
-            start = Utils.timedelta_tick(start)
-        if isinstance(end, timedelta):
-            end = Utils.timedelta_tick(end)
 
         from_parameter_name = self.add_query_parameter("*" if start is None else start)
         to_parameter_name = self.add_query_parameter("NULL" if end is None else end)

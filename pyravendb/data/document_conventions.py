@@ -80,8 +80,16 @@ class DocumentConventions(object):
     def build_default_metadata(entity):
         if entity is None:
             return {}
-        return {"@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
+        existing = entity.__dict__.get('@metadata')
+        if existing is None:
+            existing = {}
+
+        new_metadata = {"@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
                 "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
+
+        existing.update(new_metadata)
+
+        return existing
 
     @staticmethod
     def try_get_type_from_metadata(metadata):
