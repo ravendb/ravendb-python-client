@@ -57,7 +57,8 @@ class RavenCommand(object):
 
 
 class GetDocumentCommand(RavenCommand):
-    def __init__(self, key_or_keys, includes=None, metadata_only=False):
+    def __init__(self, key_or_keys, includes=None, metadata_only=False, start=None, page_size=None,
+                 counter_includes=None):
         """
         @param key_or_keys: the key of the documents you want to retrieve (key can be a list of ids)
         :type str or list
@@ -65,6 +66,12 @@ class GetDocumentCommand(RavenCommand):
         :type list
         @param metadata_only: specifies if only document metadata should be returned
         :type bool
+        @param start: number of results to skip.
+        type: int
+        @param page_size: maximum number of results to retrieve
+        type: int
+        @param counter_includes: the names of the counters to be included or True to include all counters
+        type: list[str] or bool
         @return: A list of the id or ids we looked for (if they exists)
         :rtype: dict
         """
@@ -72,19 +79,33 @@ class GetDocumentCommand(RavenCommand):
         self.key_or_keys = key_or_keys
         self.includes = includes
         self.metadata_only = metadata_only
+        self.start = start
+        self.page_size = page_size
+        self.counter_includes = counter_includes
 
-    def create_request(self, server_node):
         if self.key_or_keys is None:
             raise ValueError("None Key is not valid")
+
+    def create_request(self, server_node):
         path = "docs?"
+
+        if self.start:
+            path += f"&start={self.start}"
+        if self.page_size:
+            path += f"&pageSize={self.page_size}"
+        if self.metadata_only:
+            path += "&metadataOnly=true"
         if self.includes:
             path += "".join("&include=" + Utils.quote_key(item) for item in self.includes)
+        if self.counter_includes:
+            if self.counter_includes is True:
+                path += f"&counter={Utils.quote_key('@all_counters')}"
+            else:
+                path += "".join("&counter=" + Utils.quote_key(item) for item in self.counter_includes)
+
         # make get method handle a multi document requests in a single request
         if isinstance(self.key_or_keys, list):
             key_or_keys = collections.OrderedDict.fromkeys(self.key_or_keys)
-            if self.metadata_only:
-                path += "&metadataOnly=true"
-
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
                 self.method = "POST"
@@ -108,6 +129,82 @@ class GetDocumentCommand(RavenCommand):
             raise exceptions.ErrorResponseException(
                 "Failed to load document from the database please check the connection to the server")
 
+        return response
+
+
+class GetDocumentsByPrefixCommand(RavenCommand):
+    def __init__(self, start_with, start_after=None, matches=None, exclude=None, start=None, page_size=None,
+                 metadata_only=None):
+
+        """
+        @param start_with: Retrieve all documents whose IDs begin with this string.
+        If the value of this parameter is left empty, all documents in the database are retrieved.
+        :type str
+
+        @param start_after: Retrieve only the results after the first document ID that begins with this prefix.
+        :type str
+
+        @param matches: Retrieve documents whose IDs are exactly <startsWith>+<matches>.
+        Accepts multiple values separated by a pipe character: ' | ' .
+        Use ? to represent any single character, and * to represent any string.
+        :type str
+
+        @param exclude: Exclude documents whose IDs are exactly <startsWith>+<exclude>.
+        Accepts multiple values separated by a pipe character: ' | ' .
+        Use ? to represent any single character, and * to represent any string.
+        type: str
+
+        @param start: number of results to skip.
+        type: int
+
+        @param page_size: maximum number of results to retrieve
+        type: int
+
+        @param metadata_only: specifies if only document metadata should be returned
+        :type bool
+
+        @return: A list of the id or ids we looked for (if they exists)
+        :rtype: dict
+        """
+
+        super(GetDocumentsByPrefixCommand, self).__init__(method="GET", is_read_request=True)
+
+        self.start_with = start_with
+        self.start_after = start_after
+        self.matches = matches
+        self.exclude = exclude
+        self.start = start
+        self.page_size = page_size
+        self.metadata_only = metadata_only
+
+        if self.start_with is None:
+            raise ValueError("None start_with is not valid")
+
+    def create_request(self, server_node):
+        path = f"docs?startsWith={Utils.quote_key(self.start_with)}"
+
+        if self.matches:
+            path += f"&matches={Utils.quote_key(self.matches)}"
+        if self.exclude:
+            path += f"&exclude={Utils.quote_key(self.exclude)}"
+        if self.start_after:
+            path += f"&startAfter={Utils.quote_key(self.start_after)}"
+        if self.start:
+            path += f"&start={self.start}"
+        if self.page_size:
+            path += f"&pageSize={self.page_size}"
+        if self.metadata_only:
+            path += "&metadataOnly=true"
+
+        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
+
+    def set_response(self, response):
+        if response is None:
+            return
+
+        response = response.json()
+        if "Error" in response:
+            raise exceptions.ErrorResponseException(response["Error"])
         return response
 
 
