@@ -1,14 +1,15 @@
-from pyravendb.tests.test_base import TestBase
+import os
+import unittest
+
+from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
-import unittest
-import os
+from pyravendb.tests.test_base import TestBase
 
-parent_path = os.path.dirname(os.getcwd())
+parent_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if not parent_path.endswith("tests"):
-    parent_path += "\\tests"
-OUT_PUT_FILE_PATH = f"{parent_path}\\output.txt"
+    parent_path = os.path.join(parent_path, "tests")
+OUT_PUT_FILE_PATH = os.path.join(parent_path, "output.txt")
 
 
 class User:
