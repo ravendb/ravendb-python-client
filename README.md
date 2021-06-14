@@ -286,5 +286,41 @@ with DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as stor
         result = session.load("dogs/1-A", object_type=Dog)
 ```
 
+### Custom Class Name
+
+Now you can customize the collection name. This is necessary when the language is not English and the plural generated is not correct. It is also important for environments where a Python program will access a RavenDB database that is also powered by a C# program where it is already possible to customize the name.
+
+As with mappers, you can change the name of collections via `DocumentConvention`, as shown below.
+
+If a custom name is not specified, RavenDB will automatically generate the collection name as it did until now.
+
+##### Example:
+
+```python
+class Address:
+    def __init__(self, street, city, state):
+        self.street = street
+        self.city = city
+        self.state = state
+        self.Id: str = None
+
+
+class Customer:
+    def __init__(self, name):
+        self.name = name
+        self.Id: str = None
+
+class SomeClass:
+    def __init__(self, name):
+        self.name = name
+        self.Id: str = None
+
+with DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
+    store.conventions.default_collection_names = {Address: 'Address',SomeClass:'SomeNewCoolName'}
+    store.initialize()
+    
+
+```
+
 ##### Bug Tracker
 http://issues.hibernatingrhinos.com/issues/RDBC

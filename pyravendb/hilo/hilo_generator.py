@@ -90,7 +90,7 @@ class MultiTypeHiLoKeyGenerator(object):
         self.key_generators_by_tag = {}
 
     def generate_document_key(self, entity):
-        tag = self._conventions.default_transform_type_tag_name(entity.__class__.__name__)
+        tag = self._conventions.default_transform_type_tag_name(entity)
         if tag is None:
             return None
         else:

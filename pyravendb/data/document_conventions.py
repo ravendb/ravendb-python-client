@@ -1,3 +1,5 @@
+from typing import Type
+
 from pyravendb.data.indexes import SortOptions
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
@@ -27,6 +29,8 @@ class DocumentConventions(object):
         # with the object type that you want to map and a function(key, value) key will be the name of the property
         # the mappers will be used in json.decode
         self._mappers = kwargs.get("mappers", {})
+        # enable mapping collection names to custom names when pluralization don't mets with desired names
+        self._default_collection_names = kwargs.get("collection_names", {})
         self._frozen = False
 
     def freeze(self):
@@ -65,27 +69,46 @@ class DocumentConventions(object):
         else:
             raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")
 
+    @property
+    def default_collection_names(self) -> dict:
+        return self._default_collection_names
+
+    @default_collection_names.setter
+    def default_collection_names(self, names):
+        if self._frozen:
+            raise InvalidOperationException(
+                "Conventions has frozen after store.initialize() and no changes can be applied to them")
+        self._default_collection_names.update(names)
+
+    def get_collection_name(self, entity: Type) -> str:
+        if entity in self._default_collection_names:
+            return self._default_collection_names[entity]
+        else:
+            return DocumentConventions.default_transform_plural(entity.__name__)
+
     @staticmethod
     def default_transform_plural(name):
         return inflector.plural(name)
 
-    @staticmethod
-    def default_transform_type_tag_name(name):
+    def default_transform_type_tag_name(self, entity: Type):
+        if entity.__class__ in self._default_collection_names:
+            name = self._default_collection_names[entity.__class__]
+        else:
+            name = DocumentConventions.default_transform_plural(entity.__class__.__name__)
         count = sum(1 for c in name if c.isupper())
         if count <= 1:
-            return DocumentConventions.default_transform_plural(name.lower())
-        return DocumentConventions.default_transform_plural(name)
+            return name.lower()
+        return name
 
-    @staticmethod
-    def build_default_metadata(entity):
+    def build_default_metadata(self, entity: Type):
         if entity is None:
             return {}
         existing = entity.__dict__.get('@metadata')
         if existing is None:
             existing = {}
 
-        new_metadata = {"@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
-                "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
+        new_metadata = {"@collection": self.get_collection_name(entity.__class__),
+                        "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
 
         existing.update(new_metadata)
 
