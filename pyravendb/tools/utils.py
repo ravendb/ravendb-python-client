@@ -117,7 +117,7 @@ class Utils(object):
                 metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
             else:  # no type defined on document or during load, return a dict
                 dyn = _DynamicStructure(**document)
-                events["after_conversion_to_entity"](dyn, document, metadata)
+                events.after_conversion_to_entity(dyn, document, metadata)
                 return dyn, metadata, original_metadata, original_document
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
