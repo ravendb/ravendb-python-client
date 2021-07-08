@@ -20,12 +20,12 @@ class TestWhatChanged(TestBase):
 
             user1, user2 = session.load(["users/1", "users/2"], User)
 
-            self.assertFalse(session._has_change(user1))
-            self.assertFalse(session._has_change(user2))
+            self.assertFalse(session.advanced.has_changed(user1))
+            self.assertFalse(session.advanced.has_changed(user2))
 
             user1.name = "newName"
 
-            self.assertTrue(session._has_change(user1))
-            self.assertFalse(session._has_change(user2))
+            self.assertTrue(session.advanced.has_changed(user1))
+            self.assertFalse(session.advanced.has_changed(user2))
             self.assertTrue(session.advanced.has_changes())
 

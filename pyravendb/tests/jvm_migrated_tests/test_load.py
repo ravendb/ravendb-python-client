@@ -9,9 +9,9 @@ class GeekUser(User):
 
 
 class UserWithId(User):
-    def __init__(self,name,age,identifier=None):
-        super(UserWithId, self).__init__(name,age)
-        self.Id=identifier
+    def __init__(self, name, age, identifier=None):
+        super(UserWithId, self).__init__(name, age)
+        self.Id = identifier
 
 
 class TestLoad(TestBase):

@@ -48,15 +48,3 @@ class TestBasicDocument(TestBase):
         self.assertEqual(len(doc1), 1)
         self.assertEqual(len(doc2), 1)
 
-
-
-
-
-
-
-
-
-
-
-
-
