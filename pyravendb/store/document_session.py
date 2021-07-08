@@ -161,7 +161,7 @@ class DocumentSession(object):
     def _multi_load(self, keys, object_type, includes, nested_object_types):
         if len(keys) == 0:
             return []
-
+        keys = list(filter(lambda x: x is not None, keys))
         ids_of_not_existing_object = set(keys)
         if not includes:
             ids_in_includes = [key for key in ids_of_not_existing_object if key in self._included_documents_by_id]
@@ -208,7 +208,8 @@ class DocumentSession(object):
         :rtype:object_type or None
         """
         if not key_or_keys:
-            raise ValueError("None or empty key is invalid")
+            return None
+
         if includes and not isinstance(includes, list):
             includes = [includes]
 
@@ -481,6 +482,17 @@ class Advanced(object):
 
     def get_metadata_for(self, entity):
         return self.session.documents_by_entity[entity]['metadata']
+
+    def has_changed(self, entity):
+        return self.session._has_change(entity) or entity in self.session.deleted_entities
+
+
+    def has_changes(self):
+        for entity in self.session.documents_by_entity.keys():
+            if self.session._has_change(entity):
+                return True
+        return len(self.session.deleted_entities) != 0
+
 
     def stream(self, query):
         from pyravendb.store.stream import IncrementalJsonParser

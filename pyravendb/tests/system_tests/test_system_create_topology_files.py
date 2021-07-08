@@ -25,7 +25,7 @@ class TestSystemTopologyCreation(TestBase):
             try:
                 rmtree(TOPOLOGY_FILES_DIR, ignore_errors=True)
             except OSError as ex:
-                print(ex)
+                pass
 
     def test_topology_creation(self):
         created = False

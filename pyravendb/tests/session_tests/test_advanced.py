@@ -3,12 +3,11 @@ from pyravendb.data.indexes import IndexDefinition
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 import unittest
+import pathlib
 import os
 
-parent_path = os.path.dirname(os.getcwd())
-if not parent_path.endswith("tests"):
-    parent_path += "\\tests"
-OUT_PUT_FILE_PATH = f"{parent_path}\\output.txt"
+parent_path = pathlib.Path(__file__).parent.resolve()
+OUT_PUT_FILE_PATH = os.path.join(parent_path, "..", "..", "tests", "output.txt")
 
 
 class User:

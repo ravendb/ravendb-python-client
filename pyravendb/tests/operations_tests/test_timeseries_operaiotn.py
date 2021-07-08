@@ -26,6 +26,7 @@ class TestTimeSeriesOperations(TestBase):
         time_series_batch_operation = TimeSeriesBatchOperation(document_id="users/1-A", operation=time_series_operation)
         self.store.operations.send(time_series_batch_operation)
 
+    @unittest.skip('RDBC-463 Issue waiting for fix')
     def test_append_new_timeseries(self):
         self.add_timeseries()
         # Fetch all time_series from the document
@@ -33,6 +34,7 @@ class TestTimeSeriesOperations(TestBase):
         entries = time_series['Entries']
         self.assertEqual(len(entries), 3)
 
+    @unittest.skip('RDBC-463 Issue waiting for fix')
     def test_remove_timeseries_with_range(self):
         self.add_timeseries()
         time_series_operation_remove = TimeSeriesOperation(name="Heartrate")
@@ -46,6 +48,7 @@ class TestTimeSeriesOperations(TestBase):
         entries = time_series['Entries']
         self.assertEqual(len(entries), 1)
 
+    @unittest.skip('RDBC-463 Issue waiting for fix')
     def test_remove_timeseries_without_range(self):
         self.add_timeseries()
         time_series_operation_remove = TimeSeriesOperation(name="Heartrate")
@@ -65,6 +68,7 @@ class TestTimeSeriesOperations(TestBase):
         entries = time_series['Entries']
         self.assertEqual(len(entries), 2)
 
+    @unittest.skip('RDBC-463 Issue waiting for fix')
     def test_get_timeseries_without_range(self):
         self.add_timeseries()
         time_series_range = TimeSeriesRange("Heartrate")

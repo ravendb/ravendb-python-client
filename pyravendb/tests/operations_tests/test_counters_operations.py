@@ -84,7 +84,6 @@ class TestCountersOperations(TestBase):
         self.assertEqual(len(results.get("Counters", [])), 1)
         counters = results.get("Counters", [])
         self.assertTrue(counters[0].get("CounterName", "") == "Shares")
-        print(results)
 
     def test_send_multi_operations(self):
         counter_operation1 = DocumentCountersOperation(document_id='users/1-A')

@@ -109,7 +109,7 @@ class GetDocumentCommand(RavenCommand):
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
                 self.method = "POST"
-                self.data = list(key_or_keys)
+                self.data = dict(Ids = list(key_or_keys))
             else:
                 path += "".join("&id=" + Utils.quote_key(item) for item in key_or_keys)
 
