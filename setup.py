@@ -3,14 +3,20 @@ from setuptools import setup, find_packages
 setup(
     name='pyravendb',
     packages=find_packages(),
-    version='5.0.0.1',
+    version='5.2.0.0',
     long_description=open("README.rst").read(),
-    description='This is the official python client for RavenDB v5.0 document database',
+    description='Python client for RavenDB NoSQL Database',
     author='RavenDB',
     author_email='support@ravendb.net',
     url='https://github.com/ravendb/RavenDB-Python-Client',
     license='MIT',
-    keywords='pyravendb',
+    keywords=
+    [
+        'ravendb',
+        'nosql',
+        'database'
+        'pyravendb',
+    ],
     python_requires='~=3.5',
     install_requires=
     [
