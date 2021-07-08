@@ -1,0 +1,64 @@
+name: tests/python
+
+on:
+  push:
+    branches: [ RDBC-461 ]
+  pull_request:
+    branches: [ v5.0 ]
+  schedule:
+    - cron: '0 10 * * 6'
+
+
+jobs:
+    build:
+      runs-on: ubuntu-latest
+
+      env:
+        RAVENDB_TEST_SERVER_PATH: ./RavenDB/Server/Raven.Server
+        RAVENDB_TEST_SERVER_CERTIFICATE_PATH: ./certs/server.pfx
+        RAVENDB_TEST_CLIENT_CERT_PASSPHRASE: client11
+        RAVENDB_TEST_CLIENT_CERT_PATH: ./certs/nodejs.pem
+        RAVENDB_TEST_CA_PATH: /usr/local/share/ca-certificates/ca.crt
+        RAVENDB_TEST_HTTPS_SERVER_URL: https://localhost:8989
+        RAVENDB_BUILD_TYPE: nightly
+        RAVEN_License: ${{ secrets.RAVEN_LICENSE }}
+
+      strategy:
+        matrix:
+          python-version: ['3.6', '3.7', '3.8', '3.9' ]
+          serverVersion: [ "5.1", "5.2" ]
+        fail-fast: false
+
+      steps:
+      - uses: actions/checkout@v2
+
+      - name: Use Python ${{ matrix.node-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version : ${{ matrix.python-version }}
+
+      - name: Display Python version
+        run:  python -c "import sys; print(sys.version)"
+
+      - name: Download RavenDB Server
+        run: wget -O RavenDB.tar.bz2 "https://hibernatingrhinos.com/downloads/RavenDB%20for%20Linux%20x64/latest?buildType=${{ env.RAVENDB_BUILD_TYPE }}&version=${{ matrix.serverVersion }}"
+
+      - name: Extract RavenDB Server
+        run: tar xjf RavenDB.tar.bz2
+
+      - name: Upgrade pip
+        run: python -m pip install -U pip
+
+      - name: Install Python RavenDB Client
+        run: pip install pyravendb
+
+      - name: Install automatic format tool
+        run: pip install --upgrade autopep8
+
+      - name: Run code formatting tool
+        run: autopep8 --in-place --recursive
+
+      - run: cd ravendb-python-client
+
+      - name: Run tests
+        run: python -m unittest discover
