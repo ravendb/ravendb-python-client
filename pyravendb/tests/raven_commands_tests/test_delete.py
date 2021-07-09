@@ -12,9 +12,7 @@ class TestDelete(TestBase):
             PutDocumentCommand("products/101", {"Name": "test", "@metadata": {}})
         )
 
-        self.requests_executor.execute(
-            PutDocumentCommand("products/10", {"Name": "test", "@metadata": {}})
-        )
+        self.requests_executor.execute(PutDocumentCommand("products/10", {"Name": "test", "@metadata": {}}))
         self.other_response = self.requests_executor.execute(
             PutDocumentCommand("products/102", {"Name": "test", "@metadata": {}})
         )
@@ -28,18 +26,12 @@ class TestDelete(TestBase):
         self.assertIsNone(self.requests_executor.execute(delete_command))
 
     def test_delete_success_with_change_vector(self):
-        delete_command = DeleteDocumentCommand(
-            "products/102", self.other_response["ChangeVector"]
-        )
+        delete_command = DeleteDocumentCommand("products/102", self.other_response["ChangeVector"])
         self.assertIsNone(self.requests_executor.execute(delete_command))
 
     def test_delete_fail(self):
         with self.assertRaises(Exception):
-            self.requests_executor.execute(
-                DeleteDocumentCommand(
-                    "products/101", self.response["ChangeVector"] + "10"
-                )
-            )
+            self.requests_executor.execute(DeleteDocumentCommand("products/101", self.response["ChangeVector"] + "10"))
 
     if __name__ == "__main__":
         unittest.main()

@@ -26,33 +26,21 @@ class TestIndexActions(TestBase):
 
     def test_put_index_success(self):
         index = IndexDefinition(name="region", maps=self.index_map)
-        assert self.requests_executor.execute(
-            PutIndexesOperation(index).get_command(self.conventions)
-        )
+        assert self.requests_executor.execute(PutIndexesOperation(index).get_command(self.conventions))
 
     def test_get_index_success(self):
         index = IndexDefinition(name="get_index", maps=self.index_map)
-        assert self.requests_executor.execute(
-            PutIndexesOperation(index).get_command(self.conventions)
-        )
+        assert self.requests_executor.execute(PutIndexesOperation(index).get_command(self.conventions))
         self.assertIsNotNone(
-            self.requests_executor.execute(
-                GetIndexOperation("get_index").get_command(self.conventions)
-            )
+            self.requests_executor.execute(GetIndexOperation("get_index").get_command(self.conventions))
         )
 
     def test_get_index_fail(self):
-        self.assertIsNone(
-            self.requests_executor.execute(
-                GetIndexOperation("get_index").get_command(self.conventions)
-            )
-        )
+        self.assertIsNone(self.requests_executor.execute(GetIndexOperation("get_index").get_command(self.conventions)))
 
     def test_delete_index_success(self):
         index = IndexDefinition(name="delete", maps=self.index_map)
-        assert self.requests_executor.execute(
-            PutIndexesOperation(index).get_command(self.conventions)
-        )
+        assert self.requests_executor.execute(PutIndexesOperation(index).get_command(self.conventions))
         self.assertIsNone(self.requests_executor.execute(DeleteIndexCommand("delete")))
 
     def test_delete_index_fail(self):
@@ -66,9 +54,7 @@ class TestIndexActions(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.time_series_for("users/1", "HeartRate").append(
-                datetime.now(), values=98
-            )
+            session.time_series_for("users/1", "HeartRate").append(datetime.now(), values=98)
             session.save_changes()
 
         map_ = (

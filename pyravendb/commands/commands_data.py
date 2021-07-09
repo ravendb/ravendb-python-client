@@ -115,9 +115,7 @@ class PutAttachmentCommandData(_CommandData):
         if not name:
             raise ValueError(name)
 
-        super(PutAttachmentCommandData, self).__init__(
-            document_id, "AttachmentPUT", change_vector
-        )
+        super(PutAttachmentCommandData, self).__init__(document_id, "AttachmentPUT", change_vector)
         self.name = name
         self.stream = stream
         self.content_type = content_type
@@ -149,9 +147,7 @@ class DeleteAttachmentCommandData(_CommandData):
         if not name:
             raise ValueError(name)
 
-        super(DeleteAttachmentCommandData, self).__init__(
-            document_id, "AttachmentDELETE", change_vector
-        )
+        super(DeleteAttachmentCommandData, self).__init__(document_id, "AttachmentDELETE", change_vector)
         self.name = name
 
     def to_json(self):
@@ -178,9 +174,7 @@ class TimeSeriesBatchCommandData(_CommandData):
         if not name:
             raise ValueError("None or empty name is Invalid")
 
-        super().__init__(
-            key=document_id, command_type="TimeSeries", change_vector=change_vector
-        )
+        super().__init__(key=document_id, command_type="TimeSeries", change_vector=change_vector)
         self._time_series = operation
 
     @property
@@ -210,13 +204,9 @@ class CountersBatchCommandData(_CommandData):
         if not isinstance(counter_operations, list):
             counter_operations = [counter_operations]
 
-        super().__init__(
-            key=document_id, command_type="Counters", change_vector=change_vector
-        )
+        super().__init__(key=document_id, command_type="Counters", change_vector=change_vector)
         self._from_etl = from_etl
-        self._counters = DocumentCountersOperation(
-            document_id=self.key, operations=counter_operations
-        )
+        self._counters = DocumentCountersOperation(document_id=self.key, operations=counter_operations)
 
     def has_increment(self, counter_name):
         self.has_operation_of_type(CounterOperationType.increment, counter_name)
@@ -224,9 +214,7 @@ class CountersBatchCommandData(_CommandData):
     def has_delete(self, counter_name):
         self.has_operation_of_type(CounterOperationType.delete, counter_name)
 
-    def has_operation_of_type(
-        self, operation_type: CounterOperationType, counter_name: str
-    ):
+    def has_operation_of_type(self, operation_type: CounterOperationType, counter_name: str):
         for op in self.counters.operations:
             if op.counter_name != counter_name:
                 continue

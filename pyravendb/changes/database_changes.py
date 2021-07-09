@@ -13,9 +13,7 @@ import sys
 
 
 class DatabaseChanges:
-    def __init__(
-        self, request_executor, database_name, on_close, on_error=None, executor=None
-    ):
+    def __init__(self, request_executor, database_name, on_close, on_error=None, executor=None):
         self._request_executor = request_executor
         self._conventions = request_executor.conventions
         self._database_name = database_name
@@ -38,9 +36,7 @@ class DatabaseChanges:
 
         self._logger = logging.getLogger("database_changes")
         handler = logging.FileHandler("changes.log")
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         handler.setFormatter(formatter)
         self._logger.addHandler(handler)
         self._logger.setLevel(logging.DEBUG)
@@ -61,9 +57,7 @@ class DatabaseChanges:
                     if self._request_executor.certificate:
                         if isinstance(self._request_executor.certificate, tuple):
                             (crt, key) = self._request_executor.certificate
-                            self.client_websocket.sock_opt.sslopt.update(
-                                {"certfile": crt, "keyfile": key}
-                            )
+                            self.client_websocket.sock_opt.sslopt.update({"certfile": crt, "keyfile": key})
                         else:
                             self.client_websocket.sock_opt.sslopt.update(
                                 {"ca_certs": self._request_executor.certificate}
@@ -117,9 +111,7 @@ class DatabaseChanges:
                                 "OperationsStatusChange",
                             ):
                                 raise NotSupportedException(response_type)
-                            self._notify_subscribers(
-                                value, copy.copy(self._observables[response_type])
-                            )
+                            self._notify_subscribers(value, copy.copy(self._observables[response_type]))
             except Exception as e:
                 self.notify_about_error(e)
                 raise ChangeProcessingException(e)
@@ -155,9 +147,9 @@ class DatabaseChanges:
                 observer.error(e)
 
     def for_all_documents(self):
-        observable = self.get_or_add_observable(
-            "DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None
-        )(lambda x: True)
+        observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None)(
+            lambda x: True
+        )
         return observable
 
     def for_all_operations(self):
@@ -171,9 +163,9 @@ class DatabaseChanges:
         return observable
 
     def for_all_indexes(self):
-        observable = self.get_or_add_observable(
-            "IndexChange", "all-indexes", "watch-indexes", "unwatch-indexes", None
-        )(lambda x: True)
+        observable = self.get_or_add_observable("IndexChange", "all-indexes", "watch-indexes", "unwatch-indexes", None)(
+            lambda x: True
+        )
         return observable
 
     def for_index(self, index_name):
@@ -197,9 +189,9 @@ class DatabaseChanges:
         return observable
 
     def for_document(self, doc_id):
-        observable = self.get_or_add_observable(
-            "DocumentChange", "docs/" + doc_id, "watch-doc", "unwatch-doc", doc_id
-        )(lambda x: x["Id"].casefold() == doc_id.casefold())
+        observable = self.get_or_add_observable("DocumentChange", "docs/" + doc_id, "watch-doc", "unwatch-doc", doc_id)(
+            lambda x: x["Id"].casefold() == doc_id.casefold()
+        )
         return observable
 
     def for_documents_start_with(self, doc_id_prefix):
@@ -209,10 +201,7 @@ class DatabaseChanges:
             "watch-prefix",
             "unwatch-prefix",
             doc_id_prefix,
-        )(
-            lambda x: x["Id"] is not None
-            and x["Id"].casefold().startswith(doc_id_prefix.casefold())
-        )
+        )(lambda x: x["Id"] is not None and x["Id"].casefold().startswith(doc_id_prefix.casefold()))
         return observable
 
     def for_documents_in_collection(self, collection_name):
@@ -257,23 +246,12 @@ class DatabaseChanges:
 
         def get_lambda():
             if time_series_name:
-                return (
-                    lambda x: x["DocumentId"].casefold() == doc_id.casefold()
-                    and x["Name"].casefold()
-                )
+                return lambda x: x["DocumentId"].casefold() == doc_id.casefold() and x["Name"].casefold()
             return lambda x: x["DocumentId"].casefold() == doc_id.casefold()
 
         name = f"document/{doc_id}/timeseries{f'/{time_series_name}' if time_series_name else ''}"
-        watch_command = (
-            "watch-document-timeseries"
-            if time_series_name
-            else "watch-all-document-timeseries"
-        )
-        unwatch_command = (
-            "unwatch-document-timeseries"
-            if time_series_name
-            else "unwatch-all-document-timeseries"
-        )
+        watch_command = "watch-document-timeseries" if time_series_name else "watch-all-document-timeseries"
+        unwatch_command = "unwatch-document-timeseries" if time_series_name else "unwatch-all-document-timeseries"
         value = doc_id if time_series_name is None else None
         values = [doc_id, time_series_name] if time_series_name is not None else None
         observable = self.get_or_add_observable(
@@ -337,15 +315,10 @@ class DatabaseChanges:
             "unwatch-document-counter",
             value=None,
             values=[doc_id, counter_name],
-        )(
-            lambda x: x["DocumentId"].casefold() == doc_id.casefold()
-            and x["Name"].casefold()
-        )
+        )(lambda x: x["DocumentId"].casefold() == doc_id.casefold() and x["Name"].casefold())
         return observable
 
-    def get_or_add_observable(
-        self, group, name, watch_command, unwatch_command, value, values=None
-    ):
+    def get_or_add_observable(self, group, name, watch_command, unwatch_command, value, values=None):
         if group not in self._observables:
             self._observables[group] = {}
 
@@ -394,14 +367,9 @@ class DatabaseChanges:
                     future.result(timeout=15)
                 except TimeoutError:
                     future.cancel()
-                    raise TimeoutError(
-                        "Did not get a confirmation for command #"
-                        + str(current_command_id)
-                    )
+                    raise TimeoutError("Did not get a confirmation for command #" + str(current_command_id))
                 except Exception as e:
                     if getattr(sys, "gettrace", None):
-                        self._logger.info(
-                            "The coroutine raised an exception: {!r}".format(e)
-                        )
+                        self._logger.info("The coroutine raised an exception: {!r}".format(e))
         except websocket.WebSocketConnectionClosedException:
             pass

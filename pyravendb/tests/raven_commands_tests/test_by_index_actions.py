@@ -16,12 +16,7 @@ from pyravendb.raven_operations.operations import (
 class TestByIndexActions(TestBase):
     def setUp(self):
         super(TestByIndexActions, self).setUp()
-        index_map = (
-            "from doc in docs.Testings "
-            "select new{"
-            "Name = doc.Name,"
-            "DocNumber = doc.DocNumber} "
-        )
+        index_map = "from doc in docs.Testings " "select new{" "Name = doc.Name," "DocNumber = doc.DocNumber} "
 
         self.index_sort = IndexDefinition(
             name="Testing_Sort",
@@ -48,9 +43,7 @@ class TestByIndexActions(TestBase):
 
     def test_update_by_index_success(self):
         query_command = QueryCommand(
-            index_query=IndexQuery(
-                query="From INDEX 'Testing_Sort'", wait_for_non_stale_results=True
-            ),
+            index_query=IndexQuery(query="From INDEX 'Testing_Sort'", wait_for_non_stale_results=True),
             conventions=DocumentConventions(),
         )
         self.requests_executor.execute(query_command)
@@ -60,9 +53,7 @@ class TestByIndexActions(TestBase):
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
         result = self.requests_executor.execute(patch_command)
-        result = self.store.operations.wait_for_operation_complete(
-            result["operation_id"]
-        )
+        result = self.store.operations.wait_for_operation_complete(result["operation_id"])
         self.assertIsNotNone(result)
         self.assertTrue(result["Result"]["Total"] >= 50)
 
@@ -76,9 +67,9 @@ class TestByIndexActions(TestBase):
             self.store.operations.wait_for_operation_complete(response["operation_id"])
 
     def test_delete_by_index_fail(self):
-        delete_by_index_command = DeleteByQueryOperation(
-            "From Index 'region_2' WHERE Name = 'Western'"
-        ).get_command(self.store, self.store.conventions)
+        delete_by_index_command = DeleteByQueryOperation("From Index 'region_2' WHERE Name = 'Western'").get_command(
+            self.store, self.store.conventions
+        )
         with self.assertRaises(exceptions.InvalidOperationException):
             response = self.requests_executor.execute(delete_by_index_command)
             self.assertIsNotNone(response)
@@ -98,9 +89,7 @@ class TestByIndexActions(TestBase):
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
         response = self.requests_executor.execute(delete_by_index_command)
-        result = self.store.operations.wait_for_operation_complete(
-            response["operation_id"]
-        )
+        result = self.store.operations.wait_for_operation_complete(response["operation_id"])
         assert result["Status"] == "Completed"
 
 

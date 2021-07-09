@@ -9,9 +9,7 @@ class TestPut(TestBase):
 
     def test_put_success(self):
         request_executor = self.store.get_request_executor()
-        put_command = PutDocumentCommand(
-            key="testing/1", document={"Name": "test", "@metadata": {}}
-        )
+        put_command = PutDocumentCommand(key="testing/1", document={"Name": "test", "@metadata": {}})
         request_executor.execute(put_command)
         response = request_executor.execute(GetDocumentCommand("testing/1"))
         self.assertEqual(response["Results"][0]["@metadata"]["@id"], "testing/1")

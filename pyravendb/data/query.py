@@ -88,16 +88,12 @@ class IndexQuery(IndexQueryBase):
         includes=None,
         show_timings=False,
         skip_duplicate_checking=False,
-        **kwargs
+        **kwargs,
     ):
-        super(IndexQuery, self).__init__(
-            query=query, query_parameters=query_parameters, start=start, **kwargs
-        )
-        self.allow_multiple_index_entries_for_same_document_to_result_transformer = (
-            kwargs.get(
-                "allow_multiple_index_entries_for_same_document_to_result_transformer",
-                False,
-            )
+        super(IndexQuery, self).__init__(query=query, query_parameters=query_parameters, start=start, **kwargs)
+        self.allow_multiple_index_entries_for_same_document_to_result_transformer = kwargs.get(
+            "allow_multiple_index_entries_for_same_document_to_result_transformer",
+            False,
         )
         self.includes = includes if includes is not None else []
         self.show_timings = show_timings
@@ -115,15 +111,11 @@ class IndexQuery(IndexQueryBase):
         if self.start > 0:
             data["Start"] = self.start
         if self.wait_for_non_stale_results_timeout is not None:
-            data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(
-                self.wait_for_non_stale_results_timeout
-            )
+            data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout)
         if self.allow_multiple_index_entries_for_same_document_to_result_transformer:
             data[
                 "AllowMultipleIndexEntriesForSameDocumentToResultTransformer"
-            ] = (
-                self.allow_multiple_index_entries_for_same_document_to_result_transformer
-            )
+            ] = self.allow_multiple_index_entries_for_same_document_to_result_transformer
         if self.show_timings:
             data["ShowTimings"] = self.show_timings
         if self.skip_duplicate_checking:
@@ -131,9 +123,7 @@ class IndexQuery(IndexQueryBase):
         if len(self.includes) > 0:
             data["Includes"] = self.includes
 
-        data["QueryParameters"] = (
-            self.query_parameters if self.query_parameters is not None else None
-        )
+        data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
         return data
 
     def get_query_hash(self):
@@ -153,15 +143,7 @@ class IndexQuery(IndexQueryBase):
 
 
 class FacetQuery(IndexQueryBase):
-    def __init__(
-        self,
-        query="",
-        facet_setup_doc=None,
-        facets=None,
-        start=0,
-        page_size=None,
-        **kwargs
-    ):
+    def __init__(self, query="", facet_setup_doc=None, facets=None, start=0, page_size=None, **kwargs):
         """
         @param facets: list of facets (mutually exclusive with FacetSetupDoc).
         :type list of Facet
@@ -195,9 +177,7 @@ class FacetQuery(IndexQueryBase):
             data["Start"] = self.start
         data["Facets"] = [facet.to_json() for facet in self.facets]
         data["FacetSetupDoc"] = self.facet_setup_doc
-        data["QueryParameters"] = (
-            self.query_parameters if self.query_parameters is not None else None
-        )
+        data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
         data["WaitForNonStaleResults"] = self.wait_for_non_stale_results
         data["WaitForNonStaleResultsTimeout"] = (
             Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout)

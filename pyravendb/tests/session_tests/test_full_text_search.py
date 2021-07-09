@@ -10,9 +10,7 @@ class LastFm(object):
         self.artist = artist
         self.track_id = track_id
         self.title = title
-        self.datetime_time = (
-            datetime_time if datetime_time is not None else datetime.now()
-        )
+        self.datetime_time = datetime_time if datetime_time is not None else datetime.now()
         self.tags = tags if tags is not None else []
 
 
@@ -49,15 +47,11 @@ class FullTextSearchTest(TestBase):
         LastFmAnalyzed().execute(self.store)
         with self.store.open_session() as session:
             session.store(
-                LastFm(
-                    "Tania Maria", "TRALPJJ128F9311763", "Come With Me", datetime.now()
-                ),
+                LastFm("Tania Maria", "TRALPJJ128F9311763", "Come With Me", datetime.now()),
                 "LastFms/1",
             )
             session.store(
-                LastFm(
-                    "Meghan Trainor", "TRBCNGI128F42597B4", "Me Too", datetime.now()
-                ),
+                LastFm("Meghan Trainor", "TRBCNGI128F42597B4", "Me Too", datetime.now()),
                 "LastFms/2",
             )
             session.store(
@@ -113,9 +107,7 @@ class FullTextSearchTest(TestBase):
                 .boost(2)
             )
             self.assertTrue(
-                "Me" in str(query[0].title)
-                and "Me" in str(query[1].title)
-                and str(query[2].title) == "Spanish Grease"
+                "Me" in str(query[0].title) and "Me" in str(query[1].title) and str(query[2].title) == "Spanish Grease"
             )
 
             query = list(
@@ -130,9 +122,7 @@ class FullTextSearchTest(TestBase):
                 .boost(10)
             )
             self.assertTrue(
-                "Me" in str(query[1].title)
-                and "Me" in str(query[2].title)
-                and str(query[0].title) == "Spanish Grease"
+                "Me" in str(query[1].title) and "Me" in str(query[2].title) and str(query[0].title) == "Spanish Grease"
             )
 
     def test_full_text_search_with_and_operator(self):

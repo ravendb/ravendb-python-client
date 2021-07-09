@@ -21,13 +21,9 @@ class GetTimeSeriesOperation(Operation):
         """
         super().__init__()
         if not document_id:
-            raise ValueError(
-                "Invalid document Id, please provide a valid value and try again"
-            )
+            raise ValueError("Invalid document Id, please provide a valid value and try again")
         if not ranges:
-            raise ValueError(
-                "Ranges property Cannot be empty or None, please put a valid value and try again"
-            )
+            raise ValueError("Ranges property Cannot be empty or None, please put a valid value and try again")
 
         if isinstance(ranges, TimeSeriesRange):
             ranges = [ranges]
@@ -38,9 +34,7 @@ class GetTimeSeriesOperation(Operation):
         self._page_size = page_size
 
     def get_command(self, store, conventions, cache=None):
-        return self._GetTimeSeriesCommand(
-            self._document_id, self._ranges, self._start, self._page_size
-        )
+        return self._GetTimeSeriesCommand(self._document_id, self._ranges, self._start, self._page_size)
 
     class _GetTimeSeriesCommand(RavenCommand):
         def __init__(
@@ -53,14 +47,10 @@ class GetTimeSeriesOperation(Operation):
             super().__init__(method="GET", is_read_request=True)
 
             if not document_id:
-                raise ValueError(
-                    "Invalid document Id, please provide a valid value and try again"
-                )
+                raise ValueError("Invalid document Id, please provide a valid value and try again")
 
             if not ranges:
-                raise ValueError(
-                    "Ranges property Cannot be empty or None, please put a valid value and try again"
-                )
+                raise ValueError("Ranges property Cannot be empty or None, please put a valid value and try again")
 
             self._document_id = document_id
             self._ranges = ranges
@@ -88,9 +78,7 @@ class GetTimeSeriesOperation(Operation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.ErrorResponseException(
-                        response["Message"], response["Type"]
-                    )
+                    raise exceptions.ErrorResponseException(response["Message"], response["Type"])
             except ValueError as e:
                 raise exceptions.ErrorResponseException(e)
 
@@ -125,19 +113,11 @@ class TimeSeriesOperation:
 
     def to_json(self):
         if self.appends:
-            self.appends = next(
-                Utils.sort_iterable(
-                    self.appends, key=lambda ao: ao.timestamp.timestamp()
-                )
-            )
+            self.appends = next(Utils.sort_iterable(self.appends, key=lambda ao: ao.timestamp.timestamp()))
         return {
             "Name": self.name,
-            "Appends": [a.to_json() for a in self.appends]
-            if self.appends
-            else self.appends,
-            "Deletes": [r.to_json() for r in self.removals]
-            if self.removals
-            else self.removals,
+            "Appends": [a.to_json() for a in self.appends] if self.appends else self.appends,
+            "Deletes": [r.to_json() for r in self.removals] if self.removals else self.removals,
         }
 
     class AppendOperation:
@@ -214,6 +194,4 @@ class TimeSeriesBatchOperation(Operation):
         def set_response(self, response):
             if response is not None and response.status_code != 204:
                 response = response.json()
-                raise exceptions.ErrorResponseException(
-                    response["Message"], response["Type"]
-                )
+                raise exceptions.ErrorResponseException(response["Message"], response["Type"])

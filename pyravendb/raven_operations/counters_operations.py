@@ -22,13 +22,9 @@ class CounterOperation:
         if not counter_name:
             raise ValueError("Missing counter_name property")
         if not counter_operation_type:
-            raise ValueError(
-                f"Missing counter_operation_type property in counter {counter_name}"
-            )
+            raise ValueError(f"Missing counter_operation_type property in counter {counter_name}")
         if delta is None and counter_operation_type == CounterOperationType.increment:
-            raise ValueError(
-                f"Missing delta property in counter {counter_name} of type {counter_operation_type}"
-            )
+            raise ValueError(f"Missing delta property in counter {counter_name} of type {counter_operation_type}")
         self.counter_name = counter_name
         self.delta = delta
         self.counter_operation_type = counter_operation_type
@@ -53,11 +49,7 @@ class DocumentCountersOperation:
             raise ValueError("Missing document_id property on Counters")
 
         self._document_id = document_id
-        self._operations = (
-            [operations]
-            if operations and not isinstance(operations, list)
-            else operations
-        )
+        self._operations = [operations] if operations and not isinstance(operations, list) else operations
 
     def add_operations(self, operation: CounterOperation):
         if self._operations is None:
@@ -106,9 +98,7 @@ class GetCountersOperation(Operation):
     ):
         super().__init__()
         if not document_id:
-            raise ValueError(
-                "Invalid document Id, please provide a valid value and try again"
-            )
+            raise ValueError("Invalid document Id, please provide a valid value and try again")
         self._document_id = document_id
         if counters is None:
             counters = []
@@ -118,9 +108,7 @@ class GetCountersOperation(Operation):
         self._return_full_result = return_full_result
 
     def get_command(self, store, conventions, cache=None):
-        return self._GetCounterValuesCommand(
-            self._document_id, self._counters, self._return_full_result
-        )
+        return self._GetCounterValuesCommand(self._document_id, self._counters, self._return_full_result)
 
     class _GetCounterValuesCommand(RavenCommand):
         def __init__(
@@ -131,9 +119,7 @@ class GetCountersOperation(Operation):
         ):
             super().__init__(method="GET", is_read_request=True)
             if not document_id:
-                raise ValueError(
-                    "Invalid document Id, please provide a valid value and try again"
-                )
+                raise ValueError("Invalid document Id, please provide a valid value and try again")
 
             self._document_id = document_id
             self._counters = counters
@@ -145,9 +131,7 @@ class GetCountersOperation(Operation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.ErrorResponseException(
-                        response["Message"], response["Type"]
-                    )
+                    raise exceptions.ErrorResponseException(response["Message"], response["Type"])
             except ValueError as e:
                 raise exceptions.ErrorResponseException(e)
 
@@ -165,27 +149,17 @@ class GetCountersOperation(Operation):
                 _set = set([counter for counter in self._counters if counter])
                 counters_count = len(_set)
                 if 1024 > counters_count > 1:
-                    self.url += "".join(
-                        f"&counter={Utils.quote_key(counter)}"
-                        for counter in _set
-                        if counter
-                    )
+                    self.url += "".join(f"&counter={Utils.quote_key(counter)}" for counter in _set if counter)
                 elif counters_count >= 1024:
-                    document_operation = DocumentCountersOperation(
-                        document_id=self._document_id
-                    )
+                    document_operation = DocumentCountersOperation(document_id=self._document_id)
                     for counter in _set:
                         document_operation.add_operations(
-                            operation=CounterOperation(
-                                counter, counter_operation_type=CounterOperationType.get
-                            )
+                            operation=CounterOperation(counter, counter_operation_type=CounterOperationType.get)
                         )
                     batch = CounterBatch(documents=[document_operation])
                     self.method = "POST"
                     self.use_stream = True
-                    stream.write(
-                        json.dumps(batch.to_json(), default=Utils.json_default).encode()
-                    )
+                    stream.write(json.dumps(batch.to_json(), default=Utils.json_default).encode())
                     stream.seek(0, 0)
                     self.data = stream
                 else:
@@ -213,9 +187,7 @@ class CounterBatchOperation(Operation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.ErrorResponseException(
-                        response["Message"], response["Type"]
-                    )
+                    raise exceptions.ErrorResponseException(response["Message"], response["Type"])
             except ValueError as e:
                 raise exceptions.ErrorResponseException(e)
 

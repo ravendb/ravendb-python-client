@@ -69,11 +69,7 @@ class SubscriptionWorkerOptions:
         if not subscription_name:
             raise AttributeError("Value cannot be null or empty.", "subscription_name")
         self.subscription_name = subscription_name
-        self.strategy = (
-            strategy
-            if strategy is not None
-            else SubscriptionOpeningStrategy.open_if_free
-        )
+        self.strategy = strategy if strategy is not None else SubscriptionOpeningStrategy.open_if_free
         self.ignore_subscriber_errors = ignore_subscriber_errors
         if time_to_wait_before_connection_retry is None:
             time_to_wait_before_connection_retry = timedelta(milliseconds=5000)
@@ -87,9 +83,7 @@ class SubscriptionWorkerOptions:
     def to_json(self):
         return {
             "SubscriptionName": self.subscription_name,
-            "TimeToWaitBeforeConnectionRetry": str(
-                self.time_to_wait_before_connection_retry
-            ),
+            "TimeToWaitBeforeConnectionRetry": str(self.time_to_wait_before_connection_retry),
             "Strategy": str(self.strategy),
             "MaxDocsPerBatch": self.max_docs_per_batch,
             "IgnoreSubscriberErrors": self.ignore_subscriber_errors,
@@ -107,30 +101,22 @@ class SubscriptionState:
         last_time_server_made_progress_with_documents=None,
         last_client_connection_time=None,
         disabled=False,
-        **kwargs
+        **kwargs,
     ):
         self.query = query
-        self.change_vector_for_next_batch_starting_point = (
-            change_vector_for_next_batch_starting_point
-        )
+        self.change_vector_for_next_batch_starting_point = change_vector_for_next_batch_starting_point
         self.subscription_id = subscription_id
         self.subscription_name = subscription_name
         if isinstance(last_time_server_made_progress_with_documents, str):
             last_time_server_made_progress_with_documents = Utils.string_to_datetime(
                 last_time_server_made_progress_with_documents
             )
-        self.last_time_server_made_progress_with_documents = (
-            last_time_server_made_progress_with_documents
-        )
+        self.last_time_server_made_progress_with_documents = last_time_server_made_progress_with_documents
         if isinstance(last_client_connection_time, str):
-            last_client_connection_time = Utils.string_to_datetime(
-                last_client_connection_time
-            )
+            last_client_connection_time = Utils.string_to_datetime(last_client_connection_time)
         self.last_client_connection_time = last_client_connection_time
         self.closed = disabled
-        self.latest_change_vector_client_acknowledged = kwargs.get(
-            "LatestChangeVectorClientACKnowledged", None
-        )
+        self.latest_change_vector_client_acknowledged = kwargs.get("LatestChangeVectorClientACKnowledged", None)
 
     def to_json(self):
         return {
@@ -141,9 +127,7 @@ class SubscriptionState:
             "LastTimeServerMadeProgressWithDocuments": Utils.datetime_to_string(
                 self.last_time_server_made_progress_with_documents
             ),
-            "LastClientConnectionTime": Utils.datetime_to_string(
-                self.last_client_connection_time
-            ),
+            "LastClientConnectionTime": Utils.datetime_to_string(self.last_client_connection_time),
             "Disabled": self.closed,
         }
 
@@ -187,31 +171,18 @@ class IncrementalJsonParser:
                             else:
                                 break
                         except ValueError:
-                            data = (
-                                socket.recv().encode("utf-8")
-                                if IS_WEBSOCKET
-                                else socket.recv(buf_size)
-                            )
+                            data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
-                                raise ijson.backend.common.IncompleteJSONError(
-                                    "Incomplete string lexeme"
-                                )
+                                raise ijson.backend.common.IncompleteJSONError("Incomplete string lexeme")
 
                             buf += data[1:-1] if IS_WEBSOCKET else data
 
                     yield discarded + pos, buf[pos : end + 1].decode("utf-8")
                     pos = end + 1
                 else:
-                    while (
-                        match.end() == len(buf)
-                        and buf[pos] not in BYTE_ARRAY_CHARACTERS
-                    ):
+                    while match.end() == len(buf) and buf[pos] not in BYTE_ARRAY_CHARACTERS:
                         try:
-                            data = (
-                                socket.recv().encode("utf-8")
-                                if IS_WEBSOCKET
-                                else socket.recv(buf_size)
-                            )
+                            data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
                                 break
                             buf += data[1:-1].encode("utf-8") if IS_WEBSOCKET else data
@@ -223,11 +194,7 @@ class IncrementalJsonParser:
                     yield match.start(), lexeme.decode("utf-8")
                     pos = match.end()
             else:
-                data = (
-                    socket.recv().encode("utf-8")
-                    if IS_WEBSOCKET
-                    else socket.recv(buf_size)
-                )
+                data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                 if not data:
                     break
                 discarded += len(buf)
@@ -267,9 +234,7 @@ class IncrementalJsonParser:
             if token == "map_key":
                 obj[val] = self.get_value(gen)
 
-        raise ParseError(
-            "End object expected, but the generator ended before we got it"
-        )
+        raise ParseError("End object expected, but the generator ended before we got it")
 
     def next_object(self):
 
@@ -310,12 +275,7 @@ class IncrementalJsonParser:
                 yield ("string", IncrementalJsonParser.unescape(symbol[1:-1]))
             else:
                 # if we got a partial token for false / null / true we need to read from the network again
-                while (
-                    symbol[0] in ("t", "n")
-                    and len(symbol) < 4
-                    or symbol[0] == "f"
-                    and len(symbol) < 5
-                ):
+                while symbol[0] in ("t", "n") and len(symbol) < 4 or symbol[0] == "f" and len(symbol) < 5:
                     _, nextpart = next(lexer)
                     if symbol == "null":
                         yield ("null", None)

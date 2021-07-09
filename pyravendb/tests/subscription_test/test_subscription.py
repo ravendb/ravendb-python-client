@@ -53,22 +53,16 @@ class TestSubscription(TestBase):
             session.store(User("Raven", "DB"))
             session.save_changes()
 
-        creation_options = SubscriptionCreationOptions(
-            "FROM Users where last_name='Shalom'"
-        )
+        creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
         self.store.subscriptions.create(creation_options)
 
         request_executor = self.store.get_request_executor()
         subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
         self.assertGreaterEqual(len(subscriptions), 1)
 
-        connection_options = SubscriptionWorkerOptions(
-            subscriptions[0].subscription_name
-        )
+        connection_options = SubscriptionWorkerOptions(subscriptions[0].subscription_name)
         self.assertEqual(len(self.results), 0)
-        with self.store.subscriptions.get_subscription_worker(
-            connection_options, object_type=User
-        ) as subscription:
+        with self.store.subscriptions.get_subscription_worker(connection_options, object_type=User) as subscription:
             subscription.run(self.process_documents)
             self.event.wait(timeout=60)
 
@@ -90,13 +84,9 @@ class TestSubscription(TestBase):
         subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
         self.assertGreaterEqual(len(subscriptions), 1)
 
-        connection_options = SubscriptionWorkerOptions(
-            subscriptions[0].subscription_name
-        )
+        connection_options = SubscriptionWorkerOptions(subscriptions[0].subscription_name)
         self.assertEqual(len(self.results), 0)
-        with self.store.subscriptions.get_subscription_worker(
-            connection_options
-        ) as subscription:
+        with self.store.subscriptions.get_subscription_worker(connection_options) as subscription:
             subscription.confirm_callback = self.acknowledge
             subscription.run(self.process_documents)
             self.ack.wait(timeout=5)
@@ -116,18 +106,12 @@ class TestSubscription(TestBase):
             session.store(User("Raven", "DB"))
             session.save_changes()
         try:
-            creation_options = SubscriptionCreationOptions(
-                "FROM Users where last_name='Shalom'"
-            )
+            creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
             name = self.store.subscriptions.create(creation_options)
 
-            worker_options = SubscriptionWorkerOptions(
-                name, strategy=SubscriptionOpeningStrategy.wait_for_free
-            )
+            worker_options = SubscriptionWorkerOptions(name, strategy=SubscriptionOpeningStrategy.wait_for_free)
             self.assertEqual(len(self.results), 0)
-            subscription = self.store.subscriptions.get_subscription_worker(
-                worker_options, object_type=User
-            )
+            subscription = self.store.subscriptions.get_subscription_worker(worker_options, object_type=User)
             subscription.run(self.process_documents)
             self.event.wait()
 
@@ -170,25 +154,17 @@ class TestSubscription(TestBase):
 
         users = []
         subscription_creation_options = SubscriptionCreationOptions("From Users")
-        subscription_name = self.store.subscriptions.create(
-            subscription_creation_options
-        )
+        subscription_name = self.store.subscriptions.create(subscription_creation_options)
 
         worker_options = SubscriptionWorkerOptions(
             subscription_name,
             strategy=SubscriptionOpeningStrategy.take_over,
             close_when_no_docs_left=True,
         )
-        with self.store.subscriptions.get_subscription_worker(
-            worker_options
-        ) as subscription_worker:
+        with self.store.subscriptions.get_subscription_worker(worker_options) as subscription_worker:
             try:
                 subscription_worker.run(
-                    partial(
-                        lambda batch, x=users: x.extend(
-                            [item.raw_result for item in batch.items]
-                        )
-                    )
+                    partial(lambda batch, x=users: x.extend([item.raw_result for item in batch.items]))
                 ).join()
             except SubscriptionClosedException:
                 # That's expected

@@ -20,25 +20,17 @@ class TestTimeSeriesOperations(TestBase):
         # Add time_series to user/1-A document
         time_series_operation = TimeSeriesOperation(name="Heartrate")
         time_series_operation.append(datetime.now(), 73, tag="heart/rates")
-        time_series_operation.append(
-            datetime.now() + timedelta(minutes=5), 78, tag="heart/rates"
-        )
-        time_series_operation.append(
-            datetime(2019, 4, 23) + timedelta(minutes=5), 789, tag="heart/rates"
-        )
+        time_series_operation.append(datetime.now() + timedelta(minutes=5), 78, tag="heart/rates")
+        time_series_operation.append(datetime(2019, 4, 23) + timedelta(minutes=5), 789, tag="heart/rates")
 
-        time_series_batch_operation = TimeSeriesBatchOperation(
-            document_id="users/1-A", operation=time_series_operation
-        )
+        time_series_batch_operation = TimeSeriesBatchOperation(document_id="users/1-A", operation=time_series_operation)
         self.store.operations.send(time_series_batch_operation)
 
     @unittest.skip("RDBC-463 Issue waiting for fix")
     def test_append_new_timeseries(self):
         self.add_timeseries()
         # Fetch all time_series from the document
-        time_series = self.store.operations.send(
-            GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range)
-        )
+        time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
         entries = time_series["Entries"]
         self.assertEqual(len(entries), 3)
 
@@ -55,9 +47,7 @@ class TestTimeSeriesOperations(TestBase):
             document_id="users/1-A", operation=time_series_operation_remove
         )
         self.store.operations.send(time_series_batch_operation)
-        time_series = self.store.operations.send(
-            GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range)
-        )
+        time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
         entries = time_series["Entries"]
         self.assertEqual(len(entries), 1)
 
@@ -71,9 +61,7 @@ class TestTimeSeriesOperations(TestBase):
             document_id="users/1-A", operation=time_series_operation_remove
         )
         self.store.operations.send(time_series_batch_operation)
-        time_series = self.store.operations.send(
-            GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range)
-        )
+        time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
         self.assertIsNone(time_series)
 
     def test_get_timeseries_with_range(self):
@@ -83,9 +71,7 @@ class TestTimeSeriesOperations(TestBase):
             from_date=datetime.now() - timedelta(days=2),
             to_date=datetime.now() + timedelta(days=2),
         )
-        time_series = self.store.operations.send(
-            GetTimeSeriesOperation("users/1-A", ranges=time_series_range)
-        )
+        time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=time_series_range))
         entries = time_series["Entries"]
         self.assertEqual(len(entries), 2)
 
@@ -93,9 +79,7 @@ class TestTimeSeriesOperations(TestBase):
     def test_get_timeseries_without_range(self):
         self.add_timeseries()
         time_series_range = TimeSeriesRange("Heartrate")
-        time_series = self.store.operations.send(
-            GetTimeSeriesOperation("users/1-A", ranges=time_series_range)
-        )
+        time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=time_series_range))
         entries = time_series["Entries"]
         self.assertEqual(len(entries), 3)
 

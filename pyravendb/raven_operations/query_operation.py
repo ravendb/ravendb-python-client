@@ -22,10 +22,7 @@ class QueryOperation:
         self._metadata_only = metadata_only
         self._index_entries_only = index_entries_only
 
-        if (
-            self._session.conventions.raise_if_query_page_size_is_not_set
-            and not self._index_query.page_size_set
-        ):
+        if self._session.conventions.raise_if_query_page_size_is_not_set and not self._index_query.page_size_set:
             raise InvalidOperationException(
                 """Attempt to query without explicitly specifying a page size.
                                             You can use .take() methods to set maximum number of results.
@@ -39,11 +36,7 @@ class QueryOperation:
 
     def create_request(self):
         self._session.increment_requests_count()
-        logging.debug(
-            "Executing query '{0}' on index '{1}'".format(
-                self._index_query.query, self._index_name
-            )
-        )
+        logging.debug("Executing query '{0}' on index '{1}'".format(self._index_query.query, self._index_name))
 
         return QueryCommand(
             self._session.conventions,

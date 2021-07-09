@@ -40,13 +40,9 @@ class TestBase(unittest.TestCase):
 
     @staticmethod
     def wait_for_database_topology(store, database_name, replication_factor=1):
-        topology = store.maintenance.server.send(
-            GetDatabaseRecordOperation(database_name)
-        )
+        topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         while topology is not None and len(topology["Members"]) < replication_factor:
-            topology = store.maintenance.server.send(
-                GetDatabaseRecordOperation(database_name)
-            )
+            topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         return topology
 
     def setConvention(self, conventions):
@@ -56,39 +52,27 @@ class TestBase(unittest.TestCase):
         conventions = getattr(self, "conventions", None)
         self.default_urls = ["http://127.0.0.1:8080"]
         self.default_database = "NorthWindTest"
-        self.store = DocumentStore(
-            urls=self.default_urls, database=self.default_database
-        )
+        self.store = DocumentStore(urls=self.default_urls, database=self.default_database)
         if conventions:
             self.store.conventions = conventions
         self.store.initialize()
         created = False
         while not created:
             try:
-                self.store.maintenance.server.send(
-                    CreateDatabaseOperation(database_name=self.default_database)
-                )
+                self.store.maintenance.server.send(CreateDatabaseOperation(database_name=self.default_database))
                 created = True
             except Exception as e:
                 if "already exists!" in str(e):
                     self.store.maintenance.server.send(
-                        DeleteDatabaseOperation(
-                            database_name=self.default_database, hard_delete=True
-                        )
+                        DeleteDatabaseOperation(database_name=self.default_database, hard_delete=True)
                     )
                     continue
                 raise
         TestBase.wait_for_database_topology(self.store, self.default_database)
 
-        self.index_map = (
-            'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
-        )
-        self.store.maintenance.send(
-            PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map))
-        )
+        self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
+        self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
 
     def tearDown(self):
-        self.store.maintenance.server.send(
-            DeleteDatabaseOperation(database_name="NorthWindTest", hard_delete=True)
-        )
+        self.store.maintenance.server.send(DeleteDatabaseOperation(database_name="NorthWindTest", hard_delete=True))
         self.store.close()

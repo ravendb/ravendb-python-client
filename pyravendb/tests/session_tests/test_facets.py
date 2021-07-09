@@ -13,14 +13,8 @@ class Product(object):
 
 class ProductsAndPricePerUnit:
     def __init__(self):
-        self.maps = (
-            "from product in docs.Products "
-            "select new {"
-            "price_per_unit = product.price_per_unit}"
-        )
-        self.index_definition = IndexDefinition(
-            name=ProductsAndPricePerUnit.__name__, maps=self.maps
-        )
+        self.maps = "from product in docs.Products " "select new {" "price_per_unit = product.price_per_unit}"
+        self.index_definition = IndexDefinition(name=ProductsAndPricePerUnit.__name__, maps=self.maps)
 
     def execute(self, store):
         store.maintenance.send(PutIndexesOperation(self.index_definition))
@@ -51,9 +45,7 @@ class TestFacets(TestBase):
     def test_facets_with_documents(self):
         with self.store.open_session() as session:
             query_results = (
-                session.query(
-                    object_type=Product, index_name=ProductsAndPricePerUnit.__name__
-                )
+                session.query(object_type=Product, index_name=ProductsAndPricePerUnit.__name__)
                 .where_greater_than("price_per_unit", 99)
                 .to_facets(self.facets)
             )

@@ -21,9 +21,7 @@ class MaintenanceOperation(object):
 
 
 class PullReplicationDefinition:
-    def __init__(
-        self, name, certificates, mentor_node=None, delayed_replication_for=None
-    ):
+    def __init__(self, name, certificates, mentor_node=None, delayed_replication_for=None):
         self.DelayedReplicationFor = delayed_replication_for
         self.Name = name
         self.MentorNode = mentor_node
@@ -112,9 +110,7 @@ class UpdatePullReplicationAsSinkOperation(MaintenanceOperation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.InvalidOperationException(
-                        response["Message"], response["Type"], response["Error"]
-                    )
+                    raise exceptions.InvalidOperationException(response["Message"], response["Type"], response["Error"])
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
@@ -137,9 +133,9 @@ class PutPullReplicationAsHubOperation(MaintenanceOperation):
             if definition is None:
                 raise ValueError("definition cannot be None")
 
-            super(
-                PutPullReplicationAsHubOperation._PutPullReplicationAsHubCommand, self
-            ).__init__(method="PUT", is_raft_request=True)
+            super(PutPullReplicationAsHubOperation._PutPullReplicationAsHubCommand, self).__init__(
+                method="PUT", is_raft_request=True
+            )
             self._definition = definition
 
         def create_request(self, server_node):
@@ -152,9 +148,7 @@ class PutPullReplicationAsHubOperation(MaintenanceOperation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.InvalidOperationException(
-                        response["Message"], response["Type"], response["Error"]
-                    )
+                    raise exceptions.InvalidOperationException(response["Message"], response["Type"], response["Error"])
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
@@ -193,9 +187,7 @@ class UpdateExternalReplicationOperation(MaintenanceOperation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.InvalidOperationException(
-                        response["Message"], response["Type"], response["Error"]
-                    )
+                    raise exceptions.InvalidOperationException(response["Message"], response["Type"], response["Error"])
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
@@ -218,24 +210,20 @@ class PutConnectionStringOperation(MaintenanceOperation):
             if connection_string_def is None:
                 raise ValueError("connection_string_def cannot be None")
 
-            super(
-                PutConnectionStringOperation._PutConnectionStringCommand, self
-            ).__init__(method="PUT", is_raft_request=True)
+            super(PutConnectionStringOperation._PutConnectionStringCommand, self).__init__(
+                method="PUT", is_raft_request=True
+            )
             self._connection_string_def = connection_string_def
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/admin/connection-strings".format(
-                server_node.url, server_node.database
-            )
+            self.url = "{0}/databases/{1}/admin/connection-strings".format(server_node.url, server_node.database)
             self.data = self._connection_string_def
 
         def set_response(self, response):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.InvalidOperationException(
-                        response["Message"], response["Type"], response["Error"]
-                    )
+                    raise exceptions.InvalidOperationException(response["Message"], response["Type"], response["Error"])
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
@@ -253,9 +241,7 @@ class DeleteIndexOperation(MaintenanceOperation):
         def __init__(self, index_name):
             if not index_name:
                 raise ValueError("Invalid index_name")
-            super(DeleteIndexOperation._DeleteIndexCommand, self).__init__(
-                method="DELETE"
-            )
+            super(DeleteIndexOperation._DeleteIndexCommand, self).__init__(method="DELETE")
             self._index_name = index_name
 
         def create_request(self, server_node):
@@ -285,9 +271,7 @@ class GetIndexOperation(MaintenanceOperation):
             """
             @param str index_name: Name of the index you like to get or delete
             """
-            super(GetIndexOperation._GetIndexCommand, self).__init__(
-                method="GET", is_read_request=True
-            )
+            super(GetIndexOperation._GetIndexCommand, self).__init__(method="GET", is_read_request=True)
             if index_name is None:
                 raise AttributeError("index_name")
             self._index_name = index_name
@@ -326,9 +310,7 @@ class GetIndexNamesOperation(MaintenanceOperation):
 
     class _GetIndexNamesCommand(RavenCommand):
         def __init__(self, start, page_size):
-            super(GetIndexNamesOperation._GetIndexNamesCommand, self).__init__(
-                method="GET", is_read_request=True
-            )
+            super(GetIndexNamesOperation._GetIndexNamesCommand, self).__init__(method="GET", is_read_request=True)
             self._start = start
             self._page_size = page_size
 
@@ -368,26 +350,20 @@ class PutIndexesOperation(MaintenanceOperation):
             :type args of IndexDefinition
             :rtype dict (etag, transformer)
             """
-            super(PutIndexesOperation._PutIndexesCommand, self).__init__(
-                method="PUT", is_raft_request=True
-            )
+            super(PutIndexesOperation._PutIndexesCommand, self).__init__(method="PUT", is_raft_request=True)
             if index_to_add is None:
                 raise ValueError("None indexes_to_add is not valid")
 
             self.indexes_to_add = []
             for index_definition in index_to_add:
                 if not isinstance(index_definition, IndexDefinition):
-                    raise ValueError(
-                        "index_definition in indexes_to_add must be IndexDefinition type"
-                    )
+                    raise ValueError("index_definition in indexes_to_add must be IndexDefinition type")
                 if index_definition.name is None:
                     raise ValueError("None Index name is not valid")
                 self.indexes_to_add.append(index_definition.to_json())
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/admin/indexes".format(
-                server_node.url, server_node.database
-            )
+            self.url = "{0}/databases/{1}/admin/indexes".format(server_node.url, server_node.database)
             self.data = {"Indexes": self.indexes_to_add}
 
         def set_response(self, response):
@@ -412,9 +388,7 @@ class StopIndexingOperation(MaintenanceOperation):
             super().__init__(method="POST")
 
         def create_request(self, server_node):
-            self.url = (
-                f"{server_node.url}/databases/{server_node.database}/admin/indexes/stop"
-            )
+            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/stop"
 
         def set_response(self, response):
             pass

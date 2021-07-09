@@ -20,12 +20,8 @@ class HiLoReturnCommand(RavenCommand):
         self.end = end
 
     def create_request(self, server_node):
-        path = "hilo/return?tag={0}&end={1}&last={2}".format(
-            self.tag, self.end, self.last
-        )
-        self.url = "{0}/databases/{1}/{2}".format(
-            server_node.url, server_node.database, path
-        )
+        path = "hilo/return?tag={0}&end={1}&last={2}".format(self.tag, self.end, self.last)
+        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
 
     def set_response(self, response):
         pass
@@ -56,9 +52,7 @@ class NextHiLoCommand(RavenCommand):
             self.identity_parts_separator,
             self.last_range_max,
         )
-        self.url = "{0}/databases/{1}/{2}".format(
-            server_node.url, server_node.database, path
-        )
+        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
 
     def set_response(self, response):
         if response is None:
@@ -112,9 +106,7 @@ class MultiTypeHiLoKeyGenerator(object):
         self.key_generators_by_tag = {}
 
     def generate_document_key(self, entity):
-        tag = self._conventions.default_transform_type_tag_name(
-            entity.__class__.__name__
-        )
+        tag = self._conventions.default_transform_type_tag_name(entity.__class__.__name__)
         if tag is None:
             return None
         else:
@@ -190,7 +182,5 @@ class HiLoKeyGenerator(object):
         self._range = RangeValue(result["low"], result["high"])
 
     def return_unused_range(self):
-        return_command = HiLoReturnCommand(
-            self._tag, self._range.current, self._range.max_id
-        )
+        return_command = HiLoReturnCommand(self._tag, self._range.current, self._range.max_id)
         self._store.get_request_executor().execute(return_command)

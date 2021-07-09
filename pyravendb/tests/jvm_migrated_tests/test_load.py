@@ -107,9 +107,7 @@ class TestLoad(TestBase):
             users_arr = ["users/1", None, "users/2", None]  # jvm - String[]
             users_by_id_1 = dict([(user.Id, user) for user in session.load(users_arr)])
 
-            users_set = list(
-                {"users/1", None, "users/2", None}
-            )  # jvm - HashSet(Arrays.asList(...))
+            users_set = list({"users/1", None, "users/2", None})  # jvm - HashSet(Arrays.asList(...))
             users_by_id_2 = dict([(user.Id, user) for user in session.load(users_set)])
 
             self.assertIsNotNone(users_by_id_1["users/1"])

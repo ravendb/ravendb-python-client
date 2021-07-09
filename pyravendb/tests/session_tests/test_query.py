@@ -36,13 +36,7 @@ class Order(object):
 class TestQuery(TestBase):
     def setUp(self):
         super(TestQuery, self).setUp()
-        index_map = (
-            "from doc in docs "
-            "select new {"
-            "name = doc.name,"
-            "key = doc.key,"
-            "doc_id = doc.key_doc.name}"
-        )
+        index_map = "from doc in docs " "select new {" "name = doc.name," "key = doc.key," "doc_id = doc.key_doc.name}"
         index_definition = IndexDefinition(
             name="Testing_Sort",
             maps=index_map,
@@ -64,9 +58,7 @@ class TestQuery(TestBase):
             fields={"order_and_id": IndexFieldOptions(storage=True)},
         )
 
-        self.store.maintenance.send(
-            PutIndexesOperation(index_definition, second_index_definition)
-        )
+        self.store.maintenance.send(PutIndexesOperation(index_definition, second_index_definition))
 
         with self.store.open_session() as session:
             session.store(Product("test101", 2, "a"), "products/101")
@@ -77,9 +69,7 @@ class TestQuery(TestBase):
             session.store(Product("new_testing", 90, "d"), "products/108")
             session.store(Order("testing_order", 92, "products/108"), "orders/105")
             session.store(
-                Company(
-                    "withNesting", Product(name="testing_order", key=4, order=None)
-                ),
+                Company("withNesting", Product(name="testing_order", key=4, order=None)),
                 "company/1",
             )
             session.save_changes()
@@ -90,11 +80,7 @@ class TestQuery(TestBase):
 
     def test_where_equal_dynamic_index(self):
         with self.store.open_session() as session:
-            query_results = list(
-                session.query(collection_name="Products").where_equals(
-                    "name", "test101"
-                )
-            )
+            query_results = list(session.query(collection_name="Products").where_equals("name", "test101"))
             self.assertEqual(query_results[0].name, "test101")
 
     def test_can_use_exists_field(self):
@@ -103,44 +89,27 @@ class TestQuery(TestBase):
 
     def test_can_query_on_date_time(self):
         with self.store.open_session() as session:
-            list(
-                session.query(collection_name="Products").where_equals(
-                    "at", datetime.now()
-                )
-            )
+            list(session.query(collection_name="Products").where_equals("at", datetime.now()))
 
     def test_can_query_on_date_time_range(self):
         with self.store.open_session() as session:
-            list(
-                session.query(collection_name="Products").where_between(
-                    "at", datetime.now(), datetime.now()
-                )
-            )
+            list(session.query(collection_name="Products").where_between("at", datetime.now(), datetime.now()))
 
     def test_where_not_equal(self):
         with self.store.open_session() as session:
-            query_results = list(
-                session.query(collection_name="Products").where_not_equals(
-                    "name", "test101"
-                )
-            )
+            query_results = list(session.query(collection_name="Products").where_not_equals("name", "test101"))
             for result in query_results:
                 assert result.name != "test101"
 
     def test_where_equal_double(self):
         with self.store.open_session() as session:
-            query_results = list(
-                session.query().where_equals("name", "test101").where_equals("key", 4)
-            )
+            query_results = list(session.query().where_equals("name", "test101").where_equals("key", 4))
             self.assertEqual(len(query_results), 2)
 
     def test_where_equal_double_and_operator(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(object_type=Product)
-                .where_equals("name", "test107")
-                .and_also()
-                .where_equals("key", 5)
+                session.query(object_type=Product).where_equals("name", "test107").and_also().where_equals("key", 5)
             )
             self.assertEqual(len(query_results), 1)
 
@@ -164,9 +133,7 @@ class TestQuery(TestBase):
 
     def test_query_return_empty_query_with_not_exist_index(self):
         with self.store.open_session() as session:
-            self.assertEqual(
-                len(list(session.query(index_name="s").where(Tag="Products"))), 0
-            )
+            self.assertEqual(len(list(session.query(index_name="s").where(Tag="Products"))), 0)
 
     def test_query_success_with_where(self):
         with self.store.open_session() as session:
@@ -177,9 +144,7 @@ class TestQuery(TestBase):
         with self.store.open_session() as session:
             keys = [4, 6, 90]
             query_results = list(
-                session.query(
-                    index_name="Testing_Sort", wait_for_non_stale_results=True
-                ).where(key=keys)
+                session.query(index_name="Testing_Sort", wait_for_non_stale_results=True).where(key=keys)
             )
             self.assertEqual(len(query_results), 3)
             for result in query_results:
@@ -188,9 +153,7 @@ class TestQuery(TestBase):
     def test_where_between(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    index_name="Testing_Sort", wait_for_non_stale_results=True
-                ).where_between("key", 2, 4)
+                session.query(index_name="Testing_Sort", wait_for_non_stale_results=True).where_between("key", 2, 4)
             )
             for result in query_results:
                 self.assertGreaterEqual(result.key, 2)
@@ -199,9 +162,7 @@ class TestQuery(TestBase):
     def test_query_with_order_by(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    wait_for_non_stale_results=True, collection_name="products"
-                )
+                session.query(wait_for_non_stale_results=True, collection_name="products")
                 .where_not_none("order")
                 .order_by("order")
             )
@@ -222,9 +183,7 @@ class TestQuery(TestBase):
         found_none = False
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    wait_for_non_stale_results=True, collection_name="products"
-                ).where_not_none("order")
+                session.query(wait_for_non_stale_results=True, collection_name="products").where_not_none("order")
             )
             for result in query_results:
                 if result.order is None:
@@ -234,67 +193,47 @@ class TestQuery(TestBase):
 
     def test_where_with_include(self):
         with self.store.open_session() as session:
-            list(
-                session.query(wait_for_non_stale_results=True)
-                .where(key=92)
-                .include("product_id")
-            )
+            list(session.query(wait_for_non_stale_results=True).where(key=92).include("product_id"))
             session.load("products/108")
         self.assertEqual(session.number_of_requests_in_session, 1)
 
     def test_query_with_nested_object(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    object_type=Company, nested_object_types={"product": Product}
-                ).where_equals("name", "withNesting")
+                session.query(object_type=Company, nested_object_types={"product": Product}).where_equals(
+                    "name", "withNesting"
+                )
             )
-            self.assertTrue(
-                isinstance(query_results[0], Company)
-                and isinstance(query_results[0].product, Product)
-            )
+            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
     def test_query_with_raw_query(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    object_type=Company, nested_object_types={"product": Product}
-                ).raw_query("FROM Companies WHERE name='withNesting'")
+                session.query(object_type=Company, nested_object_types={"product": Product}).raw_query(
+                    "FROM Companies WHERE name='withNesting'"
+                )
             )
-            self.assertTrue(
-                isinstance(query_results[0], Company)
-                and isinstance(query_results[0].product, Product)
-            )
+            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
     def test_raw_query_with_query_parameters(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    object_type=Company, nested_object_types={"product": Product}
-                ).raw_query(
+                session.query(object_type=Company, nested_object_types={"product": Product}).raw_query(
                     "FROM Companies WHERE name= $p0",
                     query_parameters={"p0": "withNesting"},
                 )
             )
-            self.assertTrue(
-                isinstance(query_results[0], Company)
-                and isinstance(query_results[0].product, Product)
-            )
+            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
     def test_fail_after_raw_query_add(self):
         try:
             with self.store.open_session() as session:
                 query_results = list(
-                    session.query(
-                        object_type=Company, nested_object_types={"product": Product}
-                    )
+                    session.query(object_type=Company, nested_object_types={"product": Product})
                     .raw_query("FROM Companies WHERE name='withNesting'")
                     .where_starts_with("product", "p")
                 )
-                self.assertTrue(
-                    isinstance(query_results[0], Company)
-                    and isinstance(query_results[0].product, Product)
-                )
+                self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
         except exceptions.InvalidOperationException as e:
             self.assertTrue("raw_query was called" in str(e))
 

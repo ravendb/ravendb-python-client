@@ -94,9 +94,7 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(indexes_change.append)
         observer.ensure_subscribe_now()
 
-        index_definition_dogs = IndexDefinition(
-            "Dogs", "from doc in docs.Dogs select new {doc.brand}"
-        )
+        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs))
 
@@ -111,16 +109,10 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(index_change.append)
         observer.ensure_subscribe_now()
 
-        index_definition_users = IndexDefinition(
-            "Users", "from doc in docs.Users select new {doc.Name}"
-        )
-        index_definition_dogs = IndexDefinition(
-            "Dogs", "from doc in docs.Dogs select new {doc.brand}"
-        )
+        index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
+        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
 
-        self.store.maintenance.send(
-            PutIndexesOperation(index_definition_dogs, index_definition_users)
-        )
+        self.store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
 
         sleep(1)
         for index in index_change:
@@ -138,16 +130,10 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(indexes.append)
         observer.ensure_subscribe_now()
 
-        index_definition_users = IndexDefinition(
-            "Users", "from doc in docs.Users select new {doc.Name}"
-        )
-        index_definition_dogs = IndexDefinition(
-            "Dogs", "from doc in docs.Dogs select new {doc.brand}"
-        )
+        index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
+        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
 
-        self.store.maintenance.send(
-            PutIndexesOperation(index_definition_dogs, index_definition_users)
-        )
+        self.store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
 
         with self.store.open_session() as session:
             session.store(User("Idan"), key="users/1")
@@ -233,9 +219,7 @@ class TestDatabaseChanges(TestBase):
     def test_for_time_series_of_document_with_time_series_name(self):
         changes = []
 
-        observer = self.store.changes().for_time_series_of_document(
-            "users/1-A", time_series_name="Heartrate"
-        )
+        observer = self.store.changes().for_time_series_of_document("users/1-A", time_series_name="Heartrate")
         observer.subscribe(changes.append)
         observer.ensure_subscribe_now()
 
@@ -337,9 +321,7 @@ class TestDatabaseChanges(TestBase):
     def test_for_counter_of_document(self):
         changes = []
 
-        observer = self.store.changes().for_counter_of_document(
-            "users/1-A", counter_name="Shares"
-        )
+        observer = self.store.changes().for_counter_of_document("users/1-A", counter_name="Shares")
         observer.subscribe(changes.append)
         observer.ensure_subscribe_now()
 

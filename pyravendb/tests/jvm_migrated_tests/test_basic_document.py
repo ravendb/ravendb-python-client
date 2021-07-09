@@ -22,9 +22,7 @@ class TestBasicDocument(TestBase):
         doc1 = results[0]
         doc2 = results[1]
 
-        self.assertIsNotNone(
-            doc1
-        )  # Should it be like this? Or should we dive into document fields?
+        self.assertIsNotNone(doc1)  # Should it be like this? Or should we dive into document fields?
         self.assertIsNotNone(doc2)
         self.assertTrue("@metadata" in doc1.keys())
         self.assertTrue("@metadata" in doc2.keys())

@@ -61,9 +61,7 @@ class DocumentStore(object):
     def maintenance(self):
         self._assert_initialize()
         if not self._maintenance_operation_executor:
-            self._maintenance_operation_executor = MaintenanceOperationExecutor(
-                self, self.database
-            )
+            self._maintenance_operation_executor = MaintenanceOperationExecutor(self, self.database)
         return self._maintenance_operation_executor
 
     @property
@@ -122,9 +120,7 @@ class DocumentStore(object):
             if self._request_executors.get(db_name) is None:
                 self._request_executors.setdefault(
                     db_name,
-                    RequestsExecutor.create(
-                        self.urls, db_name, self._certificate, self.conventions
-                    ),
+                    RequestsExecutor.create(self.urls, db_name, self._certificate, self.conventions),
                 )
             return self._request_executors[db_name]
 
@@ -147,11 +143,7 @@ class DocumentStore(object):
     def open_session(self, database=None, request_executor=None):
         self._assert_initialize()
         session_id = uuid.uuid4()
-        requests_executor = (
-            request_executor
-            if request_executor is not None
-            else self.get_request_executor(database)
-        )
+        requests_executor = request_executor if request_executor is not None else self.get_request_executor(database)
         session = DocumentSession(database, self, requests_executor, session_id)
         self.events.session_created(session)
         return session
@@ -168,9 +160,7 @@ class DocumentEvents:
         self.after_save_change = lambda session, doc_id, entity: None
         self.before_delete = lambda session, doc_id, entity: None
         self.session_created = lambda session: None
-        self.before_conversion_to_entity = (
-            lambda document, metadata, type_from_metadata: None
-        )
+        self.before_conversion_to_entity = lambda document, metadata, type_from_metadata: None
         self.after_conversion_to_entity = lambda entity, document, metadata: None
 
     def clone(self):
@@ -183,9 +173,7 @@ class DocumentEvents:
 class MaintenanceOperationExecutor:
     def __init__(self, document_store, database_name=None):
         self._store = document_store
-        self._database_name = (
-            database_name if database_name is not None else document_store.database
-        )
+        self._database_name = database_name if database_name is not None else document_store.database
         self._server_operation_executor = None
         self._request_executor = None
 
@@ -198,20 +186,14 @@ class MaintenanceOperationExecutor:
     @property
     def request_executor(self):
         if self._request_executor is None:
-            self._request_executor = self._store.get_request_executor(
-                self._database_name
-            )
+            self._request_executor = self._store.get_request_executor(self._database_name)
         return self._request_executor
 
     def send(self, operation):
         try:
             operation_type = getattr(operation, "operation")
             if operation_type != "MaintenanceOperation":
-                raise ValueError(
-                    "operation type cannot be {0} need to be Operation".format(
-                        operation_type
-                    )
-                )
+                raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:
             raise ValueError("Invalid operation")
 
@@ -236,20 +218,14 @@ class ServerOperationExecutor:
                     self._store.urls[0], self._store.certificate
                 )
             else:
-                self._request_executor = ClusterRequestExecutor.create(
-                    self._store.urls, self._store.certificate
-                )
+                self._request_executor = ClusterRequestExecutor.create(self._store.urls, self._store.certificate)
         return self._request_executor
 
     def send(self, operation):
         try:
             operation_type = getattr(operation, "operation")
             if operation_type != "ServerOperation":
-                raise ValueError(
-                    "operation type cannot be {0} need to be Operation".format(
-                        operation_type
-                    )
-                )
+                raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:
             raise ValueError("Invalid operation")
 
@@ -260,17 +236,13 @@ class ServerOperationExecutor:
 class OperationExecutor(object):
     def __init__(self, document_store, database_name=None):
         self._store = document_store
-        self._database_name = (
-            database_name if database_name is not None else document_store.database
-        )
+        self._database_name = database_name if database_name is not None else document_store.database
         self._request_executor = None
 
     @property
     def request_executor(self):
         if self._request_executor is None:
-            self._request_executor = self._store.get_request_executor(
-                self._database_name
-            )
+            self._request_executor = self._store.get_request_executor(self._database_name)
         return self._request_executor
 
     def wait_for_operation_complete(self, operation_id, timeout=None):
@@ -284,15 +256,11 @@ class OperationExecutor(object):
                 if "Error" in response:
                     raise ValueError(response["Error"])
                 if timeout and time.time() - start_time > timeout:
-                    raise exceptions.TimeoutException(
-                        "The Operation did not finish before the timeout end"
-                    )
+                    raise exceptions.TimeoutException("The Operation did not finish before the timeout end")
                 if response["Status"] == "Completed":
                     return response
                 if response["Status"] == "Faulted":
-                    raise exceptions.InvalidOperationException(
-                        response["Result"]["Message"]
-                    )
+                    raise exceptions.InvalidOperationException(response["Result"]["Message"])
                 time.sleep(0.5)
         except ValueError as e:
             raise exceptions.InvalidOperationException(e)
@@ -301,11 +269,7 @@ class OperationExecutor(object):
         try:
             operation_type = getattr(operation, "operation")
             if operation_type != "Operation":
-                raise ValueError(
-                    "operation type cannot be {0} need to be Operation".format(
-                        operation_type
-                    )
-                )
+                raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:
             raise ValueError("Invalid operation")
 

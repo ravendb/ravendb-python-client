@@ -24,9 +24,7 @@ class _SaveChangesData(object):
 
 
 class DocumentSession(object):
-    def __init__(
-        self, database, document_store, requests_executor, session_id, **kwargs
-    ):
+    def __init__(self, database, document_store, requests_executor, session_id, **kwargs):
         """
         Implements Unit of Work for accessing the RavenDB server
 
@@ -50,9 +48,7 @@ class DocumentSession(object):
         self._defer_commands = set()
         self._number_of_requests_in_session = 0
         self._query = None
-        self.use_optimistic_concurrency = kwargs.get(
-            "use_optimistic_concurrency", False
-        )
+        self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
         self.no_tracking = kwargs.get("no_tracking", False)
         self.no_caching = kwargs.get("no_caching", False)
         self.advanced = Advanced(self)
@@ -174,21 +170,14 @@ class DocumentSession(object):
     def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
 
         if key not in self._documents_by_id:
-            (
-                entity,
-                metadata,
-                original_metadata,
-                original_document,
-            ) = Utils.convert_to_entity(
+            (entity, metadata, original_metadata, original_document,) = Utils.convert_to_entity(
                 document,
                 object_type,
                 self.conventions,
                 self.readonly_events,
                 nested_object_types,
             )
-            self.save_entity(
-                key, entity, original_metadata, metadata, original_document
-            )
+            self.save_entity(key, entity, original_metadata, metadata, original_document)
 
     def _multi_load(self, keys, object_type, includes, nested_object_types):
         if len(keys) == 0:
@@ -196,11 +185,7 @@ class DocumentSession(object):
         keys = list(filter(lambda x: x is not None, keys))
         ids_of_not_existing_object = set(keys)
         if not includes:
-            ids_in_includes = [
-                key
-                for key in ids_of_not_existing_object
-                if key in self._included_documents_by_id
-            ]
+            ids_in_includes = [key for key in ids_of_not_existing_object if key in self._included_documents_by_id]
             if len(ids_in_includes) > 0:
                 for include in ids_in_includes:
                     self._convert_and_save_entity(
@@ -211,17 +196,9 @@ class DocumentSession(object):
                     )
                     self._included_documents_by_id.pop(include)
 
-            ids_of_not_existing_object = [
-                key
-                for key in ids_of_not_existing_object
-                if key not in self._documents_by_id
-            ]
+            ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._documents_by_id]
 
-        ids_of_not_existing_object = [
-            key
-            for key in ids_of_not_existing_object
-            if key not in self._known_missing_ids
-        ]
+        ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._known_missing_ids]
 
         if len(ids_of_not_existing_object) > 0:
             self.increment_requests_count()
@@ -250,9 +227,7 @@ class DocumentSession(object):
             for key in keys
         ]
 
-    def load(
-        self, key_or_keys, object_type=None, includes=None, nested_object_types=None
-    ):
+    def load(self, key_or_keys, object_type=None, includes=None, nested_object_types=None):
         """
         @param key_or_keys: Identifier of a document that will be loaded.
         :type str or list
@@ -273,9 +248,7 @@ class DocumentSession(object):
             includes = [includes]
 
         if isinstance(key_or_keys, list):
-            return self._multi_load(
-                key_or_keys, object_type, includes, nested_object_types
-            )
+            return self._multi_load(key_or_keys, object_type, includes, nested_object_types)
 
         if key_or_keys in self._known_missing_ids:
             return None
@@ -302,33 +275,23 @@ class DocumentSession(object):
             if len(result) == 0 or result[0] is None:
                 self._known_missing_ids.add(key_or_keys)
                 return None
-            self._convert_and_save_entity(
-                key_or_keys, result[0], object_type, nested_object_types
-            )
+            self._convert_and_save_entity(key_or_keys, result[0], object_type, nested_object_types)
             self.save_includes(includes)
-        return (
-            self._documents_by_id[key_or_keys]
-            if key_or_keys in self._documents_by_id
-            else None
-        )
+        return self._documents_by_id[key_or_keys] if key_or_keys in self._documents_by_id else None
 
     def delete_by_entity(self, entity):
         if entity is None:
             raise ValueError("None entity is invalid")
         if entity not in self._documents_by_entity:
             raise exceptions.InvalidOperationException(
-                "{0} is not associated with the session, cannot delete unknown entity instance".format(
-                    entity
-                )
+                "{0} is not associated with the session, cannot delete unknown entity instance".format(entity)
             )
         if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
             raise exceptions.InvalidOperationException(
                 "{0} is marked as read only and cannot be deleted".format(entity)
             )
 
-        self._included_documents_by_id.pop(
-            self._documents_by_entity[entity]["key"], None
-        )
+        self._included_documents_by_id.pop(self._documents_by_entity[entity]["key"], None)
         self._known_missing_ids.add(self._documents_by_entity[entity]["key"])
         self._deleted_entities.add(entity)
 
@@ -351,14 +314,9 @@ class DocumentSession(object):
                 )
             if entity not in self._documents_by_entity:
                 raise exceptions.InvalidOperationException(
-                    "{0} is not associated with the session, cannot delete unknown entity instance".format(
-                        entity
-                    )
+                    "{0} is not associated with the session, cannot delete unknown entity instance".format(entity)
                 )
-            if (
-                "Raven-Read-Only"
-                in self._documents_by_entity[entity]["original_metadata"]
-            ):
+            if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
                 raise exceptions.InvalidOperationException(
                     "{0} is marked as read only and cannot be deleted".format(entity)
                 )
@@ -366,16 +324,11 @@ class DocumentSession(object):
             return
         self._known_missing_ids.add(key_or_entity)
         self._included_documents_by_id.pop(key_or_entity, None)
-        self.defer(
-            commands_data.DeleteCommandData(key_or_entity, expected_change_vector)
-        )
+        self.defer(commands_data.DeleteCommandData(key_or_entity, expected_change_vector))
 
     def assert_no_non_unique_instance(self, entity, key):
         if not (
-            key is None
-            or key.endswith("/")
-            or key not in self._documents_by_id
-            or self._documents_by_id[key] is entity
+            key is None or key.endswith("/") or key not in self._documents_by_id or self._documents_by_id[key] is entity
         ):
             raise exceptions.NonUniqueObjectException(
                 "Attempted to associate a different object with id '{0}'.".format(key)
@@ -394,15 +347,11 @@ class DocumentSession(object):
         if entity is None:
             raise ValueError("None entity value is invalid")
 
-        force_concurrency_check = self._get_concurrency_check_mode(
-            entity, key, change_vector
-        )
+        force_concurrency_check = self._get_concurrency_check_mode(entity, key, change_vector)
         if entity in self._documents_by_entity:
             if change_vector:
                 self._documents_by_entity[entity]["change_vector"] = change_vector
-            self._documents_by_entity[entity][
-                "force_concurrency_check"
-            ] = force_concurrency_check
+            self._documents_by_entity[entity]["force_concurrency_check"] = force_concurrency_check
             return
 
         if not key:
@@ -426,8 +375,7 @@ class DocumentSession(object):
 
         if entity in self._deleted_entities:
             raise exceptions.InvalidOperationException(
-                "Can't store object, it was already deleted in this session.  Document id: "
-                + entity_id
+                "Can't store object, it was already deleted in this session.  Document id: " + entity_id
             )
 
         metadata = self.conventions.build_default_metadata(entity)
@@ -446,9 +394,7 @@ class DocumentSession(object):
             return "disabled" if change_vector is None else "forced"
         if change_vector == "":
             if key is None:
-                entity_key = GenerateEntityIdOnTheClient.try_get_id_from_instance(
-                    entity
-                )
+                entity_key = GenerateEntityIdOnTheClient.try_get_id_from_instance(entity)
                 return "forced" if entity_key is None else "auto"
             return "auto"
 
@@ -500,9 +446,7 @@ class DocumentSession(object):
                         document_info["metadata"] = item
                         document_info["key"] = item["@id"]
                         document_info["original_value"] = entity.__dict__.copy()
-                        self.readonly_events.after_save_change(
-                            self, item["@id"], entity
-                        )
+                        self.readonly_events.after_save_change(self, item["@id"], entity)
 
                 elif item["Type"] == "Counters":
                     cache = self._counters_by_document_id.get(item["Id"], None)
@@ -529,9 +473,7 @@ class DocumentSession(object):
                 existing_entity = self._documents_by_id[key]
                 if existing_entity in self._documents_by_entity:
                     change_vector = (
-                        self._documents_by_entity[existing_entity]["metadata"][
-                            "@change-vector"
-                        ]
+                        self._documents_by_entity[existing_entity]["metadata"]["@change-vector"]
                         if self.advanced.use_optimistic_concurrency
                         else None
                     )
@@ -549,10 +491,8 @@ class DocumentSession(object):
                 change_vector = None
                 if (
                     self.advanced.use_optimistic_concurrency
-                    and self._documents_by_entity[entity]["force_concurrency_check"]
-                    != "disabled"
-                    or self._documents_by_entity[entity]["force_concurrency_check"]
-                    == "forced"
+                    and self._documents_by_entity[entity]["force_concurrency_check"] != "disabled"
+                    or self._documents_by_entity[entity]["force_concurrency_check"] == "forced"
                 ):
                     change_vector = self._documents_by_entity[entity]["change_vector"]
                 self.readonly_events.before_store(self, key, entity)
@@ -562,30 +502,22 @@ class DocumentSession(object):
                     document = entity.__dict__.copy()
                     document.pop("Id", None)
 
-                data.commands.append(
-                    commands_data.PutCommandData(key, change_vector, document, metadata)
-                )
+                data.commands.append(commands_data.PutCommandData(key, change_vector, document, metadata))
 
     def _has_change(self, entity):
         import json
 
-        entity_to_dict = json.loads(
-            json.dumps(entity, default=self.conventions.json_default_method)
-        )
+        entity_to_dict = json.loads(json.dumps(entity, default=self.conventions.json_default_method))
         if (
             self._documents_by_entity[entity]["original_value"] != entity_to_dict
-            or self._documents_by_entity[entity]["original_metadata"]
-            != self._documents_by_entity[entity]["metadata"]
+            or self._documents_by_entity[entity]["original_metadata"] != self._documents_by_entity[entity]["metadata"]
         ):
             return True
         return False
 
     def increment_requests_count(self):
         self._number_of_requests_in_session += 1
-        if (
-            self._number_of_requests_in_session
-            > self.conventions.max_number_of_request_per_session
-        ):
+        if self._number_of_requests_in_session > self.conventions.max_number_of_request_per_session:
             raise exceptions.InvalidOperationException(
                 "The maximum number of requests ({0}) allowed for this session has been reached. Raven limits the number \
                 of remote calls that a session is allowed to make as an early warning system. Sessions are expected to \
@@ -620,9 +552,7 @@ class Advanced(object):
         return self.session.documents_by_entity[entity]["metadata"]
 
     def has_changed(self, entity):
-        return (
-            self.session._has_change(entity) or entity in self.session.deleted_entities
-        )
+        return self.session._has_change(entity) or entity in self.session.deleted_entities
 
     def has_changes(self):
         for entity in self.session.documents_by_entity.keys():
@@ -709,14 +639,11 @@ class _Attachment:
 
     def throw_not_in_session(self, entity):
         raise ValueError(
-            repr(entity)
-            + " is not associated with the session, cannot add attachment to it. "
+            repr(entity) + " is not associated with the session, cannot add attachment to it. "
             "Use document Id instead or track the entity in the session."
         )
 
-    def store(
-        self, entity_or_document_id, name, stream, content_type=None, change_vector=None
-    ):
+    def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
         if not isinstance(entity_or_document_id, str):
             entity = self._session.documents_by_entity.get(entity_or_document_id, None)
             if not entity:
@@ -730,9 +657,7 @@ class _Attachment:
 
         defer_command = self._command_exists(entity_or_document_id)
         if defer_command:
-            message = "Can't store attachment {0} of document {1}".format(
-                name, entity_or_document_id
-            )
+            message = "Can't store attachment {0} of document {1}".format(name, entity_or_document_id)
             if defer_command.type == "DELETE":
                 message += ", there is a deferred command registered for this document to be deleted."
             elif defer_command.type == "AttachmentPUT":
@@ -751,11 +676,7 @@ class _Attachment:
                 + ", the document was already deleted in this session."
             )
 
-        self._session.defer(
-            PutAttachmentCommandData(
-                entity_or_document_id, name, stream, content_type, change_vector
-            )
-        )
+        self._session.defer(PutAttachmentCommandData(entity_or_document_id, name, stream, content_type, change_vector))
 
     def delete(self, entity_or_document_id, name):
         if not isinstance(entity_or_document_id, str):
@@ -786,9 +707,7 @@ class _Attachment:
         if entity and entity in self._session.deleted_entities:
             return
 
-        self._session.defer(
-            DeleteAttachmentCommandData(entity_or_document_id, name, None)
-        )
+        self._session.defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
 
     def get(self, entity_or_document_id, name):
         if not isinstance(entity_or_document_id, str):
@@ -797,7 +716,5 @@ class _Attachment:
                 self.throw_not_in_session(entity_or_document_id)
             entity_or_document_id = entity["metadata"]["@id"]
 
-        operation = GetAttachmentOperation(
-            entity_or_document_id, name, AttachmentType.document, None
-        )
+        operation = GetAttachmentOperation(entity_or_document_id, name, AttachmentType.document, None)
         return self._store.operations.send(operation)

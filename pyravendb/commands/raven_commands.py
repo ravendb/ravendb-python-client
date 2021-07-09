@@ -112,17 +112,12 @@ class GetDocumentCommand(RavenCommand):
         if self.metadata_only:
             path += "&metadataOnly=true"
         if self.includes:
-            path += "".join(
-                "&include=" + Utils.quote_key(item) for item in self.includes
-            )
+            path += "".join("&include=" + Utils.quote_key(item) for item in self.includes)
         if self.counter_includes:
             if self.counter_includes is True:
                 path += f"&counter={Utils.quote_key('@all_counters')}"
             else:
-                path += "".join(
-                    "&counter=" + Utils.quote_key(item)
-                    for item in self.counter_includes
-                )
+                path += "".join("&counter=" + Utils.quote_key(item) for item in self.counter_includes)
 
         # make get method handle a multi document requests in a single request
         if isinstance(self.key_or_keys, list):
@@ -137,9 +132,7 @@ class GetDocumentCommand(RavenCommand):
         else:
             path += "&id={0}".format(Utils.quote_key(self.key_or_keys))
 
-        self.url = "{0}/databases/{1}/{2}".format(
-            server_node.url, server_node.database, path
-        )
+        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
 
     def set_response(self, response):
         if response is None:
@@ -199,9 +192,7 @@ class GetDocumentsByPrefixCommand(RavenCommand):
         :rtype: dict
         """
 
-        super(GetDocumentsByPrefixCommand, self).__init__(
-            method="GET", is_read_request=True
-        )
+        super(GetDocumentsByPrefixCommand, self).__init__(method="GET", is_read_request=True)
 
         self.start_with = start_with
         self.start_after = start_after
@@ -230,9 +221,7 @@ class GetDocumentsByPrefixCommand(RavenCommand):
         if self.metadata_only:
             path += "&metadataOnly=true"
 
-        self.url = "{0}/databases/{1}/{2}".format(
-            server_node.url, server_node.database, path
-        )
+        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
 
     def set_response(self, response):
         if response is None:
@@ -337,9 +326,7 @@ class BatchCommand(RavenCommand):
         if self.files and len(self.files) > 0:
             self.use_stream = True
 
-        self.url = "{0}/databases/{1}/bulk_docs".format(
-            server_node.url, server_node.database
-        )
+        self.url = "{0}/databases/{1}/bulk_docs".format(server_node.url, server_node.database)
         self.data = {"Commands": data}
 
     def set_response(self, response):
@@ -411,9 +398,7 @@ class PatchCommand(RavenCommand):
         self._change_vector = change_vector
         self._patch = patch
         self._patch_if_missing = patch_if_missing
-        self._skip_patch_if_change_vector_mismatch = (
-            skip_patch_if_change_vector_mismatch
-        )
+        self._skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
         self._return_debug_information = return_debug_information
         self._test = test
 
@@ -429,14 +414,10 @@ class PatchCommand(RavenCommand):
         if self._change_vector is not None:
             self.headers = {"If-Match": '"{0}"'.format(self._change_vector)}
 
-        self.url = "{0}/databases/{1}/{2}".format(
-            server_node.url, server_node.database, path
-        )
+        self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
         self.data = {
             "Patch": self._patch.to_json(),
-            "PatchIfMissing": self._patch_if_missing.to_json()
-            if self._patch_if_missing
-            else None,
+            "PatchIfMissing": self._patch_if_missing.to_json() if self._patch_if_missing else None,
         }
 
     def set_response(self, response):
@@ -448,9 +429,7 @@ class PatchCommand(RavenCommand):
 
 
 class QueryCommand(RavenCommand):
-    def __init__(
-        self, conventions, index_query, metadata_only=False, index_entries_only=False
-    ):
+    def __init__(self, conventions, index_query, metadata_only=False, index_entries_only=False):
         """
         @param IndexQuery index_query: A query definition containing all information required to query a specified index.
         @param bool metadata_only: True if returned documents should include only metadata without a document body.
@@ -495,9 +474,7 @@ class GetStatisticsCommand(RavenCommand):
         self.debug_tag = debug_tag
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/stats".format(
-            server_node.url, server_node.database
-        )
+        self.url = "{0}/databases/{1}/stats".format(server_node.url, server_node.database)
         if self.debug_tag:
             self.url += "?" + self.debug_tag
 
@@ -527,9 +504,7 @@ class GetTopologyCommand(RavenCommand):
 
 class GetClusterTopologyCommand(RavenCommand):
     def __init__(self):
-        super(GetClusterTopologyCommand, self).__init__(
-            method="GET", is_read_request=True
-        )
+        super(GetClusterTopologyCommand, self).__init__(method="GET", is_read_request=True)
 
     def create_request(self, server_node):
         self.url = "{0}/cluster/topology".format(server_node.url)
@@ -550,13 +525,9 @@ class GetOperationStateCommand(RavenCommand):
 
     def create_request(self, server_node):
         self.url = (
-            "{0}/databases/{1}/operations/state?id={2}".format(
-                server_node.url, server_node.database, self.operation_id
-            )
+            "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database, self.operation_id)
             if not self.is_server_store_operation
-            else "{0}/operations/state?id={2}".format(
-                server_node.url, self.operation_id
-            )
+            else "{0}/operations/state?id={2}".format(server_node.url, self.operation_id)
         )
 
     def set_response(self, response):
@@ -622,19 +593,12 @@ class GetFacetsCommand(RavenCommand):
             raise ValueError("Invalid query")
         super(GetFacetsCommand, self).__init__(method="POST", is_read_request=True)
         self._query = query
-        if (
-            query.wait_for_non_stale_results_timeout
-            and query.wait_for_non_stale_results_timeout != timedelta.max
-        ):
-            self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta(
-                seconds=10
-            )
+        if query.wait_for_non_stale_results_timeout and query.wait_for_non_stale_results_timeout != timedelta.max:
+            self.timeout = self._query.wait_for_non_stale_results_timeout + timedelta(seconds=10)
 
     def create_request(self, server_node):
         if self._query.facet_setup_doc and len(self._query.facets) > 0:
-            raise exceptions.InvalidOperationException(
-                "You cannot specify both 'facet_setup_doc' and 'facets'."
-            )
+            raise exceptions.InvalidOperationException("You cannot specify both 'facet_setup_doc' and 'facets'.")
 
         self.url = "{0}/databases/{1}/queries?op=facets&query-hash={2}".format(
             server_node.url, server_node.database, self._query.get_query_hash()
@@ -663,9 +627,7 @@ class MultiGetCommand(RavenCommand):
         self._base_url = None
 
     def create_request(self, server_node):
-        self._base_url = "{0}/databases/{1}".format(
-            server_node.url, server_node.database
-        )
+        self._base_url = "{0}/databases/{1}".format(server_node.url, server_node.database)
         commands = []
         for request in self._requests:
             headers = {}
@@ -673,9 +635,7 @@ class MultiGetCommand(RavenCommand):
                 headers[key] = value
             commands.append(
                 {
-                    "Url": "/databases/{0}{1}".format(
-                        server_node.database, request["url"]
-                    ),
+                    "Url": "/databases/{0}{1}".format(server_node.database, request["url"]),
                     "Query": request.get("query", None),
                     "Method": request.get("method", None),
                     "Content": request.get("data", None),
@@ -702,9 +662,7 @@ class GetDatabaseRecordCommand(RavenCommand):
         self._database_name = database_name
 
     def create_request(self, server_node):
-        self.url = "{0}/admin/databases?name={1}".format(
-            server_node.url, self._database_name
-        )
+        self.url = "{0}/admin/databases?name={1}".format(server_node.url, self._database_name)
 
     def set_response(self, response):
         if response is None:
@@ -721,9 +679,7 @@ class GetDatabaseRecordCommand(RavenCommand):
 
 class WaitForRaftIndexCommand(RavenCommand):
     def __init__(self, index):
-        super(WaitForRaftIndexCommand, self).__init__(
-            method="GET", is_read_request=True
-        )
+        super(WaitForRaftIndexCommand, self).__init__(method="GET", is_read_request=True)
         self._index = index
 
     def create_request(self, server_node):
@@ -744,9 +700,7 @@ class GetTcpInfoCommand(RavenCommand):
         if self._database_name is None:
             self.url = "{0}/info/tcp?tag={1}".format(server_node.url, self._tag)
         else:
-            self.url = "{0}/databases/{1}/info/tcp?tag={2}".format(
-                server_node.url, self._database_name, self._tag
-            )
+            self.url = "{0}/databases/{1}/info/tcp?tag={2}".format(server_node.url, self._database_name, self._tag)
 
         self.requested_node = server_node
 
@@ -759,9 +713,7 @@ class GetTcpInfoCommand(RavenCommand):
 
 class QueryStreamCommand(RavenCommand):
     def __init__(self, index_query):
-        super(QueryStreamCommand, self).__init__(
-            method="POST", is_read_request=True, use_stream=True
-        )
+        super(QueryStreamCommand, self).__init__(method="POST", is_read_request=True, use_stream=True)
         if not index_query:
             raise ValueError("index_query cannot be None")
 
@@ -774,9 +726,7 @@ class QueryStreamCommand(RavenCommand):
         self._index_query = index_query
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/streams/queries".format(
-            server_node.url, server_node.database
-        )
+        self.url = "{0}/databases/{1}/streams/queries".format(server_node.url, server_node.database)
         self.data = self._index_query.to_json()
 
     def set_response(self, response):
@@ -802,15 +752,11 @@ class CreateSubscriptionCommand(RavenCommand):
         @param SubscriptionCreationOptions options: Subscription options
         """
 
-        super(CreateSubscriptionCommand, self).__init__(
-            method="PUT", is_raft_request=True
-        )
+        super(CreateSubscriptionCommand, self).__init__(method="PUT", is_raft_request=True)
         self._options = options
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/subscriptions".format(
-            server_node.url, server_node.database
-        )
+        self.url = "{0}/databases/{1}/subscriptions".format(server_node.url, server_node.database)
         self.data = self._options.to_json()
 
     def set_response(self, response):
@@ -825,9 +771,7 @@ class CreateSubscriptionCommand(RavenCommand):
 
 class DeleteSubscriptionCommand(RavenCommand):
     def __init__(self, name):
-        super(DeleteSubscriptionCommand, self).__init__(
-            method="DELETE", is_raft_request=True
-        )
+        super(DeleteSubscriptionCommand, self).__init__(method="DELETE", is_raft_request=True)
         self._name = name
 
     def create_request(self, server_node):
@@ -841,9 +785,7 @@ class DeleteSubscriptionCommand(RavenCommand):
 
 class DropSubscriptionConnectionCommand(RavenCommand):
     def __init__(self, name):
-        super(DropSubscriptionConnectionCommand, self).__init__(
-            method="POST", is_raft_request=True
-        )
+        super(DropSubscriptionConnectionCommand, self).__init__(method="POST", is_raft_request=True)
         self._name = name
 
     def create_request(self, server_node):
@@ -857,9 +799,7 @@ class DropSubscriptionConnectionCommand(RavenCommand):
 
 class GetSubscriptionsCommand(RavenCommand):
     def __init__(self, start, page_size):
-        super(GetSubscriptionsCommand, self).__init__(
-            method="GET", is_read_request=True
-        )
+        super(GetSubscriptionsCommand, self).__init__(method="GET", is_read_request=True)
         self._start = start
         self._page_size = page_size
 
@@ -889,9 +829,7 @@ class GetSubscriptionsCommand(RavenCommand):
 
 class GetSubscriptionStateCommand(RavenCommand):
     def __init__(self, subscription_name):
-        super(GetSubscriptionStateCommand, self).__init__(
-            method="GET", is_read_request=True
-        )
+        super(GetSubscriptionStateCommand, self).__init__(method="GET", is_read_request=True)
         self._subscription_name = subscription_name
 
     def create_request(self, server_node):

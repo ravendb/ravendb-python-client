@@ -2,9 +2,7 @@ from enum import Enum
 
 
 class CertificateDefinition:
-    def __init__(
-        self, certificate, server_admin=False, thumbprint=None, permissions=None
-    ):
+    def __init__(self, certificate, server_admin=False, thumbprint=None, permissions=None):
         """
         @param certificate: X509 byte array object encoded to base64
         :type str

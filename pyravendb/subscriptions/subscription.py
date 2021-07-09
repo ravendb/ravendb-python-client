@@ -37,9 +37,7 @@ class SubscriptionWorker:
         """
         self._options = options
         self._store = store
-        self._database_name = (
-            database_name if database_name is not None else store.database
-        )
+        self._database_name = database_name if database_name is not None else store.database
         self._logger = logging.getLogger("subscription_" + self._database_name)
         handler = logging.FileHandler("subscriptions.log")
         formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
@@ -69,9 +67,7 @@ class SubscriptionWorker:
         self._last_connection_failure = None
 
     def connect_to_server(self):
-        command = GetTcpInfoCommand(
-            "Subscription/" + self._database_name, self._database_name
-        )
+        command = GetTcpInfoCommand("Subscription/" + self._database_name, self._database_name)
         request_executor = self._store.get_request_executor(self._database_name)
 
         send_buffer_size = 32 * 1024
@@ -79,9 +75,7 @@ class SubscriptionWorker:
 
         if self._redirect_node:
             try:
-                result = request_executor.execute_with_node(
-                    self._redirect_node, command, should_retry=False
-                )
+                result = request_executor.execute_with_node(self._redirect_node, command, should_retry=False)
             except Exception:
                 # if we failed to talk to a node, we'll forget about it and let the topology to
                 # redirect us to the current nod
@@ -96,20 +90,14 @@ class SubscriptionWorker:
 
         self._my_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._my_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self._my_socket.setsockopt(
-            socket.SOL_SOCKET, socket.SO_SNDBUF, send_buffer_size
-        )
-        self._my_socket.setsockopt(
-            socket.SOL_SOCKET, socket.SO_RCVBUF, receive_buffer_size
-        )
+        self._my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, send_buffer_size)
+        self._my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, receive_buffer_size)
         self._my_socket.settimeout(30)
 
         if self._store.certificate:
             try:
                 store_cert = self._store.certificate
-                (cert, key) = (
-                    store_cert if isinstance(store_cert, tuple) else (store_cert, None)
-                )
+                (cert, key) = store_cert if isinstance(store_cert, tuple) else (store_cert, None)
 
                 self._my_socket = ssl.wrap_socket(
                     self._my_socket,
@@ -118,9 +106,7 @@ class SubscriptionWorker:
                     ssl_version=ssl.PROTOCOL_TLSv1_2,
                 )
             except Exception as e:
-                raise NonRecoverableSubscriptionException(
-                    "Failed to create SSL wrapper"
-                ) from e
+                raise NonRecoverableSubscriptionException("Failed to create SSL wrapper") from e
 
         self._my_socket.connect((host, port))
 
@@ -139,15 +125,11 @@ class SubscriptionWorker:
         if response["Status"] != "Ok":
             if response["Status"] == "AuthorizationFailed":
                 raise ConnectionRefusedError(
-                    "Cannot access database {0} because {1}".format(
-                        self._database_name, response["Message"]
-                    )
+                    "Cannot access database {0} because {1}".format(self._database_name, response["Message"])
                 )
             elif response["Status"] == "TcpVersionMismatch":
                 raise InvalidOperationException(
-                    "Cannot access database {0} because {1}".format(
-                        self._database_name, response["Message"]
-                    )
+                    "Cannot access database {0} because {1}".format(self._database_name, response["Message"])
                 )
 
         options = Utils.dict_to_bytes(self._options.to_json())
@@ -181,13 +163,9 @@ class SubscriptionWorker:
                 self.assert_connection_state(item)
             if item["Type"] == "Error":
                 err = item.get("Exception", "None")
-                raise InvalidOperationException(
-                    "Connection terminated by server Exception: " + err
-                )
+                raise InvalidOperationException("Connection terminated by server Exception: " + err)
 
-            raise InvalidOperationException(
-                "Unrecognized message from server: " + item["Type"]
-            )
+            raise InvalidOperationException("Unrecognized message from server: " + item["Type"])
 
     def run_subscription(self):
         import time
@@ -203,9 +181,7 @@ class SubscriptionWorker:
                         )
                     )
                     if self.should_try_to_reconnect(ex):
-                        time.sleep(
-                            self._options.time_to_wait_before_connection_retry.seconds
-                        )
+                        time.sleep(self._options.time_to_wait_before_connection_retry.seconds)
                         if self.on_subscription_connection_retry:
                             self.on_subscription_connection_retry(ex)
                     else:
@@ -226,10 +202,7 @@ class SubscriptionWorker:
             if self._closed:
                 return
             connection_status = parser.next_object()
-            if (
-                connection_status["Type"] != "ConnectionStatus"
-                or connection_status["Status"] != "Accepted"
-            ):
+            if connection_status["Type"] != "ConnectionStatus" or connection_status["Status"] != "Accepted":
                 self.assert_connection_state(connection_status)
 
             self._batch = SubscriptionBatch(
@@ -253,14 +226,11 @@ class SubscriptionWorker:
                     )
                     if not self._options.ignore_subscriber_errors:
                         raise SubscriberErrorException(
-                            "Subscriber threw an exception in subscription"
-                            + self._options.subscription_name,
+                            "Subscriber threw an exception in subscription" + self._options.subscription_name,
                             ex,
                         )
 
-                header = Utils.dict_to_bytes(
-                    {"ChangeVector": last_change_vector, "Type": "Acknowledge"}
-                )
+                header = Utils.dict_to_bytes({"ChangeVector": last_change_vector, "Type": "Acknowledge"})
                 self._my_socket.sendall(header)
         except (InvalidOperationException, OSError) as e:
             "This is raise when shutting down, it isn't an error, so we don't need to treat it as such"
@@ -322,9 +292,7 @@ class SubscriptionWorker:
     def assert_last_connection_failure(self):
         if not self._last_connection_failure:
             self._last_connection_failure = datetime.now()
-        elif (
-            datetime.now() - self._last_connection_failure
-        ) > self._options.max_erroneous_period:
+        elif (datetime.now() - self._last_connection_failure) > self._options.max_erroneous_period:
             raise SubscriptionInvalidStateException(
                 "Subscription connection was in invalid state for more than {0} and therefore will be terminated".format(
                     self._options.max_erroneous_period
@@ -376,19 +344,13 @@ class SubscriptionWorker:
                             appropriate_node,
                             "Subscription With Id '{0}' cannot be processed by current node, it will be redirected to {1}".format(
                                 self._options.subscription_name,
-                                appropriate_node
-                                if appropriate_node is not None
-                                else "None",
+                                appropriate_node if appropriate_node is not None else "None",
                             ),
                         )
             if status == "ConcurrencyReconnect":
-                raise SubscriptionChangeVectorUpdateConcurrencyException(
-                    connection_status["Exception"]
-                )
+                raise SubscriptionChangeVectorUpdateConcurrencyException(connection_status["Exception"])
             raise AttributeError(
-                "Subscription '{0}' could not be opened, reason: {1}".format(
-                    self._options.subscription_name, status
-                )
+                "Subscription '{0}' could not be opened, reason: {1}".format(self._options.subscription_name, status)
             )
 
     def run(self, process_documents):
@@ -480,13 +442,9 @@ class SubscriptionBatch:
                 raise InvalidOperationException("Document must have a @id field")
             last_change_vector = metadata.get("@change-vector", None)
             if not last_change_vector:
-                raise InvalidOperationException(
-                    "Document must have a @change-vector field"
-                )
+                raise InvalidOperationException("Document must have a @change-vector field")
             self._logger.info(
-                "Got {0} (change vector: [{1}], size {2}".format(
-                    document_id, last_change_vector, len(item["Data"])
-                )
+                "Got {0} (change vector: [{1}], size {2}".format(document_id, last_change_vector, len(item["Data"]))
             )
 
             self.items.append(

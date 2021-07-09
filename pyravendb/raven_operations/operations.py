@@ -57,15 +57,11 @@ class DeleteAttachmentOperation(Operation):
         self._change_vector = change_vector
 
     def get_command(self, store, conventions, cache=None):
-        return self._DeleteAttachmentCommand(
-            self._document_id, self._name, self._change_vector
-        )
+        return self._DeleteAttachmentCommand(self._document_id, self._name, self._change_vector)
 
     class _DeleteAttachmentCommand(RavenCommand):
         def __init__(self, document_id, name, change_vector=None):
-            super(DeleteAttachmentOperation._DeleteAttachmentCommand, self).__init__(
-                method="DELETE"
-            )
+            super(DeleteAttachmentOperation._DeleteAttachmentCommand, self).__init__(method="DELETE")
 
             if not document_id:
                 raise ValueError("Invalid document_id")
@@ -123,9 +119,7 @@ class PatchByQueryOperation(Operation):
             @return: json
             :rtype: dict of operation_id
             """
-            super(PatchByQueryOperation._PatchByQueryCommand, self).__init__(
-                method="PATCH"
-            )
+            super(PatchByQueryOperation._PatchByQueryCommand, self).__init__(method="PATCH")
             self._query_to_update = query_to_update
             self._options = options
 
@@ -133,14 +127,10 @@ class PatchByQueryOperation(Operation):
             if not isinstance(self._query_to_update, IndexQuery):
                 raise ValueError("query must be IndexQuery Type")
 
-            self.url = (
-                server_node.url + "/databases/" + server_node.database + "/queries"
-            )
+            self.url = server_node.url + "/databases/" + server_node.database + "/queries"
             path = "?allowStale={0}&maxOpsPerSec={1}&details={2}".format(
                 self._options.allow_stale,
-                ""
-                if self._options.max_ops_per_sec is None
-                else self._options.max_ops_per_sec,
+                "" if self._options.max_ops_per_sec is None else self._options.max_ops_per_sec,
                 self._options.retrieve_details,
             )
             if self._options.stale_timeout is not None:
@@ -192,21 +182,15 @@ class DeleteByQueryOperation(Operation):
             @return: json
             :rtype: dict
             """
-            super(DeleteByQueryOperation._DeleteByQueryCommand, self).__init__(
-                method="DELETE"
-            )
+            super(DeleteByQueryOperation._DeleteByQueryCommand, self).__init__(method="DELETE")
             self._query_to_delete = query_to_delete
             self._options = options
 
         def create_request(self, server_node):
-            self.url = (
-                server_node.url + "/databases/" + server_node.database + "/queries"
-            )
+            self.url = server_node.url + "/databases/" + server_node.database + "/queries"
             path = "?allowStale={0}&maxOpsPerSec={1}&details={2}".format(
                 self._options.allow_stale,
-                ""
-                if self._options.max_ops_per_sec is None
-                else self._options.max_ops_per_sec,
+                "" if self._options.max_ops_per_sec is None else self._options.max_ops_per_sec,
                 self._options.retrieve_details,
             )
             if self._options.stale_timeout is not None:
@@ -217,9 +201,7 @@ class DeleteByQueryOperation(Operation):
 
         def set_response(self, response):
             if response is None:
-                raise exceptions.ErrorResponseException(
-                    "Could not find index {0}".format(self.index_name)
-                )
+                raise exceptions.ErrorResponseException("Could not find index {0}".format(self.index_name))
 
             if response.status_code != 200 and response.status_code != 202:
                 try:
@@ -239,9 +221,7 @@ class GetAttachmentOperation(Operation):
         if attachment_type != AttachmentType.document and change_vector is None:
             raise ValueError(
                 "change_vector",
-                "Change Vector cannot be null for attachment type {0}".format(
-                    attachment_type
-                ),
+                "Change Vector cannot be null for attachment type {0}".format(attachment_type),
             )
 
         super(GetAttachmentOperation, self).__init__()
@@ -251,9 +231,7 @@ class GetAttachmentOperation(Operation):
         self._change_vector = change_vector
 
     def get_command(self, store, conventions, cache=None):
-        return self._GetAttachmentCommand(
-            self._document_id, self._name, self._attachment_type, self._change_vector
-        )
+        return self._GetAttachmentCommand(self._document_id, self._name, self._attachment_type, self._change_vector)
 
     class _GetAttachmentCommand(RavenCommand):
         def __init__(self, document_id, name, attachment_type, change_vector):
@@ -327,9 +305,7 @@ class PatchOperation(Operation):
         self._change_vector = change_vector
         self._patch = patch
         self._patch_if_missing = patch_if_missing
-        self._skip_patch_if_change_vector_mismatch = (
-            skip_patch_if_change_vector_mismatch
-        )
+        self._skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
 
     def get_command(self, store, conventions, cache=None):
         return PatchCommand(
@@ -342,9 +318,7 @@ class PatchOperation(Operation):
 
 
 class PutAttachmentOperation(Operation):
-    def __init__(
-        self, document_id, name, stream, content_type=None, change_vector=None
-    ):
+    def __init__(self, document_id, name, stream, content_type=None, change_vector=None):
         """
         @param document_id: The id of the document
         @param name: Name of the attachment
@@ -398,9 +372,7 @@ class GetMultiFacetsOperation(Operation):
 
     class _GetMultiFacetsCommand(RavenCommand):
         def __init__(self, queries):
-            super(GetMultiFacetsOperation._GetMultiFacetsCommand, self).__init__(
-                is_read_request=True
-            )
+            super(GetMultiFacetsOperation._GetMultiFacetsCommand, self).__init__(is_read_request=True)
             requests = {}
             for q in queries:
                 if not q:

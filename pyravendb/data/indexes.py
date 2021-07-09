@@ -112,9 +112,7 @@ class IndexDefinition(object):
         self.fields = kwargs.get("fields", {})
 
         # set "OutputReduceToCollection"
-        self.output_reduce_to_collection = kwargs.get(
-            "output_reduce_to_collection", None
-        )
+        self.output_reduce_to_collection = kwargs.get("output_reduce_to_collection", None)
 
         self._index_source_type = None
 
@@ -163,9 +161,7 @@ class IndexDefinition(object):
     def to_json(self):
         return {
             "Configuration": self.configuration,
-            "Fields": {key: self.fields[key].to_json() for key in self.fields}
-            if len(self.fields) > 0
-            else self.fields,
+            "Fields": {key: self.fields[key].to_json() for key in self.fields} if len(self.fields) > 0 else self.fields,
             "IndexId": self.index_id,
             "IsTestIndex": self.is_test_index,
             "LockMode": str(self.lock_mod) if self.lock_mod else None,
@@ -210,11 +206,7 @@ class IndexFieldOptions(object):
             "Indexing": str(self.indexing) if self.indexing else None,
             "Sort": str(self.sort_options) if self.sort_options else None,
             "Spatial": None,
-            "Storage": None
-            if self.storage is None
-            else "Yes"
-            if self.storage is True
-            else "No",
+            "Storage": None if self.storage is None else "Yes" if self.storage is True else "No",
             "Suggestions": self.suggestions,
             "TermVector": str(self.term_vector) if self.term_vector else None,
         }

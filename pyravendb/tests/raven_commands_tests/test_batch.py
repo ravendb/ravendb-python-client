@@ -20,9 +20,7 @@ class TestDelete(TestBase):
         )
         self.delete_command = commands_data.DeleteCommandData("products/2-A")
         patch = PatchRequest("this.Name = 'testing';")
-        self.scripted_patch_command = commands_data.PatchCommandData(
-            "products/1-A", patch
-        )
+        self.scripted_patch_command = commands_data.PatchCommandData("products/1-A", patch)
         self.requests_executor = self.store.get_request_executor()
 
     def tearDown(self):
@@ -35,9 +33,7 @@ class TestDelete(TestBase):
         self.assertEqual(len(batch_result), 1)
 
     def test_success_multi_commands(self):
-        batch_command = BatchCommand(
-            [self.put_command1, self.put_command2, self.delete_command]
-        )
+        batch_command = BatchCommand([self.put_command1, self.put_command2, self.delete_command])
         batch_result = self.requests_executor.execute(batch_command)
         self.assertEqual(len(batch_result), 3)
 

@@ -97,9 +97,7 @@ class Query(object):
         value will be the object we want to get for that attribute.
         """
         self.object_type = object_type
-        self.index_name, self.collection_name = self._process_query_parameters(
-            index_name, collection_name
-        )
+        self.index_name, self.collection_name = self._process_query_parameters(index_name, collection_name)
         self.nested_object_types = nested_object_types
         self.is_map_reduce = is_map_reduce
         self._with_statistics = with_statistics
@@ -120,9 +118,7 @@ class Query(object):
         self.page_size = None
         self.cutoff_etag = None
         self.wait_for_non_stale_results = wait_for_non_stale_results
-        self.timeout = (
-            timeout if timeout is not None else self.session.conventions.timeout
-        )
+        self.timeout = timeout if timeout is not None else self.session.conventions.timeout
         self._query = None
         self.last_equality = None
         self.is_distinct = False
@@ -146,9 +142,7 @@ class Query(object):
             if not self.object_type:
                 collection_name = "@all_docs"
             else:
-                collection_name = self.session.conventions.default_transform_plural(
-                    self.object_type.__name__
-                )
+                collection_name = self.session.conventions.default_transform_plural(self.object_type.__name__)
 
         return "dynamic" if index_name is None else index_name, collection_name
 
@@ -175,18 +169,13 @@ class Query(object):
 
     def build_from(self, query_builder):
         if not self.index_name and not self.collection_name:
-            raise NotSupportedException(
-                "Either index_name or collection_name must be specified"
-            )
+            raise NotSupportedException("Either index_name or collection_name must be specified")
 
         if self.index_name == "dynamic":
             query_builder.append("FROM ")
             if Utils.contains_any(self.collection_name, [" ", "\t", "\r", "\n", "\v"]):
                 if '"' in self.collection_name:
-                    raise ValueError(
-                        "Collection name cannot contain a quote, but was: "
-                        + self.collection_name
-                    )
+                    raise ValueError("Collection name cannot contain a quote, but was: " + self.collection_name)
                 query_builder.append('"' + self.collection_name + '"')
             else:
                 query_builder.append(self.collection_name)
@@ -278,9 +267,7 @@ class Query(object):
         elif token.token == "all_in":
             write = " ALL IN ($" + token.value + ")"
         elif token.token == "between":
-            write = "".join(
-                [" BETWEEN $", str(token.value[0]), " AND $", str(token.value[1])]
-            )
+            write = "".join([" BETWEEN $", str(token.value[0]), " AND $", str(token.value[1])])
         elif token.token == "equals":
             write = " = $" + token.value
         elif token.token == "not_equals":
@@ -319,9 +306,7 @@ class Query(object):
             write = "".join(write_builder)
 
         if write is None:
-            raise AttributeError(
-                f"{token.token} don't match any of the cases for rql builder"
-            )
+            raise AttributeError(f"{token.token} don't match any of the cases for rql builder")
         return write
 
     @staticmethod
@@ -374,13 +359,7 @@ class Query(object):
                         break
                     first = False
                 else:
-                    if (
-                        (not c.isalpha() and not c.isdigit())
-                        and c != "_"
-                        and c != "@"
-                        and c != "["
-                        and c != "]"
-                    ):
+                    if (not c.isalpha() and not c.isdigit()) and c != "_" and c != "@" and c != "[" and c != "]":
                         escape = True
                         break
 
@@ -420,11 +399,7 @@ class Query(object):
             query_operator = None
             last_token = self._where_tokens[-1]
             if last_token is not None and last_token.token in Query.where_operators:
-                query_operator = (
-                    QueryOperator.AND
-                    if self.default_operator == QueryOperator.AND
-                    else QueryOperator.OR
-                )
+                query_operator = QueryOperator.AND if self.default_operator == QueryOperator.AND else QueryOperator.OR
             search_operator = getattr(last_token, "search_operator", None)
             if search_operator and search_operator != QueryOperator.OR:
                 # default to OR operator after search if AND was not specified explicitly
@@ -438,9 +413,7 @@ class Query(object):
             last = self._where_tokens[-1]
             if last.token in Query.where_operators:
                 self.is_intersect = True
-                self._where_tokens.append(
-                    _Token(value=None, token="intersect", write=",")
-                )
+                self._where_tokens.append(_Token(value=None, token="intersect", write=","))
                 return self
             else:
                 raise InvalidOperationException("Cannot add INTERSECT at this point.")
@@ -564,11 +537,7 @@ class Query(object):
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
-        self.last_equality = {
-            field_name: "(" + search_terms + ")"
-            if " " in search_terms
-            else search_terms
-        }
+        self.last_equality = {field_name: "(" + search_terms + ")" if " " in search_terms else search_terms}
         token = _Token(
             field_name=field_name,
             token="search",
@@ -789,9 +758,7 @@ class Query(object):
             last = self._where_tokens[-1]
             if last:
                 if isinstance(self.query_parameters[last.value], QueryOperator):
-                    raise InvalidOperationException(
-                        "Cannot add AND, previous token was already an QueryOperator."
-                    )
+                    raise InvalidOperationException("Cannot add AND, previous token was already an QueryOperator.")
 
                 self._where_tokens.append(_Token(value=QueryOperator.AND, write="AND"))
 
@@ -841,9 +808,7 @@ class Query(object):
             except IndexError:
                 raise InvalidOperationException("Missing where clause")
             if boost <= 0:
-                raise ArgumentOutOfRangeException(
-                    "boost", "Boost factor must be a positive number"
-                )
+                raise ArgumentOutOfRangeException("boost", "Boost factor must be a positive number")
 
             setattr(last, "boost", boost)
             last.write = self.rql_where_write(last)
@@ -939,9 +904,7 @@ class Query(object):
 
             if response["IsStale"] and self.wait_for_non_stale_results:
                 if time.time() > end_time:
-                    raise ErrorResponseException(
-                        "The index is still stale after reached the timeout"
-                    )
+                    raise ErrorResponseException("The index is still stale after reached the timeout")
                 continue
             break
 
@@ -950,12 +913,7 @@ class Query(object):
         response_includes = response.pop("Includes", None)
         self.session.save_includes(response_includes)
         for result in response_results:
-            (
-                entity,
-                metadata,
-                original_metadata,
-                original_document,
-            ) = Utils.convert_to_entity(
+            (entity, metadata, original_metadata, original_document,) = Utils.convert_to_entity(
                 result,
                 self.object_type,
                 self.session.conventions,

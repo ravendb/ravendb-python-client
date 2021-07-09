@@ -22,18 +22,14 @@ class TestConversion(TestBase):
         with self.store.open_session() as session:
             session.store(
                 Time(
-                    Utils.timedelta_to_str(
-                        timedelta(days=20, minutes=23, seconds=59, milliseconds=254)
-                    ),
+                    Utils.timedelta_to_str(timedelta(days=20, minutes=23, seconds=59, milliseconds=254)),
                     Utils.datetime_to_string(datetime.now()),
                 ),
                 "times/3",
             )
             session.store(
                 Time(
-                    Utils.timedelta_to_str(
-                        timedelta(minutes=23, seconds=59, milliseconds=254)
-                    ),
+                    Utils.timedelta_to_str(timedelta(minutes=23, seconds=59, milliseconds=254)),
                     Utils.datetime_to_string(datetime.now()),
                 ),
                 "times/4",
@@ -64,9 +60,7 @@ class TestConversion(TestBase):
                 object_type=Time,
                 nested_object_types={"td": timedelta, "dt": datetime},
             )
-            self.assertTrue(
-                isinstance(times.td, timedelta) and isinstance(times.dt, datetime)
-            )
+            self.assertTrue(isinstance(times.td, timedelta) and isinstance(times.dt, datetime))
 
     def test_store_conversion(self):
         with self.store.open_session() as session:
@@ -81,9 +75,7 @@ class TestConversion(TestBase):
                 object_type=Time,
                 nested_object_types={"td": timedelta, "dt": datetime},
             )
-            self.assertTrue(
-                isinstance(times.td, timedelta) and isinstance(times.dt, datetime)
-            )
+            self.assertTrue(isinstance(times.td, timedelta) and isinstance(times.dt, datetime))
 
     def test_query_conversion(self):
         with self.store.open_session() as session:
