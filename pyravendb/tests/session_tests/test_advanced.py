@@ -27,13 +27,10 @@ class TestAdvanced(TestBase):
             s.store(user, "test/")
             s.save_changes()
             id = s.advanced.get_document_id(user)
-            self.assertFalse(id.endswith('/'))
+            self.assertFalse(id.endswith("/"))
 
     def test_stream_query(self):
-        maps = ("from user in docs.Users "
-                "select new {"
-                "name = user.name,"
-                "age = user.age}")
+        maps = "from user in docs.Users " "select new {" "name = user.name," "age = user.age}"
         index_definition = IndexDefinition(name="UserByName", maps=maps)
 
         self.store.maintenance.send(PutIndexesOperation(index_definition))

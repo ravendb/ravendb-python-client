@@ -69,5 +69,5 @@ class TestCounters(TestBase):
             self.assertEqual(session.advanced.number_of_requests_in_session(), 2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,10 @@ sys.path.append(os.path.abspath(__file__ + "/../../"))
 
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.raven_operations.server_operations import *
-from pyravendb.raven_operations.maintenance_operations import IndexDefinition, PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import (
+    IndexDefinition,
+    PutIndexesOperation,
+)
 
 
 class User(object):
@@ -30,6 +33,7 @@ class TestBase(unittest.TestCase):
     @staticmethod
     def delete_all_topology_files():
         import os
+
         file_list = [f for f in os.listdir(".") if f.endswith("topology")]
         for f in file_list:
             os.remove(f)
@@ -60,12 +64,13 @@ class TestBase(unittest.TestCase):
             except Exception as e:
                 if "already exists!" in str(e):
                     self.store.maintenance.server.send(
-                        DeleteDatabaseOperation(database_name=self.default_database, hard_delete=True))
+                        DeleteDatabaseOperation(database_name=self.default_database, hard_delete=True)
+                    )
                     continue
                 raise
         TestBase.wait_for_database_topology(self.store, self.default_database)
 
-        self.index_map = "from doc in docs select new{Tag = doc[\"@metadata\"][\"@collection\"]}"
+        self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
         self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
 
     def tearDown(self):

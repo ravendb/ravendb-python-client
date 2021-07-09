@@ -10,14 +10,23 @@ import collections
 import logging
 import uuid
 
-logging.basicConfig(filename='responses.log', level=logging.DEBUG)
+logging.basicConfig(filename="responses.log", level=logging.DEBUG)
 log = logging.getLogger()
 
 
 # Todo update the commands
 class RavenCommand(object):
-    def __init__(self, url=None, method=None, data=None, files=None, headers=None, is_read_request=False,
-                 is_raft_request=False, use_stream=False):
+    def __init__(
+        self,
+        url=None,
+        method=None,
+        data=None,
+        files=None,
+        headers=None,
+        is_read_request=False,
+        is_raft_request=False,
+        use_stream=False,
+    ):
         self.url = url
         self.method = method
         self.data = data
@@ -57,8 +66,15 @@ class RavenCommand(object):
 
 
 class GetDocumentCommand(RavenCommand):
-    def __init__(self, key_or_keys, includes=None, metadata_only=False, start=None, page_size=None,
-                 counter_includes=None):
+    def __init__(
+        self,
+        key_or_keys,
+        includes=None,
+        metadata_only=False,
+        start=None,
+        page_size=None,
+        counter_includes=None,
+    ):
         """
         @param key_or_keys: the key of the documents you want to retrieve (key can be a list of ids)
         :type str or list
@@ -109,7 +125,7 @@ class GetDocumentCommand(RavenCommand):
             # If it is too big, we drop to POST (note that means that we can't use the HTTP cache any longer)
             if (sum(len(x) for x in key_or_keys)) > 1024:
                 self.method = "POST"
-                self.data = dict(Ids = list(key_or_keys))
+                self.data = dict(Ids=list(key_or_keys))
             else:
                 path += "".join("&id=" + Utils.quote_key(item) for item in key_or_keys)
 
@@ -127,14 +143,23 @@ class GetDocumentCommand(RavenCommand):
                 raise exceptions.ErrorResponseException(response["Error"])
         except ValueError:
             raise exceptions.ErrorResponseException(
-                "Failed to load document from the database please check the connection to the server")
+                "Failed to load document from the database please check the connection to the server"
+            )
 
         return response
 
 
 class GetDocumentsByPrefixCommand(RavenCommand):
-    def __init__(self, start_with, start_after=None, matches=None, exclude=None, start=None, page_size=None,
-                 metadata_only=None):
+    def __init__(
+        self,
+        start_with,
+        start_after=None,
+        matches=None,
+        exclude=None,
+        start=None,
+        page_size=None,
+        metadata_only=None,
+    ):
 
         """
         @param start_with: Retrieve all documents whose IDs begin with this string.
@@ -221,10 +246,11 @@ class DeleteDocumentCommand(RavenCommand):
             raise ValueError("key must be {0}".format(type("")))
 
         if self.change_vector is not None:
-            self.headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
+            self.headers = {"If-Match": '"{0}"'.format(self.change_vector)}
 
-        self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database,
-                                                          Utils.quote_key(self.key))
+        self.url = "{0}/databases/{1}/docs?id={2}".format(
+            server_node.url, server_node.database, Utils.quote_key(self.key)
+        )
 
     def set_response(self, response):
         if response is None:
@@ -252,15 +278,16 @@ class PutDocumentCommand(RavenCommand):
         if self.document is None:
             self.document = {}
         if self.change_vector is not None:
-            self.headers = {"If-Match": "\"{0}\"".format(self.change_vector)}
+            self.headers = {"If-Match": '"{0}"'.format(self.change_vector)}
         if not isinstance(self.key, str):
             raise ValueError("key must be {0}".format(type("")))
         if not isinstance(self.document, dict):
             raise ValueError("document and metadata must be dict")
 
         self.data = self.document
-        self.url = "{0}/databases/{1}/docs?id={2}".format(server_node.url, server_node.database,
-                                                          Utils.quote_key(self.key))
+        self.url = "{0}/databases/{1}/docs?id={2}".format(
+            server_node.url, server_node.database, Utils.quote_key(self.key)
+        )
 
     def set_response(self, response):
         try:
@@ -270,7 +297,8 @@ class PutDocumentCommand(RavenCommand):
             return response
         except ValueError:
             raise exceptions.ErrorResponseException(
-                "Failed to put document in the database please check the connection to the server")
+                "Failed to put document in the database please check the connection to the server"
+            )
 
 
 class BatchCommand(RavenCommand):
@@ -282,13 +310,17 @@ class BatchCommand(RavenCommand):
     def create_request(self, server_node):
         data = []
         for command in self.commands_array:
-            if not hasattr(command, 'command'):
+            if not hasattr(command, "command"):
                 raise ValueError("Not a valid command")
             if command.type == "AttachmentPUT":
                 if not self.files:
                     self.files = {}
                 self.files[command.name] = (
-                    command.name, command.stream, command.content_type, {"Command-Type": "AttachmentStream"})
+                    command.name,
+                    command.stream,
+                    command.content_type,
+                    {"Command-Type": "AttachmentStream"},
+                )
             data.append(command.to_json())
 
         if self.files and len(self.files) > 0:
@@ -301,7 +333,8 @@ class BatchCommand(RavenCommand):
         if response is None:
             raise exceptions.InvalidOperationException(
                 "Got null response from the server after doing a batch, "
-                "something is very wrong. Probably a garbled response.")
+                "something is very wrong. Probably a garbled response."
+            )
 
         try:
             response = response.json()
@@ -327,16 +360,25 @@ class DeleteIndexCommand(RavenCommand):
             raise ValueError("None or empty index_name is invalid")
 
         database = self.database_name if self.database_name else server_node.database
-        self.url = "{0}/databases/{1}/indexes?name={2}".format(server_node.url, database,
-                                                               Utils.quote_key(self.index_name, True))
+        self.url = "{0}/databases/{1}/indexes?name={2}".format(
+            server_node.url, database, Utils.quote_key(self.index_name, True)
+        )
 
     def set_response(self, response):
         pass
 
 
 class PatchCommand(RavenCommand):
-    def __init__(self, document_id, change_vector, patch, patch_if_missing,
-                 skip_patch_if_change_vector_mismatch=False, return_debug_information=False, test=False):
+    def __init__(
+        self,
+        document_id,
+        change_vector,
+        patch,
+        patch_if_missing,
+        skip_patch_if_change_vector_mismatch=False,
+        return_debug_information=False,
+        test=False,
+    ):
         """
         @param str document_id: The id of the document
         @param str change_vector: The change_vector
@@ -370,11 +412,13 @@ class PatchCommand(RavenCommand):
             path += "&test=true"
 
         if self._change_vector is not None:
-            self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
+            self.headers = {"If-Match": '"{0}"'.format(self._change_vector)}
 
         self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
-        self.data = {"Patch": self._patch.to_json(),
-                     "PatchIfMissing": self._patch_if_missing.to_json() if self._patch_if_missing else None}
+        self.data = {
+            "Patch": self._patch.to_json(),
+            "PatchIfMissing": self._patch_if_missing.to_json() if self._patch_if_missing else None,
+        }
 
     def set_response(self, response):
         if response is None:
@@ -404,8 +448,9 @@ class QueryCommand(RavenCommand):
         self._index_entries_only = index_entries_only
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/queries?query-hash={2}".format(server_node.url, server_node.database,
-                                                                     self._index_query.get_query_hash())
+        self.url = "{0}/databases/{1}/queries?query-hash={2}".format(
+            server_node.url, server_node.database, self._index_query.get_query_hash()
+        )
         if self._metadata_only:
             self.url += "&metadataOnly=true"
         if self._index_entries_only:
@@ -479,9 +524,11 @@ class GetOperationStateCommand(RavenCommand):
         self.is_server_store_operation = is_server_store_operation
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database,
-                                                                      self.operation_id) if not self.is_server_store_operation \
+        self.url = (
+            "{0}/databases/{1}/operations/state?id={2}".format(server_node.url, server_node.database, self.operation_id)
+            if not self.is_server_store_operation
             else "{0}/operations/state?id={2}".format(server_node.url, self.operation_id)
+        )
 
     def set_response(self, response):
         try:
@@ -514,15 +561,18 @@ class PutAttachmentCommand(RavenCommand):
         self._change_vector = change_vector
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(server_node.url, server_node.database,
-                                                                          Utils.quote_key(self._document_id),
-                                                                          Utils.quote_key(self._name))
+        self.url = "{0}/databases/{1}/attachments?id={2}&name={3}".format(
+            server_node.url,
+            server_node.database,
+            Utils.quote_key(self._document_id),
+            Utils.quote_key(self._name),
+        )
         if self._content_type:
             self.url += "&contentType={0}".format(Utils.quote_key(self._content_type))
         self.data = self._stream
 
         if self._change_vector is not None:
-            self.headers = {"If-Match": "\"{0}\"".format(self._change_vector)}
+            self.headers = {"If-Match": '"{0}"'.format(self._change_vector)}
 
     def set_response(self, response):
         try:
@@ -550,8 +600,9 @@ class GetFacetsCommand(RavenCommand):
         if self._query.facet_setup_doc and len(self._query.facets) > 0:
             raise exceptions.InvalidOperationException("You cannot specify both 'facet_setup_doc' and 'facets'.")
 
-        self.url = "{0}/databases/{1}/queries?op=facets&query-hash={2}".format(server_node.url, server_node.database,
-                                                                               self._query.get_query_hash())
+        self.url = "{0}/databases/{1}/queries?op=facets&query-hash={2}".format(
+            server_node.url, server_node.database, self._query.get_query_hash()
+        )
         self.data = self._query.to_json()
 
     def set_response(self, response):
@@ -583,9 +634,14 @@ class MultiGetCommand(RavenCommand):
             for key, value in request.get("headers", {}).items():
                 headers[key] = value
             commands.append(
-                {"Url": "/databases/{0}{1}".format(server_node.database, request["url"]),
-                 "Query": request.get("query", None), "Method": request.get("method", None),
-                 "Content": request.get("data", None), "Headers": headers})
+                {
+                    "Url": "/databases/{0}{1}".format(server_node.database, request["url"]),
+                    "Query": request.get("query", None),
+                    "Method": request.get("method", None),
+                    "Content": request.get("data", None),
+                    "Headers": headers,
+                }
+            )
 
         self.data = {"Requests": commands}
         self.url = "{0}/multi_get".format(self._base_url)
@@ -662,8 +718,10 @@ class QueryStreamCommand(RavenCommand):
             raise ValueError("index_query cannot be None")
 
         if index_query.wait_for_non_stale_results:
-            raise exceptions.NotSupportedException("Since stream() does not wait for indexing (by design), "
-                                                   "streaming query with wait_for_non_stale_results is not supported.")
+            raise exceptions.NotSupportedException(
+                "Since stream() does not wait for indexing (by design), "
+                "streaming query with wait_for_non_stale_results is not supported."
+            )
 
         self._index_query = index_query
 
@@ -686,6 +744,7 @@ class QueryStreamCommand(RavenCommand):
 
 
 # ------------------------SubscriptionCommands----------------------
+
 
 class CreateSubscriptionCommand(RavenCommand):
     def __init__(self, options):
@@ -716,8 +775,9 @@ class DeleteSubscriptionCommand(RavenCommand):
         self._name = name
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/subscriptions?taskName={2}".format(server_node.url, server_node.database,
-                                                                         self._name)
+        self.url = "{0}/databases/{1}/subscriptions?taskName={2}".format(
+            server_node.url, server_node.database, self._name
+        )
 
     def set_response(self, response):
         pass
@@ -729,8 +789,9 @@ class DropSubscriptionConnectionCommand(RavenCommand):
         self._name = name
 
     def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/subscriptions/drop?name={2}".format(server_node.url, server_node.database,
-                                                                          self._name)
+        self.url = "{0}/databases/{1}/subscriptions/drop?name={2}".format(
+            server_node.url, server_node.database, self._name
+        )
 
     def set_response(self, response):
         pass
@@ -744,7 +805,8 @@ class GetSubscriptionsCommand(RavenCommand):
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/subscriptions?start={2}&pageSize={3}".format(
-            server_node.url, server_node.database, self._start, self._page_size)
+            server_node.url, server_node.database, self._start, self._page_size
+        )
 
     def set_response(self, response):
         if response is None:
@@ -772,7 +834,8 @@ class GetSubscriptionStateCommand(RavenCommand):
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/subscriptions/state?name={2}".format(
-            server_node.url, server_node.database, self._subscription_name)
+            server_node.url, server_node.database, self._subscription_name
+        )
 
     def set_response(self, response):
         if response is None:

@@ -49,8 +49,15 @@ class DeleteCommandData(_CommandData):
 
 
 class PatchCommandData(_CommandData):
-    def __init__(self, key, scripted_patch, change_vector=None, patch_if_missing=None, additional_data=None,
-                 debug_mode=False):
+    def __init__(
+        self,
+        key,
+        scripted_patch,
+        change_vector=None,
+        patch_if_missing=None,
+        additional_data=None,
+        debug_mode=False,
+    ):
         """
         @param key: key of a document to patch.
         :type str
@@ -77,9 +84,12 @@ class PatchCommandData(_CommandData):
         self.debug_Mode = debug_mode
 
     def to_json(self):
-        data = {"Id": self.key, "Type": self._type,
-                "Patch": self.scripted_patch.to_json(),
-                "DebugMode": self.debug_Mode}
+        data = {
+            "Id": self.key,
+            "Type": self._type,
+            "Patch": self.scripted_patch.to_json(),
+            "DebugMode": self.debug_Mode,
+        }
 
         if self.change_vector:
             data["ChangeVector"] = self.change_vector
@@ -111,7 +121,12 @@ class PutAttachmentCommandData(_CommandData):
         self.content_type = content_type
 
     def to_json(self):
-        data = {"Id": self.key, "Name": self.name, "ContentType": self.content_type, "Type": self._type}
+        data = {
+            "Id": self.key,
+            "Name": self.name,
+            "ContentType": self.content_type,
+            "Type": self._type,
+        }
 
         if self.change_vector:
             data["ChangeVector"] = self.change_vector
@@ -145,7 +160,13 @@ class DeleteAttachmentCommandData(_CommandData):
 
 
 class TimeSeriesBatchCommandData(_CommandData):
-    def __init__(self, document_id: str, name: str, operation: "TimeSeriesOperation", change_vector=None):
+    def __init__(
+        self,
+        document_id: str,
+        name: str,
+        operation: "TimeSeriesOperation",
+        change_vector=None,
+    ):
 
         if not document_id:
             raise ValueError("None or empty document id is Invalid")
@@ -161,12 +182,21 @@ class TimeSeriesBatchCommandData(_CommandData):
         return self._time_series
 
     def to_json(self):
-        return {"Id": self.key, "TimeSeries": self.time_series.to_json(), "Type": self.type}
+        return {
+            "Id": self.key,
+            "TimeSeries": self.time_series.to_json(),
+            "Type": self.type,
+        }
 
 
 class CountersBatchCommandData(_CommandData):
-    def __init__(self, document_id: str, counter_operations: List[CounterOperation] or CounterOperation,
-                 from_etl: Optional[bool] = None, change_vector=None):
+    def __init__(
+        self,
+        document_id: str,
+        counter_operations: List[CounterOperation] or CounterOperation,
+        from_etl: Optional[bool] = None,
+        change_vector=None,
+    ):
         if not document_id:
             raise ValueError("None or empty document id is Invalid")
         if not counter_operations:
@@ -198,7 +228,11 @@ class CountersBatchCommandData(_CommandData):
         return self._counters
 
     def to_json(self):
-        json_dict = {"Id": self.key, "Counters": self.counters.to_json(), "Type": self.type}
+        json_dict = {
+            "Id": self.key,
+            "Counters": self.counters.to_json(),
+            "Type": self.type,
+        }
         if self._from_etl:
             json_dict["FromEtl"] = self._from_etl
         return json_dict

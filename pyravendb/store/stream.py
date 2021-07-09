@@ -1,7 +1,7 @@
 import ijson
 import re
 
-LEXEME_RE = re.compile(r'[a-z0-9eE\.\+-]+|\S')
+LEXEME_RE = re.compile(r"[a-z0-9eE\.\+-]+|\S")
 
 
 # The code imported from ijson to be able to receive json from socket
@@ -26,7 +26,7 @@ class IncrementalJsonParser:
         except StopIteration:
             pass
         else:
-            raise ijson.common.JSONError('Additional data')
+            raise ijson.common.JSONError("Additional data")
 
     @staticmethod
     def lexer(response, buf_size=ijson.backend.BUFSIZE):
@@ -34,7 +34,7 @@ class IncrementalJsonParser:
         data = next(it, None)
         if data is None:
             yield None
-        buf = data.decode('utf-8')
+        buf = data.decode("utf-8")
         pos = 0
         discarded = 0
         while True:
@@ -48,7 +48,7 @@ class IncrementalJsonParser:
                         try:
                             end = buf.index('"', start)
                             escpos = end - 1
-                            while buf[escpos] == '\\':
+                            while buf[escpos] == "\\":
                                 escpos -= 1
                             if (end - escpos) % 2 == 0:
                                 start = end + 1
@@ -58,15 +58,15 @@ class IncrementalJsonParser:
                             data = next(it, buf_size)
                             if not data:
                                 yield None
-                            buf += data.decode('utf-8')
-                    yield discarded + pos, buf[pos:end + 1]
+                            buf += data.decode("utf-8")
+                    yield discarded + pos, buf[pos : end + 1]
                     pos = end + 1
                 else:
                     while match.end() == len(buf):
                         data = next(it, None)
                         if not data:
                             break
-                        buf += data.decode('utf-8')
+                        buf += data.decode("utf-8")
                         match = LEXEME_RE.search(buf, pos)
                         lexeme = match.group()
                     pos = match.end()
@@ -75,5 +75,5 @@ class IncrementalJsonParser:
                 data = next(it, None)
                 if data is None:
                     yield None
-                buf = data.decode('utf-8')
+                buf = data.decode("utf-8")
                 pos = 0

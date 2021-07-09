@@ -25,8 +25,10 @@ class TestGet(TestBase):
         self.assertEqual(self.response["Results"][0]["@metadata"]["@id"], "products/101")
 
     def test_not_equal(self):
-        self.assertNotEqual(self.response["Results"][0]["@metadata"]["@id"],
-                            self.other_response["Results"][0]["@metadata"]["@id"])
+        self.assertNotEqual(
+            self.response["Results"][0]["@metadata"]["@id"],
+            self.other_response["Results"][0]["@metadata"]["@id"],
+        )
 
     def test_paging(self):
         self.assertEqual(len(self.paged_response["Results"]), 1)

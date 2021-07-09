@@ -28,7 +28,14 @@ class HiLoReturnCommand(RavenCommand):
 
 
 class NextHiLoCommand(RavenCommand):
-    def __init__(self, tag, last_batch_size, last_range_at, identity_parts_separator, last_range_max):
+    def __init__(
+        self,
+        tag,
+        last_batch_size,
+        last_range_at,
+        identity_parts_separator,
+        last_range_max,
+    ):
         super(NextHiLoCommand, self).__init__(method="GET")
         self.tag = tag
         self.last_batch_size = last_batch_size
@@ -39,7 +46,12 @@ class NextHiLoCommand(RavenCommand):
 
     def create_request(self, server_node):
         path = "hilo/next?tag={0}&lastBatchSize={1}&lastRangeAt={2}&identityPartsSeparator={3}&lastMax={4}".format(
-            self.tag, self.last_batch_size, self.last_range_at, self.identity_parts_separator, self.last_range_max)
+            self.tag,
+            self.last_batch_size,
+            self.last_range_at,
+            self.identity_parts_separator,
+            self.last_range_max,
+        )
         self.url = "{0}/databases/{1}/{2}".format(server_node.url, server_node.database, path)
 
     def set_response(self, response):
@@ -48,10 +60,14 @@ class NextHiLoCommand(RavenCommand):
 
         if response.status_code == 201:
             response = response.json()
-            return {"prefix": response["Prefix"], "server_tag": response["ServerTag"], "low": response["Low"],
-                    "high": response["High"],
-                    "last_size": response["LastSize"],
-                    "last_range_at": response["LastRangeAt"]}
+            return {
+                "prefix": response["Prefix"],
+                "server_tag": response["ServerTag"],
+                "low": response["Low"],
+                "high": response["High"],
+                "last_size": response["LastSize"],
+                "last_range_at": response["LastRangeAt"],
+            }
         if response.status_code == 500:
             raise exceptions.DatabaseDoesNotExistException(response.json()["Error"])
         if response.status_code == 409:
@@ -151,8 +167,13 @@ class HiLoKeyGenerator(object):
                     pass
 
     def get_next_range(self):
-        hilo_command = NextHiLoCommand(self._tag, self._last_batch_size, self._last_range_at,
-                                       self._identity_parts_separator, self._range.max_id)
+        hilo_command = NextHiLoCommand(
+            self._tag,
+            self._last_batch_size,
+            self._last_range_at,
+            self._identity_parts_separator,
+            self._range.max_id,
+        )
         result = self._store.get_request_executor().execute(hilo_command)
         self._prefix = result["prefix"]
         self._server_tag = result["server_tag"]

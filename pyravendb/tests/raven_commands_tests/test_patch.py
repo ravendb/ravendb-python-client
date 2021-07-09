@@ -17,24 +17,35 @@ class TestPatch(TestBase):
         TestBase.delete_all_topology_files()
 
     def test_patch_success_ignore_missing(self):
-        command = PatchCommand(document_id="products/10", change_vector=None,
-                               patch=PatchRequest("this.Name = 'testing'"), patch_if_missing=None)
+        command = PatchCommand(
+            document_id="products/10",
+            change_vector=None,
+            patch=PatchRequest("this.Name = 'testing'"),
+            patch_if_missing=None,
+        )
         result = self.requests_executor.execute(command)
         self.assertIsNotNone(result)
         self.assertTrue(result["ModifiedDocument"]["Name"] == "testing")
 
     def test_patch_success_not_ignore_missing(self):
-        command = PatchCommand(document_id="products/10", change_vector=None,
-                               patch=PatchRequest("this.Name = 'testing'"),
-                               patch_if_missing=None, skip_patch_if_change_vector_mismatch=True)
+        command = PatchCommand(
+            document_id="products/10",
+            change_vector=None,
+            patch=PatchRequest("this.Name = 'testing'"),
+            patch_if_missing=None,
+            skip_patch_if_change_vector_mismatch=True,
+        )
         result = self.requests_executor.execute(command)
         self.assertIsNotNone(result)
         self.assertTrue(result["ModifiedDocument"]["Name"] == "testing")
 
     def test_patch_fail_not_ignore_missing(self):
-        command = PatchCommand(document_id="products/110", change_vector=None,
-                               patch=PatchRequest("this.Name = 'testing'"),
-                               patch_if_missing=None)
+        command = PatchCommand(
+            document_id="products/110",
+            change_vector=None,
+            patch=PatchRequest("this.Name = 'testing'"),
+            patch_if_missing=None,
+        )
         self.assertIsNone(self.requests_executor.execute(command))
 
 

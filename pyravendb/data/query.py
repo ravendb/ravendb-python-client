@@ -33,8 +33,16 @@ class OrderingType(Enum):
 class IndexQueryBase(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, query, query_parameters=None, start=0, page_size=None,
-                 wait_for_non_stale_results=False, wait_for_non_stale_results_timeout=None, cutoff_etag=None):
+    def __init__(
+        self,
+        query,
+        query_parameters=None,
+        start=0,
+        page_size=None,
+        wait_for_non_stale_results=False,
+        wait_for_non_stale_results_timeout=None,
+        cutoff_etag=None,
+    ):
         """
         @param str query: Actual query that will be performed.
         @param dict query_parameters: Parameters to the query
@@ -72,11 +80,21 @@ class IndexQueryBase(object):
 
 
 class IndexQuery(IndexQueryBase):
-    def __init__(self, query="", query_parameters=None, start=0, includes=None, show_timings=False,
-                 skip_duplicate_checking=False, **kwargs):
+    def __init__(
+        self,
+        query="",
+        query_parameters=None,
+        start=0,
+        includes=None,
+        show_timings=False,
+        skip_duplicate_checking=False,
+        **kwargs,
+    ):
         super(IndexQuery, self).__init__(query=query, query_parameters=query_parameters, start=start, **kwargs)
         self.allow_multiple_index_entries_for_same_document_to_result_transformer = kwargs.get(
-            "allow_multiple_index_entries_for_same_document_to_result_transformer", False)
+            "allow_multiple_index_entries_for_same_document_to_result_transformer",
+            False,
+        )
         self.includes = includes if includes is not None else []
         self.show_timings = show_timings
         self.skip_duplicate_checking = skip_duplicate_checking
@@ -96,8 +114,8 @@ class IndexQuery(IndexQueryBase):
             data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout)
         if self.allow_multiple_index_entries_for_same_document_to_result_transformer:
             data[
-                "AllowMultipleIndexEntriesForSameDocumentToResultTransformer"] = \
-                self.allow_multiple_index_entries_for_same_document_to_result_transformer
+                "AllowMultipleIndexEntriesForSameDocumentToResultTransformer"
+            ] = self.allow_multiple_index_entries_for_same_document_to_result_transformer
         if self.show_timings:
             data["ShowTimings"] = self.show_timings
         if self.skip_duplicate_checking:
@@ -109,9 +127,20 @@ class IndexQuery(IndexQueryBase):
         return data
 
     def get_query_hash(self):
-        return hash((self.query,self.wait_for_non_stale_results, self.wait_for_non_stale_results_timeout,
-                     self.show_timings, self.cutoff_etag, self.cutoff_etag, self.start, self.page_size,
-                     json.dumps(self.query_parameters)))
+        return hash(
+            (
+                self.query,
+                self.wait_for_non_stale_results,
+                self.wait_for_non_stale_results_timeout,
+                self.show_timings,
+                self.cutoff_etag,
+                self.cutoff_etag,
+                self.start,
+                self.page_size,
+                json.dumps(self.query_parameters),
+            )
+        )
+
 
 class FacetQuery(IndexQueryBase):
     def __init__(self, query="", facet_setup_doc=None, facets=None, start=0, page_size=None, **kwargs):
@@ -126,9 +155,19 @@ class FacetQuery(IndexQueryBase):
         self.facet_setup_doc = facet_setup_doc
 
     def get_query_hash(self):
-        return hash((self.query,self.wait_for_non_stale_results, self.wait_for_non_stale_results_timeout,
-                    self.cutoff_etag, self.start,self.page_size, json.dumps(self.query_parameters),
-                    self.facet_setup_doc,json.dumps([facet.to_json() for facet in self.facets])))
+        return hash(
+            (
+                self.query,
+                self.wait_for_non_stale_results,
+                self.wait_for_non_stale_results_timeout,
+                self.cutoff_etag,
+                self.start,
+                self.page_size,
+                json.dumps(self.query_parameters),
+                self.facet_setup_doc,
+                json.dumps([facet.to_json() for facet in self.facets]),
+            )
+        )
 
     def to_json(self):
         data = {"Query": self.query, "CutoffEtag": self.cutoff_etag}
@@ -140,8 +179,11 @@ class FacetQuery(IndexQueryBase):
         data["FacetSetupDoc"] = self.facet_setup_doc
         data["QueryParameters"] = self.query_parameters if self.query_parameters is not None else None
         data["WaitForNonStaleResults"] = self.wait_for_non_stale_results
-        data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout) \
-            if self.wait_for_non_stale_results_timeout is not None else None
+        data["WaitForNonStaleResultsTimeout"] = (
+            Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout)
+            if self.wait_for_non_stale_results_timeout is not None
+            else None
+        )
         return data
 
 
@@ -176,9 +218,19 @@ class FacetTermSortMode(Enum):
 
 
 class Facet(object):
-    def __init__(self, name=None, display_name=None, ranges=None, mode=FacetMode.default,
-                 aggregation=FacetAggregation.none, aggregation_field=None, aggregation_type=None, max_result=None,
-                 term_sort_mode=FacetTermSortMode.value_asc, include_remaining_terms=False):
+    def __init__(
+        self,
+        name=None,
+        display_name=None,
+        ranges=None,
+        mode=FacetMode.default,
+        aggregation=FacetAggregation.none,
+        aggregation_field=None,
+        aggregation_type=None,
+        max_result=None,
+        term_sort_mode=FacetTermSortMode.value_asc,
+        include_remaining_terms=False,
+    ):
         """
         @param name: Name of facet.
         :type str
@@ -213,10 +265,15 @@ class Facet(object):
         self.include_remaining_terms = include_remaining_terms
 
     def to_json(self):
-        data = {"Mode": str(self.mode), "Aggregation": str(self.aggregation),
-                "AggregationField": self.aggregation_field,
-                "AggregationType": self.aggregation_type, "Name": self.name, "TermSortMode": str(self.term_sort_mode),
-                "IncludeRemainingTerms": self.include_remaining_terms}
+        data = {
+            "Mode": str(self.mode),
+            "Aggregation": str(self.aggregation),
+            "AggregationField": self.aggregation_field,
+            "AggregationType": self.aggregation_type,
+            "Name": self.name,
+            "TermSortMode": str(self.term_sort_mode),
+            "IncludeRemainingTerms": self.include_remaining_terms,
+        }
 
         if self.max_result is not None:
             data["MaxResults"] = self.max_result

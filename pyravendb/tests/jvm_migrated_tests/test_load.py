@@ -2,8 +2,8 @@ from pyravendb.tests.test_base import TestBase, User
 
 
 class GeekUser(User):
-    def __init__(self,name,age,favorite_primes,favorite_very_large_primes):
-        super().__init__(name,age)
+    def __init__(self, name, age, favorite_primes, favorite_very_large_primes):
+        super().__init__(name, age)
         self.favorite_primes = favorite_primes
         self.favorite_very_large_primes = favorite_very_large_primes
 
@@ -35,14 +35,17 @@ class TestLoad(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            users = session.load(["users/1","users/2"], User)
+            users = session.load(["users/1", "users/2"], User)
             self.assertEqual(len(users), 2)
 
     def test_load_document_with_int_array_and_long_array(self):
         # Python 3.x has eliminated long and is only having int.
         # sys.maxsize contains the maximum size in bytes a Python int can be.
         with self.store.open_session() as session:
-            session.store(GeekUser("Beep", 10, [13, 43, 443, 997], [5000000029, 5000000039]), "geeks/1")
+            session.store(
+                GeekUser("Beep", 10, [13, 43, 443, 997], [5000000029, 5000000039]),
+                "geeks/1",
+            )
             session.store(GeekUser("Bop", 90, [2, 3, 5, 7], [999999999989]), "geeks/2")
             session.save_changes()
 
@@ -101,13 +104,12 @@ class TestLoad(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            users_arr = ["users/1", None, "users/2", None]          # jvm - String[]
+            users_arr = ["users/1", None, "users/2", None]  # jvm - String[]
             users_by_id_1 = dict([(user.Id, user) for user in session.load(users_arr)])
 
-            users_set = list({"users/1", None, "users/2", None})    # jvm - HashSet(Arrays.asList(...))
+            users_set = list({"users/1", None, "users/2", None})  # jvm - HashSet(Arrays.asList(...))
             users_by_id_2 = dict([(user.Id, user) for user in session.load(users_set)])
 
-            self.assertIsNotNone(users_by_id_1['users/1'])
-            self.assertIsNotNone(users_by_id_1['users/2'])
+            self.assertIsNotNone(users_by_id_1["users/1"])
+            self.assertIsNotNone(users_by_id_1["users/2"])
             self.assertEqual(len(users_by_id_2), 2)
-

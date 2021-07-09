@@ -10,15 +10,33 @@ import re
 
 class _Token:
     def __init__(self, field_name="", value=None, token=None, write=None, **kwargs):
-        self.__dict__.update({"field_name": field_name, "value": value, "token": token, "write": write, **kwargs})
+        self.__dict__.update(
+            {
+                "field_name": field_name,
+                "value": value,
+                "token": token,
+                "write": write,
+                **kwargs,
+            }
+        )
 
 
 class Query(object):
-    where_operators = {'equals': 'equals', 'greater_than': 'greater_than',
-                       'greater_than_or_equal': 'greater_than_or_equal', 'less_than': 'less_than',
-                       'less_than_or_equal': 'less_than_or_equal', 'in': 'in', 'all_in': 'all_in',
-                       'between': 'between', 'search': 'search', 'lucene': 'lucene', 'startsWith': 'startsWith',
-                       'endsWith': 'endsWith', 'exists': 'exists'}
+    where_operators = {
+        "equals": "equals",
+        "greater_than": "greater_than",
+        "greater_than_or_equal": "greater_than_or_equal",
+        "less_than": "less_than",
+        "less_than_or_equal": "less_than_or_equal",
+        "in": "in",
+        "all_in": "all_in",
+        "between": "between",
+        "search": "search",
+        "lucene": "lucene",
+        "startsWith": "startsWith",
+        "endsWith": "endsWith",
+        "exists": "exists",
+    }
 
     rql_keyword = ("AS", "SELECT", "WHERE", "LOAD", "GROUP", "ORDER", "INCLUDE")
 
@@ -53,9 +71,19 @@ class Query(object):
         self._negate_next()
         return self
 
-    def __call__(self, object_type=None, index_name=None, collection_name=None, is_map_reduce=False,
-                 with_statistics=False, metadata_only=False, default_operator=None, wait_for_non_stale_results=False,
-                 timeout=None, nested_object_types=None):
+    def __call__(
+        self,
+        object_type=None,
+        index_name=None,
+        collection_name=None,
+        is_map_reduce=False,
+        with_statistics=False,
+        metadata_only=False,
+        default_operator=None,
+        wait_for_non_stale_results=False,
+        timeout=None,
+        nested_object_types=None,
+    ):
         """
         @param Type object_type: The type of the object we want to track the entity too.
         @param str index_name: The index name we want to apply.
@@ -107,7 +135,8 @@ class Query(object):
         if index_name and collection_name:
             raise InvalidOperationException(
                 "Parameters 'index_name' and 'collection_name' are mutually exclusive. "
-                "Please specify only one of them.")
+                "Please specify only one of them."
+            )
 
         if not index_name and not collection_name:
             if not self.object_type:
@@ -124,7 +153,9 @@ class Query(object):
         if self._current_clause_depth != 0:
             raise InvalidOperationException(
                 "A clause was not closed correctly within this query, current clause depth = {0}".format(
-                    self._current_clause_depth))
+                    self._current_clause_depth
+                )
+            )
 
         query_builder = []
         self.build_from(query_builder)
@@ -142,7 +173,7 @@ class Query(object):
 
         if self.index_name == "dynamic":
             query_builder.append("FROM ")
-            if Utils.contains_any(self.collection_name, [' ', '\t', '\r', '\n', '\v']):
+            if Utils.contains_any(self.collection_name, [" ", "\t", "\r", "\n", "\v"]):
                 if '"' in self.collection_name:
                     raise ValueError("Collection name cannot contain a quote, but was: " + self.collection_name)
                 query_builder.append('"' + self.collection_name + '"')
@@ -225,7 +256,8 @@ class Query(object):
         if self._query:
             raise InvalidOperationException(
                 "raw_query was called, cannot modify this query by calling on operations "
-                "that would modify the query (such as where, select, order_by, group_by, etc)")
+                "that would modify the query (such as where, select, order_by, group_by, etc)"
+            )
 
     @staticmethod
     def _get_rql_write_case(token):
@@ -322,12 +354,12 @@ class Query(object):
             first = True
             for c in name:
                 if first:
-                    if not c.isalpha() and c != '_' and c != '@':
+                    if not c.isalpha() and c != "_" and c != "@":
                         escape = True
                         break
                     first = False
                 else:
-                    if (not c.isalpha() and not c.isdigit()) and c != '_' and c != '@' and c != '[' and c != ']':
+                    if (not c.isalpha() and not c.isdigit()) and c != "_" and c != "@" and c != "[" and c != "]":
                         escape = True
                         break
 
@@ -355,7 +387,6 @@ class Query(object):
             value = Utils.timedelta_tick(value)
         elif isinstance(value, datetime):
             value = Utils.datetime_to_string(value)
-
 
         parameter_name = "p{0}".format(len(self.query_parameters))
         self.query_parameters[parameter_name] = value
@@ -396,11 +427,16 @@ class Query(object):
         """
         self.assert_no_raw_query()
 
-        if len(self._where_tokens) != 0 or len(self._select_tokens) != 0 or len(
-                self._order_by_tokens) != 0 or len(self._group_by_tokens) != 0:
+        if (
+            len(self._where_tokens) != 0
+            or len(self._select_tokens) != 0
+            or len(self._order_by_tokens) != 0
+            or len(self._group_by_tokens) != 0
+        ):
             raise InvalidOperationException(
                 "You can only use raw_query on a new query, without applying any operations "
-                "(such as where, select, order_by, group_by, etc)")
+                "(such as where, select, order_by, group_by, etc)"
+            )
 
         if query_parameters:
             self.query_parameters = query_parameters
@@ -427,7 +463,12 @@ class Query(object):
             token = "not_equals"
 
         self.last_equality = {field_name: value}
-        token = _Token(field_name=field_name, value=self.add_query_parameter(value), token=token, exact=exact)
+        token = _Token(
+            field_name=field_name,
+            value=self.add_query_parameter(value),
+            token=token,
+            exact=exact,
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -446,8 +487,14 @@ class Query(object):
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
-        self._where_tokens.append(_Token(field_name=field_name, value=None, token="exists", write="exists(" +
-                                                                                                  field_name + ")"))
+        self._where_tokens.append(
+            _Token(
+                field_name=field_name,
+                value=None,
+                token="exists",
+                write="exists(" + field_name + ")",
+            )
+        )
         return self
 
     def where_true(self):
@@ -490,9 +537,13 @@ class Query(object):
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
-        self.last_equality = {field_name: "(" + search_terms + ")" if ' ' in search_terms else search_terms}
-        token = _Token(field_name=field_name, token="search", value=self.add_query_parameter(search_terms),
-                       search_operator=operator)
+        self.last_equality = {field_name: "(" + search_terms + ")" if " " in search_terms else search_terms}
+        token = _Token(
+            field_name=field_name,
+            token="search",
+            value=self.add_query_parameter(search_terms),
+            search_operator=operator,
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
         return self
@@ -512,7 +563,11 @@ class Query(object):
         self.negate_if_needed(field_name)
 
         self.last_equality = {field_name: value}
-        token = _Token(field_name=field_name, token="endsWith", value=self.add_query_parameter(value))
+        token = _Token(
+            field_name=field_name,
+            token="endsWith",
+            value=self.add_query_parameter(value),
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -533,7 +588,11 @@ class Query(object):
         self.negate_if_needed(field_name)
 
         self.last_equality = {field_name: value}
-        token = _Token(field_name=field_name, token="startsWith", value=self.add_query_parameter(value))
+        token = _Token(
+            field_name=field_name,
+            token="startsWith",
+            value=self.add_query_parameter(value),
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -551,8 +610,12 @@ class Query(object):
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
-        token = _Token(field_name=field_name, value=self.add_query_parameter(list(Utils.unpack_iterable(values))),
-                       token="in", exact=exact)
+        token = _Token(
+            field_name=field_name,
+            value=self.add_query_parameter(list(Utils.unpack_iterable(values))),
+            token="in",
+            exact=exact,
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -567,8 +630,12 @@ class Query(object):
         from_parameter_name = self.add_query_parameter("*" if start is None else start)
         to_parameter_name = self.add_query_parameter("NULL" if end is None else end)
 
-        token = _Token(field_name=field_name, token="between", value=(from_parameter_name, to_parameter_name),
-                       exact=exact)
+        token = _Token(
+            field_name=field_name,
+            token="between",
+            value=(from_parameter_name, to_parameter_name),
+            exact=exact,
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -582,7 +649,11 @@ class Query(object):
         if isinstance(value, timedelta):
             value = Utils.timedelta_tick(value)
 
-        token = _Token(field_name=field_name, token="greater_than", value=self.add_query_parameter(value))
+        token = _Token(
+            field_name=field_name,
+            token="greater_than",
+            value=self.add_query_parameter(value),
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -596,7 +667,11 @@ class Query(object):
         if isinstance(value, timedelta):
             value = Utils.timedelta_tick(value)
 
-        token = _Token(field_name=field_name, token="greater_than_or_equal", value=self.add_query_parameter(value))
+        token = _Token(
+            field_name=field_name,
+            token="greater_than_or_equal",
+            value=self.add_query_parameter(value),
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -610,7 +685,11 @@ class Query(object):
         if isinstance(value, timedelta):
             value = Utils.timedelta_tick(value)
 
-        token = _Token(field_name=field_name, token="less_than", value=self.add_query_parameter(value))
+        token = _Token(
+            field_name=field_name,
+            token="less_than",
+            value=self.add_query_parameter(value),
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -624,7 +703,11 @@ class Query(object):
         if isinstance(value, timedelta):
             value = Utils.timedelta_tick(value)
 
-        token = _Token(field_name=field_name, token="less_than_or_equal", value=self.add_query_parameter(value))
+        token = _Token(
+            field_name=field_name,
+            token="less_than_or_equal",
+            value=self.add_query_parameter(value),
+        )
         token.write = self.rql_where_write(token)
         self._where_tokens.append(token)
 
@@ -647,8 +730,14 @@ class Query(object):
         self.assert_no_raw_query()
         field_name = Query.escape_if_needed(field_name)
         self._order_by_tokens.append(
-            _Token(field_name=field_name, token="order_by", write=field_name, descending=descending,
-                   ordering=ordering))
+            _Token(
+                field_name=field_name,
+                token="order_by",
+                write=field_name,
+                descending=descending,
+                ordering=ordering,
+            )
+        )
 
         return self
 
@@ -762,32 +851,53 @@ class Query(object):
         if len(facets) == 0:
             raise ValueError("Facets must contain at least one entry", "facets")
         str_query = self.__str__()
-        facet_query = FacetQuery(str_query, None, facets, start, page_size, query_parameters=self.query_parameters,
-                                 wait_for_non_stale_results=self.wait_for_non_stale_results,
-                                 wait_for_non_stale_results_timeout=self.timeout, cutoff_etag=self.cutoff_etag)
+        facet_query = FacetQuery(
+            str_query,
+            None,
+            facets,
+            start,
+            page_size,
+            query_parameters=self.query_parameters,
+            wait_for_non_stale_results=self.wait_for_non_stale_results,
+            wait_for_non_stale_results_timeout=self.timeout,
+            cutoff_etag=self.cutoff_etag,
+        )
 
         command = GetFacetsCommand(query=facet_query)
         return self.session.requests_executor.execute(command)
 
     def get_index_query(self):
-        return IndexQuery(query=self.__str__(), query_parameters=self.query_parameters, start=self.start,
-                          page_size=self.page_size, cutoff_etag=self.cutoff_etag,
-                          wait_for_non_stale_results=self.wait_for_non_stale_results,
-                          wait_for_non_stale_results_timeout=self.timeout)
+        return IndexQuery(
+            query=self.__str__(),
+            query_parameters=self.query_parameters,
+            start=self.start,
+            page_size=self.page_size,
+            cutoff_etag=self.cutoff_etag,
+            wait_for_non_stale_results=self.wait_for_non_stale_results,
+            wait_for_non_stale_results_timeout=self.timeout,
+        )
 
     def _execute_query(self):
         conventions = self.session.conventions
         end_time = time.time() + self.timeout.seconds
         query = self._build_query()
         while True:
-            index_query = IndexQuery(query=query, query_parameters=self.query_parameters, start=self.start,
-                                     page_size=self.page_size, cutoff_etag=self.cutoff_etag,
-                                     wait_for_non_stale_results=self.wait_for_non_stale_results,
-                                     wait_for_non_stale_results_timeout=self.timeout)
+            index_query = IndexQuery(
+                query=query,
+                query_parameters=self.query_parameters,
+                start=self.start,
+                page_size=self.page_size,
+                cutoff_etag=self.cutoff_etag,
+                wait_for_non_stale_results=self.wait_for_non_stale_results,
+                wait_for_non_stale_results_timeout=self.timeout,
+            )
 
-            query_command = QueryOperation(session=self.session, index_name=self.index_name,
-                                           index_query=index_query,
-                                           metadata_only=self.metadata_only).create_request()
+            query_command = QueryOperation(
+                session=self.session,
+                index_name=self.index_name,
+                index_query=index_query,
+                metadata_only=self.metadata_only,
+            ).create_request()
             response = self.session.requests_executor.execute(query_command)
             if response is None:
                 return []
@@ -803,14 +913,21 @@ class Query(object):
         response_includes = response.pop("Includes", None)
         self.session.save_includes(response_includes)
         for result in response_results:
-            entity, metadata, original_metadata, original_document = Utils.convert_to_entity(result, self.object_type,
-                                                                                             self.session.conventions,
-                                                                                             self.session.readonly_events,
-                                                                                             self.nested_object_types)
+            (entity, metadata, original_metadata, original_document,) = Utils.convert_to_entity(
+                result,
+                self.object_type,
+                self.session.conventions,
+                self.session.readonly_events,
+                self.nested_object_types,
+            )
             if self.object_type != dict and not self.fields_to_fetch:
-                self.session.save_entity(key=original_metadata.get("@id", None), entity=entity,
-                                         original_metadata=original_metadata,
-                                         metadata=metadata, original_document=original_document)
+                self.session.save_entity(
+                    key=original_metadata.get("@id", None),
+                    entity=entity,
+                    original_metadata=original_metadata,
+                    metadata=metadata,
+                    original_document=original_document,
+                )
             results.append(entity)
 
         if self._with_statistics:

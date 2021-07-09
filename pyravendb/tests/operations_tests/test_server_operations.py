@@ -10,7 +10,7 @@ class TestServerOperations(TestBase):
         TestBase.delete_all_topology_files()
 
     def test_create_database_name_longer_than_260_chars(self):
-        name = "long_database_name_" + ''.join(['z' for _ in range(100)])
+        name = "long_database_name_" + "".join(["z" for _ in range(100)])
         try:
             self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
             TestBase.wait_for_database_topology(self.store, name)
@@ -21,7 +21,6 @@ class TestServerOperations(TestBase):
                 self.store.maintenance.server.send(DeleteDatabaseOperation(database_name=name, hard_delete=True))
             except Exception as exception:
                 raise exception
-
 
     def test_cannot_create_database_with_the_same_name(self):
         name = "Duplicate"

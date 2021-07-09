@@ -2,7 +2,11 @@ from datetime import datetime
 from pyravendb.tools.utils import Utils
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.raven_operations.timeseries_operations import GetTimeSeriesOperation
-from pyravendb.data.timeseries import TimeSeriesRange, TimeSeriesEntry, TimeSeriesRangeResult
+from pyravendb.data.timeseries import (
+    TimeSeriesRange,
+    TimeSeriesEntry,
+    TimeSeriesRangeResult,
+)
 from pyravendb.raven_operations.timeseries_operations import TimeSeriesOperation
 from pyravendb.commands.commands_data import TimeSeriesBatchCommandData
 from typing import List, Optional
@@ -10,18 +14,19 @@ import sys
 
 
 class TimeSeries:
-
     @staticmethod
     def raise_not_in_session(entity):
         raise ValueError(
             repr(entity) + " is not associated with the session, cannot add time-series to it. "
-                           "Use document Id instead or track the entity in the session.")
+            "Use document Id instead or track the entity in the session."
+        )
 
     @staticmethod
     def raise_document_already_deleted_in_session(document_id, name):
         raise exceptions.InvalidOperationException(
             f"Can't modify timeseries {name} of document {document_id}, "
-            f"the document was already deleted in this session.")
+            f"the document was already deleted in this session."
+        )
 
     def __init__(self, session, entity_or_document_id, name):
         self._session = session
@@ -46,8 +51,9 @@ class TimeSeries:
         for range_ in ranges:
             if range_.from_date <= start_date:
                 if range_.to_date >= to_date:
-                    return [entry for entry in range_.entries if
-                            entry.timestamp >= from_date or entry.timestamp <= to_date], ranges
+                    return [
+                        entry for entry in range_.entries if entry.timestamp >= from_date or entry.timestamp <= to_date
+                    ], ranges
                 else:
                     start_date = range_.to_date
                     continue
@@ -70,9 +76,10 @@ class TimeSeries:
         self._session.increment_requests_count()
 
         details = self._session.advanced.document_store.operations.send(
-            GetTimeSeriesOperation(self._document_id, time_series_ranges, start, page_size))
+            GetTimeSeriesOperation(self._document_id, time_series_ranges, start, page_size)
+        )
 
-        results = [TimeSeriesRangeResult.create_time_series_range_entity(i) for i in details['Entries']]
+        results = [TimeSeriesRangeResult.create_time_series_range_entity(i) for i in details["Entries"]]
 
         time_series_range_result = None
         start_from, end_from = None, None
@@ -81,10 +88,18 @@ class TimeSeries:
         for range_ in ranges:
             # Add all the entries from the ranges to the result we fetched from the server
             # build the cache again, merge ranges if needed
-            if range_.from_date <= from_date and range_.to_date >= to_date or \
-                    range_.from_date >= from_date and range_.to_date <= to_date or \
-                    range_.from_date <= from_date and range_.to_date <= to_date and range_.to_date >= from_date or \
-                    range_.from_date >= from_date and range_.from_date <= to_date and range_.to_date >= to_date:
+            if (
+                range_.from_date <= from_date
+                and range_.to_date >= to_date
+                or range_.from_date >= from_date
+                and range_.to_date <= to_date
+                or range_.from_date <= from_date
+                and range_.to_date <= to_date
+                and range_.to_date >= from_date
+                or range_.from_date >= from_date
+                and range_.from_date <= to_date
+                and range_.to_date >= to_date
+            ):
                 if time_series_range_result is None:
                     time_series_range_result = TimeSeriesRangeResult(None, None, entries=[])
                     for result in results:
@@ -105,11 +120,17 @@ class TimeSeries:
         # Sort all the entries and add them to cache after we merged them.
         if time_series_range_result:
             time_series_range_result.entries = next(
-                Utils.sort_iterable(time_series_range_result.entries, key=lambda ao: ao.timestamp.timestamp()))
-            time_series_range_result.from_date = start_from if start_from < time_series_ranges[0].from_date else \
-                time_series_ranges[0].from_date
-            time_series_range_result.to_date = end_from if end_from > time_series_ranges[0].to_date else \
-                time_series_ranges[-1].to_date
+                Utils.sort_iterable(
+                    time_series_range_result.entries,
+                    key=lambda ao: ao.timestamp.timestamp(),
+                )
+            )
+            time_series_range_result.from_date = (
+                start_from if start_from < time_series_ranges[0].from_date else time_series_ranges[0].from_date
+            )
+            time_series_range_result.to_date = (
+                end_from if end_from > time_series_ranges[0].to_date else time_series_ranges[-1].to_date
+            )
 
             cache_merge.append(time_series_range_result)
 
@@ -120,7 +141,13 @@ class TimeSeries:
                 entries_to_return.append(entry)
         return entries_to_return, cache_merge
 
-    def get(self, from_date: datetime = None, to_date: datetime = None, start: int = 0, page_size: int = sys.maxsize):
+    def get(
+        self,
+        from_date: datetime = None,
+        to_date: datetime = None,
+        start: int = 0,
+        page_size: int = sys.maxsize,
+    ):
 
         """
         Get the timeseries in range between from_date and to_date
@@ -129,7 +156,7 @@ class TimeSeries:
 
         document = self._session.documents_by_id.get(self._document_id, None)
         info = self._session.documents_by_entity.get(document, None) if document else None
-        if info and "HasTimeSeries" not in info.get('@metadata', {}).get('@flags', {}):
+        if info and "HasTimeSeries" not in info.get("@metadata", {}).get("@flags", {}):
             return []
 
         from_date = from_date if from_date else datetime.min
@@ -143,10 +170,10 @@ class TimeSeries:
                 self._session.increment_requests_count()
                 ranges = TimeSeriesRange(name=self._name, from_date=from_date, to_date=to_date)
                 details = self._session.advanced.document_store.operations.send(
-                    GetTimeSeriesOperation(self._document_id, ranges, start, page_size))
+                    GetTimeSeriesOperation(self._document_id, ranges, start, page_size)
+                )
 
-                time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(
-                    details)
+                time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(details)
 
                 if not self._session.no_tracking:
                     index = 0 if ranges_result[0].from_date > to_date else len(ranges_result)
@@ -163,10 +190,10 @@ class TimeSeries:
         self._session.increment_requests_count()
         range = TimeSeriesRange(name=self._name, from_date=from_date, to_date=to_date)
         details = self._session.advanced.document_store.operations.send(
-            GetTimeSeriesOperation(self._document_id, range, start, page_size))
+            GetTimeSeriesOperation(self._document_id, range, start, page_size)
+        )
 
-        time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(
-            details)
+        time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(details)
         if time_series_range_result is None:
             return []
         entries = time_series_range_result.entries
@@ -178,7 +205,12 @@ class TimeSeries:
 
         return [TimeSeriesEntry.create_time_series_entry(entry) for entry in entries]
 
-    def append(self, timestamp: datetime, values: List[float] or float, tag: Optional[str] = None):
+    def append(
+        self,
+        timestamp: datetime,
+        values: List[float] or float,
+        tag: Optional[str] = None,
+    ):
         document = self._session.documents_by_id.get(self._document_id, None)
         if document and document in self._session.deleted_entities:
             self.raise_document_already_deleted_in_session(self._document_id, self._name)

@@ -46,11 +46,18 @@ jobs:
       - name: Install client deps
         run: pip install -e .
 
+      - name: Install black linter
+        run: pip install git+git://github.com/psf/black
+
       - name: Run RDB
         run: ./RavenDB/Server/Raven.Server -c $(realpath ./settings.json) &
 
       - name: Wait for server to run
         run: while ! curl http://127.0.0.1:8080; do sleep 0.2; echo "Waiting for server to start..."; done
 
+      - name: Check code format
+        run: black --check .
+
       - name: Run tests
         run: python -m unittest discover
+

@@ -102,7 +102,11 @@ class TestLoad(TestBase):
 
     def test_load_track_entity_with_object_type_and_nested_object(self):
         with self.store.open_session() as session:
-            company = session.load("company/1", object_type=Company, nested_object_types={"product": Product})
+            company = session.load(
+                "company/1",
+                object_type=Company,
+                nested_object_types={"product": Product},
+            )
             self.assertTrue(isinstance(company, Company) and isinstance(company.product, Product))
 
     def test_load_track_entity_with_object_type_fail(self):
