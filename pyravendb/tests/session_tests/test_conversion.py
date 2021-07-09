@@ -20,10 +20,24 @@ class TestConversion(TestBase):
         super(TestConversion, self).setUp()
 
         with self.store.open_session() as session:
-            session.store(Time(Utils.timedelta_to_str(timedelta(days=20, minutes=23, seconds=59, milliseconds=254)),
-                               Utils.datetime_to_string(datetime.now())), "times/3")
-            session.store(Time(Utils.timedelta_to_str(timedelta(minutes=23, seconds=59, milliseconds=254)),
-                               Utils.datetime_to_string(datetime.now())), "times/4")
+            session.store(
+                Time(
+                    Utils.timedelta_to_str(
+                        timedelta(days=20, minutes=23, seconds=59, milliseconds=254)
+                    ),
+                    Utils.datetime_to_string(datetime.now()),
+                ),
+                "times/3",
+            )
+            session.store(
+                Time(
+                    Utils.timedelta_to_str(
+                        timedelta(minutes=23, seconds=59, milliseconds=254)
+                    ),
+                    Utils.datetime_to_string(datetime.now()),
+                ),
+                "times/4",
+            )
             session.save_changes()
 
     def tearDown(self):
@@ -43,11 +57,16 @@ class TestConversion(TestBase):
             time = session.load("item/1", object_type=Item)
             self.assertEqual(2, time.val)
 
-
     def test_load_timedelta_and_datetime(self):
         with self.store.open_session() as session:
-            times = session.load("times/3", object_type=Time, nested_object_types={"td": timedelta, "dt": datetime})
-            self.assertTrue(isinstance(times.td, timedelta) and isinstance(times.dt, datetime))
+            times = session.load(
+                "times/3",
+                object_type=Time,
+                nested_object_types={"td": timedelta, "dt": datetime},
+            )
+            self.assertTrue(
+                isinstance(times.td, timedelta) and isinstance(times.dt, datetime)
+            )
 
     def test_store_conversion(self):
         with self.store.open_session() as session:
@@ -57,14 +76,23 @@ class TestConversion(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            times = session.load(key, object_type=Time, nested_object_types={"td": timedelta, "dt": datetime})
-            self.assertTrue(isinstance(times.td, timedelta) and isinstance(times.dt, datetime))
+            times = session.load(
+                key,
+                object_type=Time,
+                nested_object_types={"td": timedelta, "dt": datetime},
+            )
+            self.assertTrue(
+                isinstance(times.td, timedelta) and isinstance(times.dt, datetime)
+            )
 
     def test_query_conversion(self):
         with self.store.open_session() as session:
-            query = list(session.query(object_type=Time, nested_object_types={"td": timedelta,
-                                                                              "dt": datetime}).
-                         where_greater_than_or_equal("td", timedelta(days=9)))
+            query = list(
+                session.query(
+                    object_type=Time,
+                    nested_object_types={"td": timedelta, "dt": datetime},
+                ).where_greater_than_or_equal("td", timedelta(days=9))
+            )
 
             not_working = False
             if len(query) < 1:

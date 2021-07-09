@@ -1,4 +1,6 @@
-def create_entity_with_mapper(dict_obj, mapper, object_type, convert_to_snake_case=None):
+def create_entity_with_mapper(
+    dict_obj, mapper, object_type, convert_to_snake_case=None
+):
     """
     This method will create an entity from dict_obj and mapper
     In case convert_to_snake_case is empty will convert dict_obj keys to snake_case
@@ -11,8 +13,11 @@ def create_entity_with_mapper(dict_obj, mapper, object_type, convert_to_snake_ca
             if not isinstance(data, dict):
                 try:
                     for i in range(len(data)):
-                        data[i] = Utils.initialize_object(parse_dict_rec(data[i])[0], object_type,
-                                                          convert_to_snake_case)
+                        data[i] = Utils.initialize_object(
+                            parse_dict_rec(data[i])[0],
+                            object_type,
+                            convert_to_snake_case,
+                        )
                 except TypeError:
                     return data, False
 

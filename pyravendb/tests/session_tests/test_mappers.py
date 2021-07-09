@@ -19,7 +19,7 @@ class Owner:
 
 
 class Dog:
-    def __init__(self, name, owner, date = None):
+    def __init__(self, name, owner, date=None):
         self.name = name
         self.owner = owner
         self.date = date if date else datetime.now()
@@ -42,11 +42,30 @@ class TestMappers(TestBase):
         self.setConvention(DocumentConventions(mappers={Dog: get_dog}))
         super(TestMappers, self).setUp()
         with self.store.open_session() as session:
-            session.store(Dog(name="Donald", owner=Owner(name="Idan", address=Address("Ru", "Harish", "Israel"))),
-                          key="Dogs/1-A")
-            session.store(Dog("Scooby Doo", Owner("Shaggy ", Address("UnKnown", "UnKnown", "America"))), key="Dogs/2-A")
-            session.store(Dog("Courage", Owner("John R. Dilworth", Address("Middle of Nowhere", "UnKnown", "America"))),
-                          key="Dogs/3-A")
+            session.store(
+                Dog(
+                    name="Donald",
+                    owner=Owner(name="Idan", address=Address("Ru", "Harish", "Israel")),
+                ),
+                key="Dogs/1-A",
+            )
+            session.store(
+                Dog(
+                    "Scooby Doo",
+                    Owner("Shaggy ", Address("UnKnown", "UnKnown", "America")),
+                ),
+                key="Dogs/2-A",
+            )
+            session.store(
+                Dog(
+                    "Courage",
+                    Owner(
+                        "John R. Dilworth",
+                        Address("Middle of Nowhere", "UnKnown", "America"),
+                    ),
+                ),
+                key="Dogs/3-A",
+            )
             session.save_changes()
 
     def tearDown(self):

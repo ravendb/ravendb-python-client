@@ -2,7 +2,6 @@ from pyravendb.tests.test_base import TestBase, User
 
 
 class TestWhatChanged(TestBase):
-
     def setUp(self):
         super(TestWhatChanged, self).setUp()
 
@@ -28,4 +27,3 @@ class TestWhatChanged(TestBase):
             self.assertTrue(session.advanced.has_changed(user1))
             self.assertFalse(session.advanced.has_changed(user2))
             self.assertTrue(session.advanced.has_changes())
-

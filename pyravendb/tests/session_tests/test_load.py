@@ -63,10 +63,14 @@ class TestLoad(TestBase):
 
     def test_can_handle_nested_values(self):
         request_executor = self.store.get_request_executor()
-        put_command = PutDocumentCommand(key="testing/1", document={"items": [{"name": "oren"}]})
+        put_command = PutDocumentCommand(
+            key="testing/1", document={"items": [{"name": "oren"}]}
+        )
         request_executor.execute(put_command)
         with self.store.open_session() as session:
-            i = session.load("testing/1", object_type=Box, nested_object_types={"items": Item})
+            i = session.load(
+                "testing/1", object_type=Box, nested_object_types={"items": Item}
+            )
             self.assertEqual("oren", i.items[0].name)
 
     def test_load_success(self):
@@ -102,8 +106,14 @@ class TestLoad(TestBase):
 
     def test_load_track_entity_with_object_type_and_nested_object(self):
         with self.store.open_session() as session:
-            company = session.load("company/1", object_type=Company, nested_object_types={"product": Product})
-            self.assertTrue(isinstance(company, Company) and isinstance(company.product, Product))
+            company = session.load(
+                "company/1",
+                object_type=Company,
+                nested_object_types={"product": Product},
+            )
+            self.assertTrue(
+                isinstance(company, Company) and isinstance(company.product, Product)
+            )
 
     def test_load_track_entity_with_object_type_fail(self):
         with self.store.open_session() as session:

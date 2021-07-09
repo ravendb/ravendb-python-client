@@ -1,6 +1,11 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
-from pyravendb.commands.raven_commands import CreateSubscriptionCommand, DeleteSubscriptionCommand, \
-    GetSubscriptionsCommand, GetSubscriptionStateCommand, DropSubscriptionConnectionCommand
+from pyravendb.commands.raven_commands import (
+    CreateSubscriptionCommand,
+    DeleteSubscriptionCommand,
+    GetSubscriptionsCommand,
+    GetSubscriptionStateCommand,
+    DropSubscriptionConnectionCommand,
+)
 from threading import Lock
 from pyravendb.subscriptions.subscription import SubscriptionWorker
 from pyravendb.subscriptions.data import *
@@ -26,17 +31,25 @@ class DocumentSubscriptions:
 
     def _create(self, options, database=None):
         if options is None:
-            raise InvalidOperationException("Cannot create a subscription if the options is set to null")
+            raise InvalidOperationException(
+                "Cannot create a subscription if the options is set to null"
+            )
         if not isinstance(options, SubscriptionCreationOptions):
-            raise InvalidOperationException("options must be SubscriptionCreationOptions")
+            raise InvalidOperationException(
+                "options must be SubscriptionCreationOptions"
+            )
         if options.query is None:
-            raise InvalidOperationException("Cannot create a subscription if the script is null")
+            raise InvalidOperationException(
+                "Cannot create a subscription if the script is null"
+            )
 
         request_executor = self._store.get_request_executor(database)
         command = CreateSubscriptionCommand(options)
         return request_executor.execute(command)
 
-    def get_subscription_worker(self, options, database=None, object_type=None, nested_object_types=None):
+    def get_subscription_worker(
+        self, options, database=None, object_type=None, nested_object_types=None
+    ):
         """
         @param SubscriptionWorkerOptions options: The subscription connection options.
         @param str database: The database name
@@ -45,12 +58,21 @@ class DocumentSubscriptions:
         class and the value will be the object we want to get for that attribute
         """
         if options is None:
-            raise InvalidOperationException("Cannot create a subscription if the options is set to None")
+            raise InvalidOperationException(
+                "Cannot create a subscription if the options is set to None"
+            )
         if not isinstance(options, SubscriptionWorkerOptions):
-            raise ValueError("Invalid options", "options mus be SubscriptionWorkerOptions")
+            raise ValueError(
+                "Invalid options", "options mus be SubscriptionWorkerOptions"
+            )
 
-        subscription = SubscriptionWorker(options, self._store, database, object_type=object_type,
-                                          nested_object_types=nested_object_types)
+        subscription = SubscriptionWorker(
+            options,
+            self._store,
+            database,
+            object_type=object_type,
+            nested_object_types=nested_object_types,
+        )
         with self.lock:
             self._subscriptions.add(subscription)
 

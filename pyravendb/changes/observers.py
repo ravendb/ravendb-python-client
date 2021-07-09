@@ -58,6 +58,7 @@ class Observable:
 
     def set(self, future):
         if not self._future_set.done():
+
             def done_callback(f):
                 try:
                     if f.cancelled():

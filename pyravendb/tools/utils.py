@@ -24,13 +24,13 @@ class _DynamicStructure(object):
 class Utils(object):
     @staticmethod
     def quote_key(key, reserved_slash=False):
-        reserved = '%:=&?~#+!$,;\'*[]'
+        reserved = "%:=&?~#+!$,;'*[]"
         if reserved_slash:
-            reserved += '/'
+            reserved += "/"
         if key:
             return urllib.parse.quote(key, safe=reserved)
         else:
-            return ''
+            return ""
 
     @staticmethod
     def unpack_iterable(iterable):
@@ -43,17 +43,19 @@ class Utils(object):
 
     @staticmethod
     def convert_to_snake_case(name):
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
     @staticmethod
     def database_name_validation(name):
         if name is None:
             raise ValueError("None name is not valid")
-        result = re.match(r'([A-Za-z0-9_\-\.]+)', name, re.IGNORECASE)
+        result = re.match(r"([A-Za-z0-9_\-\.]+)", name, re.IGNORECASE)
         if not result:
             raise exceptions.InvalidOperationException(
-                "Database name can only contain only A-Z, a-z, \"_\", \".\" or \"-\" but was: " + name)
+                'Database name can only contain only A-Z, a-z, "_", "." or "-" but was: '
+                + name
+            )
 
     @staticmethod
     def first_or_default(iterator, func, default):
@@ -65,16 +67,18 @@ class Utils(object):
     @staticmethod
     def get_change_vector_from_header(response):
         header = response.headers.get("ETag", None)
-        if header is not None and header[0] == "\"":
-            return header[1: len(header) - 2]
+        if header is not None and header[0] == '"':
+            return header[1 : len(header) - 2]
 
     @staticmethod
     def import_class(name):
-        components = name.split('.')
-        module_name = '.'.join(name.split('.')[:-1])
+        components = name.split(".")
+        module_name = ".".join(name.split(".")[:-1])
         mod = None
         try:
-            mod = getattr(__import__(module_name, fromlist=[components[-1]]), components[-1])
+            mod = getattr(
+                __import__(module_name, fromlist=[components[-1]]), components[-1]
+            )
         except (ImportError, ValueError, AttributeError):
             pass
         return mod
@@ -90,7 +94,9 @@ class Utils(object):
 
     @staticmethod
     def initialize_object(obj, object_type, convert_to_snake_case=None):
-        initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
+        initialize_dict, set_needed = Utils.make_initialize_dict(
+            obj, object_type.__init__, convert_to_snake_case
+        )
         o = object_type(**initialize_dict)
         if set_needed:
             for key, value in obj.items():
@@ -98,7 +104,9 @@ class Utils(object):
         return o
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions, events, nested_object_types=None):
+    def convert_to_entity(
+        document, object_type, conventions, events, nested_object_types=None
+    ):
 
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
@@ -114,7 +122,9 @@ class Utils(object):
 
         if type_from_metadata is None:
             if object_type is not None:
-                metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
+                metadata["Raven-Python-Type"] = "{0}.{1}".format(
+                    object_type.__module__, object_type.__name__
+                )
             else:  # no type defined on document or during load, return a dict
                 dyn = _DynamicStructure(**document)
                 events.after_conversion_to_entity(dyn, document, metadata)
@@ -126,11 +136,14 @@ class Utils(object):
                     object_type = object_from_metadata
 
                 elif Utils.is_inherit(object_type, object_from_metadata):
-                    mapper = conventions.mappers.get(object_from_metadata, None) or mapper
+                    mapper = (
+                        conventions.mappers.get(object_from_metadata, None) or mapper
+                    )
                     object_type = object_from_metadata
                 elif object_type is not object_from_metadata:
                     raise exceptions.InvalidOperationException(
-                        f"Cannot covert document from type {object_from_metadata} to {object_type}")
+                        f"Cannot covert document from type {object_from_metadata} to {object_type}"
+                    )
 
         if nested_object_types is None and mapper:
             entity = create_entity_with_mapper(document, mapper, object_type)
@@ -148,37 +161,51 @@ class Utils(object):
                             if isinstance(attr, list):
                                 nested_list = []
                                 for attribute in attr:
-                                    nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
+                                    nested_list.append(
+                                        Utils.initialize_object(
+                                            attribute, nested_object_types[key]
+                                        )
+                                    )
                                 setattr(entity, key, nested_list)
                             elif nested_object_types[key] is datetime:
                                 setattr(entity, key, Utils.string_to_datetime(attr))
                             elif nested_object_types[key] is timedelta:
                                 setattr(entity, key, Utils.string_to_timedelta(attr))
                             else:
-                                setattr(entity, key, Utils.initialize_object(attr, nested_object_types[key]))
+                                setattr(
+                                    entity,
+                                    key,
+                                    Utils.initialize_object(
+                                        attr, nested_object_types[key]
+                                    ),
+                                )
                         except TypeError as e:
                             print(e)
                             pass
 
-        if 'Id' in entity.__dict__:
-            entity.Id = metadata.get('@id', None)
+        if "Id" in entity.__dict__:
+            entity.Id = metadata.get("@id", None)
         events.after_conversion_to_entity(entity, document, metadata)
         return entity, metadata, original_metadata, original_document
 
     @staticmethod
     def make_initialize_dict(document, entity_init, convert_to_snake_case=None):
         """
-            This method will create an entity from document
-            In case convert_to_snake_case will convert document keys to snake_case
-            convert_to_snake_case can be dictionary with special words you can change ex. From -> from_date
+        This method will create an entity from document
+        In case convert_to_snake_case will convert document keys to snake_case
+        convert_to_snake_case can be dictionary with special words you can change ex. From -> from_date
         """
         if convert_to_snake_case:
-            convert_to_snake_case = {} if convert_to_snake_case is True else convert_to_snake_case
+            convert_to_snake_case = (
+                {} if convert_to_snake_case is True else convert_to_snake_case
+            )
             try:
                 converted_document = {}
                 for key in document:
                     converted_key = convert_to_snake_case.get(key, key)
-                    converted_document[Utils.convert_to_snake_case(converted_key)] = document[key]
+                    converted_document[
+                        Utils.convert_to_snake_case(converted_key)
+                    ] = document[key]
                 document = converted_document
             except:
                 pass
@@ -196,7 +223,9 @@ class Utils(object):
             for i in range(1, remainder):
                 entity_initialize_dict[args[i]] = document.get(args[i], None)
             for i in range(remainder, len(args)):
-                entity_initialize_dict[args[i]] = document.get(args[i], defaults[i - remainder])
+                entity_initialize_dict[args[i]] = document.get(
+                    args[i], defaults[i - remainder]
+                )
         else:
             if keywords:
                 entity_initialize_dict = document
@@ -213,21 +242,25 @@ class Utils(object):
     @staticmethod
     def dict_to_bytes(the_dict):
         json_dict = json.dumps(the_dict)
-        return bytes(json_dict, encoding='utf-8')
+        return bytes(json_dict, encoding="utf-8")
 
     @staticmethod
     def dict_to_string(dictionary):
         builder = []
         for item in dictionary:
             if sys.version_info.major > 2 and isinstance(dictionary[item], bytes):
-                dictionary[item] = dictionary[item].decode('utf-8')
-            builder.append('{0}={1}'.format(item, dictionary[item]))
-        return ','.join(item for item in builder)
+                dictionary[item] = dictionary[item].decode("utf-8")
+            builder.append("{0}={1}".format(item, dictionary[item]))
+        return ",".join(item for item in builder)
 
     @staticmethod
     def datetime_to_string(datetime_obj):
-        add_suffix = '0' if datetime_obj != datetime.max else '9'
-        return datetime_obj.strftime(f"%Y-%m-%dT%H:%M:%S.%f{add_suffix}") if datetime_obj else ''
+        add_suffix = "0" if datetime_obj != datetime.max else "9"
+        return (
+            datetime_obj.strftime(f"%Y-%m-%dT%H:%M:%S.%f{add_suffix}")
+            if datetime_obj
+            else ""
+        )
 
     @staticmethod
     def start_a_timer(interval, function, args=None, name=None, daemon=False):
@@ -242,7 +275,7 @@ class Utils(object):
     @staticmethod
     def string_to_datetime(datetime_str):
         try:
-            if datetime_str.endswith('Z'):
+            if datetime_str.endswith("Z"):
                 datetime_str = datetime_str[:-1]
             datetime_s = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%f")
         except ValueError:
@@ -256,16 +289,17 @@ class Utils(object):
 
     @staticmethod
     def string_to_timedelta(timedelta_str):
-        pattern = r'(?:(-?\d+)[.])?(\d{2}):(\d{2}):(\d{2})(?:.(\d+))?'
+        pattern = r"(?:(-?\d+)[.])?(\d{2}):(\d{2}):(\d{2})(?:.(\d+))?"
         timedelta_initialize = None
         m = re.match(pattern, timedelta_str, re.IGNORECASE)
         if m:
-            timedelta_initialize = {"days": 0 if m.group(1) is None else int(m.group(1)),
-                                    "hours": 0 if m.group(2) is None else int(m.group(2)),
-                                    "minutes": 0 if m.group(3) is None else int(m.group(3)),
-                                    "seconds": 0 if m.group(4) is None else int(m.group(4)),
-                                    "microseconds": 0 if m.group(5) is None else int(m.group(5))
-                                    }
+            timedelta_initialize = {
+                "days": 0 if m.group(1) is None else int(m.group(1)),
+                "hours": 0 if m.group(2) is None else int(m.group(2)),
+                "minutes": 0 if m.group(3) is None else int(m.group(3)),
+                "seconds": 0 if m.group(4) is None else int(m.group(4)),
+                "microseconds": 0 if m.group(5) is None else int(m.group(5)),
+            }
         if timedelta_initialize:
             return timedelta(**timedelta_initialize)
         return None
@@ -289,37 +323,53 @@ class Utils(object):
 
     @staticmethod
     def escape(term, allow_wild_cards, make_phrase):
-        wild_cards = ['-', '&', '|', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', ':', '\\']
+        wild_cards = [
+            "-",
+            "&",
+            "|",
+            "!",
+            "(",
+            ")",
+            "{",
+            "}",
+            "[",
+            "]",
+            "^",
+            '"',
+            "~",
+            ":",
+            "\\",
+        ]
         if not term:
-            return "\"\""
+            return '""'
         start = 0
         length = len(term)
         buffer = ""
-        if length >= 2 and term[0] == '/' and term[1] == '/':
+        if length >= 2 and term[0] == "/" and term[1] == "/":
             buffer += "//"
             start = 2
         i = start
         while i < length:
             ch = term[i]
-            if ch == '*' or ch == '?':
+            if ch == "*" or ch == "?":
                 if allow_wild_cards:
                     i += 1
                     continue
 
             if ch in wild_cards:
                 if i > start:
-                    buffer += term[start:i - start]
+                    buffer += term[start : i - start]
 
-                buffer += '\\{0}'.format(ch)
+                buffer += "\\{0}".format(ch)
                 start = i + 1
 
-            elif ch == ' ' or ch == '\t':
+            elif ch == " " or ch == "\t":
                 if make_phrase:
-                    return "\"{0}\"".format(Utils.escape(term, allow_wild_cards, False))
+                    return '"{0}"'.format(Utils.escape(term, allow_wild_cards, False))
 
             i += 1
         if length > start:
-            buffer += term[start: length - start]
+            buffer += term[start : length - start]
 
         return buffer
 
@@ -330,23 +380,37 @@ class Utils(object):
         @param pfx_path: The path to the pfx file
         @param pfx_password: The password to pfx file
         """
-        with open(pem_path, 'wb') as pem_file:
-            with open(pfx_path, 'rb') as pfx_file:
+        with open(pem_path, "wb") as pem_file:
+            with open(pfx_path, "rb") as pfx_file:
                 pfx = pfx_file.read()
             p12 = OpenSSL.crypto.load_pkcs12(pfx, pfx_password)
-            pem_file.write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, p12.get_privatekey()))
-            pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, p12.get_certificate()))
+            pem_file.write(
+                OpenSSL.crypto.dump_privatekey(
+                    OpenSSL.crypto.FILETYPE_PEM, p12.get_privatekey()
+                )
+            )
+            pem_file.write(
+                OpenSSL.crypto.dump_certificate(
+                    OpenSSL.crypto.FILETYPE_PEM, p12.get_certificate()
+                )
+            )
             ca = p12.get_ca_certificates()
             if ca is not None:
                 for cert in ca:
                     # In python 3.6* we need to save the ca to ?\lib\site-packages\certifi\cacert.pem.
-                    pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
+                    pem_file.write(
+                        OpenSSL.crypto.dump_certificate(
+                            OpenSSL.crypto.FILETYPE_PEM, cert
+                        )
+                    )
         return pem_path
 
     @staticmethod
     def get_cert_file_fingerprint(pem_path):
-        with open(pem_path, 'rb') as pem_file:
-            cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_file.read())
+        with open(pem_path, "rb") as pem_file:
+            cert = OpenSSL.crypto.load_certificate(
+                OpenSSL.crypto.FILETYPE_PEM, pem_file.read()
+            )
             return str(cert.digest("sha1"))
 
     @staticmethod
@@ -418,4 +482,3 @@ class Utils(object):
             return str(o)
         else:
             raise TypeError(repr(o) + " is not JSON serializable")
-        

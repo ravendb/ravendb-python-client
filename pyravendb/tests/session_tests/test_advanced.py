@@ -27,13 +27,15 @@ class TestAdvanced(TestBase):
             s.store(user, "test/")
             s.save_changes()
             id = s.advanced.get_document_id(user)
-            self.assertFalse(id.endswith('/'))
+            self.assertFalse(id.endswith("/"))
 
     def test_stream_query(self):
-        maps = ("from user in docs.Users "
-                "select new {"
-                "name = user.name,"
-                "age = user.age}")
+        maps = (
+            "from user in docs.Users "
+            "select new {"
+            "name = user.name,"
+            "age = user.age}"
+        )
         index_definition = IndexDefinition(name="UserByName", maps=maps)
 
         self.store.maintenance.send(PutIndexesOperation(index_definition))
@@ -59,7 +61,9 @@ class TestAdvanced(TestBase):
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 user = session.load("users/1-A")
-                session.advanced.attachment.store(user, "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachment.store(
+                    user, "my_text_file", binary_list, content_type="text/plain"
+                )
                 session.save_changes()
 
         with self.store.open_session() as session:
@@ -74,7 +78,9 @@ class TestAdvanced(TestBase):
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 session.store(User("Ilay", 4), "users/2-A")
-                session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachment.store(
+                    "users/1-A", "my_text_file", binary_list, content_type="text/plain"
+                )
                 session.save_changes()
 
         with self.store.open_session() as session:
@@ -91,7 +97,9 @@ class TestAdvanced(TestBase):
 
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
-                session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachment.store(
+                    "users/1-A", "my_text_file", binary_list, content_type="text/plain"
+                )
                 session.save_changes()
 
         with self.store.open_session() as session:
@@ -109,7 +117,9 @@ class TestAdvanced(TestBase):
 
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
-                session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachment.store(
+                    "users/1-A", "my_text_file", binary_list, content_type="text/plain"
+                )
                 with self.assertRaises(InvalidOperationException):
                     session.advanced.attachment.delete("users/1-A", "my_text_file")
 

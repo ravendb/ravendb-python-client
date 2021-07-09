@@ -21,7 +21,9 @@ class TestCountersOperations(TestBase):
             document_counter.increment("Likes", delta=10)
             session.save_changes()
 
-        details = self.store.operations.send(GetCountersOperation(document_id="users/1-A", counters="Likes"))
+        details = self.store.operations.send(
+            GetCountersOperation(document_id="users/1-A", counters="Likes")
+        )
         self.assertIsNotNone(details.get("Counters", None))
         counters = details["Counters"]
         self.assertEqual(len(counters), 1)
@@ -36,7 +38,8 @@ class TestCountersOperations(TestBase):
             session.save_changes()
 
         details = self.store.operations.send(
-            GetCountersOperation(document_id="users/1-A", counters=["Likes", "Shares"]))
+            GetCountersOperation(document_id="users/1-A", counters=["Likes", "Shares"])
+        )
         self.assertIsNotNone(details.get("Counters", None))
         counters = details["Counters"]
         self.assertEqual(len(counters), 2)
@@ -47,56 +50,106 @@ class TestCountersOperations(TestBase):
                 self.assertEqual(counter["TotalValue"], 120)
 
     def test_increment_counters(self):
-        counter_operation = DocumentCountersOperation(document_id='users/1-A')
+        counter_operation = DocumentCountersOperation(document_id="users/1-A")
         counter_operation.add_operations(
-            CounterOperation("Likes", counter_operation_type=CounterOperationType.increment, delta=4))
+            CounterOperation(
+                "Likes", counter_operation_type=CounterOperationType.increment, delta=4
+            )
+        )
         counter_operation.add_operations(
-            CounterOperation("Shares", counter_operation_type=CounterOperationType.increment, delta=4))
+            CounterOperation(
+                "Shares", counter_operation_type=CounterOperationType.increment, delta=4
+            )
+        )
         counter_operation.add_operations(
-            CounterOperation("Shares", counter_operation_type=CounterOperationType.increment, delta=22))
+            CounterOperation(
+                "Shares",
+                counter_operation_type=CounterOperationType.increment,
+                delta=22,
+            )
+        )
 
         counter_batch = CounterBatch([counter_operation])
         results = self.store.operations.send(CounterBatchOperation(counter_batch))
         self.assertIsNotNone(results.get("Counters", None))
         counters = results["Counters"]
         self.assertEqual(len(counters), 3)
-        self.assertTrue(any(counter["DocumentId"] == "users/1-A" for counter in counters))
-        self.assertTrue(counters[0]["CounterName"] == "Likes" and counters[0]["TotalValue"] == 4)
-        self.assertTrue(counters[1]["CounterName"] == "Shares" and counters[1]["TotalValue"] == 4)
-        self.assertTrue(counters[2]["CounterName"] == "Shares" and counters[2]["TotalValue"] == 26)
+        self.assertTrue(
+            any(counter["DocumentId"] == "users/1-A" for counter in counters)
+        )
+        self.assertTrue(
+            counters[0]["CounterName"] == "Likes" and counters[0]["TotalValue"] == 4
+        )
+        self.assertTrue(
+            counters[1]["CounterName"] == "Shares" and counters[1]["TotalValue"] == 4
+        )
+        self.assertTrue(
+            counters[2]["CounterName"] == "Shares" and counters[2]["TotalValue"] == 26
+        )
 
     def test_delete_counters(self):
-        counter_operation = DocumentCountersOperation(document_id='users/1-A')
+        counter_operation = DocumentCountersOperation(document_id="users/1-A")
         counter_operation.add_operations(
-            CounterOperation("Likes", counter_operation_type=CounterOperationType.increment, delta=4))
+            CounterOperation(
+                "Likes", counter_operation_type=CounterOperationType.increment, delta=4
+            )
+        )
         counter_operation.add_operations(
-            CounterOperation("Shares", counter_operation_type=CounterOperationType.increment, delta=422))
+            CounterOperation(
+                "Shares",
+                counter_operation_type=CounterOperationType.increment,
+                delta=422,
+            )
+        )
         counter_operation.add_operations(
-            CounterOperation("Likes", counter_operation_type=CounterOperationType.delete))
+            CounterOperation(
+                "Likes", counter_operation_type=CounterOperationType.delete
+            )
+        )
 
         counter_batch = CounterBatch([counter_operation])
         results = self.store.operations.send(CounterBatchOperation(counter_batch))
         self.assertIsNotNone(results)
         self.assertEqual(len(results.get("Counters", [])), 2)
 
-        results = self.store.operations.send(GetCountersOperation(document_id="users/1-A"))
+        results = self.store.operations.send(
+            GetCountersOperation(document_id="users/1-A")
+        )
         self.assertIsNotNone(results)
         self.assertEqual(len(results.get("Counters", [])), 1)
         counters = results.get("Counters", [])
         self.assertTrue(counters[0].get("CounterName", "") == "Shares")
 
     def test_send_multi_operations(self):
-        counter_operation1 = DocumentCountersOperation(document_id='users/1-A')
+        counter_operation1 = DocumentCountersOperation(document_id="users/1-A")
         counter_operation1.add_operations(
-            CounterOperation("Likes", counter_operation_type=CounterOperationType.increment, delta=4))
+            CounterOperation(
+                "Likes", counter_operation_type=CounterOperationType.increment, delta=4
+            )
+        )
         counter_operation1.add_operations(
-            CounterOperation("Shares", counter_operation_type=CounterOperationType.increment, delta=422))
+            CounterOperation(
+                "Shares",
+                counter_operation_type=CounterOperationType.increment,
+                delta=422,
+            )
+        )
 
-        counter_operation2 = DocumentCountersOperation(document_id='users/2-A')
+        counter_operation2 = DocumentCountersOperation(document_id="users/2-A")
         counter_operation2.add_operations(
-            CounterOperation("Likes", counter_operation_type=CounterOperationType.increment, delta=600))
+            CounterOperation(
+                "Likes",
+                counter_operation_type=CounterOperationType.increment,
+                delta=600,
+            )
+        )
         counter_operation2.add_operations(
-            CounterOperation("Shares", counter_operation_type=CounterOperationType.increment, delta=450))
+            CounterOperation(
+                "Shares",
+                counter_operation_type=CounterOperationType.increment,
+                delta=450,
+            )
+        )
 
         counter_batch = CounterBatch([counter_operation1, counter_operation2])
         results = self.store.operations.send(CounterBatchOperation(counter_batch))
@@ -107,5 +160,5 @@ class TestCountersOperations(TestBase):
         self.assertEqual(counters[2].get("DocumentId", ""), "users/2-A")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

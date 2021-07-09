@@ -2,7 +2,9 @@ from enum import Enum
 
 
 class CertificateDefinition:
-    def __init__(self, certificate, server_admin=False, thumbprint=None, permissions=None):
+    def __init__(
+        self, certificate, server_admin=False, thumbprint=None, permissions=None
+    ):
         """
         @param certificate: X509 byte array object encoded to base64
         :type str
@@ -21,7 +23,11 @@ class CertificateDefinition:
     def to_json(self):
         for key, value in self.permissions.items():
             self.permissions[key] = str(value)
-        return {"Certificate": self.certificate, "Thumbprint": self.thumbprint, "Permissions": self.permissions}
+        return {
+            "Certificate": self.certificate,
+            "Thumbprint": self.thumbprint,
+            "Permissions": self.permissions,
+        }
 
 
 class DatabaseAccess(Enum):

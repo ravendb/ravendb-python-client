@@ -17,7 +17,7 @@ import os
 import io
 import logging
 
-logging.basicConfig(filename='requests_executor_info.log', level=logging.DEBUG)
+logging.basicConfig(filename="requests_executor_info.log", level=logging.DEBUG)
 log = logging.getLogger()
 
 TOPOLOGY_FILES_DIR = os.path.join(os.getcwd(), "topology_files")
@@ -47,12 +47,13 @@ class RequestsExecutor(object):
         (self._certificate, self._adapter) = self.initialize_certificate(certificate)
         self.topology_etag = kwargs.get("topology_etag", 0)
         self._last_return_response = datetime.utcnow()
-        self.conventions = conventions if conventions is not None else DocumentConventions()
+        self.conventions = (
+            conventions if conventions is not None else DocumentConventions()
+        )
         self._node_selector = kwargs.get("node_selector", None)
         self._last_known_urls = None
 
-        self.headers = {"Accept": "application/json",
-                        "Raven-Client-Version": "5.0.0.1"}
+        self.headers = {"Accept": "application/json", "Raven-Client-Version": "5.0.0.1"}
 
         self.update_topology_lock = Lock()
         self.update_timer_lock = Lock()
@@ -80,11 +81,18 @@ class RequestsExecutor(object):
     @staticmethod
     def create_for_single_node(url, database_name, certificate):
         topology = Topology(etag=-1, nodes=[ServerNode(url, database_name)])
-        return RequestsExecutor(database_name, certificate, node_selector=NodeSelector(topology), topology_etag=-2,
-                                disable_topology_updates=True)
+        return RequestsExecutor(
+            database_name,
+            certificate,
+            node_selector=NodeSelector(topology),
+            topology_etag=-2,
+            disable_topology_updates=True,
+        )
 
     def start_first_topology_thread(self, urls):
-        self._first_topology_update = PropagatingThread(target=self.first_topology_update, args=(urls,), daemon=True)
+        self._first_topology_update = PropagatingThread(
+            target=self.first_topology_update, args=(urls,), daemon=True
+        )
         self._first_topology_update.start()
 
     def ensure_node_selector(self):
@@ -92,14 +100,16 @@ class RequestsExecutor(object):
             self._first_topology_update.join()
 
         if not self._node_selector:
-            self._node_selector = NodeSelector(Topology(etag=self.topology_etag, nodes=self.topology_nodes))
+            self._node_selector = NodeSelector(
+                Topology(etag=self.topology_etag, nodes=self.topology_nodes)
+            )
 
     def get_preferred_node(self):
         self.ensure_node_selector()
         return self._node_selector.get_current_node()
 
     def execute(self, raven_command, should_retry=True):
-        if not hasattr(raven_command, 'raven_command'):
+        if not hasattr(raven_command, "raven_command"):
             raise ValueError("Not a valid command")
         topology_update = self._first_topology_update
         if not self._disable_topology_updates:
@@ -110,7 +120,8 @@ class RequestsExecutor(object):
                             if self._first_topology_update is None:
                                 if self._last_known_urls is None:
                                     raise exceptions.InvalidOperationException(
-                                        "No known topology and no previously known one, cannot proceed, likely a bug")
+                                        "No known topology and no previously known one, cannot proceed, likely a bug"
+                                    )
                                 self.start_first_topology_thread(self._last_known_urls)
                             topology_update = self._first_topology_update
                     topology_update.join()
@@ -122,30 +133,40 @@ class RequestsExecutor(object):
                     raise
 
         if self._node_selector is None:
-            raise exceptions.InvalidOperationException("A connection with the server could not be established",
-                                                       "node_selector cannot be None, please check your connection "
-                                                       "or supply a valid node_selector")
+            raise exceptions.InvalidOperationException(
+                "A connection with the server could not be established",
+                "node_selector cannot be None, please check your connection "
+                "or supply a valid node_selector",
+            )
         chosen_node = self._node_selector.get_current_node()
         return self.execute_with_node(chosen_node, raven_command, should_retry)
 
     def execute_with_node(self, chosen_node, raven_command, should_retry):
         while True:
             raven_command.create_request(chosen_node)
-            node_index = 0 if self._node_selector is None else self._node_selector.current_node_index
+            node_index = (
+                0
+                if self._node_selector is None
+                else self._node_selector.current_node_index
+            )
 
             with requests.session() as session:
                 if self._adapter is not None:
                     session.mount("https://", self._adapter)
                 if raven_command.is_raft_request:
-                    prefix = '&' if '?' in raven_command.url else '?'
+                    prefix = "&" if "?" in raven_command.url else "?"
                     raven_command.url += f"{prefix}raft-request-id={raven_command.raft_unique_request_id}"
                 raven_command.headers.update(self.headers)
                 if not self._disable_topology_updates:
-                    raven_command.headers["Topology-Etag"] = "\"{0}\"".format(self.topology_etag)
+                    raven_command.headers["Topology-Etag"] = '"{0}"'.format(
+                        self.topology_etag
+                    )
 
                 data = raven_command.data
                 if data and not isinstance(data, io.BufferedIOBase):
-                    data = json.dumps(raven_command.data, default=self.conventions.json_default_method)
+                    data = json.dumps(
+                        raven_command.data, default=self.conventions.json_default_method
+                    )
 
                 if raven_command.files:
                     data = {"data": data}
@@ -153,18 +174,27 @@ class RequestsExecutor(object):
                 start_time = time.time() * 1000
                 end_time = None
                 try:
-                    response = session.request(raven_command.method, url=raven_command.url, data=data,
-                                               files=raven_command.files,
-                                               cert=self._certificate, headers=raven_command.headers,
-                                               stream=raven_command.use_stream)
+                    response = session.request(
+                        raven_command.method,
+                        url=raven_command.url,
+                        data=data,
+                        files=raven_command.files,
+                        cert=self._certificate,
+                        headers=raven_command.headers,
+                        stream=raven_command.use_stream,
+                    )
                 except Exception as e:
                     end_time = time.time() * 1000
                     if not should_retry:
                         raise
-                    if not self.handle_server_down(chosen_node, node_index, raven_command, e):
+                    if not self.handle_server_down(
+                        chosen_node, node_index, raven_command, e
+                    ):
                         raise exceptions.AllTopologyNodesDownException(
                             "Tried to send request to all configured nodes in the topology, "
-                            "all of them seem to be down or not responding.", e)
+                            "all of them seem to be down or not responding.",
+                            e,
+                        )
 
                     chosen_node = self._node_selector.get_current_node()
                     continue
@@ -186,33 +216,58 @@ class RequestsExecutor(object):
                         if isinstance(cert, tuple):
                             (cert, _) = cert
 
-                        with open(cert, 'rb') as pem:
-                            cert = crypto.load_certificate(crypto.FILETYPE_PEM, pem.read())
+                        with open(cert, "rb") as pem:
+                            cert = crypto.load_certificate(
+                                crypto.FILETYPE_PEM, pem.read()
+                            )
                             name = str(cert.get_subject().get_components()[0][1])
                     raise exceptions.AuthorizationException(
-                        "Forbidden access to " + chosen_node.database + "@" + chosen_node.url + ", " +
-                        ("a certificate is required." if self._certificate is None
-                         else name + " does not have permission to access it or is unknown.") +
-                        response.request.method + " " + response.request.path_url)
+                        "Forbidden access to "
+                        + chosen_node.database
+                        + "@"
+                        + chosen_node.url
+                        + ", "
+                        + (
+                            "a certificate is required."
+                            if self._certificate is None
+                            else name
+                            + " does not have permission to access it or is unknown."
+                        )
+                        + response.request.method
+                        + " "
+                        + response.request.path_url
+                    )
                 if response.status_code == 410:
                     if should_retry:
                         self.update_topology(chosen_node, True)
                         # TODO update this after build make fastest node selector
-                if response.status_code == 408 or response.status_code == 502 or response.status_code == 503 or response.status_code == 504:
+                if (
+                    response.status_code == 408
+                    or response.status_code == 502
+                    or response.status_code == 503
+                    or response.status_code == 504
+                ):
                     if len(raven_command.failed_nodes) == 1:
                         node = list(raven_command.failed_nodes.keys())[0]
-                        database_missing = response.headers.get("Database-Missing", None)
+                        database_missing = response.headers.get(
+                            "Database-Missing", None
+                        )
                         if database_missing:
                             raise exceptions.DatabaseDoesNotExistException(
-                                "Database " + database_missing + " does not exists")
+                                "Database " + database_missing + " does not exists"
+                            )
 
-                        raise exceptions.UnsuccessfulRequestException(node.url, raven_command.failed_nodes[node])
+                        raise exceptions.UnsuccessfulRequestException(
+                            node.url, raven_command.failed_nodes[node]
+                        )
 
                     try:
                         e = response.json()["Message"]
                     except ValueError:
                         e = None
-                    if self.handle_server_down(chosen_node, node_index, raven_command, e):
+                    if self.handle_server_down(
+                        chosen_node, node_index, raven_command, e
+                    ):
                         chosen_node = self._node_selector.get_current_node()
                     continue
                 if response.status_code == 409:
@@ -226,7 +281,9 @@ class RequestsExecutor(object):
                         raise response.raise_for_status()
 
                 if "Refresh-Topology" in response.headers:
-                    self.update_topology(ServerNode(chosen_node.url, self._database_name))
+                    self.update_topology(
+                        ServerNode(chosen_node.url, self._database_name)
+                    )
                 self._last_return_response = datetime.utcnow()
                 return raven_command.set_response(response)
 
@@ -235,7 +292,9 @@ class RequestsExecutor(object):
         for url in initial_urls:
             try:
                 self.update_topology(ServerNode(url, self._database_name))
-                self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
+                self.update_topology_timer = Utils.start_a_timer(
+                    60 * 5, self.update_topology_callback, daemon=True
+                )
                 self.topology_nodes = self._node_selector.topology.nodes
                 return
             except exceptions.DatabaseDoesNotExistException:
@@ -245,7 +304,9 @@ class RequestsExecutor(object):
             except Exception as e:
                 if len(initial_urls) == 0:
                     self._last_known_urls = initial_urls
-                    raise exceptions.InvalidOperationException("Cannot get topology from server: " + url, e)
+                    raise exceptions.InvalidOperationException(
+                        "Cannot get topology from server: " + url, e
+                    )
                 error_list.append((url, e))
 
         # Failed to update topology trying update from cache
@@ -258,20 +319,27 @@ class RequestsExecutor(object):
         self.raise_exceptions(error_list)
 
     def raise_exceptions(self, error_list):
-        raise exceptions.AggregateException("Failed to retrieve database topology from all known nodes", error_list)
+        raise exceptions.AggregateException(
+            "Failed to retrieve database topology from all known nodes", error_list
+        )
 
     def try_load_from_cache(self, url):
         server_hash = hashlib.md5(
-            "{0}{1}".format(url, self._database_name).encode(
-                'utf-8')).hexdigest()
-        topology_file_path = os.path.join(TOPOLOGY_FILES_DIR, server_hash + ".raven-topology")
+            "{0}{1}".format(url, self._database_name).encode("utf-8")
+        ).hexdigest()
+        topology_file_path = os.path.join(
+            TOPOLOGY_FILES_DIR, server_hash + ".raven-topology"
+        )
         try:
-            with open(topology_file_path, 'r') as topology_file:
+            with open(topology_file_path, "r") as topology_file:
                 json_file = json.load(topology_file)
                 self._node_selector = NodeSelector(
-                    Topology.convert_json_topology_to_entity(json_file))
+                    Topology.convert_json_topology_to_entity(json_file)
+                )
                 self.topology_etag = -2
-                self.update_topology_timer = Utils.start_a_timer(60 * 5, self.update_topology_callback, daemon=True)
+                self.update_topology_timer = Utils.start_a_timer(
+                    60 * 5, self.update_topology_callback, daemon=True
+                )
                 return True
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log.info(e)
@@ -290,12 +358,14 @@ class RequestsExecutor(object):
                 response = self.execute_with_node(node, command, should_retry=False)
 
                 hash_name = hashlib.md5(
-                    "{0}{1}".format(node.url, node.database).encode(
-                        'utf-8')).hexdigest()
+                    "{0}{1}".format(node.url, node.database).encode("utf-8")
+                ).hexdigest()
 
-                topology_file = os.path.join(TOPOLOGY_FILES_DIR, hash_name + ".raven-topology")
+                topology_file = os.path.join(
+                    TOPOLOGY_FILES_DIR, hash_name + ".raven-topology"
+                )
                 try:
-                    with open(topology_file, 'w') as outfile:
+                    with open(topology_file, "w") as outfile:
                         json.dump(response, outfile, ensure_ascii=False)
                 except (IOError, json.JSONDecodeError):
                     pass
@@ -314,7 +384,15 @@ class RequestsExecutor(object):
             return False
 
     def handle_server_down(self, chosen_node, node_index, command, e):
-        command.failed_nodes.update({chosen_node: {"url": command.url, "error": str(e), "type": type(e).__name__}})
+        command.failed_nodes.update(
+            {
+                chosen_node: {
+                    "url": command.url,
+                    "error": str(e),
+                    "type": type(e).__name__,
+                }
+            }
+        )
         node_selector = self._node_selector
 
         if node_selector is None:

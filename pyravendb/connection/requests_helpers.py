@@ -45,9 +45,13 @@ class ServerNode(object):
 
     def is_rate_surpassed(self, request_time_sla_threshold_in_milliseconds):
         if self._is_rate_surpassed:
-            self._is_rate_surpassed = self.ewma() >= 0.75 * request_time_sla_threshold_in_milliseconds
+            self._is_rate_surpassed = (
+                self.ewma() >= 0.75 * request_time_sla_threshold_in_milliseconds
+            )
         else:
-            self._is_rate_surpassed = self.ewma() >= request_time_sla_threshold_in_milliseconds
+            self._is_rate_surpassed = (
+                self.ewma() >= request_time_sla_threshold_in_milliseconds
+            )
 
         return self._is_rate_surpassed
 
@@ -62,7 +66,9 @@ class Topology(object):
         topology = Topology()
         topology.etag = json_topology["Etag"]
         for node in json_topology["Nodes"]:
-            topology.nodes.append(ServerNode(node['Url'], node['Database'], node['ClusterTag']))
+            topology.nodes.append(
+                ServerNode(node["Url"], node["Database"], node["ClusterTag"])
+            )
         return topology
 
 
@@ -79,7 +85,9 @@ class NodeSelector(object):
     def on_failed_request(self, node_index):
         topology_nodes_len = len(self.topology.nodes)
         if topology_nodes_len == 0:
-            raise InvalidOperationException("Empty database topology, this shouldn't happen.")
+            raise InvalidOperationException(
+                "Empty database topology, this shouldn't happen."
+            )
 
         if node_index < topology_nodes_len - 1:
             next_node_index = node_index + 1
@@ -136,8 +144,13 @@ class NodeStatus(object):
         return 60 * 5 if self._timer_period >= 60 * 5 else self._timer_period
 
     def start_timer(self):
-        Utils.start_a_timer(self._next_timer_period(), self._request_executor.check_node_status, (self,),
-                            name="check_node_status", daemon=True)
+        Utils.start_a_timer(
+            self._next_timer_period(),
+            self._request_executor.check_node_status,
+            (self,),
+            name="check_node_status",
+            daemon=True,
+        )
 
     def __del__(self):
         if self._timer is not None:

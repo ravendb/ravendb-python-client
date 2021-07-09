@@ -11,18 +11,26 @@ inflector = inflect.engine()
 
 class DocumentConventions(object):
     def __init__(self, **kwargs):
-        self.max_number_of_request_per_session = kwargs.get("max_number_of_request_per_session", 30)
+        self.max_number_of_request_per_session = kwargs.get(
+            "max_number_of_request_per_session", 30
+        )
         self.max_ids_to_catch = kwargs.get("max_ids_to_catch", 32)
         # timeout for wait to server in seconds
         self.timeout = kwargs.get("timeout", timedelta(seconds=30))
-        self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
+        self.use_optimistic_concurrency = kwargs.get(
+            "use_optimistic_concurrency", False
+        )
         self.json_default_method = DocumentConventions._json_default
-        self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
+        self.max_length_of_query_using_get_url = kwargs.get(
+            "max_length_of_query_using_get_url", 1024 + 512
+        )
         self.identity_parts_separator = "/"
         self.disable_topology_update = kwargs.get("disable_topology_update", False)
         # If set to 'true' then it will throw an exception when any query is performed (in session)
         # without explicit page size set
-        self.raise_if_query_page_size_is_not_set = kwargs.get("raise_if_query_page_size_is_not_set", False)
+        self.raise_if_query_page_size_is_not_set = kwargs.get(
+            "raise_if_query_page_size_is_not_set", False
+        )
         # To be able to map objects. give mappers a dictionary
         # with the object type that you want to map and a function(key, value) key will be the name of the property
         # the mappers will be used in json.decode
@@ -42,7 +50,8 @@ class DocumentConventions(object):
     def update_mappers(self, mapper):
         if self._frozen:
             raise InvalidOperationException(
-                "Conventions has frozen after store.initialize() and no changes can be applied to them")
+                "Conventions has frozen after store.initialize() and no changes can be applied to them"
+            )
         self._mappers.update(mapper)
 
     @staticmethod
@@ -63,7 +72,10 @@ class DocumentConventions(object):
         elif isinstance(o, int) or isinstance(o, float):
             return str(o)
         else:
-            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")
+            raise TypeError(
+                repr(o)
+                + " is not JSON serializable (Try add a json default method to store convention)"
+            )
 
     @staticmethod
     def default_transform_plural(name):
@@ -80,12 +92,18 @@ class DocumentConventions(object):
     def build_default_metadata(entity):
         if entity is None:
             return {}
-        existing = entity.__dict__.get('@metadata')
+        existing = entity.__dict__.get("@metadata")
         if existing is None:
             existing = {}
 
-        new_metadata = {"@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
-                "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
+        new_metadata = {
+            "@collection": DocumentConventions.default_transform_plural(
+                entity.__class__.__name__
+            ),
+            "Raven-Python-Type": "{0}.{1}".format(
+                entity.__class__.__module__, entity.__class__.__name__
+            ),
+        }
 
         existing.update(new_metadata)
 

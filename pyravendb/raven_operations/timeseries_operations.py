@@ -9,16 +9,25 @@ import sys
 
 
 class GetTimeSeriesOperation(Operation):
-    def __init__(self, document_id: str, ranges: Iterable[TimeSeriesRange] or TimeSeriesRange,
-                 start: int = 0, page_size: int = sys.maxsize):
+    def __init__(
+        self,
+        document_id: str,
+        ranges: Iterable[TimeSeriesRange] or TimeSeriesRange,
+        start: int = 0,
+        page_size: int = sys.maxsize,
+    ):
         """
         Build the time series get operations.
         """
         super().__init__()
         if not document_id:
-            raise ValueError("Invalid document Id, please provide a valid value and try again")
+            raise ValueError(
+                "Invalid document Id, please provide a valid value and try again"
+            )
         if not ranges:
-            raise ValueError("Ranges property Cannot be empty or None, please put a valid value and try again")
+            raise ValueError(
+                "Ranges property Cannot be empty or None, please put a valid value and try again"
+            )
 
         if isinstance(ranges, TimeSeriesRange):
             ranges = [ranges]
@@ -29,18 +38,29 @@ class GetTimeSeriesOperation(Operation):
         self._page_size = page_size
 
     def get_command(self, store, conventions, cache=None):
-        return self._GetTimeSeriesCommand(self._document_id, self._ranges, self._start, self._page_size)
+        return self._GetTimeSeriesCommand(
+            self._document_id, self._ranges, self._start, self._page_size
+        )
 
     class _GetTimeSeriesCommand(RavenCommand):
-        def __init__(self, document_id: str, ranges: Iterable[TimeSeriesRange],
-                     start: int = 0, page_size: int = sys.maxsize):
+        def __init__(
+            self,
+            document_id: str,
+            ranges: Iterable[TimeSeriesRange],
+            start: int = 0,
+            page_size: int = sys.maxsize,
+        ):
             super().__init__(method="GET", is_read_request=True)
 
             if not document_id:
-                raise ValueError("Invalid document Id, please provide a valid value and try again")
+                raise ValueError(
+                    "Invalid document Id, please provide a valid value and try again"
+                )
 
             if not ranges:
-                raise ValueError("Ranges property Cannot be empty or None, please put a valid value and try again")
+                raise ValueError(
+                    "Ranges property Cannot be empty or None, please put a valid value and try again"
+                )
 
             self._document_id = document_id
             self._ranges = ranges
@@ -48,15 +68,19 @@ class GetTimeSeriesOperation(Operation):
             self._page_size = page_size
 
         def create_request(self, server_node):
-            self.url = (f"{server_node.url}/databases/{server_node.database}"
-                        f"/timeseries?docId={Utils.quote_key(self._document_id)}"
-                        f"{f'&start={self._start}' if self._start > 0 else ''}"
-                        f"{f'&pageSize={self._page_size}' if self._page_size < sys.maxsize else ''}")
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/timeseries?docId={Utils.quote_key(self._document_id)}"
+                f"{f'&start={self._start}' if self._start > 0 else ''}"
+                f"{f'&pageSize={self._page_size}' if self._page_size < sys.maxsize else ''}"
+            )
 
             for range_ in self._ranges:
-                self.url += (f"&name={Utils.quote_key(range_.name)}"
-                             f"&from={Utils.datetime_to_string(range_.from_date)}"
-                             f"&to={Utils.datetime_to_string(range_.to_date)}")
+                self.url += (
+                    f"&name={Utils.quote_key(range_.name)}"
+                    f"&from={Utils.datetime_to_string(range_.from_date)}"
+                    f"&to={Utils.datetime_to_string(range_.to_date)}"
+                )
 
         def set_response(self, response):
             if response is None:
@@ -64,7 +88,9 @@ class GetTimeSeriesOperation(Operation):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.ErrorResponseException(response["Message"], response["Type"])
+                    raise exceptions.ErrorResponseException(
+                        response["Message"], response["Type"]
+                    )
             except ValueError as e:
                 raise exceptions.ErrorResponseException(e)
 
@@ -72,14 +98,22 @@ class GetTimeSeriesOperation(Operation):
 
 
 class TimeSeriesOperation:
-
-    def __init__(self, name: str, appends: Optional[List["AppendOperation"]] = None,
-                 removals: [List["RemoveOperation"]] = None):
+    def __init__(
+        self,
+        name: str,
+        appends: Optional[List["AppendOperation"]] = None,
+        removals: [List["RemoveOperation"]] = None,
+    ):
         self.name = name
         self.appends = appends
         self.removals = removals
 
-    def append(self, timestamp: datetime, values: List[float] or float, tag: Optional[str] = None):
+    def append(
+        self,
+        timestamp: datetime,
+        values: List[float] or float,
+        tag: Optional[str] = None,
+    ):
         if not self.appends:
             self.appends = []
         self.appends.append(TimeSeriesOperation.AppendOperation(timestamp, values, tag))
@@ -91,12 +125,28 @@ class TimeSeriesOperation:
 
     def to_json(self):
         if self.appends:
-            self.appends = next(Utils.sort_iterable(self.appends, key=lambda ao: ao.timestamp.timestamp()))
-        return {"Name": self.name, "Appends": [a.to_json() for a in self.appends] if self.appends else self.appends,
-                "Deletes": [r.to_json() for r in self.removals] if self.removals else self.removals}
+            self.appends = next(
+                Utils.sort_iterable(
+                    self.appends, key=lambda ao: ao.timestamp.timestamp()
+                )
+            )
+        return {
+            "Name": self.name,
+            "Appends": [a.to_json() for a in self.appends]
+            if self.appends
+            else self.appends,
+            "Deletes": [r.to_json() for r in self.removals]
+            if self.removals
+            else self.removals,
+        }
 
     class AppendOperation:
-        def __init__(self, timestamp: datetime, values: List[float] or float, tag: Optional[str] = None):
+        def __init__(
+            self,
+            timestamp: datetime,
+            values: List[float] or float,
+            tag: Optional[str] = None,
+        ):
             if not timestamp:
                 raise ValueError("Missing timestamp property")
             self.timestamp = timestamp
@@ -113,7 +163,10 @@ class TimeSeriesOperation:
             self.tag = tag
 
         def to_json(self):
-            _dict = {"Timestamp": Utils.datetime_to_string(self.timestamp), "Values": self.values}
+            _dict = {
+                "Timestamp": Utils.datetime_to_string(self.timestamp),
+                "Values": self.values,
+            }
             if self.tag:
                 _dict["Tag"] = self.tag
             return _dict
@@ -124,7 +177,10 @@ class TimeSeriesOperation:
             self.to_date = to_date if to_date else datetime.max
 
         def to_json(self):
-            return {"From": Utils.datetime_to_string(self.from_date), "To": Utils.datetime_to_string(self.to_date)}
+            return {
+                "From": Utils.datetime_to_string(self.from_date),
+                "To": Utils.datetime_to_string(self.to_date),
+            }
 
 
 class TimeSeriesBatchOperation(Operation):
@@ -148,13 +204,16 @@ class TimeSeriesBatchOperation(Operation):
             self._operation = operation
 
         def create_request(self, server_node):
-            self.url = (f"{server_node.url}/databases/{server_node.database}"
-                        f"/timeseries?docId={Utils.quote_key(self._document_id)}")
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/timeseries?docId={Utils.quote_key(self._document_id)}"
+            )
 
             self.data = self._operation.to_json()
 
         def set_response(self, response):
             if response is not None and response.status_code != 204:
                 response = response.json()
-                raise exceptions.ErrorResponseException(response["Message"], response["Type"])
-
+                raise exceptions.ErrorResponseException(
+                    response["Message"], response["Type"]
+                )

@@ -49,8 +49,15 @@ class DeleteCommandData(_CommandData):
 
 
 class PatchCommandData(_CommandData):
-    def __init__(self, key, scripted_patch, change_vector=None, patch_if_missing=None, additional_data=None,
-                 debug_mode=False):
+    def __init__(
+        self,
+        key,
+        scripted_patch,
+        change_vector=None,
+        patch_if_missing=None,
+        additional_data=None,
+        debug_mode=False,
+    ):
         """
         @param key: key of a document to patch.
         :type str
@@ -77,9 +84,12 @@ class PatchCommandData(_CommandData):
         self.debug_Mode = debug_mode
 
     def to_json(self):
-        data = {"Id": self.key, "Type": self._type,
-                "Patch": self.scripted_patch.to_json(),
-                "DebugMode": self.debug_Mode}
+        data = {
+            "Id": self.key,
+            "Type": self._type,
+            "Patch": self.scripted_patch.to_json(),
+            "DebugMode": self.debug_Mode,
+        }
 
         if self.change_vector:
             data["ChangeVector"] = self.change_vector
@@ -105,13 +115,20 @@ class PutAttachmentCommandData(_CommandData):
         if not name:
             raise ValueError(name)
 
-        super(PutAttachmentCommandData, self).__init__(document_id, "AttachmentPUT", change_vector)
+        super(PutAttachmentCommandData, self).__init__(
+            document_id, "AttachmentPUT", change_vector
+        )
         self.name = name
         self.stream = stream
         self.content_type = content_type
 
     def to_json(self):
-        data = {"Id": self.key, "Name": self.name, "ContentType": self.content_type, "Type": self._type}
+        data = {
+            "Id": self.key,
+            "Name": self.name,
+            "ContentType": self.content_type,
+            "Type": self._type,
+        }
 
         if self.change_vector:
             data["ChangeVector"] = self.change_vector
@@ -132,7 +149,9 @@ class DeleteAttachmentCommandData(_CommandData):
         if not name:
             raise ValueError(name)
 
-        super(DeleteAttachmentCommandData, self).__init__(document_id, "AttachmentDELETE", change_vector)
+        super(DeleteAttachmentCommandData, self).__init__(
+            document_id, "AttachmentDELETE", change_vector
+        )
         self.name = name
 
     def to_json(self):
@@ -145,7 +164,13 @@ class DeleteAttachmentCommandData(_CommandData):
 
 
 class TimeSeriesBatchCommandData(_CommandData):
-    def __init__(self, document_id: str, name: str, operation: "TimeSeriesOperation", change_vector=None):
+    def __init__(
+        self,
+        document_id: str,
+        name: str,
+        operation: "TimeSeriesOperation",
+        change_vector=None,
+    ):
 
         if not document_id:
             raise ValueError("None or empty document id is Invalid")
@@ -153,7 +178,9 @@ class TimeSeriesBatchCommandData(_CommandData):
         if not name:
             raise ValueError("None or empty name is Invalid")
 
-        super().__init__(key=document_id, command_type="TimeSeries", change_vector=change_vector)
+        super().__init__(
+            key=document_id, command_type="TimeSeries", change_vector=change_vector
+        )
         self._time_series = operation
 
     @property
@@ -161,12 +188,21 @@ class TimeSeriesBatchCommandData(_CommandData):
         return self._time_series
 
     def to_json(self):
-        return {"Id": self.key, "TimeSeries": self.time_series.to_json(), "Type": self.type}
+        return {
+            "Id": self.key,
+            "TimeSeries": self.time_series.to_json(),
+            "Type": self.type,
+        }
 
 
 class CountersBatchCommandData(_CommandData):
-    def __init__(self, document_id: str, counter_operations: List[CounterOperation] or CounterOperation,
-                 from_etl: Optional[bool] = None, change_vector=None):
+    def __init__(
+        self,
+        document_id: str,
+        counter_operations: List[CounterOperation] or CounterOperation,
+        from_etl: Optional[bool] = None,
+        change_vector=None,
+    ):
         if not document_id:
             raise ValueError("None or empty document id is Invalid")
         if not counter_operations:
@@ -174,9 +210,13 @@ class CountersBatchCommandData(_CommandData):
         if not isinstance(counter_operations, list):
             counter_operations = [counter_operations]
 
-        super().__init__(key=document_id, command_type="Counters", change_vector=change_vector)
+        super().__init__(
+            key=document_id, command_type="Counters", change_vector=change_vector
+        )
         self._from_etl = from_etl
-        self._counters = DocumentCountersOperation(document_id=self.key, operations=counter_operations)
+        self._counters = DocumentCountersOperation(
+            document_id=self.key, operations=counter_operations
+        )
 
     def has_increment(self, counter_name):
         self.has_operation_of_type(CounterOperationType.increment, counter_name)
@@ -184,7 +224,9 @@ class CountersBatchCommandData(_CommandData):
     def has_delete(self, counter_name):
         self.has_operation_of_type(CounterOperationType.delete, counter_name)
 
-    def has_operation_of_type(self, operation_type: CounterOperationType, counter_name: str):
+    def has_operation_of_type(
+        self, operation_type: CounterOperationType, counter_name: str
+    ):
         for op in self.counters.operations:
             if op.counter_name != counter_name:
                 continue
@@ -198,7 +240,11 @@ class CountersBatchCommandData(_CommandData):
         return self._counters
 
     def to_json(self):
-        json_dict = {"Id": self.key, "Counters": self.counters.to_json(), "Type": self.type}
+        json_dict = {
+            "Id": self.key,
+            "Counters": self.counters.to_json(),
+            "Type": self.type,
+        }
         if self._from_etl:
             json_dict["FromEtl"] = self._from_etl
         return json_dict
