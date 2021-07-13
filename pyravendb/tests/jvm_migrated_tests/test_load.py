@@ -1,4 +1,4 @@
-from pyravendb.tests.test_base import TestBase, User
+from pyravendb.tests.test_base import TestBase, User, UserWithId
 
 
 class GeekUser(User):
@@ -6,12 +6,6 @@ class GeekUser(User):
         super().__init__(name, age)
         self.favorite_primes = favorite_primes
         self.favorite_very_large_primes = favorite_very_large_primes
-
-
-class UserWithId(User):
-    def __init__(self, name, age, identifier=None):
-        super(UserWithId, self).__init__(name, age)
-        self.Id = identifier
 
 
 class TestLoad(TestBase):

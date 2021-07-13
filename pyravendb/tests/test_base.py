@@ -18,6 +18,12 @@ class User(object):
         self.age = age
 
 
+class UserWithId(User):
+    def __init__(self, name, age, identifier=None):
+        super(UserWithId, self).__init__(name, age)
+        self.Id = identifier
+
+
 class Dog(object):
     def __init__(self, name, owner):
         self.name = name
