@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*- #
 from builtins import ValueError
-
-import pyravendb.tools.utils
-
 from pyravendb.subscriptions.data import SubscriptionState
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.utils import Utils
@@ -319,12 +316,12 @@ class HeadDocumentCommand(RavenCommand):
         self.url = f"{server_node.url}/databases/{server_node.database}/docs?id=" f"{Utils.quote_key(self.key)}"
 
     def set_response(self, response):
-        if response:
-            if response.status_code == 200:
-                return response
-            if response.status_code == 304:
-                return self.change_vector
-        return None
+        if not response:
+            return None
+        if response.status_code == 200:
+            return response
+        if response.status_code == 304:
+            return self.change_vector
 
 
 class BatchCommand(RavenCommand):
