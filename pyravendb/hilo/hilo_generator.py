@@ -1,3 +1,5 @@
+import time
+
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.commands.raven_commands import RavenCommand
 from pyravendb.tools.utils import Utils
@@ -48,7 +50,7 @@ class NextHiLoCommand(RavenCommand):
         path = "hilo/next?tag={0}&lastBatchSize={1}&lastRangeAt={2}&identityPartsSeparator={3}&lastMax={4}".format(
             self.tag,
             self.last_batch_size,
-            self.last_range_at,
+            Utils.datetime_to_string(self.last_range_at),
             self.identity_parts_separator,
             self.last_range_max,
         )
