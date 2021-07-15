@@ -110,8 +110,12 @@ class TestHiLo(TestBase):
             return store_user
 
         tasks = [future_store_user(i) for i in range(32)]
+
         with ThreadPoolExecutor(max_workers=32) as executor:
-            for _ in (executor.submit(task) for task in tasks):
-                pass
-        for _ in ((self.assertLess(int(user.Id.split("/")[1].split("-")[0]), 33)) for user in users):
-            pass
+            for task in tasks:
+                executor.submit(task)
+            executor.shutdown()
+
+        for user in users:
+            key_number = user.Id.split("/")[1].split("-")[0]
+            self.assertLess(int(key_number), 33)
