@@ -11,7 +11,7 @@ class HiLoDocument:
 
 
 class Product:
-    def __init__(self, name):
+    def __init__(self, name=None):
         self.product_name = name
 
 
@@ -50,10 +50,10 @@ class TestHiLo(TestBase):
 
             multi_db_hilo = MultiDatabaseHiLoKeyGenerator(self.store)
 
-            generate_document_key = multi_db_hilo.generate_document_key(None, User)
+            generate_document_key = multi_db_hilo.generate_document_key(None, User())
             self.assertEqual(generate_document_key, "users/65-A")
 
-            generate_document_key = multi_db_hilo.generate_document_key(None, Product)
+            generate_document_key = multi_db_hilo.generate_document_key(None, Product())
             self.assertEqual(generate_document_key, "products/129-A")
 
     def test_capacity_should_double(self):

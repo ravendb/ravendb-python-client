@@ -13,7 +13,7 @@ from pyravendb.raven_operations.maintenance_operations import (
 
 
 class User(object):
-    def __init__(self, name, age):
+    def __init__(self, name=None, age=None):
         self.name = name
         self.age = age
 
@@ -82,3 +82,12 @@ class TestBase(unittest.TestCase):
     def tearDown(self):
         self.store.maintenance.server.send(DeleteDatabaseOperation(database_name="NorthWindTest", hard_delete=True))
         self.store.close()
+
+    def assertRaisesWithMessage(self, func, exception, msg, *args, **kwargs):
+        e = None
+        try:
+            func(*args, **kwargs)
+        except exception as ex:
+            e = ex
+        self.assertIsNotNone(e)
+        self.assertEqual(msg, e.args[0])

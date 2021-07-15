@@ -2,6 +2,12 @@ from pyravendb.tests.test_base import TestBase, User
 from pyravendb.commands.raven_commands import GetDocumentCommand
 
 
+class Person(User):
+    def __init__(self, name, age, address):
+        super().__init__(name, age)
+        self.address = address
+
+
 class TestBasicDocument(TestBase):
     def setUp(self):
         super(TestBasicDocument, self).setUp()
@@ -22,7 +28,7 @@ class TestBasicDocument(TestBase):
         doc1 = results[0]
         doc2 = results[1]
 
-        self.assertIsNotNone(doc1)  # Should it be like this? Or should we dive into document fields?
+        self.assertIsNotNone(doc1)
         self.assertIsNotNone(doc2)
         self.assertTrue("@metadata" in doc1.keys())
         self.assertTrue("@metadata" in doc2.keys())
@@ -47,3 +53,23 @@ class TestBasicDocument(TestBase):
         self.assertTrue("@metadata" in doc2.keys())
         self.assertEqual(len(doc1), 1)
         self.assertEqual(len(doc2), 1)
+
+    def test_can_change_document_collection_with_delete_and_save(self):
+        document_id = "users/1"
+        with self.store.open_session() as session:
+            user = User("John", 22)
+            session.store(user, document_id)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.delete(document_id)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load(document_id, User)
+            self.assertIsNone(user)
+
+        with self.store.open_session() as session:
+            person = Person("John", 22, None)
+            session.store(person, document_id)
+            session.save_changes()
