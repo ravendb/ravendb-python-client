@@ -19,7 +19,7 @@ class User(object):
 
 
 class UserWithId(User):
-    def __init__(self, name, age, identifier=None):
+    def __init__(self, name=None, age=None, identifier=None):
         super(UserWithId, self).__init__(name, age)
         self.Id = identifier
 
@@ -91,3 +91,7 @@ class TestBase(unittest.TestCase):
             e = ex
         self.assertIsNotNone(e)
         self.assertEqual(msg, e.args[0])
+
+    def assertSequenceContainsElements(self, sequence, *args):
+        for arg in args:
+            self.assertIn(arg, sequence)

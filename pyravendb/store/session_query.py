@@ -65,6 +65,7 @@ class Query(object):
         self.last_equality = None
         self.query_parameters = None
         self.is_distinct = None
+        self.is_group_by = None
 
     @property
     def not_(self):
@@ -122,6 +123,8 @@ class Query(object):
         self._query = None
         self.last_equality = None
         self.is_distinct = False
+        self._disable_entities_tracking = False
+        self.is_group_by = False
 
         return self
 
@@ -184,6 +187,7 @@ class Query(object):
 
     def build_group_by(self, query_builder):
         if len(self._group_by_tokens) > 0:
+            self.is_group_by = True
             query_builder.append(" GROUP BY ")
             index = 0
             for token in self._group_by_tokens:
@@ -224,14 +228,18 @@ class Query(object):
         if select_token_length > 0:
             index = 0
             query_builder.append(" SELECT ")
-            if select_token_length == 1 and self._select_tokens[0].token == "distinct":
-                query_builder.append("DISTINCT *")
-                return
+            if self._select_tokens[0].token == "distinct":
+                _, *select_tokens = self._select_tokens
+                query_builder.append("DISTINCT ")
+                if select_token_length == 1:
+                    query_builder.append("*")
+                    return
+            else:
+                select_tokens = self._select_tokens
 
-            for token in self._select_tokens:
-                if index > 0 and self._select_tokens[index - 1].token != "distinct":
+            for token in select_tokens:
+                if index > 0:
                     query_builder.append(",")
-
                 Query._add_space_if_needed(query_builder)
                 query_builder.append(token.write)
                 index += 1
@@ -348,21 +356,37 @@ class Query(object):
                 query_builder.append(" ")
 
     @staticmethod
-    def escape_if_needed(name):
+    def escape_if_needed(name, is_path=False):
         if name:
             escape = False
+            inside_escaped = False
             first = True
             for c in name:
+                if c == "'" or c == '"':
+                    inside_escaped = not inside_escaped
+                    continue
+
                 if first:
-                    if not c.isalpha() and c != "_" and c != "@":
+                    if not c.isalpha() and c != "_" and c != "@" and not inside_escaped:
                         escape = True
                         break
                     first = False
                 else:
-                    if (not c.isalpha() and not c.isdigit()) and c != "_" and c != "@" and c != "[" and c != "]":
+                    if (
+                        (not c.isalpha() and not c.isdigit())
+                        and c != "_"
+                        and c != "@"
+                        and c != "["
+                        and c != "]"
+                        and not inside_escaped
+                    ):
                         escape = True
                         break
 
+                    if is_path and c == "." and not inside_escaped:
+                        escape = True
+                        break
+            escape |= inside_escaped
             if escape or name.upper() in Query.rql_keyword:
                 return "'{0}'".format(name)
 
@@ -492,7 +516,7 @@ class Query(object):
                 field_name=field_name,
                 value=None,
                 token="exists",
-                write="exists(" + field_name + ")",
+                write="exists(" + field_name + ") ",
             )
         )
         return self
@@ -621,6 +645,18 @@ class Query(object):
 
         return self
 
+    def where_lucene(self, field_name, where_clause, exact=False):
+        field_name = Query.escape_if_needed(field_name, False)
+
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        token = _Token(field_name=field_name, token="lucene", value=self.add_query_parameter(where_clause), exact=exact)
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
+
     def where_between(self, field_name, start, end, exact=False):
         field_name = Query.escape_if_needed(field_name)
 
@@ -724,7 +760,7 @@ class Query(object):
         @param OrderingType ordering: The field_name type (str, long, float or alpha_numeric)
         :return:
         """
-        return self.order_by(field_name, ordering, descending=descending)
+        return self.order_by(field_name, ordering.str, descending=descending)
 
     def order_by(self, field_name, ordering=OrderingType.str, descending=False):
         self.assert_no_raw_query()
@@ -750,14 +786,14 @@ class Query(object):
     def order_by_score_descending(self):
         return self.order_by("score()", descending=True)
 
-    def random_ordering(self):
-        return self.order_by("random()")
+    def random_ordering(self, seed=""):
+        return self.order_by(f"random({seed})")
 
     def and_also(self):
         if len(self._where_tokens) > 0:
             last = self._where_tokens[-1]
             if last:
-                if isinstance(self.query_parameters[last.value], QueryOperator):
+                if last.value and isinstance(self.query_parameters[last.value], QueryOperator):
                     raise InvalidOperationException("Cannot add AND, previous token was already an QueryOperator.")
 
                 self._where_tokens.append(_Token(value=QueryOperator.AND, write="AND"))
@@ -818,6 +854,18 @@ class Query(object):
         self.page_size = count
         return self
 
+    def first(self):
+        result = self.take(1)._execute_query()
+        if len(result) == 0:
+            raise ValueError("Expected at least one result")
+        return result[0]
+
+    def single(self):
+        result = self.take(2)._execute_query()
+        if len(result) != 1:
+            raise ValueError(f"Expected signle result, got: {len(result)} ")
+        return result[0]
+
     def skip(self, count):
         self.start = count
         return self
@@ -831,6 +879,10 @@ class Query(object):
 
     def include(self, path):
         self.includes.add(path)
+        return self
+
+    def no_tracking(self):  # todo: RDBC-465
+        self._disable_entities_tracking = True
         return self
 
     def get_last_equality_term(self):
