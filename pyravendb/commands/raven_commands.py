@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*- #
 from builtins import ValueError
-
 from pyravendb.subscriptions.data import SubscriptionState
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.tools.utils import Utils
@@ -299,6 +298,30 @@ class PutDocumentCommand(RavenCommand):
             raise exceptions.ErrorResponseException(
                 "Failed to put document in the database please check the connection to the server"
             )
+
+
+class HeadDocumentCommand(RavenCommand):
+    def __init__(self, key, change_vector):
+        super(HeadDocumentCommand, self).__init__(method="HEAD", is_read_request=False)
+        if key is None:
+            raise ValueError("Key cannot be null")
+        self.key = key
+        self.change_vector = change_vector
+
+    def create_request(self, server_node):
+        if not isinstance(self.key, str):
+            raise ValueError("key must be {0}".format(type("")))
+        if self.change_vector is not None:
+            self.headers = {"If-None-Match", '"{0}"'.format(self.change_vector)}
+        self.url = f"{server_node.url}/databases/{server_node.database}/docs?id=" f"{Utils.quote_key(self.key)}"
+
+    def set_response(self, response):
+        if not response:
+            return None
+        if response.status_code == 200:
+            return response
+        if response.status_code == 304:
+            return self.change_vector
 
 
 class BatchCommand(RavenCommand):

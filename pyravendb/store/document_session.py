@@ -560,6 +560,17 @@ class Advanced(object):
                 return True
         return len(self.session.deleted_entities) != 0
 
+    def exists(self, key):
+        if key is None:
+            raise ValueError("Key cannot be None")
+        if key in self.session.known_missing_ids:
+            return False
+        if key in self.session.documents_by_id.values():
+            return True
+        command = HeadDocumentCommand(key, None)
+        response = self.session.requests_executor.execute(command)
+        return response is not None
+
     def stream(self, query):
         from pyravendb.store.stream import IncrementalJsonParser
         import ijson
