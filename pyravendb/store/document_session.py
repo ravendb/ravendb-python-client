@@ -279,6 +279,16 @@ class DocumentSession(object):
             self.save_includes(includes)
         return self._documents_by_id[key_or_keys] if key_or_keys in self._documents_by_id else None
 
+    def is_loaded(self, key):
+        return self.is_loaded_or_deleted(key)
+
+    def is_loaded_or_deleted(self, key):
+        document = self.documents_by_id[key]
+        return document or self.is_deleted(key) or key in self.included_documents_by_id
+
+    def is_deleted(self, key):
+        return key in self.known_missing_ids
+
     def delete_by_entity(self, entity):
         if entity is None:
             raise ValueError("None entity is invalid")

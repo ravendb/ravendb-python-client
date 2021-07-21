@@ -8,6 +8,19 @@ class GeekUser(User):
         self.favorite_very_large_primes = favorite_very_large_primes
 
 
+class Foo:
+    def __init__(self, name=None):
+        self.name = name
+
+
+class Bar:
+    def __init__(self, foo_id=None, foo_ids=None, name=None, bar_id=None):
+        self.foo_id = foo_id
+        self.foo_ids = foo_ids
+        self.name = name
+        self.Id = bar_id
+
+
 class TestLoad(TestBase):
     def setUp(self):
         super(TestLoad, self).setUp()
@@ -107,3 +120,28 @@ class TestLoad(TestBase):
             self.assertIsNotNone(users_by_id_1["users/1"])
             self.assertIsNotNone(users_by_id_1["users/2"])
             self.assertEqual(len(users_by_id_2), 2)
+
+    def test_load_with_includes(self):
+        bar_id = None
+        with self.store.open_session() as session:
+            foo = Foo("Beginning")
+            session.store(foo)
+
+            fid = session.advanced.get_document_id(foo)
+            bar = Bar(name="End", foo_id=fid)
+            session.store(bar)
+
+            bar_id = session.advanced.get_document_id(bar)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            bar = session.load([bar_id], Bar, includes="foo_id")
+            self.assertIsNotNone(bar)
+            self.assertEqual(1, len(bar))
+            self.assertIsNotNone(bar[0].Id)
+
+            num_of_reqs = session.advanced.number_of_requests_in_session()
+            foo = session.load(bar[0].foo_id, Foo)
+            self.assertIsNotNone(foo)
+            self.assertEqual(foo.name, "Beginning")
+            self.assertEqual(session.advanced.number_of_requests_in_session(), num_of_reqs)
