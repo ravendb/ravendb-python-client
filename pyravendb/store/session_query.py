@@ -270,6 +270,7 @@ class Query(object):
     @staticmethod
     def _get_rql_write_case(token):
         write = None
+
         if token.token == "in":
             write = " IN ($" + token.value + ")"
         elif token.token == "all_in":
@@ -295,6 +296,8 @@ class Query(object):
                 write_builder.append(", AND")
             write_builder.append(")")
             write = "".join(write_builder)
+        elif token.token == "regex":
+            write = ", $" + token.value + ")"
         elif token.token == "lucene":
             write = ", $" + token.value + ")"
         elif token.token == "startsWith":
@@ -333,7 +336,7 @@ class Query(object):
         if exact:
             where_rql += "exact("
 
-        if token.token in ["search", "lucene", "startsWith", "endsWith", "exists"]:
+        if token.token in ["search", "lucene", "regex", "startsWith", "endsWith", "exists"]:
             where_rql += token.token + "("
 
         where_rql += token.field_name + Query._get_rql_write_case(token)
@@ -392,6 +395,10 @@ class Query(object):
 
         return name
 
+    def ensure_valid_field_name(self, field_name, is_nested_path):
+        if not self.session or self.session.conventions is None or is_nested_path or self.is_group_by:
+            return self.escape_if_needed(field_name, is_nested_path)
+
     def negate_if_needed(self, field_name):
         if self.negate:
             self.negate = False
@@ -418,7 +425,6 @@ class Query(object):
 
     def _add_operator_if_needed(self):
         self.assert_no_raw_query()
-
         if len(self._where_tokens) > 0:
             query_operator = None
             last_token = self._where_tokens[-1]
@@ -645,6 +651,41 @@ class Query(object):
 
         return self
 
+    # todo: https://issues.hibernatingrhinos.com/issue/RDBC-467 + ensure escape_if_needed ok (ensureValidFieldName jvm)
+    def contains_any(self, field_name, values):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+
+        token = _Token(
+            field_name=field_name,
+            value=self.add_query_parameter(list(Utils.unpack_iterable(values))),
+            token="in",
+            exact=False,
+        )
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
+
+    def contains_all(self, field_name, values):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+        if len(values) == 0:
+            self._where_tokens.append(_Token(token="true_token", write="true"))
+            return
+        token = _Token(
+            field_name=field_name,
+            value=self.add_query_parameter(list(Utils.unpack_iterable(values))),
+            token="all_in",
+            exact=False,
+        )
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
+
+        return self
+
     def where_lucene(self, field_name, where_clause, exact=False):
         field_name = Query.escape_if_needed(field_name, False)
 
@@ -751,6 +792,19 @@ class Query(object):
 
     def where_not_none(self, field_name):
         self.and_also().not_.where_equals(field_name, None)
+        return self
+
+    def where_regex(self, field_name, pattern):
+        field_name = Query.escape_if_needed(field_name)
+        self._add_operator_if_needed()
+        self.negate_if_needed(field_name)
+        token = _Token(
+            field_name=field_name,
+            token="regex",
+            value=self.add_query_parameter(pattern),
+        )
+        token.write = self.rql_where_write(token)
+        self._where_tokens.append(token)
         return self
 
     def add_order(self, field_name, descending, ordering):
