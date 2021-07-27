@@ -7,9 +7,9 @@ class UserWithFavs(UserWithId):
         self.favourites = favourites
 
 
-class TestRegexQuery(TestBase):
+class TestContains(TestBase):
     def setUp(self):
-        super(TestRegexQuery, self).setUp()
+        super(TestContains, self).setUp()
 
     def test_contains(self):
         with self.store.open_session() as session:

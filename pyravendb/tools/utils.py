@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from threading import Timer
 from copy import deepcopy
-from math import log10
 import urllib
 import inspect
 import json
@@ -292,11 +291,7 @@ class Utils(object):
                 timedelta_str += "{0}.".format(days)
             timedelta_str += "{:02}:{:02}:{:02}".format(hours, minutes, seconds)
             if microseconds > 0:
-                timedelta_str += "."
-                order_of_magnitude = log10(microseconds).__trunc__()
-                if order_of_magnitude <= 5:
-                    timedelta_str += "0" * (5 - order_of_magnitude)
-                timedelta_str += "{0}".format(microseconds)
+                timedelta_str += f".{str(microseconds).rjust(6, '0')}"
         return timedelta_str
 
     @staticmethod
