@@ -1,3 +1,7 @@
+import json
+from copy import deepcopy
+from pyravendb.json.json_operation import JsonOperation
+from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
 from pyravendb.store.session_query import Query
 from pyravendb.commands import commands_data
@@ -14,6 +18,8 @@ from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
 from .session_counters import DocumentCounters
 from typing import Dict, List
+from pyravendb import constants
+from pyravendb.store.entity_to_json import EntityToJson
 
 
 class _SaveChangesData(object):
@@ -53,6 +59,7 @@ class DocumentSession(object):
         self.no_caching = kwargs.get("no_caching", False)
         self.advanced = Advanced(self)
         self._events = None
+        self.entity_to_json = EntityToJson(self)
 
     @property
     def readonly_events(self):
@@ -147,10 +154,10 @@ class DocumentSession(object):
         self,
         key,
         entity,
-        original_metadata,
         metadata,
         original_document,
         force_concurrency_check=False,
+        is_new_document=False,
     ):
         if key is not None:
             self._known_missing_ids.discard(key)
@@ -161,23 +168,23 @@ class DocumentSession(object):
                 self._documents_by_entity[self._documents_by_id[key]] = {
                     "original_value": original_document,
                     "metadata": metadata,
-                    "original_metadata": original_metadata,
                     "change_vector": metadata.get("change_vector", None),
+                    "entity": entity,
+                    "is_new_document": is_new_document,
                     "key": key,
                     "force_concurrency_check": force_concurrency_check,
                 }
 
-    def _convert_and_save_entity(self, key, document, object_type, nested_object_types):
-
+    def _convert_and_save_entity(self, key, document, object_type, nested_object_types, is_new_document=False):
         if key not in self._documents_by_id:
-            (entity, metadata, original_metadata, original_document,) = Utils.convert_to_entity(
+            (entity, metadata, original_document,) = Utils.convert_to_entity(
                 document,
                 object_type,
                 self.conventions,
                 self.readonly_events,
                 nested_object_types,
             )
-            self.save_entity(key, entity, original_metadata, metadata, original_document)
+            self.save_entity(key, entity, metadata, original_document, is_new_document)
 
     def _multi_load(self, keys, object_type, includes, nested_object_types):
         if len(keys) == 0:
@@ -296,7 +303,7 @@ class DocumentSession(object):
             raise exceptions.InvalidOperationException(
                 "{0} is not associated with the session, cannot delete unknown entity instance".format(entity)
             )
-        if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
+        if "Raven-Read-Only" in self._documents_by_entity[entity]["metadata"]:
             raise exceptions.InvalidOperationException(
                 "{0} is marked as read only and cannot be deleted".format(entity)
             )
@@ -326,7 +333,7 @@ class DocumentSession(object):
                 raise exceptions.InvalidOperationException(
                     "{0} is not associated with the session, cannot delete unknown entity instance".format(entity)
                 )
-            if "Raven-Read-Only" in self._documents_by_entity[entity]["original_metadata"]:
+            if "Raven-Read-Only" in self._documents_by_entity[entity]["metadata"]:
                 raise exceptions.InvalidOperationException(
                     "{0} is marked as read only and cannot be deleted".format(entity)
                 )
@@ -393,10 +400,10 @@ class DocumentSession(object):
         self.save_entity(
             entity_id,
             entity,
-            {},
             metadata,
             {},
             force_concurrency_check=force_concurrency_check,
+            is_new_document=True,
         )
 
     def _get_concurrency_check_mode(self, entity, key="", change_vector=""):
@@ -423,6 +430,7 @@ class DocumentSession(object):
         return DocumentCounters(self, entity_or_document_id)
 
     def save_changes(self):
+        # todo: create BatchOperation and use it here https://issues.hibernatingrhinos.com/issue/RDBC-474
         data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
         self._defer_commands.clear()
         self._prepare_for_delete_commands(data)
@@ -438,6 +446,33 @@ class DocumentSession(object):
             )
         self._update_batch_result(batch_result, data)
 
+    def refresh(self, entity):
+        document_info = self.advanced.get_document_info(entity)
+        if not document_info:
+            raise ValueError("Cannot refresh a transient instance")
+        self.increment_requests_count()
+        command = GetDocumentCommand([document_info["key"]])
+        response = self.requests_executor.execute(command)
+        self._refresh_internal(entity, response, document_info)
+
+    def _refresh_internal(self, entity, response, document_info):
+        document = response["Results"][0]
+        if document is None:
+            raise ValueError(f"Document {document_info['key']} no longer exists and was probably deleted")
+        value = document.get(constants.Documents.Metadata.KEY)
+        document_info["metadata"] = value
+        if document_info.get("metadata") is not None:
+            change_vector = value.get(constants.Documents.Metadata.CHANGE_VECTOR)
+            document_info["change_vector"] = change_vector
+
+        if self.documents_by_id.get(document_info["key"]) is not None and not self.no_tracking:
+            self.entity_to_json.remove_from_missing(self.documents_by_id[document_info["key"]])
+        document_info["entity"], _, _ = Utils.convert_to_entity(
+            document, entity.__class__, self.conventions, self.events
+        )
+        # todo: when adding another fields to document_info in future like "document" ensure it's added also here
+        # todo: when linking entity references to values in documents_by_id also need to update them here
+
     def _update_batch_result(self, batch_result, data):
 
         i = 0
@@ -448,14 +483,17 @@ class DocumentSession(object):
                 if item["Type"] == "PUT":
                     entity = data.entities[i - data.deferred_command_count]
                     if entity in self._documents_by_entity:
+                        # todo: bind more info to values below https://issues.hibernatingrhinos.com/issue/RDBC-475
                         self._documents_by_id[item["@id"]] = entity
                         document_info = self._documents_by_entity[entity]
+                        # todo: get_or_add_modifications
                         document_info["change_vector"] = item["@change-vector"]
                         item.pop("Type", None)
-                        document_info["original_metadata"] = item.copy()
                         document_info["metadata"] = item
                         document_info["key"] = item["@id"]
-                        document_info["original_value"] = entity.__dict__.copy()
+                        #  todo: make it more sophisticated - possibly multi-copying every reference to single object
+                        document_info["original_value"] = deepcopy(entity.__dict__)
+                        document_info["is_new_document"] = False
                         self.readonly_events.after_save_change(self, item["@id"], entity)
 
                 elif item["Type"] == "Counters":
@@ -493,11 +531,22 @@ class DocumentSession(object):
             data.commands.append(commands_data.DeleteCommandData(key, change_vector))
         self._deleted_entities.clear()
 
+    def get_changes_from_deleted(self, changes):
+        if changes is not None:
+            for key in list(map(lambda entity: self.advanced.get_document_info(entity)["key"], self._deleted_entities)):
+                doc_changes = []
+                change = {}
+                change.update({"new_value": ""})
+                change.update({"old_value": ""})
+                change.update({"change": "document_deleted"})
+                doc_changes.append(change)
+                changes.update({key: doc_changes})
+
     def _prepare_for_puts_commands(self, data):
         for entity in self._documents_by_entity:
-            if self._has_change(entity):
+            dirty = self.advanced.update_metadata_modifications(entity)
+            if self._has_change(entity) or dirty:
                 key = self._documents_by_entity[entity]["key"]
-                metadata = self._documents_by_entity[entity]["metadata"]
                 change_vector = None
                 if (
                     self.advanced.use_optimistic_concurrency
@@ -511,17 +560,16 @@ class DocumentSession(object):
                     self._documents_by_id.pop(key)
                     document = entity.__dict__.copy()
                     document.pop("Id", None)
-
+                metadata = self._documents_by_entity[entity]["metadata"]
                 data.commands.append(commands_data.PutCommandData(key, change_vector, document, metadata))
 
     def _has_change(self, entity):
         import json
 
         entity_to_dict = json.loads(json.dumps(entity, default=self.conventions.json_default_method))
-        if (
-            self._documents_by_entity[entity]["original_value"] != entity_to_dict
-            or self._documents_by_entity[entity]["original_metadata"] != self._documents_by_entity[entity]["metadata"]
-        ):
+        if self.advanced.get_document_info(entity)[
+            "original_value"
+        ] != entity_to_dict or self.advanced.get_document_info(entity).get("metadata_instance"):
             return True
         return False
 
@@ -541,6 +589,9 @@ class DocumentSession(object):
                 )
             )
 
+    def entity_to_dict(self, entity):
+        return json.loads(json.dumps(entity, default=self.conventions.json_default_method))
+
 
 class Advanced(object):
     def __init__(self, session):
@@ -558,15 +609,13 @@ class Advanced(object):
             self._attachment = _Attachment(self.session)
         return self._attachment
 
-    def get_metadata_for(self, entity):
-        return self.session.documents_by_entity[entity]["metadata"]
-
     def has_changed(self, entity):
         return self.session._has_change(entity) or entity in self.session.deleted_entities
 
     def has_changes(self):
-        for entity in self.session.documents_by_entity.keys():
-            if self.session._has_change(entity):
+        for key, value in self.session.documents_by_entity.items():
+            doc = self.session.entity_to_json.convert_entity_to_json(key, value)
+            if self.entity_changed(doc, self.get_document_info(key), None):
                 return True
         return len(self.session.deleted_entities) != 0
 
@@ -580,6 +629,52 @@ class Advanced(object):
         command = HeadDocumentCommand(key, None)
         response = self.session.requests_executor.execute(command)
         return response is not None
+
+    def what_changed(self):
+        changes = {}
+        self.get_all_entities_changes(changes)
+        self.session.get_changes_from_deleted(changes)
+        return changes
+
+    def get_all_entities_changes(self, changes):
+        for key, document in self.session.documents_by_id.items():
+            self.update_metadata_modifications(document)
+            new_obj = self.session.entity_to_json.convert_entity_to_json(document, self.get_document_info(document))
+            self.entity_changed(new_obj, self.get_document_info(document), changes)
+
+    def entity_changed(self, new_obj, document_info, changes):
+        return JsonOperation.entity_changed(
+            new_obj, document_info, changes, self.session.conventions.json_default_method
+        )
+
+    def get_metadata_for(self, entity):
+        if entity is None:
+            raise ValueError("Entity cannot be None")
+        document_info = self.get_document_info(entity)
+        if document_info.get("metadata_instance"):
+            return document_info["metadata_instance"]
+        metadata_as_json = document_info["metadata"]
+        metadata_obj = MetadataAsDictionary(metadata=metadata_as_json)
+        document_info["metadata_instance"] = metadata_obj
+        return metadata_obj
+
+    def get_document_info(self, entity):
+        return self.session.documents_by_entity.get(entity)
+
+    def update_metadata_modifications(self, document):
+        dirty = False
+        metadata_instance = self.get_document_info(document).get("metadata_instance")
+        if metadata_instance is not None:
+            metadata = self.get_document_info(document)["metadata"]
+            if metadata_instance.is_dirty is True:
+                dirty = True
+            for key, value in metadata_instance.items():
+                if value is None or isinstance(value, MetadataAsDictionary) and value.is_dirty is True:
+                    dirty = True
+                metadata.update(
+                    {key: json.loads(json.dumps(value, default=self.session.conventions.json_default_method))}
+                )
+        return dirty
 
     def stream(self, query):
         from pyravendb.store.stream import IncrementalJsonParser
@@ -599,7 +694,7 @@ class Advanced(object):
 
             results = ijson.backend.common.items(parser, "Results")
             for result in next(results, None):
-                document, metadata, _, _ = Utils.convert_to_entity(
+                document, metadata, _ = Utils.convert_to_entity(
                     result,
                     query.object_type,
                     self.session.conventions,

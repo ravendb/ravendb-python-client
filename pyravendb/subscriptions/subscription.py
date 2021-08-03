@@ -428,7 +428,7 @@ class SubscriptionBatch:
         last_change_vector = None
         for item in self.raw_items:
 
-            entity, metadata, _, _ = Utils.convert_to_entity(
+            entity, metadata, _ = Utils.convert_to_entity(
                 item["Data"],
                 self._object_type,
                 self._store.conventions,

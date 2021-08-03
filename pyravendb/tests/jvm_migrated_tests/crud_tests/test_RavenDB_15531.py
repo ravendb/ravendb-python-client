@@ -13,8 +13,6 @@ class TestRavenDB15531(TestBase):
     def setUp(self):
         super(TestRavenDB15531, self).setUp()
 
-    # todo: https://issues.hibernatingrhinos.com/issue/RDBC-468
-    @unittest.skip("Waiting for get_changes implementation")
     def test_should_work(self):
         with self.store.open_session() as session:
             doc = SimpleDoc("TestDoc", "State1")
@@ -27,10 +25,10 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(changes[0].change_type, "FIELD_CHANGED")
-            self.assertEqual(changes[0].field_name, "name")
-            self.assertEqual(changes[0].field_old_value, '"State1"')
-            self.assertEqual(changes[0].field_new_value, '"State2"')
+            self.assertEqual(changes[0]["change"], "field_changed")
+            self.assertEqual(changes[0]["field_name"], "name")
+            self.assertEqual(changes[0]["old_value"], "State1")
+            self.assertEqual(changes[0]["new_value"], "State2")
             session.save_changes()
 
             doc.name = "State3"
@@ -39,13 +37,12 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(changes[0].change_type, "FIELD_CHANGED")
-            self.assertEqual(changes[0].field_name, "name")
-            self.assertEqual(changes[0].field_old_value, '"State2"')
-            self.assertEqual(changes[0].field_new_value, '"State3"')
-            session.save_changes()
+            self.assertEqual(changes[0]["change"], "field_changed")
+            self.assertEqual(changes[0]["field_name"], "name")
+            self.assertEqual(changes[0]["old_value"], "State2")
+            self.assertEqual(changes[0]["new_value"], "State3")
 
-            session.advanced.refresh(doc)
+            session.refresh(doc)
 
             doc.name = "State4"
             changes1 = session.advanced.what_changed()
@@ -53,8 +50,8 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(changes[0].change_type, "FIELD_CHANGED")
-            self.assertEqual(changes[0].field_name, "name")
-            self.assertEqual(changes[0].field_old_value, '"State2"')
-            self.assertEqual(changes[0].field_new_value, '"State4"')
+            self.assertEqual(changes[0]["change"], "field_changed")
+            self.assertEqual(changes[0]["field_name"], "name")
+            self.assertEqual(changes[0]["old_value"], "State2")
+            self.assertEqual(changes[0]["new_value"], "State4")
             session.save_changes()
