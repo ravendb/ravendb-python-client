@@ -1,4 +1,5 @@
 import unittest
+from time import sleep
 from pyravendb.tests.test_base import TestBase
 from pyravendb.connection.requests_helpers import ServerNode
 from pyravendb.connection.requests_executor import RequestsExecutor
@@ -22,9 +23,11 @@ class TestGetTopology(TestBase):
         for _ in (ex.execute(GetDatabaseNamesOperation(0, 20).get_command(DocumentConventions())) for _ in range(50)):
             pass
 
-    @unittest.skip("Needs proper error 503 handling while using GetTopologyCommand on wrong database key")
+    # todo: rebuild request executor or at least handle_server_down (from scratch?)
+    @unittest.skip("There'll be ticket for rebuilding request_executor")
     def test_throws_when_updating_topology_of_not_existing_db(self):
         executor = RequestsExecutor.create(self.store.urls, self.store.database, None, None)
         server_node = ServerNode(self.store.urls[0], "no_such")
         with self.assertRaises(DatabaseDoesNotExistException):
+            sleep(5)
             executor.update_topology(server_node)
