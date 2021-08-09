@@ -39,7 +39,11 @@ class RequestsExecutor(object):
             return certificate, None
         pfx = certificate["pfx"]
         password = certificate.get("password", None)
-        adapter = Pkcs12Adapter(pkcs12_data=pfx, pkcs12_password=password)
+        adapter = (
+            Pkcs12Adapter(pkcs12_filename=pfx, pkcs12_password=password)
+            if os.path.isfile(pfx)
+            else Pkcs12Adapter(pkcs12_data=pfx, pkcs12_password=password)
+        )
         return None, adapter
 
     def __init__(self, database_name, certificate, conventions=None, **kwargs):
