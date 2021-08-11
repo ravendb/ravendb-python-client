@@ -104,7 +104,9 @@ class IndexDefinition(object):
         else:
             if isinstance(maps, list):
                 maps = set(maps)
-            self.maps = tuple(maps, )
+            self.maps = tuple(
+                maps,
+            )
 
         # fields is a  key value dict. the key is the name of the field and the value is IndexFieldOptions
         self.fields = kwargs.get("fields", {})
@@ -132,7 +134,7 @@ class IndexDefinition(object):
     @property
     def type(self):
         value = "Map"
-        if self.name and self.name.startswith('Auto/'):
+        if self.name and self.name.startswith("Auto/"):
             value = "AutoMap"
             if self.reduce:
                 value += "Reduce"
@@ -157,24 +159,32 @@ class IndexDefinition(object):
         self.maps.add(value)
 
     def to_json(self):
-        return {"Configuration": self.configuration,
-                "Fields": {key: self.fields[key].to_json() for key in self.fields} if len(
-                    self.fields) > 0 else self.fields,
-                "IndexId": self.index_id,
-                "IsTestIndex": self.is_test_index,
-                "LockMode": str(self.lock_mod) if self.lock_mod else None,
-                "Maps": self.maps,
-                "Name": self.name,
-                "Reduce": self.reduce,
-                "OutputReduceToCollection": self.output_reduce_to_collection,
-                "Priority": str(self.priority) if self.priority else None,
-                "Type": self.type,
-                "SourceType": self.source_type}
+        return {
+            "Configuration": self.configuration,
+            "Fields": {key: self.fields[key].to_json() for key in self.fields} if len(self.fields) > 0 else self.fields,
+            "IndexId": self.index_id,
+            "IsTestIndex": self.is_test_index,
+            "LockMode": str(self.lock_mod) if self.lock_mod else None,
+            "Maps": self.maps,
+            "Name": self.name,
+            "Reduce": self.reduce,
+            "OutputReduceToCollection": self.output_reduce_to_collection,
+            "Priority": str(self.priority) if self.priority else None,
+            "Type": self.type,
+            "SourceType": self.source_type,
+        }
 
 
 class IndexFieldOptions(object):
-    def __init__(self, sort_options=None, indexing=None, storage=None, suggestions=None, term_vector=None,
-                 analyzer=None):
+    def __init__(
+        self,
+        sort_options=None,
+        indexing=None,
+        storage=None,
+        suggestions=None,
+        term_vector=None,
+        analyzer=None,
+    ):
         """
         @param SortOptions sort_options: Sort options to use for a particular field
         @param FieldIndexing indexing: Options for indexing a field
@@ -191,10 +201,12 @@ class IndexFieldOptions(object):
         self.analyzer = analyzer
 
     def to_json(self):
-        return {"Analyzer": self.analyzer,
-                "Indexing": str(self.indexing) if self.indexing else None,
-                "Sort": str(self.sort_options) if self.sort_options else None,
-                "Spatial": None,
-                "Storage": None if self.storage is None else "Yes" if self.storage is True else "No",
-                "Suggestions": self.suggestions,
-                "TermVector": str(self.term_vector) if self.term_vector else None}
+        return {
+            "Analyzer": self.analyzer,
+            "Indexing": str(self.indexing) if self.indexing else None,
+            "Sort": str(self.sort_options) if self.sort_options else None,
+            "Spatial": None,
+            "Storage": None if self.storage is None else "Yes" if self.storage is True else "No",
+            "Suggestions": self.suggestions,
+            "TermVector": str(self.term_vector) if self.term_vector else None,
+        }

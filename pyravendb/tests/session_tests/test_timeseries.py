@@ -21,6 +21,7 @@ class TestTimeSeries(TestBase):
         super().tearDown()
         self.delete_all_topology_files()
 
+    @unittest.skip("RDBC-463 Issue waiting for fix")
     def test_time_series_append(self):
         now = datetime.now()
         with self.store.open_session() as session:
@@ -33,6 +34,7 @@ class TestTimeSeries(TestBase):
             self.assertEqual(len(time_series), 2)
             self.assertTrue(time_series[0].value == 86 and time_series[1].value == 70)
 
+    @unittest.skip("RDBC-463 Issue waiting for fix")
     def test_time_series_removal(self):
         now = datetime.now()
         with self.store.open_session() as session:
@@ -73,5 +75,5 @@ class TestTimeSeries(TestBase):
             self.assertEqual(session.advanced.number_of_requests_in_session(), 4)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

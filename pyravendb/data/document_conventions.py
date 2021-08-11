@@ -42,7 +42,8 @@ class DocumentConventions(object):
     def update_mappers(self, mapper):
         if self._frozen:
             raise InvalidOperationException(
-                "Conventions has frozen after store.initialize() and no changes can be applied to them")
+                "Conventions has frozen after store.initialize() and no changes can be applied to them"
+            )
         self._mappers.update(mapper)
 
     @staticmethod
@@ -80,12 +81,14 @@ class DocumentConventions(object):
     def build_default_metadata(entity):
         if entity is None:
             return {}
-        existing = entity.__dict__.get('@metadata')
+        existing = entity.__dict__.get("@metadata")
         if existing is None:
             existing = {}
 
-        new_metadata = {"@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
-                "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__)}
+        new_metadata = {
+            "@collection": DocumentConventions.default_transform_plural(entity.__class__.__name__),
+            "Raven-Python-Type": "{0}.{1}".format(entity.__class__.__module__, entity.__class__.__name__),
+        }
 
         existing.update(new_metadata)
 

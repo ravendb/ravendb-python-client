@@ -62,7 +62,7 @@ class Topology(object):
         topology = Topology()
         topology.etag = json_topology["Etag"]
         for node in json_topology["Nodes"]:
-            topology.nodes.append(ServerNode(node['Url'], node['Database'], node['ClusterTag']))
+            topology.nodes.append(ServerNode(node["Url"], node["Database"], node["ClusterTag"]))
         return topology
 
 
@@ -136,8 +136,13 @@ class NodeStatus(object):
         return 60 * 5 if self._timer_period >= 60 * 5 else self._timer_period
 
     def start_timer(self):
-        Utils.start_a_timer(self._next_timer_period(), self._request_executor.check_node_status, (self,),
-                            name="check_node_status", daemon=True)
+        Utils.start_a_timer(
+            self._next_timer_period(),
+            self._request_executor.check_node_status,
+            (self,),
+            name="check_node_status",
+            daemon=True,
+        )
 
     def __del__(self):
         if self._timer is not None:

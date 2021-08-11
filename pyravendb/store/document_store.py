@@ -49,7 +49,8 @@ class DocumentStore(object):
     def conventions(self, value):
         if self._conventions.is_frozen():
             raise exceptions.InvalidOperationException(
-                "Conventions has frozen after store.initialize() and no changes can be applied to them")
+                "Conventions has frozen after store.initialize() and no changes can be applied to them"
+            )
         self._conventions = value
 
     @property
@@ -96,10 +97,13 @@ class DocumentStore(object):
             database = self.database
         with self.add_change_lock:
             if database not in self._database_changes:
-                self._database_changes[database] = DatabaseChanges(request_executor=self.get_request_executor(database),
-                                                                   database_name=database,
-                                                                   on_close=self._on_close_change, on_error=on_error,
-                                                                   executor=executor)
+                self._database_changes[database] = DatabaseChanges(
+                    request_executor=self.get_request_executor(database),
+                    database_name=database,
+                    on_close=self._on_close_change,
+                    on_error=on_error,
+                    executor=executor,
+                )
             return self._database_changes[database]
 
     def _on_close_change(self, database):
@@ -114,9 +118,10 @@ class DocumentStore(object):
 
         with self.lock:
             if self._request_executors.get(db_name) is None:
-                self._request_executors.setdefault(db_name,
-                                                   RequestsExecutor.create(self.urls, db_name, self._certificate,
-                                                                           self.conventions))
+                self._request_executors.setdefault(
+                    db_name,
+                    RequestsExecutor.create(self.urls, db_name, self._certificate, self.conventions),
+                )
             return self._request_executors[db_name]
 
     def initialize(self):
@@ -132,7 +137,8 @@ class DocumentStore(object):
         if not self._initialize:
             raise exceptions.InvalidOperationException(
                 "You cannot open a session or access the database commands before initializing the document store.\
-                Did you forget calling initialize()?")
+                Did you forget calling initialize()?"
+            )
 
     def open_session(self, database=None, request_executor=None):
         self._assert_initialize()
@@ -185,7 +191,7 @@ class MaintenanceOperationExecutor:
 
     def send(self, operation):
         try:
-            operation_type = getattr(operation, 'operation')
+            operation_type = getattr(operation, "operation")
             if operation_type != "MaintenanceOperation":
                 raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:
@@ -203,17 +209,21 @@ class ServerOperationExecutor:
     @property
     def request_executor(self):
         if self._request_executor is None:
-            from pyravendb.connection.cluster_requests_executor import ClusterRequestExecutor
+            from pyravendb.connection.cluster_requests_executor import (
+                ClusterRequestExecutor,
+            )
+
             if self._store.conventions.disable_topology_update:
-                self._request_executor = ClusterRequestExecutor.create_for_single_node(self._store.urls[0],
-                                                                                       self._store.certificate)
+                self._request_executor = ClusterRequestExecutor.create_for_single_node(
+                    self._store.urls[0], self._store.certificate
+                )
             else:
                 self._request_executor = ClusterRequestExecutor.create(self._store.urls, self._store.certificate)
         return self._request_executor
 
     def send(self, operation):
         try:
-            operation_type = getattr(operation, 'operation')
+            operation_type = getattr(operation, "operation")
             if operation_type != "ServerOperation":
                 raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:
@@ -237,6 +247,7 @@ class OperationExecutor(object):
 
     def wait_for_operation_complete(self, operation_id, timeout=None):
         from pyravendb.commands.raven_commands import GetOperationStateCommand
+
         start_time = time.time()
         try:
             get_operation_command = GetOperationStateCommand(operation_id)
@@ -256,7 +267,7 @@ class OperationExecutor(object):
 
     def send(self, operation):
         try:
-            operation_type = getattr(operation, 'operation')
+            operation_type = getattr(operation, "operation")
             if operation_type != "Operation":
                 raise ValueError("operation type cannot be {0} need to be Operation".format(operation_type))
         except AttributeError:

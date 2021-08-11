@@ -1,0 +1,8 @@
+{
+    "DataDir": "RavenData",
+    "License.Eula.Accepted": true,
+    "Setup.Mode": "None",
+    "Security.UnsecuredAccessAllowed": "PublicNetwork",
+    "ServerUrl": "http://0.0.0.0:8080",
+    "ServerUrl.Tcp": "tcp://0.0.0.0:3080"
+}

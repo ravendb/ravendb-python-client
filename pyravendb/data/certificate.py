@@ -21,7 +21,11 @@ class CertificateDefinition:
     def to_json(self):
         for key, value in self.permissions.items():
             self.permissions[key] = str(value)
-        return {"Certificate": self.certificate, "Thumbprint": self.thumbprint, "Permissions": self.permissions}
+        return {
+            "Certificate": self.certificate,
+            "Thumbprint": self.thumbprint,
+            "Permissions": self.permissions,
+        }
 
 
 class DatabaseAccess(Enum):

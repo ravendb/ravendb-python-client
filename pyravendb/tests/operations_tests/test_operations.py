@@ -17,9 +17,10 @@ class TestOperations(TestBase):
         TestBase.delete_all_topology_files()
 
     def test_put_attachment(self):
-        binary_list = bin(int(''.join(map(str, [1, 2, 3, 4, 5, 70, 90]))) << 1)
+        binary_list = bin(int("".join(map(str, [1, 2, 3, 4, 5, 70, 90]))) << 1)
         put_result = self.store.operations.send(
-            PutAttachmentOperation("users/1-A", "my_picture", binary_list, content_type="image/png"))
+            PutAttachmentOperation("users/1-A", "my_picture", binary_list, content_type="image/png")
+        )
         self.assertIsNotNone(put_result)
         self.assertEqual(put_result["ContentType"], "image/png")
         self.assertEqual(put_result["Name"], "my_picture")
@@ -34,8 +35,14 @@ class TestOperations(TestBase):
         self.assertIsNone(attachment)
 
     def test_patch_by_index(self):
-        self.store.maintenance.send(PutIndexesOperation(
-            IndexDefinition("Patches", maps="from doc in docs.Patches select new {patched = doc.patched}")))
+        self.store.maintenance.send(
+            PutIndexesOperation(
+                IndexDefinition(
+                    "Patches",
+                    maps="from doc in docs.Patches select new {patched = doc.patched}",
+                )
+            )
+        )
 
         with self.store.open_session() as session:
             session.store(Patch(patched=False))
@@ -44,13 +51,15 @@ class TestOperations(TestBase):
             session.save_changes()
             # doing the query here to make sure the query won't be stale
             query_result = list(
-                session.query(wait_for_non_stale_results=True).raw_query("FROM INDEX 'Patches' Where patched=False"))
+                session.query(wait_for_non_stale_results=True).raw_query("FROM INDEX 'Patches' Where patched=False")
+            )
             assert query_result
 
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
         operation = PatchByQueryOperation(
             query_to_update=IndexQuery(query="FROM INDEX 'Patches' Where patched=False UPDATE {{this.patched=true}}"),
-            options=options)
+            options=options,
+        )
         operation_id = self.store.operations.send(operation)
         result = self.store.operations.wait_for_operation_complete(operation_id=operation_id["operation_id"])
         self.assertTrue(len(result["Result"]["Details"]) == 2)
@@ -58,18 +67,23 @@ class TestOperations(TestBase):
     def test_fail_patch_wrong_index_name(self):
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
         operation = PatchByQueryOperation(
-            query_to_update=IndexQuery(query="FROM INDEX 'None' UPDATE {{this.name='NotExist'}}",
-                                       wait_for_non_stale_results=True), options=options)
+            query_to_update=IndexQuery(
+                query="FROM INDEX 'None' UPDATE {{this.name='NotExist'}}",
+                wait_for_non_stale_results=True,
+            ),
+            options=options,
+        )
         with self.assertRaises(exceptions.InvalidOperationException):
             result = self.store.operations.send(operation)
             if result:
-                self.store.operations.wait_for_operation_complete(result['operation_id'])
+                self.store.operations.wait_for_operation_complete(result["operation_id"])
             else:
                 raise exceptions.ErrorResponseException("Got empty or None response from the server")
 
     def test_delete_by_index(self):
-        self.store.maintenance.send(PutIndexesOperation(
-            IndexDefinition("Users", maps="from doc in docs.Users select new {name=doc.name}")))
+        self.store.maintenance.send(
+            PutIndexesOperation(IndexDefinition("Users", maps="from doc in docs.Users select new {name=doc.name}"))
+        )
 
         with self.store.open_session() as session:
             session.store(User(name="delete", age=0), key="deletes/1-A")
@@ -79,8 +93,7 @@ class TestOperations(TestBase):
             assert query_result
 
         index_query = IndexQuery(query="FROM INDEX 'Users' WHERE name='delete'")
-        operation_id = self.store.operations.send(
-            DeleteByQueryOperation(index_query))
+        operation_id = self.store.operations.send(DeleteByQueryOperation(index_query))
         result = self.store.operations.wait_for_operation_complete(operation_id=operation_id["operation_id"])
         self.assertEqual(result["Result"]["Total"], 1)
 
@@ -93,8 +106,7 @@ class TestOperations(TestBase):
 
         index_query = IndexQuery("From Patches Update {{this.patched=true}}", wait_for_non_stale_results=True)
 
-        operation_id = self.store.operations.send(
-            PatchByQueryOperation(query_to_update=index_query))
+        operation_id = self.store.operations.send(PatchByQueryOperation(query_to_update=index_query))
         result = self.store.operations.wait_for_operation_complete(operation_id=operation_id["operation_id"])
         self.assertTrue(result["Result"]["Total"] == 3)
 
