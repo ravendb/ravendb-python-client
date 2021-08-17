@@ -1,7 +1,22 @@
 from pyravendb.commands.raven_commands import PutDocumentCommand
 from pyravendb.tests.test_base import TestBase
 from pyravendb.custom_exceptions import exceptions
+from dataclasses import dataclass
 import unittest
+
+
+@dataclass()
+class OrderData(object):
+    Id: str
+    name: str
+    key: str
+    product_id: str
+
+
+@dataclass()
+class ProductData(object):
+    Id: str
+    name: str
 
 
 class Product(object):
@@ -115,6 +130,18 @@ class TestLoad(TestBase):
             session.load("orders/105", includes="product_id")
             session.load("products/101")
         self.assertEqual(session.number_of_requests_in_session, 1)
+
+    def test_load_with_include_dataclass(self):
+        with self.store.open_session() as session:
+            session.store(OrderData("orderd/1", "some_order", "some_key", "productd/1"))
+            session.store(ProductData("productd/1", "some_product"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.load("orderd/1", includes="product_id")
+            product = session.load("productd/1")
+        self.assertEqual(1, session.number_of_requests_in_session)
+        self.assertEqual("some_product", product.name)
 
 
 if __name__ == "__main__":
