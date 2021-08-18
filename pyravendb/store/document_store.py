@@ -160,6 +160,8 @@ class DocumentEvents:
         self.after_save_change = lambda session, doc_id, entity: None
         self.before_delete = lambda session, doc_id, entity: None
         self.session_created = lambda session: None
+        self.before_conversion_to_json_internal = lambda key, entity: None
+        self.after_conversion_to_document = lambda doc_id, entity, document: None
         self.before_conversion_to_entity = lambda document, metadata, type_from_metadata: None
         self.after_conversion_to_entity = lambda entity, document, metadata: None
 

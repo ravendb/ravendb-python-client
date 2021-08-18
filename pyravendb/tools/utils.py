@@ -1,4 +1,5 @@
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
 from collections import Iterable
 from pyravendb.tools.projection import create_entity_with_mapper
@@ -103,7 +104,6 @@ class Utils(object):
 
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
-        original_metadata = deepcopy(metadata)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         mapper = conventions.mappers.get(object_type, None)
 
@@ -111,7 +111,7 @@ class Utils(object):
 
         if object_type == dict:
             events.after_conversion_to_entity(document, document, metadata)
-            return document, metadata, original_metadata, original_document
+            return document, metadata, original_document
 
         if type_from_metadata is None:
             if object_type is not None:
@@ -119,7 +119,7 @@ class Utils(object):
             else:  # no type defined on document or during load, return a dict
                 dyn = _DynamicStructure(**document)
                 events.after_conversion_to_entity(dyn, document, metadata)
-                return dyn, metadata, original_metadata, original_document
+                return dyn, metadata, original_document
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
             if object_from_metadata is not None:
@@ -130,6 +130,7 @@ class Utils(object):
                     mapper = conventions.mappers.get(object_from_metadata, None) or mapper
                     object_type = object_from_metadata
                 elif object_type is not object_from_metadata:
+                    # todo: Try to parse if we use projection
                     raise exceptions.InvalidOperationException(
                         f"Cannot covert document from type {object_from_metadata} to {object_type}"
                     )
@@ -169,7 +170,7 @@ class Utils(object):
         if "Id" in entity.__dict__:
             entity.Id = metadata.get("@id", None)
         events.after_conversion_to_entity(entity, document, metadata)
-        return entity, metadata, original_metadata, original_document
+        return entity, metadata, original_document
 
     @staticmethod
     def make_initialize_dict(document, entity_init, convert_to_snake_case=None):
@@ -433,11 +434,18 @@ class Utils(object):
             return Utils.timedelta_to_str(o)
         elif isinstance(o, Enum):
             return o.value
+        elif isinstance(o, MetadataAsDictionary):
+            return o.metadata
         elif getattr(o, "__dict__", None):
             return o.__dict__
         elif isinstance(o, set):
             return list(o)
         elif isinstance(o, int) or isinstance(o, float):
             return str(o)
+
         else:
             raise TypeError(repr(o) + " is not JSON serializable")
+
+    @staticmethod
+    def entity_to_dict(entity, default_method):
+        return json.loads(json.dumps(entity, default=default_method))

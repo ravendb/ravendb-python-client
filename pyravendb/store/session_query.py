@@ -1019,7 +1019,7 @@ class Query(object):
         response_includes = response.pop("Includes", None)
         self.session.save_includes(response_includes)
         for result in response_results:
-            (entity, metadata, original_metadata, original_document,) = Utils.convert_to_entity(
+            (entity, metadata, original_document,) = Utils.convert_to_entity(
                 result,
                 self.object_type,
                 self.session.conventions,
@@ -1028,9 +1028,8 @@ class Query(object):
             )
             if self.object_type != dict and not self.fields_to_fetch:
                 self.session.save_entity(
-                    key=original_metadata.get("@id", None),
+                    key=metadata.get("@id", None),
                     entity=entity,
-                    original_metadata=original_metadata,
                     metadata=metadata,
                     original_document=original_document,
                 )
