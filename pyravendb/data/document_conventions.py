@@ -1,3 +1,4 @@
+import pyravendb.json.metadata_as_dictionary
 from pyravendb.data.indexes import SortOptions
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
@@ -57,6 +58,8 @@ class DocumentConventions(object):
             return Utils.timedelta_to_str(o)
         elif isinstance(o, Enum):
             return o.value
+        elif isinstance(o, pyravendb.json.metadata_as_dictionary.MetadataAsDictionary):
+            return o.metadata
         elif getattr(o, "__dict__", None):
             return o.__dict__
         elif isinstance(o, set):

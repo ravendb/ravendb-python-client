@@ -1,4 +1,5 @@
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
 from collections import Iterable
 from pyravendb.tools.projection import create_entity_with_mapper
@@ -433,12 +434,15 @@ class Utils(object):
             return Utils.timedelta_to_str(o)
         elif isinstance(o, Enum):
             return o.value
+        elif isinstance(o, MetadataAsDictionary):
+            return o.metadata
         elif getattr(o, "__dict__", None):
             return o.__dict__
         elif isinstance(o, set):
             return list(o)
         elif isinstance(o, int) or isinstance(o, float):
             return str(o)
+
         else:
             raise TypeError(repr(o) + " is not JSON serializable")
 

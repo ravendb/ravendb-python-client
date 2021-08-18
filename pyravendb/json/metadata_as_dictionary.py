@@ -8,6 +8,9 @@ class MetadataAsDictionary:
         else:
             self._initialize(metadata)
 
+    def __len__(self):
+        return len(self._metadata)
+
     def __setitem__(self, key, value):
         self._is_dirty = True
         self._metadata[key] = value
@@ -41,7 +44,6 @@ class MetadataAsDictionary:
         return self._parent is not None
 
     def _initialize(self, metadata_obj):
-        self._is_dirty = True
         # assign dictionary
         if isinstance(metadata_obj, dict):
             self._metadata = {}
