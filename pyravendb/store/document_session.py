@@ -47,7 +47,7 @@ class _RefEqEntityHolder(object):
         return len(self.mutable_items)
 
     def __contains__(self, item):
-        return _RefEq(item) in self.mutable_items.keys()
+        return _RefEq(item) in self.mutable_items
 
     def __delitem__(self, key):
         del self.mutable_items[_RefEq(key)]
