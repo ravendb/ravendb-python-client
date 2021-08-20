@@ -27,12 +27,11 @@ class _RefEq:
             return
         self.ref = ref
 
+    # As we split the hashable and unhashable items into separate collections, we only compare _RefEq to other _RefEq
     def __eq__(self, other):
-        return (
-            True
-            if id(self.ref) == id(other)
-            else (False if id(self.ref) == id(other) else id(self.ref) == id(other.ref))
-        )
+        if isinstance(other, _RefEq):
+            return id(self.ref) == id(other.ref)
+        raise TypeError("Expected _RefEq type object")
 
     def __hash__(self):
         return id(self.ref)
