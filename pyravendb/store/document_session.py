@@ -122,6 +122,11 @@ class _DeletedEntitiesHolder(MutableSet):
             items = []
         self.items = set(map(_RefEq, items))
 
+    def __getattribute__(self, item):
+        if item in ["add", "discard", "items"]:
+            return super().__getattribute__(item)
+        return self.items.__getattribute__(item)
+
     def __contains__(self, item: object) -> bool:
         return _RefEq(item) in self.items
 
