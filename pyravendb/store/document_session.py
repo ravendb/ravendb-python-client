@@ -24,6 +24,7 @@ class _RefEq:
     def __init__(self, ref):
         if isinstance(ref, _RefEq):
             self.ref = ref.ref
+            return
         self.ref = ref
 
     def __eq__(self, other):
