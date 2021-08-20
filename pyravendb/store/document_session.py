@@ -30,9 +30,7 @@ class _RefEq:
         return (
             True
             if id(self.ref) == id(other)
-            else False
-            if not isinstance(other, _RefEq)
-            else id(self.ref) == id(other.ref)
+            else (False if id(self.ref) == id(other) else id(self.ref) == id(other.ref))
         )
 
     def __hash__(self):
@@ -41,81 +39,81 @@ class _RefEq:
 
 class _RefEqEntityHolder(object):
     def __init__(self):
-        self.mutable_items = dict()
+        self.unhashable_items = dict()
 
     def __len__(self):
-        return len(self.mutable_items)
+        return len(self.unhashable_items)
 
     def __contains__(self, item):
-        return _RefEq(item) in self.mutable_items
+        return _RefEq(item) in self.unhashable_items
 
     def __delitem__(self, key):
-        del self.mutable_items[_RefEq(key)]
+        del self.unhashable_items[_RefEq(key)]
 
     def __setitem__(self, key, value):
-        self.mutable_items[_RefEq(key)] = value
+        self.unhashable_items[_RefEq(key)] = value
 
     def __getitem__(self, key):
-        return self.mutable_items[_RefEq(key)]
+        return self.unhashable_items[_RefEq(key)]
 
     def __getattribute__(self, item):
-        if item == "mutable_items":
+        if item == "unhashable_items":
             return super().__getattribute__(item)
-        return self.mutable_items.__getattribute__(item)
+        return self.unhashable_items.__getattribute__(item)
 
 
 class _DocumentsByEntityHolder(object):
     def __init__(self):
-        self._immutable_items = dict()
-        self._mutable_items = _RefEqEntityHolder()
+        self._hashable_items = dict()
+        self._unhashable_items = _RefEqEntityHolder()
 
     def __repr__(self):
         return f"{self.__class__.__name__}: {[item for item in self.__iter__()]}"
 
     def __len__(self):
-        return len(self._immutable_items) + len(self._mutable_items)
+        return len(self._hashable_items) + len(self._unhashable_items)
 
     def __contains__(self, item):
         try:
-            return item in self._immutable_items
+            return item in self._hashable_items
         except TypeError as e:
             if str(e.args[0]).startswith("unhashable type"):
-                return item in self._mutable_items
+                return item in self._unhashable_items
             raise e
 
     def __setitem__(self, key, value):
         try:
-            self._immutable_items[key] = value
+            self._hashable_items[key] = value
         except TypeError as e:
             if str(e.args[0]).startswith("unhashable type"):
-                self._mutable_items[key] = value
+                self._unhashable_items[key] = value
                 return
             raise e
 
     def __getitem__(self, key):
         try:
-            return self._immutable_items[key]
+            return self._hashable_items[key]
         except (TypeError, KeyError):
-            return self._mutable_items[key]
+            return self._unhashable_items[key]
 
     def __iter__(self):
-        d = list(map(lambda x: x.ref, self._mutable_items.keys()))
-        if len(self._immutable_items) > 0:
-            d.extend(self._immutable_items.keys())
+        d = list(map(lambda x: x.ref, self._unhashable_items.keys()))
+        if len(self._hashable_items) > 0:
+            d.extend(self._hashable_items.keys())
         return (item for item in d)
 
     def get(self, key, default=None):
         return self[key] if key in self else default
 
     def pop(self, key, default_value=None):
-        result = self._immutable_items.pop(key, None)
+        result = self._hashable_items.pop(key, None)
         if result is not None:
             return result
-        return self._mutable_items.pop(_RefEq(key), default_value)
+        return self._unhashable_items.pop(_RefEq(key), default_value)
 
     def clear(self):
-        self._immutable_items.clear()
-        self._mutable_items.clear()
+        self._hashable_items.clear()
+        self._unhashable_items.clear()
 
 
 class _DeletedEntitiesHolder(MutableSet):
