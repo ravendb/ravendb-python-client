@@ -1,7 +1,14 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
+from dataclasses import dataclass
 import unittest
+
+
+@dataclass()
+class Fish:
+    name: str
+    weight: int
 
 
 class Foo(object):
@@ -90,6 +97,18 @@ class TestSessionStore(TestBase):
         with self.store.open_session() as session:
             results = list(session.query().raw_query("From Foos"))
             self.assertEqual(len(results), 40 * 4)
+
+    def test_store_dataclass(self):
+        with self.store.open_session() as session:
+            fishie = Fish(name="Tuna", weight=100)
+            session.store(fishie, "fish/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            fishie = session.load("fish/1")
+            self.assertIsNotNone(fishie)
+            self.assertEqual(100, fishie.weight)
+            self.assertEqual("Tuna", fishie.name)
 
 
 if __name__ == "__main__":
