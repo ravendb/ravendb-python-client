@@ -1,5 +1,3 @@
-import json
-from copy import deepcopy
 from pyravendb.json.json_operation import JsonOperation
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
@@ -17,9 +15,13 @@ from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
 from .session_counters import DocumentCounters
-from typing import Dict, List
-from pyravendb import constants
 from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb import constants
+from collections import MutableSet
+from typing import Dict, List
+from copy import deepcopy
+from itertools import chain
+import json
 
 
 class _SaveChangesData(object):
@@ -27,6 +29,137 @@ class _SaveChangesData(object):
         self.commands = commands
         self.entities = [] if entities is None else entities
         self.deferred_command_count = deferred_command_count
+
+
+class _RefEq:
+    def __init__(self, ref):
+        if isinstance(ref, _RefEq):
+            self.ref = ref.ref
+            return
+        self.ref = ref
+
+    # As we split the hashable and unhashable items into separate collections, we only compare _RefEq to other _RefEq
+    def __eq__(self, other):
+        if isinstance(other, _RefEq):
+            return id(self.ref) == id(other.ref)
+        raise TypeError("Expected _RefEq type object")
+
+    def __hash__(self):
+        return id(self.ref)
+
+
+class _RefEqEntityHolder(object):
+    def __init__(self):
+        self.unhashable_items = dict()
+
+    def __len__(self):
+        return len(self.unhashable_items)
+
+    def __contains__(self, item):
+        return _RefEq(item) in self.unhashable_items
+
+    def __delitem__(self, key):
+        del self.unhashable_items[_RefEq(key)]
+
+    def __setitem__(self, key, value):
+        self.unhashable_items[_RefEq(key)] = value
+
+    def __getitem__(self, key):
+        return self.unhashable_items[_RefEq(key)]
+
+    def __getattribute__(self, item):
+        if item == "unhashable_items":
+            return super().__getattribute__(item)
+        return self.unhashable_items.__getattribute__(item)
+
+
+class _DocumentsByEntityHolder(object):
+    def __init__(self):
+        self._hashable_items = dict()
+        self._unhashable_items = _RefEqEntityHolder()
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}: {[item for item in self.__iter__()]}"
+
+    def __len__(self):
+        return len(self._hashable_items) + len(self._unhashable_items)
+
+    def __contains__(self, item):
+        try:
+            return item in self._hashable_items
+        except TypeError as e:
+            if str(e.args[0]).startswith("unhashable type"):
+                return item in self._unhashable_items
+            raise e
+
+    def __setitem__(self, key, value):
+        try:
+            self._hashable_items[key] = value
+        except TypeError as e:
+            if str(e.args[0]).startswith("unhashable type"):
+                self._unhashable_items[key] = value
+                return
+            raise e
+
+    def __getitem__(self, key):
+        try:
+            return self._hashable_items[key]
+        except (TypeError, KeyError):
+            return self._unhashable_items[key]
+
+    def __iter__(self):
+        d = list(map(lambda x: x.ref, self._unhashable_items.keys()))
+        if len(self._hashable_items) > 0:
+            d.extend(self._hashable_items.keys())
+        return (item for item in d)
+
+    def get(self, key, default=None):
+        return self[key] if key in self else default
+
+    def pop(self, key, default_value=None):
+        result = self._hashable_items.pop(key, None)
+        if result is not None:
+            return result
+        return self._unhashable_items.pop(_RefEq(key), default_value)
+
+    def clear(self):
+        self._hashable_items.clear()
+        self._unhashable_items.clear()
+
+    def items(self):
+        return list(
+            chain(
+                map(lambda item: (item[0], item[1]), self._hashable_items.items()),
+                map(lambda item: (item[0].ref, item[1]), self._unhashable_items.items()),
+            )
+        )
+
+
+class _DeletedEntitiesHolder(MutableSet):
+    def __init__(self, items=None):
+        if items is None:
+            items = []
+        self.items = set(map(_RefEq, items))
+
+    def __getattribute__(self, item):
+        if item in ["add", "discard", "items"]:
+            return super().__getattribute__(item)
+        return self.items.__getattribute__(item)
+
+    def __contains__(self, item: object) -> bool:
+        return _RefEq(item) in self.items
+
+    def __len__(self) -> int:
+        return len(self.items)
+
+    def __iter__(self):
+        return (item.ref for item in self.items)
+
+    def add(self, element: object) -> None:
+        return self.items.add(_RefEq(element))
+
+    def discard(self, element: object) -> None:
+        return self.items.discard(_RefEq(element))
 
 
 class DocumentSession(object):
@@ -43,8 +176,8 @@ class DocumentSession(object):
         self._requests_executor = requests_executor
         self._documents_by_id = {}
         self._included_documents_by_id = {}
-        self._deleted_entities = set()
-        self._documents_by_entity = {}
+        self._deleted_entities = _DeletedEntitiesHolder()
+        self._documents_by_entity = _DocumentsByEntityHolder()
         self._timeseries_defer_commands = {}
         self._time_series_by_document_id = {}
         self._counters_defer_commands = {}

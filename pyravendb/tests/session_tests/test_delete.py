@@ -3,9 +3,17 @@ import os
 
 sys.path.append(os.path.abspath(__file__ + "/../"))
 
+from dataclasses import dataclass
 from pyravendb.tests.test_base import TestBase
 from pyravendb.custom_exceptions import exceptions
 import unittest
+
+
+@dataclass()
+class Fish:
+    name: str
+    weight: int
+    Id: str
 
 
 class Product(object):
@@ -67,6 +75,19 @@ class TestDelete(TestBase):
             session.save_changes()
 
             self.assertIsNone(session.load(product.Id))
+
+    def test_delete_dataclass(self):
+        fishie = Fish(name="Tuna", weight=100, Id=None)
+        with self.store.open_session() as session:
+            session.store(fishie)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            fishie = session.load(fishie.Id)
+            session.delete(fishie)
+            session.save_changes()
+
+            self.assertIsNone(session.load(fishie.Id))
 
 
 if __name__ == "__main__":
