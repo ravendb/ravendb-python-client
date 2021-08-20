@@ -36,7 +36,7 @@ class TestSessionStore(TestBase):
 
     def test_store_with_metadata_on_dict(self):
         foo = Foo("test", 10)
-        foo.__dict__['@metadata'] = {'foo': True}
+        foo.__dict__["@metadata"] = {"foo": True}
         with self.store.open_session() as session:
             session.store(foo)
             session.save_changes()
@@ -44,19 +44,19 @@ class TestSessionStore(TestBase):
         with self.store.open_session() as session:
             f = session.load("foos/1-A")
             metadata = session.advanced.get_metadata_for(f)
-            self.assertTrue(metadata['foo'])
+            self.assertTrue(metadata["foo"])
 
     def test_store_with_metadata_on_api(self):
         foo = Foo("test", 10)
         with self.store.open_session() as session:
             session.store(foo)
-            session.advanced.get_metadata_for(foo)['foo'] = False
+            session.advanced.get_metadata_for(foo)["foo"] = False
             session.save_changes()
 
         with self.store.open_session() as session:
             f = session.load("foos/1-A")
             metadata = session.advanced.get_metadata_for(f)
-            self.assertFalse(metadata['foo'])
+            self.assertFalse(metadata["foo"])
 
     def test_store_with_key(self):
         foo = Foo("test", 20)

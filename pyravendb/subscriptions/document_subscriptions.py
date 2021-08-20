@@ -1,6 +1,11 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
-from pyravendb.commands.raven_commands import CreateSubscriptionCommand, DeleteSubscriptionCommand, \
-    GetSubscriptionsCommand, GetSubscriptionStateCommand, DropSubscriptionConnectionCommand
+from pyravendb.commands.raven_commands import (
+    CreateSubscriptionCommand,
+    DeleteSubscriptionCommand,
+    GetSubscriptionsCommand,
+    GetSubscriptionStateCommand,
+    DropSubscriptionConnectionCommand,
+)
 from threading import Lock
 from pyravendb.subscriptions.subscription import SubscriptionWorker
 from pyravendb.subscriptions.data import *
@@ -49,8 +54,13 @@ class DocumentSubscriptions:
         if not isinstance(options, SubscriptionWorkerOptions):
             raise ValueError("Invalid options", "options mus be SubscriptionWorkerOptions")
 
-        subscription = SubscriptionWorker(options, self._store, database, object_type=object_type,
-                                          nested_object_types=nested_object_types)
+        subscription = SubscriptionWorker(
+            options,
+            self._store,
+            database,
+            object_type=object_type,
+            nested_object_types=nested_object_types,
+        )
         with self.lock:
             self._subscriptions.add(subscription)
 

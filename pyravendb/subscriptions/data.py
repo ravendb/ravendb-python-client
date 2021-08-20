@@ -12,6 +12,7 @@ class SubscriptionOpeningStrategy(Enum):
     The client will successfully open a subscription only if there isn't any other currently connected client.
     Otherwise it will end up with SubscriptionInUseException.
     """
+
     open_if_free = "OpenIfFree"
     """
     The connecting client will successfully open a subscription even if there is another active subscription's consumer.
@@ -39,13 +40,24 @@ class SubscriptionCreationOptions:
         self.query = query
 
     def to_json(self):
-        return {"ChangeVector": self.change_vector, "Query": self.query, "Name": self.name}
+        return {
+            "ChangeVector": self.change_vector,
+            "Query": self.query,
+            "Name": self.name,
+        }
 
 
 class SubscriptionWorkerOptions:
-    def __init__(self, subscription_name, strategy=None, ignore_subscriber_errors=False,
-                 time_to_wait_before_connection_retry=None, max_docs_per_batch=4096, max_erroneous_period=None,
-                 close_when_no_docs_left=False):
+    def __init__(
+        self,
+        subscription_name,
+        strategy=None,
+        ignore_subscriber_errors=False,
+        time_to_wait_before_connection_retry=None,
+        max_docs_per_batch=4096,
+        max_erroneous_period=None,
+        close_when_no_docs_left=False,
+    ):
         """
         @param str subscription_name: The subscription name
         @param SubscriptionOpeningStrategy strategy: Options for opening a subscription
@@ -69,24 +81,36 @@ class SubscriptionWorkerOptions:
         self.close_when_no_docs_left = close_when_no_docs_left
 
     def to_json(self):
-        return {"SubscriptionName": self.subscription_name,
-                "TimeToWaitBeforeConnectionRetry": str(self.time_to_wait_before_connection_retry),
-                "Strategy": str(self.strategy), "MaxDocsPerBatch": self.max_docs_per_batch,
-                "IgnoreSubscriberErrors": self.ignore_subscriber_errors,
-                "CloseWhenNoDocsLeft": self.close_when_no_docs_left}
+        return {
+            "SubscriptionName": self.subscription_name,
+            "TimeToWaitBeforeConnectionRetry": str(self.time_to_wait_before_connection_retry),
+            "Strategy": str(self.strategy),
+            "MaxDocsPerBatch": self.max_docs_per_batch,
+            "IgnoreSubscriberErrors": self.ignore_subscriber_errors,
+            "CloseWhenNoDocsLeft": self.close_when_no_docs_left,
+        }
 
 
 class SubscriptionState:
-    def __init__(self, query=None, change_vector_for_next_batch_starting_point=None, subscription_id=0,
-                 subscription_name=None, last_time_server_made_progress_with_documents=None,
-                 last_client_connection_time=None, disabled=False, **kwargs):
+    def __init__(
+        self,
+        query=None,
+        change_vector_for_next_batch_starting_point=None,
+        subscription_id=0,
+        subscription_name=None,
+        last_time_server_made_progress_with_documents=None,
+        last_client_connection_time=None,
+        disabled=False,
+        **kwargs,
+    ):
         self.query = query
         self.change_vector_for_next_batch_starting_point = change_vector_for_next_batch_starting_point
         self.subscription_id = subscription_id
         self.subscription_name = subscription_name
         if isinstance(last_time_server_made_progress_with_documents, str):
             last_time_server_made_progress_with_documents = Utils.string_to_datetime(
-                last_time_server_made_progress_with_documents)
+                last_time_server_made_progress_with_documents
+            )
         self.last_time_server_made_progress_with_documents = last_time_server_made_progress_with_documents
         if isinstance(last_client_connection_time, str):
             last_client_connection_time = Utils.string_to_datetime(last_client_connection_time)
@@ -95,16 +119,20 @@ class SubscriptionState:
         self.latest_change_vector_client_acknowledged = kwargs.get("LatestChangeVectorClientACKnowledged", None)
 
     def to_json(self):
-        return {"Query": self.query,
-                "ChangeVectorForNextBatchStartingPoint": self.change_vector_for_next_batch_starting_point,
-                "SubscriptionId": self.subscription_id, "SubscriptionName": self.subscription_name,
-                "LastTimeServerMadeProgressWithDocuments": Utils.datetime_to_string(
-                    self.last_time_server_made_progress_with_documents),
-                "LastClientConnectionTime": Utils.datetime_to_string(self.last_client_connection_time),
-                "Disabled": self.closed}
+        return {
+            "Query": self.query,
+            "ChangeVectorForNextBatchStartingPoint": self.change_vector_for_next_batch_starting_point,
+            "SubscriptionId": self.subscription_id,
+            "SubscriptionName": self.subscription_name,
+            "LastTimeServerMadeProgressWithDocuments": Utils.datetime_to_string(
+                self.last_time_server_made_progress_with_documents
+            ),
+            "LastClientConnectionTime": Utils.datetime_to_string(self.last_client_connection_time),
+            "Disabled": self.closed,
+        }
 
 
-LEXEME_RE = re.compile(b'[a-z0-9eE\.\+-]+|\S')
+LEXEME_RE = re.compile(b"[a-z0-9eE\.\+-]+|\S")
 BYTE_ARRAY_CHARACTERS = bytearray(b',}:{"')
 IS_WEBSOCKET = False
 
@@ -122,7 +150,7 @@ class IncrementalJsonParser:
         if not data:
             return
 
-        buf = data[1:-1].encode('utf-8') if IS_WEBSOCKET else data
+        buf = data[1:-1].encode("utf-8") if IS_WEBSOCKET else data
         pos = 0
         discarded = 0
         while True:
@@ -136,37 +164,37 @@ class IncrementalJsonParser:
                         try:
                             end = buf.index(b'"', start)
                             escpos = end - 1
-                            while buf[escpos] == '\\':
+                            while buf[escpos] == "\\":
                                 escpos -= 1
                             if (end - escpos) % 2 == 0:
                                 start = end + 1
                             else:
                                 break
                         except ValueError:
-                            data = socket.recv().encode('utf-8') if IS_WEBSOCKET else socket.recv(buf_size)
+                            data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
-                                raise ijson.backend.common.IncompleteJSONError('Incomplete string lexeme')
+                                raise ijson.backend.common.IncompleteJSONError("Incomplete string lexeme")
 
                             buf += data[1:-1] if IS_WEBSOCKET else data
 
-                    yield discarded + pos, buf[pos:end + 1].decode('utf-8')
+                    yield discarded + pos, buf[pos : end + 1].decode("utf-8")
                     pos = end + 1
                 else:
                     while match.end() == len(buf) and buf[pos] not in BYTE_ARRAY_CHARACTERS:
                         try:
-                            data = socket.recv().encode('utf-8') if IS_WEBSOCKET else socket.recv(buf_size)
+                            data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
                                 break
-                            buf += data[1:-1].encode('utf-8') if IS_WEBSOCKET else data
+                            buf += data[1:-1].encode("utf-8") if IS_WEBSOCKET else data
                             match = LEXEME_RE.search(buf, pos)
                             lexeme = match.group()
                         except timeout:
                             break
 
-                    yield match.start(), lexeme.decode('utf-8')
+                    yield match.start(), lexeme.decode("utf-8")
                     pos = match.end()
             else:
-                data = socket.recv().encode('utf-8') if IS_WEBSOCKET else socket.recv(buf_size)
+                data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                 if not data:
                     break
                 discarded += len(buf)
@@ -212,12 +240,12 @@ class IncrementalJsonParser:
 
         try:
             (_, text) = next(self.lexer)
-            if IS_WEBSOCKET and text == ',':
+            if IS_WEBSOCKET and text == ",":
                 (_, text) = next(self.lexer)
         except StopIteration:
             return None
 
-        if text != '{':
+        if text != "{":
             raise ParseError("Expected start object, got: " + text)
 
         gen = IncrementalJsonParser.parse_object(self.lexer)
@@ -231,89 +259,89 @@ class IncrementalJsonParser:
         try:
             if symbol is None:
                 pos, symbol = next(lexer)
-            if symbol == 'null':
-                yield ('null', None)
-            elif symbol == 'true':
-                yield ('boolean', True)
-            elif symbol == 'false':
-                yield ('boolean', False)
-            elif symbol == '[':
+            if symbol == "null":
+                yield ("null", None)
+            elif symbol == "true":
+                yield ("boolean", True)
+            elif symbol == "false":
+                yield ("boolean", False)
+            elif symbol == "[":
                 for event in IncrementalJsonParser.parse_array(lexer):
                     yield event
-            elif symbol == '{':
+            elif symbol == "{":
                 for event in IncrementalJsonParser.parse_object(lexer):
                     yield event
             elif symbol[0] == '"':
-                yield ('string', IncrementalJsonParser.unescape(symbol[1:-1]))
+                yield ("string", IncrementalJsonParser.unescape(symbol[1:-1]))
             else:
                 # if we got a partial token for false / null / true we need to read from the network again
-                while symbol[0] in ('t', 'n') and len(symbol) < 4 or symbol[0] == 'f' and len(symbol) < 5:
+                while symbol[0] in ("t", "n") and len(symbol) < 4 or symbol[0] == "f" and len(symbol) < 5:
                     _, nextpart = next(lexer)
-                    if symbol == 'null':
-                        yield ('null', None)
-                    elif symbol == 'true':
-                        yield ('boolean', True)
-                    elif symbol == 'false':
-                        yield ('boolean', False)
+                    if symbol == "null":
+                        yield ("null", None)
+                    elif symbol == "true":
+                        yield ("boolean", True)
+                    elif symbol == "false":
+                        yield ("boolean", False)
                     return
 
                 try:
-                    yield ('number', ijson.backend.common.number(symbol))
+                    yield ("number", ijson.backend.common.number(symbol))
                 except ijson.backend.decimal.InvalidOperation:
                     raise ijson.backend.UnexpectedSymbol(symbol, pos)
         except StopIteration:
-            raise ijson.backend.common.IncompleteJSONError('Incomplete JSON data')
+            raise ijson.backend.common.IncompleteJSONError("Incomplete JSON data")
 
     @staticmethod
     def parse_array(lexer):
-        yield ('start_array', None)
+        yield ("start_array", None)
         try:
             pos, symbol = next(lexer)
-            if symbol != ']':
+            if symbol != "]":
                 while True:
                     for event in IncrementalJsonParser.parse_value(lexer, symbol, pos):
                         yield event
                     pos, symbol = next(lexer)
-                    if symbol == ']':
+                    if symbol == "]":
                         break
-                    if symbol != ',':
+                    if symbol != ",":
                         raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     pos, symbol = next(lexer)
-            yield ('end_array', None)
+            yield ("end_array", None)
         except StopIteration:
-            raise ijson.backend.common.IncompleteJSONError('Incomplete JSON data')
+            raise ijson.backend.common.IncompleteJSONError("Incomplete JSON data")
 
     @staticmethod
     def parse_object(lexer):
-        yield ('start_map', None)
+        yield ("start_map", None)
         try:
             pos, symbol = next(lexer)
-            if symbol != '}':
+            if symbol != "}":
                 while True:
                     if symbol[0] != '"':
                         raise ijson.backend.UnexpectedSymbol(symbol, pos)
-                    yield ('map_key', IncrementalJsonParser.unescape(symbol[1:-1]))
+                    yield ("map_key", IncrementalJsonParser.unescape(symbol[1:-1]))
                     pos, symbol = next(lexer)
-                    if symbol != ':':
+                    if symbol != ":":
                         raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     for event in IncrementalJsonParser.parse_value(lexer, None, pos):
                         yield event
                     pos, symbol = next(lexer)
-                    if symbol == '}':
+                    if symbol == "}":
                         break
-                    if symbol != ',':
+                    if symbol != ",":
                         raise ijson.backend.UnexpectedSymbol(symbol, pos)
                     pos, symbol = next(lexer)
-            yield ('end_map', None)
+            yield ("end_map", None)
         except StopIteration:
-            raise ijson.backend.common.IncompleteJSONError('Incomplete JSON data')
+            raise ijson.backend.common.IncompleteJSONError("Incomplete JSON data")
 
     @staticmethod
     def unescape(s):
         start = 0
-        result = ''
+        result = ""
         while start < len(s):
-            pos = s.find('\\', start)
+            pos = s.find("\\", start)
             if pos == -1:
                 if start == 0:
                     return s
@@ -322,19 +350,19 @@ class IncrementalJsonParser:
             result += s[start:pos]
             pos += 1
             esc = s[pos]
-            if esc == 'u':
-                result += chr(int(s[pos + 1:pos + 5], 16))
+            if esc == "u":
+                result += chr(int(s[pos + 1 : pos + 5], 16))
                 pos += 4
-            elif esc == 'b':
-                result += '\b'
-            elif esc == 'f':
-                result += '\f'
-            elif esc == 'n':
-                result += '\n'
-            elif esc == 'r':
-                result += '\r'
-            elif esc == 't':
-                result += '\t'
+            elif esc == "b":
+                result += "\b"
+            elif esc == "f":
+                result += "\f"
+            elif esc == "n":
+                result += "\n"
+            elif esc == "r":
+                result += "\r"
+            elif esc == "t":
+                result += "\t"
             else:
                 result += esc
             start = pos + 1

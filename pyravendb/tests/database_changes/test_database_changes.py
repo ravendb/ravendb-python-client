@@ -65,7 +65,7 @@ class TestDatabaseChanges(TestBase):
         sleep(1)
         self.assertTrue(len(documents) == 1)
         self.assertEqual("users/1", documents[0]["Id"])
-        self.assertEqual('Put', documents[0]["Type"])
+        self.assertEqual("Put", documents[0]["Type"])
         self.assertIsNotNone(documents[0]["ChangeVector"])
 
     def test_document_change(self):
@@ -100,12 +100,12 @@ class TestDatabaseChanges(TestBase):
 
         sleep(1)
         self.assertTrue(len(indexes_change) >= 1)
-        self.assertEqual(indexes_change[0]['Name'], 'Dogs')
-        self.assertEqual(indexes_change[0]['Type'], 'IndexAdded')
+        self.assertEqual(indexes_change[0]["Name"], "Dogs")
+        self.assertEqual(indexes_change[0]["Type"], "IndexAdded")
 
     def test_for_index(self):
         index_change = []
-        observer = self.store.changes().for_index('Dogs')
+        observer = self.store.changes().for_index("Dogs")
         observer.subscribe(index_change.append)
         observer.ensure_subscribe_now()
 
@@ -116,7 +116,7 @@ class TestDatabaseChanges(TestBase):
 
         sleep(1)
         for index in index_change:
-            self.assertFalse(index['Name'] != 'Dogs')
+            self.assertFalse(index["Name"] != "Dogs")
 
     def test_subscribe_to_index_and_document(self):
         documents = []
@@ -126,7 +126,7 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(documents.append)
         observer.ensure_subscribe_now()
 
-        observer = self.store.changes().for_index('Dogs')
+        observer = self.store.changes().for_index("Dogs")
         observer.subscribe(indexes.append)
         observer.ensure_subscribe_now()
 
@@ -160,7 +160,7 @@ class TestDatabaseChanges(TestBase):
         observer.ensure_subscribe_now()
         self.assertEqual(3, len(documents))
         for document in documents:
-            self.assertTrue(document['Id'].startswith('users'))
+            self.assertTrue(document["Id"].startswith("users"))
 
     def test_for_all_time_series(self):
         event = Event()
@@ -237,7 +237,7 @@ class TestDatabaseChanges(TestBase):
         sleep(1)
         self.assertTrue(len(changes) == 1)
         self.assertEqual("users/1-A", changes[0]["DocumentId"])
-        self.assertEqual('Put', changes[0]["Type"])
+        self.assertEqual("Put", changes[0]["Type"])
         self.assertEqual("Heartrate", changes[0]["Name"])
 
     def test_for_time_series(self):
@@ -338,7 +338,7 @@ class TestDatabaseChanges(TestBase):
         sleep(1)
         self.assertTrue(len(changes) == 1)
         self.assertEqual("users/1-A", changes[0]["DocumentId"])
-        self.assertEqual('Put', changes[0]["Type"])
+        self.assertEqual("Put", changes[0]["Type"])
         self.assertEqual("Shares", changes[0]["Name"])
 
     def test_for_counter(self):
@@ -378,12 +378,15 @@ class TestDatabaseChanges(TestBase):
             if change["Name"] == "Likes":
                 check_likes_changed["name"] += 1
             if change["Type"] == "Put":
-                check_likes_changed['put'] += 1
+                check_likes_changed["put"] += 1
             elif change["Type"] == "Increment":
                 check_likes_changed["increment"] += 1
 
-        self.assertTrue(check_likes_changed["name"] == 3 and check_likes_changed["put"] == 2 and
-                        check_likes_changed["increment"] == 1)
+        self.assertTrue(
+            check_likes_changed["name"] == 3
+            and check_likes_changed["put"] == 2
+            and check_likes_changed["increment"] == 1
+        )
 
 
 if __name__ == "__main__":

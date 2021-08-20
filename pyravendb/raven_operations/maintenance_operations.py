@@ -6,7 +6,7 @@ from abc import abstractmethod
 
 
 class MaintenanceOperation(object):
-    __slots__ = ['__operation']
+    __slots__ = ["__operation"]
 
     def __init__(self):
         self.__operation = "MaintenanceOperation"
@@ -29,7 +29,13 @@ class PullReplicationDefinition:
 
 
 class ExternalReplication:
-    def __init__(self, name, connection_string_name, mentor_node=None, delayed_replication_for=None):
+    def __init__(
+        self,
+        name,
+        connection_string_name,
+        mentor_node=None,
+        delayed_replication_for=None,
+    ):
         self.DelayedReplicationFor = delayed_replication_for
         self.Name = name
         self.ConnectionStringName = connection_string_name
@@ -37,7 +43,15 @@ class ExternalReplication:
 
 
 class PullReplicationAsSink:
-    def __init__(self, hub, connection_string_name, certificate_base64, certificate_password, mentor_node=None, delayed_replication_for=None):
+    def __init__(
+        self,
+        hub,
+        connection_string_name,
+        certificate_base64,
+        certificate_password,
+        mentor_node=None,
+        delayed_replication_for=None,
+    ):
         self.DelayedReplicationFor = delayed_replication_for
         self.HubDefinitionName = hub
         self.ConnectionStringName = connection_string_name
@@ -45,14 +59,22 @@ class PullReplicationAsSink:
 
 
 class ConnectionString:
-
     @staticmethod
-    def raven(name,database, urls):
-        return {"Type": "Raven", "Name": name, "Database": database, "TopologyDiscoveryUrls": urls}
+    def raven(name, database, urls):
+        return {
+            "Type": "Raven",
+            "Name": name,
+            "Database": database,
+            "TopologyDiscoveryUrls": urls,
+        }
 
     @staticmethod
     def sql(name, factory, connection_string):
-        return {"Type": "Raven", "FactoryName": factory, "ConnectionString": connection_string}
+        return {
+            "Type": "Raven",
+            "FactoryName": factory,
+            "ConnectionString": connection_string,
+        }
 
 
 class UpdatePullReplicationAsSinkOperation(MaintenanceOperation):
@@ -72,21 +94,23 @@ class UpdatePullReplicationAsSinkOperation(MaintenanceOperation):
             if definition is None:
                 raise ValueError("definition cannot be None")
 
-            super(UpdatePullReplicationAsSinkOperation._UpdatePullReplicationAsSinkCommand, self).__init__(method="POST",
-                                                                                                   is_raft_request=True)
+            super(
+                UpdatePullReplicationAsSinkOperation._UpdatePullReplicationAsSinkCommand,
+                self,
+            ).__init__(method="POST", is_raft_request=True)
             self._definition = definition
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/admin/tasks/sink-pull-replication".format(server_node.url,
-                                                                                    server_node.database)
-            self.data = { "PullReplicationAsSink": self._definition }
+            self.url = "{0}/databases/{1}/admin/tasks/sink-pull-replication".format(
+                server_node.url, server_node.database
+            )
+            self.data = {"PullReplicationAsSink": self._definition}
 
         def set_response(self, response):
             try:
                 response = response.json()
                 if "Error" in response:
-                    raise exceptions.InvalidOperationException(response["Message"], response["Type"],
-                                                               response["Error"])
+                    raise exceptions.InvalidOperationException(response["Message"], response["Type"], response["Error"])
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
@@ -109,12 +133,15 @@ class PutPullReplicationAsHubOperation(MaintenanceOperation):
             if definition is None:
                 raise ValueError("definition cannot be None")
 
-            super(PutPullReplicationAsHubOperation._PutPullReplicationAsHubCommand, self).__init__(method="PUT",
-                                                                                                   is_raft_request=True)
+            super(PutPullReplicationAsHubOperation._PutPullReplicationAsHubCommand, self).__init__(
+                method="PUT", is_raft_request=True
+            )
             self._definition = definition
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/admin/tasks/pull-replication/hub".format(server_node.url, server_node.database)
+            self.url = "{0}/databases/{1}/admin/tasks/pull-replication/hub".format(
+                server_node.url, server_node.database
+            )
             self.data = self._definition
 
         def set_response(self, response):
@@ -125,7 +152,6 @@ class PutPullReplicationAsHubOperation(MaintenanceOperation):
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
-
 
 
 class UpdateExternalReplicationOperation(MaintenanceOperation):
@@ -145,12 +171,16 @@ class UpdateExternalReplicationOperation(MaintenanceOperation):
             if watcher is None:
                 raise ValueError("watcher cannot be None")
 
-            super(UpdateExternalReplicationOperation._UpdateExternalReplicationCommand, self).__init__(method="POST",
-                                                                                                       is_raft_request=True)
+            super(
+                UpdateExternalReplicationOperation._UpdateExternalReplicationCommand,
+                self,
+            ).__init__(method="POST", is_raft_request=True)
             self._watcher = watcher
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/admin/tasks/external-replication".format(server_node.url, server_node.database)
+            self.url = "{0}/databases/{1}/admin/tasks/external-replication".format(
+                server_node.url, server_node.database
+            )
             self.data = {"Watcher": self._watcher}
 
         def set_response(self, response):
@@ -180,8 +210,9 @@ class PutConnectionStringOperation(MaintenanceOperation):
             if connection_string_def is None:
                 raise ValueError("connection_string_def cannot be None")
 
-            super(PutConnectionStringOperation._PutConnectionStringCommand, self).__init__(method="PUT",
-                                                                                           is_raft_request=True)
+            super(PutConnectionStringOperation._PutConnectionStringCommand, self).__init__(
+                method="PUT", is_raft_request=True
+            )
             self._connection_string_def = connection_string_def
 
         def create_request(self, server_node):
@@ -214,8 +245,9 @@ class DeleteIndexOperation(MaintenanceOperation):
             self._index_name = index_name
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/indexes?name={2}".format(server_node.url, server_node.database,
-                                                                   Utils.quote_key(self._index_name))
+            self.url = "{0}/databases/{1}/indexes?name={2}".format(
+                server_node.url, server_node.database, Utils.quote_key(self._index_name)
+            )
 
         def set_response(self, response):
             pass
@@ -237,17 +269,19 @@ class GetIndexOperation(MaintenanceOperation):
     class _GetIndexCommand(RavenCommand):
         def __init__(self, index_name):
             """
-           @param str index_name: Name of the index you like to get or delete
-           """
+            @param str index_name: Name of the index you like to get or delete
+            """
             super(GetIndexOperation._GetIndexCommand, self).__init__(method="GET", is_read_request=True)
             if index_name is None:
                 raise AttributeError("index_name")
             self._index_name = index_name
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/indexes?{2}".format(server_node.url, server_node.database,
-                                                              "name={0}".format(
-                                                                  Utils.quote_key(self._index_name, True)))
+            self.url = "{0}/databases/{1}/indexes?{2}".format(
+                server_node.url,
+                server_node.database,
+                "name={0}".format(Utils.quote_key(self._index_name, True)),
+            )
 
         def set_response(self, response):
             if response is None:
@@ -281,10 +315,9 @@ class GetIndexNamesOperation(MaintenanceOperation):
             self._page_size = page_size
 
         def create_request(self, server_node):
-            self.url = "{0}/databases/{1}/indexes?start={2}&pageSize={3}&namesOnly=true".format(server_node.url,
-                                                                                                server_node.database,
-                                                                                                self._start,
-                                                                                                self._page_size)
+            self.url = "{0}/databases/{1}/indexes?start={2}&pageSize={3}&namesOnly=true".format(
+                server_node.url, server_node.database, self._start, self._page_size
+            )
 
         def set_response(self, response):
             if response is None:

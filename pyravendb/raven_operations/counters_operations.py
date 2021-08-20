@@ -8,7 +8,12 @@ import json
 
 
 class CounterOperation:
-    def __init__(self, counter_name: str, counter_operation_type: CounterOperationType, delta: Optional[float] = None):
+    def __init__(
+        self,
+        counter_name: str,
+        counter_operation_type: CounterOperationType,
+        delta: Optional[float] = None,
+    ):
         """
         delta will be optional only if counter_operation_type
         not in (CounterOperationType.put, CounterOperationType.increment)
@@ -27,11 +32,19 @@ class CounterOperation:
         self._document_id = None
 
     def to_json(self):
-        return {"Type": self.counter_operation_type, "CounterName": self.counter_name, "Delta": self.delta}
+        return {
+            "Type": self.counter_operation_type,
+            "CounterName": self.counter_name,
+            "Delta": self.delta,
+        }
 
 
 class DocumentCountersOperation:
-    def __init__(self, document_id: str, operations: Optional[List[CounterOperation] or CounterOperation] = None):
+    def __init__(
+        self,
+        document_id: str,
+        operations: Optional[List[CounterOperation] or CounterOperation] = None,
+    ):
         if not document_id:
             raise ValueError("Missing document_id property on Counters")
 
@@ -51,26 +64,38 @@ class DocumentCountersOperation:
     def to_json(self):
         if not self._operations:
             raise ValueError("Missing operations property on Counters")
-        return {"DocumentId": self._document_id, "Operations": [operation.to_json() for operation in self._operations]}
+        return {
+            "DocumentId": self._document_id,
+            "Operations": [operation.to_json() for operation in self._operations],
+        }
 
 
 class CounterBatch:
-    def __init__(self, documents: List[DocumentCountersOperation],
-                 reply_with_all_nodes_values: bool = False, from_etl: bool = False):
+    def __init__(
+        self,
+        documents: List[DocumentCountersOperation],
+        reply_with_all_nodes_values: bool = False,
+        from_etl: bool = False,
+    ):
         self._documents = documents
         self._reply_with_all_nodes_values = reply_with_all_nodes_values
         self._from_etl = from_etl
 
     def to_json(self):
-        return {"ReplyWithAllNodesValues": self._reply_with_all_nodes_values,
-                "Documents": [document.to_json() for document in self._documents],
-                "FromEtl": self._from_etl}
+        return {
+            "ReplyWithAllNodesValues": self._reply_with_all_nodes_values,
+            "Documents": [document.to_json() for document in self._documents],
+            "FromEtl": self._from_etl,
+        }
 
 
 class GetCountersOperation(Operation):
-
-    def __init__(self, document_id: str, counters: Optional[List[str] or str] = None,
-                 return_full_result: Optional[bool] = False):
+    def __init__(
+        self,
+        document_id: str,
+        counters: Optional[List[str] or str] = None,
+        return_full_result: Optional[bool] = False,
+    ):
         super().__init__()
         if not document_id:
             raise ValueError("Invalid document Id, please provide a valid value and try again")
@@ -86,8 +111,12 @@ class GetCountersOperation(Operation):
         return self._GetCounterValuesCommand(self._document_id, self._counters, self._return_full_result)
 
     class _GetCounterValuesCommand(RavenCommand):
-
-        def __init__(self, document_id: str, counters: List[str], return_full_result: Optional[bool] = False):
+        def __init__(
+            self,
+            document_id: str,
+            counters: List[str],
+            return_full_result: Optional[bool] = False,
+        ):
             super().__init__(method="GET", is_read_request=True)
             if not document_id:
                 raise ValueError("Invalid document Id, please provide a valid value and try again")
@@ -109,21 +138,24 @@ class GetCountersOperation(Operation):
             return response
 
         def create_request(self, server_node):
-            self.url = (f"{server_node.url}/databases/{server_node.database}"
-                        f"/counters?docId={Utils.quote_key(self._document_id)}"
-                        f"{f'&full={True}' if self._return_full_result else ''}")
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/counters?docId={Utils.quote_key(self._document_id)}"
+                f"{f'&full={True}' if self._return_full_result else ''}"
+            )
 
             stream = io.BytesIO()
             if self._counters:
                 _set = set([counter for counter in self._counters if counter])
                 counters_count = len(_set)
                 if 1024 > counters_count > 1:
-                    self.url += ''.join(f"&counter={Utils.quote_key(counter)}" for counter in _set if counter)
+                    self.url += "".join(f"&counter={Utils.quote_key(counter)}" for counter in _set if counter)
                 elif counters_count >= 1024:
                     document_operation = DocumentCountersOperation(document_id=self._document_id)
                     for counter in _set:
                         document_operation.add_operations(
-                            operation=CounterOperation(counter, counter_operation_type=CounterOperationType.get))
+                            operation=CounterOperation(counter, counter_operation_type=CounterOperationType.get)
+                        )
                     batch = CounterBatch(documents=[document_operation])
                     self.method = "POST"
                     self.use_stream = True
@@ -135,7 +167,6 @@ class GetCountersOperation(Operation):
 
 
 class CounterBatchOperation(Operation):
-
     def __init__(self, counter_batch: CounterBatch):
         super().__init__()
         if not counter_batch:
@@ -146,7 +177,6 @@ class CounterBatchOperation(Operation):
         return self._CounterBatchCommand(self._counter_batch)
 
     class _CounterBatchCommand(RavenCommand):
-
         def __init__(self, counter_batch):
             super().__init__(method="POST")
             self._counter_batch = counter_batch

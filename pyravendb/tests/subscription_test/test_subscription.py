@@ -3,7 +3,10 @@ from functools import partial
 from pyravendb.subscriptions.data import *
 from pyravendb.commands.raven_commands import GetSubscriptionsCommand
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions.exceptions import SubscriptionInUseException, SubscriptionClosedException
+from pyravendb.custom_exceptions.exceptions import (
+    SubscriptionInUseException,
+    SubscriptionClosedException,
+)
 import unittest
 
 
@@ -112,8 +115,9 @@ class TestSubscription(TestBase):
             subscription.run(self.process_documents)
             self.event.wait()
 
-            subscription_throw = self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name),
-                                                                                  object_type=User)
+            subscription_throw = self.store.subscriptions.get_subscription_worker(
+                SubscriptionWorkerOptions(name), object_type=User
+            )
 
             th = subscription_throw.run(self.process_documents)
             with self.assertRaises(SubscriptionInUseException):
@@ -122,8 +126,9 @@ class TestSubscription(TestBase):
             self.items_count = 0
             self.event.clear()
             self.store.subscriptions.drop_connection(name)
-            with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name),
-                                                                  object_type=User) as subscription:
+            with self.store.subscriptions.get_subscription_worker(
+                SubscriptionWorkerOptions(name), object_type=User
+            ) as subscription:
                 sub = subscription.run(self.process_documents)
                 with self.store.open_session() as session:
                     session.store(User("Idan", "Shalom"))
@@ -151,13 +156,16 @@ class TestSubscription(TestBase):
         subscription_creation_options = SubscriptionCreationOptions("From Users")
         subscription_name = self.store.subscriptions.create(subscription_creation_options)
 
-        worker_options = SubscriptionWorkerOptions(subscription_name,
-                                                   strategy=SubscriptionOpeningStrategy.take_over,
-                                                   close_when_no_docs_left=True)
+        worker_options = SubscriptionWorkerOptions(
+            subscription_name,
+            strategy=SubscriptionOpeningStrategy.take_over,
+            close_when_no_docs_left=True,
+        )
         with self.store.subscriptions.get_subscription_worker(worker_options) as subscription_worker:
             try:
                 subscription_worker.run(
-                    partial(lambda batch, x=users: x.extend([item.raw_result for item in batch.items]))).join()
+                    partial(lambda batch, x=users: x.extend([item.raw_result for item in batch.items]))
+                ).join()
             except SubscriptionClosedException:
                 # That's expected
                 pass
