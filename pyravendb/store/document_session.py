@@ -116,6 +116,7 @@ class _DocumentsByEntityHolder(object):
     def get(self, key, default=None):
         return self[key] if key in self else default
 
+    # calling pop on this class can cause differences between documents_by_id and documents_by_entity
     def pop(self, key, default_value=None):
         result = self._hashable_items.pop(key, None)
         if result is not None:
