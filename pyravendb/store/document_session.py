@@ -11,6 +11,7 @@ from .session_timeseries import TimeSeries
 from .session_counters import DocumentCounters
 from typing import Dict, List
 from collections import MutableSet
+from itertools import chain
 
 
 class _SaveChangesData(object):
@@ -114,6 +115,16 @@ class _DocumentsByEntityHolder(object):
     def clear(self):
         self._hashable_items.clear()
         self._unhashable_items.clear()
+
+    def items(self):
+        return list(
+            chain(
+                map(lambda item: (item[0], item[1]), self._hashable_items.items()),
+                map(
+                    lambda item: (item[0].ref, item[1]), self._unhashable_items.items()
+                ),
+            )
+        )
 
 
 class _DeletedEntitiesHolder(MutableSet):
