@@ -10,15 +10,11 @@ import re
 
 class _Token:
     def __init__(self, field_name="", value=None, token=None, write=None, **kwargs):
-        self.__dict__.update(
-            {
-                "field_name": field_name,
-                "value": value,
-                "token": token,
-                "write": write,
-                **kwargs,
-            }
-        )
+        self.field_name = field_name
+        self.value = value
+        self.token = token
+        self.write = write
+        self.__dict__.update(kwargs)
 
 
 class Query(object):
