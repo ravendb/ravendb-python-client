@@ -898,8 +898,8 @@ class Query(object):
         return self
 
     def or_else(self):
-        if len(self.query_builder) > 0:
-            self.query_builder += " OR"
+        if len(self._where_tokens) > 0:
+            self._where_tokens.append(_Token(write=" OR"))
         return self
 
     def boost(self, boost):
