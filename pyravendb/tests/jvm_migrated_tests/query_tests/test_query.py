@@ -38,6 +38,29 @@ class UsersByName(IndexDefinition):
         super(UsersByName, self).__init__(maps=maps, reduce=reduce, name=name)
 
 
+class Dog:
+    def __init__(self, key, name="Reksio", breed="Shepherd", color="White", age=1, is_vaccinated=True):
+        self.Id = key
+        self.name = name
+        self.breed = breed
+        self.color = color
+        self.age = age
+        self.is_vaccinated = is_vaccinated
+
+
+class DogsIndexResult:
+    def __init__(self, name, age, is_vaccinated):
+        self.name = name
+        self.age = age
+        self.is_vaccinated = is_vaccinated
+
+
+class DogsIndex(IndexDefinition):
+    def __init__(self, name="doggos"):
+        maps = "from dog in docs.dogs select new { dog.name, dog.age, dog.is_vaccinated }"
+        super(DogsIndex, self).__init__(name, maps)
+
+
 class TestQuery(TestBase):
     def setUp(self):
         super(TestQuery, self).setUp()
@@ -58,6 +81,16 @@ class TestQuery(TestBase):
             session.store(user3, "users/3")
             session.save_changes()
         self.store.maintenance.send(PutIndexesOperation(UsersByName()))
+
+    def add_dogs(self, session):
+        session.store(Dog("docs/1", "Snoopy", "Beagle", "White", 6, True))
+        session.store(Dog("docs/2", "Brian", "Labrador", "White", 12, False))
+        session.store(Dog("docs/3", "Django", "Jack Russel", "Black", 3, True))
+        session.store(Dog("docs/4", "Beethoven", "St. Bernard", "Brown", 1, False))
+        session.store(Dog("docs/5", "Scooby Doo", "Great Dane", "Brown", 0, False))
+        session.store(Dog("docs/6", "Old Yeller", "Black Mouth Cur", "White", 2, True))
+        session.store(Dog("docs/7", "Benji", "Mixed", "White", 0, False))
+        session.store(Dog("docs/8", "Lassie", "Collie", "Brown", 6, True))
 
     def test_collection_stats(self):
         with self.store.open_session() as session:
@@ -302,3 +335,32 @@ class TestQuery(TestBase):
             )
             self.assertEqual(1, len(users))
             self.assertEqual("John", users[0].name)
+
+    def test_query_by_index(self):
+        index = DogsIndex()
+        self.store.maintenance.send(PutIndexesOperation(index))
+        with self.store.open_session() as session:
+            self.add_dogs(session)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query_result = list(
+                session.query(object_type=Dog, index_name=index.name)
+                .where_greater_than("age", 2)
+                .and_also()
+                .where_equals("is_vaccinated", False)
+            )
+
+            self.assertEqual(1, len(query_result))
+            self.assertEqual("Brian", query_result[0].name)
+
+            query_result_2 = list(
+                session.query(object_type=Dog, index_name=index.name)
+                .where_less_than_or_equal("age", 2)
+                .and_also()
+                .where_equals("is_vaccinated", False)
+            )
+            self.assertEqual(3, len(query_result_2))
+
+            names = list(map(lambda dog: dog.name, query_result_2))
+            self.assertSequenceContainsElements(names, "Beethoven", "Scooby Doo", "Benji")
