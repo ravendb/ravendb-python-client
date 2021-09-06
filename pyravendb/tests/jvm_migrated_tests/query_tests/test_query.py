@@ -1,6 +1,6 @@
 import unittest
 
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetCollectionStatisticsOperation
 from pyravendb.tests.test_base import TestBase, User, UserWithId
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.data.query import OrderingType, QueryOperator
@@ -58,6 +58,18 @@ class TestQuery(TestBase):
             session.store(user3, "users/3")
             session.save_changes()
         self.store.maintenance.send(PutIndexesOperation(UsersByName()))
+
+    def test_collection_stats(self):
+        with self.store.open_session() as session:
+            user1 = UserWithId("John")
+            user2 = UserWithId("Jane")
+            session.store(user1, "users/1")
+            session.store(user2, "users/2")
+            session.save_changes()
+
+        stats = self.store.maintenance.send(GetCollectionStatisticsOperation())
+        self.assertEqual(2, stats["CountOfDocuments"])
+        self.assertEqual(2, stats["Collections"]["UserWithIds"])
 
     def test_query_simple(self):
         with self.store.open_session() as session:

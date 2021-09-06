@@ -1,4 +1,4 @@
-from pyravendb.commands.raven_commands import RavenCommand, GetStatisticsCommand
+from pyravendb.commands.raven_commands import RavenCommand, GetStatisticsCommand, GetCollectionStatisticsCommand
 from pyravendb.tools.utils import Utils
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.data.indexes import IndexDefinition
@@ -463,3 +463,8 @@ class StopIndexOperation(MaintenanceOperation):
 class GetStatisticsOperation(MaintenanceOperation):
     def get_command(self, conventions):
         return GetStatisticsCommand()
+
+
+class GetCollectionStatisticsOperation(MaintenanceOperation):
+    def get_command(self, conventions):
+        return GetCollectionStatisticsCommand()

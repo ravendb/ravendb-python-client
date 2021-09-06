@@ -507,6 +507,19 @@ class GetStatisticsCommand(RavenCommand):
         return None
 
 
+class GetCollectionStatisticsCommand(RavenCommand):
+    def __init__(self):
+        super(GetCollectionStatisticsCommand, self).__init__(method="GET", is_read_request=True)
+
+    def create_request(self, server_node):
+        self.url = f"{server_node.url}/databases/{server_node.database}/collections/stats"
+
+    def set_response(self, response):
+        if response and response.status_code == 200:
+            return response.json()
+        return None
+
+
 class GetTopologyCommand(RavenCommand):
     def __init__(self, force_url=None):
         super(GetTopologyCommand, self).__init__(method="GET", is_read_request=True)
