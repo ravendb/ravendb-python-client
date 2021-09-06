@@ -283,3 +283,22 @@ class TestQuery(TestBase):
             self.assertEqual(3, len(users))
             names = list(map(lambda user: user.name, users))
             self.assertEqual(["John", "John", "Tarzan"], names)
+
+    def test_query_parameters(self):
+        self.add_users()
+        with self.store.open_session() as session:
+            x = list(
+                session.query(object_type=UserWithId)
+                .raw_query("FROM UserWithIds WHERE name = $name")
+                .add_parameter("name", "Tarzan")
+            )
+            self.assertEqual(1, len(x))
+
+    def test_parameters_in_raw_query(self):
+        self.add_users()
+        with self.store.open_session() as session:
+            users = list(
+                session.raw_query("FROM UserWithIds WHERE age == $p0", object_type=UserWithId).add_parameter("p0", 5)
+            )
+            self.assertEqual(1, len(users))
+            self.assertEqual("John", users[0].name)

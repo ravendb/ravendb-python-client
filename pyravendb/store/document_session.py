@@ -278,6 +278,10 @@ class DocumentSession(object):
             self._query = Query(self)
         return self._query
 
+    def raw_query(self, raw_query_string: str, query_parameters: dict = None, **kwargs):
+        self._query = Query(self)(**kwargs)
+        return self._query.raw_query(raw_query_string, query_parameters)
+
     def save_includes(self, includes=None):
         if includes:
             for key, value in includes.items():

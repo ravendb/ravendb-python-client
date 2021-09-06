@@ -413,6 +413,16 @@ class Query(object):
                 self.and_also()
             self._where_tokens.append(_Token(write="NOT"))
 
+    def add_parameter(self, name, value):
+        if name in self.query_parameters:
+            raise ValueError(f"The parameter {name} was already added")
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+        elif isinstance(value, datetime):
+            value = Utils.datetime_to_string(value)
+        self.query_parameters[name] = value
+        return self
+
     def add_query_parameter(self, value):
 
         if isinstance(value, timedelta):
@@ -420,7 +430,7 @@ class Query(object):
         elif isinstance(value, datetime):
             value = Utils.datetime_to_string(value)
 
-        parameter_name = "p{0}".format(len(self.query_parameters))
+        parameter_name = f"p{len(self.query_parameters)}"
         self.query_parameters[parameter_name] = value
         return parameter_name
 
