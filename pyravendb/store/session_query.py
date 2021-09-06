@@ -348,8 +348,7 @@ class Query(object):
         if fuzzy:
             where_rql += "," + fuzzy + ")"
         if boost:
-            where_rql += "," + str(boost) + ")"
-
+            where_rql += ", " + str(float(boost)) + ")"
         return where_rql
 
     @staticmethod
@@ -381,6 +380,8 @@ class Query(object):
                         and c != "@"
                         and c != "["
                         and c != "]"
+                        and c != "("
+                        and c != ")"
                         and not inside_escaped
                     ):
                         escape = True
