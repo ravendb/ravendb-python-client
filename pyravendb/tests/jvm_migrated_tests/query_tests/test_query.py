@@ -242,3 +242,32 @@ class TestQuery(TestBase):
         with self.store.open_session() as session:
             self.assertEqual(3, len(list(session.query(UserWithId).random_ordering())))
             self.assertEqual(3, len(list(session.query(UserWithId).random_ordering("123"))))
+
+    def test_query_with_boost(self):
+        self.add_users()
+        with self.store.open_session() as session:
+            users = list(
+                session.query(UserWithId)
+                .where_equals("name", "Tarzan")
+                .boost(5)
+                .or_else()
+                .where_equals("name", "John")
+                .boost(2)
+                .order_by_score()
+            )
+            self.assertEqual(3, len(users))
+            names = list(map(lambda user: user.name, users))
+            self.assertEqual(["Tarzan", "John", "John"], names)
+
+            users = list(
+                session.query(UserWithId)
+                .where_equals("name", "Tarzan")
+                .boost(2)
+                .or_else()
+                .where_equals("name", "John")
+                .boost(5)
+                .order_by_score()
+            )
+            self.assertEqual(3, len(users))
+            names = list(map(lambda user: user.name, users))
+            self.assertEqual(["John", "John", "Tarzan"], names)
