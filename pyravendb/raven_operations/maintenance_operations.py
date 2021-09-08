@@ -299,6 +299,32 @@ class GetIndexOperation(MaintenanceOperation):
                 raise response.raise_for_status()
 
 
+class GetIndexingStatusOperation(MaintenanceOperation):
+    def __init__(self):
+        super(GetIndexingStatusOperation, self).__init__()
+
+    def get_command(self, conventions):
+        return self._GetIndexingStatusCommand()
+
+    class _GetIndexingStatusCommand(RavenCommand):
+        def __init__(self):
+            super(GetIndexingStatusOperation._GetIndexingStatusCommand, self).__init__(
+                method="GET", is_read_request=True
+            )
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/status"
+
+        def set_response(self, response):
+            if response is None:
+                raise ValueError("Invalid response")
+
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response
+
+
 class GetIndexNamesOperation(MaintenanceOperation):
     def __init__(self, start, page_size):
         super(GetIndexNamesOperation, self).__init__()
@@ -374,6 +400,52 @@ class PutIndexesOperation(MaintenanceOperation):
                 return response["Results"]
             except ValueError:
                 response.raise_for_status()
+
+
+class DisableIndexOperation(MaintenanceOperation):
+    def __init__(self, name: str):
+        super().__init__()
+        self.index_name = name
+
+    def get_command(self, conventions):
+        return self._DisableIndexCommand(self.index_name)
+
+    class _DisableIndexCommand(RavenCommand):
+        def __init__(self, index_name: str):
+            self.index_name = index_name
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}/admin/indexes"
+                f"/disable?name={Utils.escape(self.index_name, False, False)}"
+            )
+
+        def set_response(self, response):
+            pass
+
+
+class EnableIndexOperation(MaintenanceOperation):
+    def __init__(self, name: str):
+        super().__init__()
+        self.index_name = name
+
+    def get_command(self, conventions):
+        return self._EnableIndexCommand(self.index_name)
+
+    class _EnableIndexCommand(RavenCommand):
+        def __init__(self, index_name: str):
+            self.index_name = index_name
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}/admin/indexes"
+                f"/enable?name={Utils.escape(self.index_name, False, False)}"
+            )
+
+        def set_response(self, response):
+            pass
 
 
 class StopIndexingOperation(MaintenanceOperation):

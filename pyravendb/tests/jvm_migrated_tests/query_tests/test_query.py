@@ -1,9 +1,11 @@
+import datetime
 import unittest
 
 from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetCollectionStatisticsOperation
-from pyravendb.tests.test_base import TestBase, User, UserWithId
+from pyravendb.tests.test_base import TestBase, User, UserWithId, Address, Order
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.data.query import OrderingType, QueryOperator
+from pyravendb.tools.utils import Utils
 
 
 class UserProjection:
@@ -36,6 +38,17 @@ class UsersByName(IndexDefinition):
         )
 
         super(UsersByName, self).__init__(maps=maps, reduce=reduce, name=name)
+
+
+class OrderTime(IndexDefinition):
+    def __init__(self, name="OrderTime"):
+        maps = "from order in docs.Orders select new {delay = order.shipped_at - ((DateTime?)order.ordered_at)}"
+        super(OrderTime, self).__init__(maps=maps, name=name)
+
+
+class OrderTimeResult:
+    def __init__(self, delay):
+        self.delay = delay
 
 
 class Dog:
@@ -364,3 +377,43 @@ class TestQuery(TestBase):
 
             names = list(map(lambda dog: dog.name, query_result_2))
             self.assertSequenceContainsElements(names, "Beethoven", "Scooby Doo", "Benji")
+
+    def test_query_with_duration(self):
+        now = datetime.datetime.utcnow()
+        index = OrderTime()
+        self.store.maintenance.send(PutIndexesOperation(index))
+        with self.store.open_session() as session:
+            order1 = Order(company="hours", ordered_at=Utils.add_hours(now, -2), shipped_at=now)
+            session.store(order1)
+            order2 = Order(company="days", ordered_at=Utils.add_days(now, -2), shipped_at=now)
+            session.store(order2)
+            order3 = Order(company="minutes", ordered_at=Utils.add_minutes(now, -2), shipped_at=now)
+            session.store(order3)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            delay1 = list(
+                map(
+                    lambda x: x.company,
+                    list(
+                        session.query(object_type=Order, index_name=index.name).where_less_than(
+                            "delay", datetime.timedelta(hours=3)
+                        )
+                    ),
+                )
+            )
+            self.assertEqual(2, len(delay1))
+            self.assertSequenceContainsElements(delay1, "hours", "minutes")
+
+            delay2 = list(
+                map(
+                    lambda x: x.company,
+                    list(
+                        session.query(object_type=Order, index_name=index.name).where_greater_than(
+                            "delay", datetime.timedelta(hours=3)
+                        )
+                    ),
+                )
+            )
+            self.assertEqual(1, len(delay2))
+            self.assertSequenceContainsElements(delay2, "days")

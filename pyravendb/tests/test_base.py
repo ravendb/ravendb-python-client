@@ -1,6 +1,8 @@
+import datetime
 import unittest
 import sys
 import os
+from typing import Iterable
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 
@@ -28,6 +30,51 @@ class Dog(object):
     def __init__(self, name, owner):
         self.name = name
         self.owner = owner
+
+
+class Address(object):
+    def __init__(self, Id: str = None, country: str = None, city: str = None, street: str = None, zip_code: int = None):
+        self.Id = Id
+        self.country = country
+        self.city = city
+        self.street = street
+        self.zip_code = zip_code
+
+
+class Order(object):
+    def __init__(
+        self,
+        Id: str = None,
+        company: str = None,
+        employee: str = None,
+        ordered_at: datetime.datetime = None,
+        require_at: datetime.datetime = None,
+        shipped_at: datetime.datetime = None,
+        ship_to: Address = None,
+        ship_via: str = None,
+        freight: float = None,
+        lines: Iterable = None,
+    ):
+        self.Id = Id
+        self.company = company
+        self.employee = employee
+        self.ordered_at = ordered_at
+        self.require_at = require_at
+        self.shipped_at = shipped_at
+        self.ship_to = ship_to
+        self.ship_via = ship_via
+        self.freight = freight
+        self.lines = lines
+        pass
+
+
+class OrderLine(object):
+    def __init__(self, product: str, product_name: str, price_per_unit: float, quantity: int, discount: float):
+        self.product = product
+        self.product_name = product_name
+        self.price_per_unit = price_per_unit
+        self.quantity = quantity
+        self.discount = discount
 
 
 class Patch(object):
