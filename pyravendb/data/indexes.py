@@ -3,6 +3,15 @@ from enum import Enum
 import sys
 
 
+class IndexingStatus(Enum):
+    running = "Running"
+    paused = "Paused"
+    disabled = "Disabled"
+
+    def __str__(self):
+        return self.value
+
+
 class IndexLockMode(Enum):
     unlock = "Unlock"
     locked_ignore = "LockedIgnore"

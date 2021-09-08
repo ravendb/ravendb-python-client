@@ -449,3 +449,15 @@ class Utils(object):
     @staticmethod
     def entity_to_dict(entity, default_method):
         return json.loads(json.dumps(entity, default=default_method))
+
+    @staticmethod
+    def add_hours(date: datetime, hours: int):
+        return date + timedelta(hours=hours)
+
+    @staticmethod
+    def add_days(date: datetime, days: int):
+        return date + timedelta(days=days)
+
+    @staticmethod
+    def add_minutes(date: datetime, minutes: int):
+        return date + timedelta(minutes=minutes)
