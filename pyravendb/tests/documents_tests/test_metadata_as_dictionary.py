@@ -28,7 +28,7 @@ class TestMetadataAsDictionary(TestBase):
 
     def test_gets_proper_data(self):
         self.assertEqual(3, len(self.metadata))
-        self.assertEqual("User", self.metadata["Raven-Python-Type"])
+        self.assertEqual("test_base.User", self.metadata["Raven-Python-Type"])
         self.assertEqual("Users", self.metadata["@collection"])
 
     def test_gets_proper_data_for_nested_objects(self):

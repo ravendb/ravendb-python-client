@@ -494,26 +494,13 @@ class QueryCommand(RavenCommand):
 class GetStatisticsCommand(RavenCommand):
     def __init__(self, debug_tag: str = None, node_tag: str = None):
         super(GetStatisticsCommand, self).__init__(method="GET", is_read_request=True)
-        self.debug_tag = debug_tag
-        self.selected_node_tag = node_tag
+        self._debug_tag = debug_tag
+        self._selected_node_tag = node_tag
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/stats".format(server_node.url, server_node.database)
-        if self.debug_tag:
-            self.url += "?" + self.debug_tag
-
-    def set_response(self, response):
-        if response and response.status_code == 200:
-            return response.json()
-        return None
-
-
-class GetCollectionStatisticsCommand(RavenCommand):
-    def __init__(self):
-        super(GetCollectionStatisticsCommand, self).__init__(method="GET", is_read_request=True)
-
-    def create_request(self, server_node):
-        self.url = f"{server_node.url}/databases/{server_node.database}/collections/stats"
+        if self._debug_tag:
+            self.url += "?" + self._debug_tag
 
     def set_response(self, response):
         if response and response.status_code == 200:
