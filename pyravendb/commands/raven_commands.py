@@ -492,9 +492,10 @@ class QueryCommand(RavenCommand):
 
 
 class GetStatisticsCommand(RavenCommand):
-    def __init__(self, debug_tag=None):
-        super(GetStatisticsCommand, self).__init__(method="GET")
+    def __init__(self, debug_tag: str = None, node_tag: str = None):
+        super(GetStatisticsCommand, self).__init__(method="GET", is_read_request=True)
         self.debug_tag = debug_tag
+        self.selected_node_tag = node_tag
 
     def create_request(self, server_node):
         self.url = "{0}/databases/{1}/stats".format(server_node.url, server_node.database)

@@ -1,8 +1,12 @@
 import datetime
+import time
 import unittest
 import sys
 import os
 from typing import Iterable
+from datetime import timedelta
+from pyravendb import constants
+from pyravendb.data.indexes import IndexState, IndexErrors
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 
@@ -11,6 +15,8 @@ from pyravendb.raven_operations.server_operations import *
 from pyravendb.raven_operations.maintenance_operations import (
     IndexDefinition,
     PutIndexesOperation,
+    GetStatisticsOperation,
+    GetIndexErrorsOperation,
 )
 
 
@@ -97,6 +103,42 @@ class TestBase(unittest.TestCase):
         while topology is not None and len(topology["Members"]) < replication_factor:
             topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         return topology
+
+    @staticmethod
+    def wait_for_indexing(
+        store: DocumentStore, database: str = None, timeout: timedelta = timedelta(minutes=1), node_tag: str = None
+    ):
+        admin = store.maintenance.for_database(database)
+        timestamp = datetime.datetime.now()
+        while datetime.datetime.now() - timestamp < timeout:
+            database_statistics = admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
+            indexes = list(filter(lambda index: index["State"] != IndexState.disabled, database_statistics["Indexes"]))
+            if all(
+                [
+                    not index["IsStale"]
+                    and not index["Name"].startswith(constants.Documents.Indexing.SIDE_BY_SIDE_INDEX_NAME_PREFIX)
+                    for index in indexes
+                ]
+            ):
+                return
+            if any([IndexState.error == index["State"] for index in indexes]):
+                break
+            try:
+                time.sleep(0.1)
+            except RuntimeError as e:
+                raise RuntimeError(e)
+
+        errors = admin.send(GetIndexErrorsOperation())
+        all_index_errors_text = ""
+
+        def __format_index_errors(errors_list: IndexErrors):
+            errors_list_text = os.linesep.join(list(map(lambda error: f"-{error}", errors_list.errors)))
+            return f"Index {errors_list.name} ({len(errors_list.errors)} errors): {os.linesep} {errors_list_text}"
+
+        if errors is not None and len(errors) > 0:
+            all_index_errors_text = os.linesep.join(list(map(__format_index_errors, errors)))
+
+        raise TimeoutError(f"The indexes stayed stale for more than {timeout}. {all_index_errors_text}")
 
     def setConvention(self, conventions):
         self.conventions = conventions

@@ -1,7 +1,8 @@
-from pyravendb.commands.raven_commands import RavenCommand, GetStatisticsCommand, GetCollectionStatisticsCommand
+from typing import Tuple, Set, Union, List, Optional
+from pyravendb.commands.raven_commands import RavenCommand, GetStatisticsCommand
 from pyravendb.tools.utils import Utils
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexDefinition
+from pyravendb.data.indexes import IndexDefinition, IndexErrors, IndexingError, IndexLockMode, IndexPriority
 from abc import abstractmethod
 
 
@@ -533,8 +534,13 @@ class StopIndexOperation(MaintenanceOperation):
 
 
 class GetStatisticsOperation(MaintenanceOperation):
+    def __init__(self, debug_tag: str = None, node_tag: str = None):
+        super().__init__()
+        self._debug_tag = debug_tag
+        self._node_tag = node_tag
+
     def get_command(self, conventions):
-        return GetStatisticsCommand()
+        return GetStatisticsCommand(self._debug_tag, self._node_tag)
 
 
 class GetCollectionStatisticsOperation(MaintenanceOperation):

@@ -19,3 +19,6 @@ class Documents:
         REVISION_COUNTERS = "@counters-snapshot"
         REVISION_TIME_SERIES = "@timeseries-snapshot"
         RAVEN_PYTHON_TYPE = "Raven-Python-Type"
+
+    class Indexing:
+        SIDE_BY_SIDE_INDEX_NAME_PREFIX = "ReplacementOf/"
