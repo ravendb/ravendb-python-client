@@ -1,12 +1,24 @@
+import datetime
 from datetime import timedelta
 from enum import Enum
 import sys
+from typing import Union, List, Set, Tuple
 
 
 class IndexingStatus(Enum):
     running = "Running"
     paused = "Paused"
     disabled = "Disabled"
+
+    def __str__(self):
+        return self.value
+
+
+class IndexState(Enum):
+    normal = "Normal"
+    disabled = "Disabled"
+    idle = "Idle"
+    error = "Error"
 
     def __str__(self):
         return self.value
@@ -86,6 +98,23 @@ class FieldTermVector(Enum):
         return self.value
 
 
+class IndexingError:
+    def __init__(self, error: str, timestamp: datetime.datetime, document: str, action: str):
+        self.error = error
+        self.timestamp = timestamp
+        self.document = document
+        self.action = action
+
+    def __str__(self):
+        return f"Error: {self.error}, Document: {self.document}, Action: {self.action}"
+
+
+class IndexErrors:
+    def __init__(self, name, errors: Union[List[IndexingError], Set[IndexingError], Tuple[IndexingError]]):
+        self.name = name
+        self.errors = errors
+
+
 class IndexDefinition(object):
     def __init__(self, name, maps, configuration=None, **kwargs):
         """
@@ -104,7 +133,7 @@ class IndexDefinition(object):
         self.is_test_index = kwargs.get("is_test_index", False)
 
         # IndexLockMode
-        self.lock_mod = kwargs.get("lock_mod", None)
+        self.lock_mode = kwargs.get("lock_mode", None)
 
         # The priority of the index IndexPriority
         self.priority = kwargs.get("priority", None)
@@ -173,7 +202,7 @@ class IndexDefinition(object):
             "Fields": {key: self.fields[key].to_json() for key in self.fields} if len(self.fields) > 0 else self.fields,
             "IndexId": self.index_id,
             "IsTestIndex": self.is_test_index,
-            "LockMode": str(self.lock_mod) if self.lock_mod else None,
+            "LockMode": str(self.lock_mode) if self.lock_mode else None,
             "Maps": self.maps,
             "Name": self.name,
             "Reduce": self.reduce,

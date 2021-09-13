@@ -94,6 +94,7 @@ class TestQuery(TestBase):
             session.store(user3, "users/3")
             session.save_changes()
         self.store.maintenance.send(PutIndexesOperation(UsersByName()))
+        self.wait_for_indexing(self.store)
 
     def add_dogs(self, session):
         session.store(Dog("docs/1", "Snoopy", "Beagle", "White", 6, True))
@@ -356,6 +357,8 @@ class TestQuery(TestBase):
             self.add_dogs(session)
             session.save_changes()
 
+        self.wait_for_indexing(self.store, self.store.database)
+
         with self.store.open_session() as session:
             query_result = list(
                 session.query(object_type=Dog, index_name=index.name)
@@ -390,6 +393,8 @@ class TestQuery(TestBase):
             order3 = Order(company="minutes", ordered_at=Utils.add_minutes(now, -2), shipped_at=now)
             session.store(order3)
             session.save_changes()
+
+        self.wait_for_indexing(self.store)
 
         with self.store.open_session() as session:
             delay1 = list(

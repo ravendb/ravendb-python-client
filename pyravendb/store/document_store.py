@@ -191,6 +191,11 @@ class MaintenanceOperationExecutor:
             self._request_executor = self._store.get_request_executor(self._database_name)
         return self._request_executor
 
+    def for_database(self, database_name: str):
+        if self._database_name == database_name:
+            return self
+        return MaintenanceOperationExecutor(self._store, database_name)
+
     def send(self, operation):
         try:
             operation_type = getattr(operation, "operation")
