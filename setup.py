@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 setup(
     name='pyravendb',
     packages=find_packages(),
-    version='5.0.0.1',
+    version='5.0.0.2',
     long_description=open("README.rst").read(),
-    description='This is the official python client for RavenDB v5.0 document database',
+    description='Official python client for RavenDB NoSQL Document Database',
     author='RavenDB',
     author_email='support@ravendb.net',
     url='https://github.com/ravendb/RavenDB-Python-Client',
