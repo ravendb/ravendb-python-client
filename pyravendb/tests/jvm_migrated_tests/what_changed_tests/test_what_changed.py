@@ -1,6 +1,13 @@
 import unittest
 
 from pyravendb.tests.test_base import TestBase, User
+from dataclasses import dataclass
+
+
+@dataclass()
+class TestData:
+    data: str
+    Id: str
 
 
 class BasicNamedUser:
@@ -205,3 +212,35 @@ class TestWhatChanged(TestBase):
             session.load("num/2", Int)
             changes = session.advanced.what_changed()
             self.assertEqual(0, len(changes))
+
+    def test_what_changed_unhashables(self):
+        data = TestData(data="classified", Id="")
+        with self.store.open_session() as session:
+            self.assertEqual("", data.Id)
+            session.store(data)
+            self.assertEqual("TestDatas/1-A", data.Id)
+
+            changes = session.advanced.what_changed()
+
+            self.assertEqual(1, len(changes))
+            self.assertEqual(1, len(changes["TestDatas/1-A"]))
+            self.assertEqual("document_added", changes["TestDatas/1-A"][0]["change"])
+            session.save_changes()
+
+            data.data = "covert"
+            changes = session.advanced.what_changed()
+            self.assertEqual(1, len(changes["TestDatas/1-A"]))
+
+            doc_changes = changes["TestDatas/1-A"][0]
+            self.assertEqual("field_changed", doc_changes["change"])
+            self.assertEqual("data", doc_changes["field_name"])
+            self.assertEqual("classified", doc_changes["old_value"])
+            self.assertEqual("covert", doc_changes["new_value"])
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            data = session.load("TestDatas/1-A", TestData)
+            session.delete(data)
+            changes = session.advanced.what_changed()
+            self.assertEqual(1, len(changes["TestDatas/1-A"]))
+            self.assertEqual("document_deleted", changes["TestDatas/1-A"][0]["change"])
