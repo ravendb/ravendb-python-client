@@ -3,13 +3,11 @@ import time
 import unittest
 import sys
 import os
-from typing import Iterable
+from enum import Enum
+from typing import Iterable, List
 from datetime import timedelta
 from pyravendb import constants
 from pyravendb.data.indexes import IndexState, IndexErrors
-
-sys.path.append(os.path.abspath(__file__ + "/../../"))
-
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.raven_operations.server_operations import *
 from pyravendb.raven_operations.maintenance_operations import (
@@ -18,6 +16,16 @@ from pyravendb.raven_operations.maintenance_operations import (
     GetStatisticsOperation,
     GetIndexErrorsOperation,
 )
+
+sys.path.append(os.path.abspath(__file__ + "/../../"))
+
+
+class CompanyType(Enum):
+    public = "public"
+    private = "private"
+
+    def __str__(self):
+        return self.name
 
 
 class User(object):
@@ -47,6 +55,14 @@ class Address(object):
         self.zip_code = zip_code
 
 
+class Contact(object):
+    def __init__(self, Id: str = None, first_name: str = None, surname: str = None, email: str = None):
+        self.Id = Id
+        self.first_name = first_name
+        self.surname = surname
+        self.email = email
+
+
 class Order(object):
     def __init__(
         self,
@@ -72,6 +88,41 @@ class Order(object):
         self.freight = freight
         self.lines = lines
         pass
+
+
+class Company(object):
+    def __init__(
+        self,
+        Id: str = None,
+        name: str = None,
+        desc: str = None,
+        email: str = None,
+        address1: str = None,
+        address2: str = None,
+        address3: str = None,
+        contacts: List[Contact] = None,
+        phone: int = None,
+        company_type: CompanyType = None,
+        employees_ids: List[str] = None,
+    ):
+        self.Id = Id
+        self.name = name
+        self.desc = desc
+        self.email = email
+        self.address1 = address1
+        self.address2 = address2
+        self.address3 = address3
+        self.contacts = contacts
+        self.phone = phone
+        self.company_type = company_type
+        self.employees_ids = employees_ids
+
+
+class Employee(object):
+    def __init__(self, Id: str = None, first_name: str = None, last_name: str = None):
+        self.Id = Id
+        self.first_name = first_name
+        self.last_name = last_name
 
 
 class OrderLine(object):
