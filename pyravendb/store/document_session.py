@@ -12,7 +12,7 @@ from pyravendb.commands.commands_data import (
     DeleteAttachmentCommandData,
     DeleteCommandData,
 )
-from pyravendb.tools.utils import Utils
+from pyravendb.tools.utils import Utils, CaseInsensitiveDict
 from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
@@ -49,6 +49,7 @@ class DocumentSession(object):
         self._time_series_by_document_id = {}
         self._counters_defer_commands = {}
         self._counters_by_document_id = {}
+        self._included_counters_by_document_id = {}
         self._known_missing_ids = set()
         self.id_value = None
         self._defer_commands = set()
@@ -109,6 +110,10 @@ class DocumentSession(object):
     def counters_by_document_id(self):
         return self._counters_by_document_id
 
+    @property
+    def included_counters_by_document_id(self):
+        return self._included_counters_by_document_id
+
     def defer(self, command, *args):
         self._defer_commands.add(command)
         for arg in args:
@@ -153,6 +158,96 @@ class DocumentSession(object):
             for key, value in includes.items():
                 if key not in self._documents_by_id:
                     self._included_documents_by_id[key] = value
+
+    def register_counters(self, result_counters: dict, counters_to_include: Dict[str, List[str]]):
+        if self.no_tracking:
+            return
+        if not result_counters:
+            self.__set_got_all_in_cache_if_needed(counters_to_include)
+        else:
+            self._register_counters_internal(result_counters, counters_to_include, True, False)
+        self.__register_missing_counters(counters_to_include)
+
+    def _register_counters_internal(
+        self, result_counters: Dict, counters_to_include: Dict[str, List[str]], from_query_result: bool, got_all: bool
+    ):
+        for key, result_counters in result_counters.items():
+            if not result_counters:
+                continue
+            counters = []
+            if from_query_result:
+                counters = counters_to_include.get(key, None)
+                got_all = True if counters is not None and len(counters) == 0 else False
+
+            if len(result_counters) == 0 and not got_all:
+                cache = self.counters_by_document_id.get(key, None)
+                if not cache:
+                    continue
+                for counter in counters:
+                    del cache[1][counter]
+                self.counters_by_document_id[key] = cache
+                continue
+            self.__register_counters_for_document(key, got_all, result_counters, counters_to_include)
+
+    def __register_counters_for_document(
+        self, key: str, got_all: bool, result_counters: List[Dict], counters_to_include: Dict[str, List[str]]
+    ):
+        cache = self.counters_by_document_id.get(key)
+        if not cache:
+            cache = [got_all, CaseInsensitiveDict()]
+
+        deleted_counters = (
+            set()
+            if len(cache[1]) == 0
+            else (set(cache[1].keys()) if len(counters_to_include.get(key)) == 0 else set(counters_to_include.get(key)))
+        )
+
+        for counter in result_counters:
+            if counter:
+                counter_name = counter["CounterName"]
+                total_value = counter["TotalValue"]
+            else:
+                counter_name = total_value = None
+            if counter_name and total_value:
+                cache[1][counter_name] = total_value
+                deleted_counters.discard(counter_name)
+
+        if deleted_counters:
+            for name in deleted_counters:
+                del cache[1][name]
+
+        cache[0] = got_all
+        self.counters_by_document_id[key] = cache
+
+    def __set_got_all_in_cache_if_needed(self, counters_to_include: Dict[str, List[str]]):
+        if not counters_to_include:
+            return
+        for key, value in counters_to_include:
+            if len(value) > 0:
+                continue
+            self.__set_got_all_counters_for_document(key)
+
+    def __set_got_all_counters_for_document(self, key: str):
+        cache = self.counters_by_document_id.get(key, None)
+        if not cache:
+            cache = [False, CaseInsensitiveDict()]
+        cache[0] = True
+        self.counters_by_document_id[key] = cache
+
+    def __register_missing_counters(self, counters_to_include: Dict[str, List[str]]):
+        if not counters_to_include:
+            return
+
+        for key, value in counters_to_include.items():
+            cache = self.counters_by_document_id.get(key, None)
+            if cache is None:
+                cache = [False, CaseInsensitiveDict()]
+                self.counters_by_document_id[key] = cache
+
+            for counter in value:
+                if counter in cache[1]:
+                    continue
+                cache[1][counter] = None
 
     def save_entity(
         self,
@@ -313,6 +408,7 @@ class DocumentSession(object):
             )
 
         self._included_documents_by_id.pop(self._documents_by_entity[entity]["key"], None)
+        self._included_counters_by_document_id.pop(self._documents_by_entity[entity]["key"], None)
         self._known_missing_ids.add(self._documents_by_entity[entity]["key"])
         self._deleted_entities.add(entity)
 
@@ -345,6 +441,7 @@ class DocumentSession(object):
             return
         self._known_missing_ids.add(key_or_entity)
         self._included_documents_by_id.pop(key_or_entity, None)
+        self._included_counters_by_document_id.pop(key_or_entity, None)
         self.defer(commands_data.DeleteCommandData(key_or_entity, expected_change_vector))
 
     def assert_no_non_unique_instance(self, entity, key):
@@ -435,10 +532,12 @@ class DocumentSession(object):
 
     def save_changes(self):
         # todo: create BatchOperation and use it here https://issues.hibernatingrhinos.com/issue/RDBC-474
-        data = _SaveChangesData(list(self._defer_commands), len(self._defer_commands))
+        data = _SaveChangesData([], len(self._defer_commands))
+        defer_commands = list(self._defer_commands)
         self._defer_commands.clear()
         self._prepare_for_delete_commands(data)
         self._prepare_for_puts_commands(data)
+        data.commands.extend(defer_commands)
         if len(data.commands) == 0:
             return
         self.increment_requests_count()
@@ -663,7 +762,7 @@ class Advanced(object):
         return metadata_obj
 
     def get_document_info(self, entity):
-        return self.session.documents_by_entity.get(entity)
+        return self.session.documents_by_entity.get(entity, None)
 
     def update_metadata_modifications(self, document):
         dirty = False
@@ -720,6 +819,10 @@ class Advanced(object):
             if instance in self.session.documents_by_entity:
                 return self.session.documents_by_entity[instance]["key"]
         return None
+
+    def get_document_by_id(self, key):
+        if key:
+            return self.get_document_info(self.session.documents_by_id.get(key, None))
 
     @property
     def document_store(self):
