@@ -58,7 +58,7 @@ class TestIndexOperation(TestBase):
         self.store.maintenance.send(DisableIndexOperation(index.name))
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
-        index_status = indexing_status["Indexes"][1]
+        index_status = indexing_status["Indexes"][0]
         self.assertEqual(str(IndexingStatus.disabled), index_status["Status"])
 
         self.store.maintenance.send(EnableIndexOperation(index.name))
@@ -67,7 +67,7 @@ class TestIndexOperation(TestBase):
         self.assertEqual(str(IndexingStatus.running), indexing_status["Status"])
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
-        index_status = indexing_status["Indexes"][1]
+        index_status = indexing_status["Indexes"][0]
         self.assertEqual(str(IndexingStatus.running), index_status["Status"])
 
     def test_can_get_index_statistics(self):
@@ -117,7 +117,7 @@ class TestIndexOperation(TestBase):
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
 
         self.assertEqual(str(IndexingStatus.running), indexing_status["Status"])
-        self.assertEqual(str(IndexingStatus.paused), indexing_status["Indexes"][1]["Status"])
+        self.assertEqual(str(IndexingStatus.paused), indexing_status["Indexes"][0]["Status"])
 
         self.store.maintenance.send(StartIndexOperation(index.name))
 
