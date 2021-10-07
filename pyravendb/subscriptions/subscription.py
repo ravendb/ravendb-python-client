@@ -3,6 +3,9 @@ import socket
 import ssl
 import sys
 from datetime import datetime
+
+from pyravendb import constants
+from pyravendb.store.entity_to_json import EntityToJson
 from pyravendb.tools.utils import Utils
 from pyravendb.connection.requests_helpers import PropagatingThread
 from urllib.parse import urlparse
@@ -427,25 +430,40 @@ class SubscriptionBatch:
     def initialize(self):
         last_change_vector = None
         for item in self.raw_items:
-
-            entity, metadata, _ = Utils.convert_to_entity(
-                item["Data"],
-                self._object_type,
-                self._store.conventions,
-                self._store.events,
-                nested_object_types=self._nested_object_type,
-            )
+            cur_doc = item["Data"]
+            metadata = cur_doc.get(constants.Documents.Metadata.KEY)
             if not metadata:
                 raise InvalidOperationException("Document must have a @metadata field")
-            document_id = metadata.get("@id", None)
-            if not id:
+            document_id = metadata.get(constants.Documents.Metadata.ID, None)
+            if not document_id:
                 raise InvalidOperationException("Document must have a @id field")
-            last_change_vector = metadata.get("@change-vector", None)
+            last_change_vector = metadata.get(constants.Documents.Metadata.CHANGE_VECTOR, None)
             if not last_change_vector:
                 raise InvalidOperationException("Document must have a @change-vector field")
+            projection = (
+                metadata.get(constants.Documents.Metadata.PROJECTION)
+                if constants.Documents.Metadata.PROJECTION in metadata
+                else False
+            )
+
             self._logger.info(
                 "Got {0} (change vector: [{1}], size {2}".format(document_id, last_change_vector, len(item["Data"]))
             )
+
+            instance = None
+            if item.get("Exception") is None:
+                if isinstance(self._object_type, dict):
+                    instance = cur_doc
+                else:
+                    # todo: subscription revisions
+                    instance = EntityToJson.convert_to_entity_static(
+                        cur_doc,
+                        self._object_type,
+                        self._store.conventions,
+                        self._store.events,
+                        nested_object_types=self._nested_object_type,
+                    )
+                    # todo: generate_entity_id_on_the_client
 
             self.items.append(
                 _SubscriptionBatchItem(
@@ -453,7 +471,7 @@ class SubscriptionBatch:
                     document_id=document_id,
                     raw_result=item["Data"],
                     raw_metadata=metadata,
-                    result=entity,
+                    result=instance,
                     exception_message=item.get("Exception", None),
                 )
             )

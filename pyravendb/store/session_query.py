@@ -6,7 +6,7 @@ from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.commands.raven_commands import GetFacetsCommand
 from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType, FacetQuery
-from pyravendb.store.tokens.query_token import (
+from pyravendb.documents.session.tokens.query_token import (
     CompareExchangeValueIncludesToken,
     TimeSeriesIncludesToken,
     CounterIncludesToken,
@@ -1122,7 +1122,7 @@ class Query(object):
         )
         self.session.register_counters(response_counter_includes, response_counter_includes_names)
         for result in response_results:
-            (entity, metadata, original_document,) = Utils.convert_to_entity(
+            (entity, metadata, original_document,) = self.session.entity_to_json.convert_to_entity(
                 result,
                 self.object_type,
                 self.session.conventions,

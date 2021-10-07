@@ -20,6 +20,7 @@ class DocumentStore(object):
                 OR      tuple  - ("/path/to/cert.pem")
                 OR      tuple  - ("/path/to/cert.crt", "/path/to/cert.key")
         """
+        self.__identifier = None
         if not isinstance(urls, list):
             urls = [urls]
         self.urls = urls
@@ -70,6 +71,22 @@ class DocumentStore(object):
         if not self._operations_executor:
             self._operations_executor = OperationExecutor(self)
         return self._operations_executor
+
+    @property
+    def identifier(self) -> str:
+        if self.__identifier is not None:
+            return self.__identifier
+
+        if self.urls is None:
+            return None
+
+        if self.database is not None:
+            return str.join(",", self.urls) + f" (DB: {self.database})"
+        return str.join(",", self.urls)
+
+    @identifier.setter
+    def identifier(self, identifier: str) -> None:
+        self.__identifier = identifier
 
     def __enter__(self):
         return self

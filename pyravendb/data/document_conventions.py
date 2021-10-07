@@ -1,16 +1,24 @@
+from typing import Union, Callable
+
 import pyravendb.json.metadata_as_dictionary
 from pyravendb.data.indexes import SortOptions
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
+
+from pyravendb.documents.conventions.conventions import ShouldIgnoreEntityChanges
 from pyravendb.tools.utils import Utils
 from enum import Enum
 import inflect
+import inspect
+
 
 inflect.def_classical["names"] = False
 inflector = inflect.engine()
 
 
 class DocumentConventions(object):
+    __cached_default_type_collection_names: dict[type, str] = {}
+
     def __init__(self, **kwargs):
         self.max_number_of_request_per_session = kwargs.get("max_number_of_request_per_session", 30)
         self.max_ids_to_catch = kwargs.get("max_ids_to_catch", 32)
@@ -28,13 +36,65 @@ class DocumentConventions(object):
         # with the object type that you want to map and a function(key, value) key will be the name of the property
         # the mappers will be used in json.decode
         self._mappers = kwargs.get("mappers", {})
+
+        self.__list_of_registered_id_conventions: list[tuple[type, Callable[[str, object], str]]] = []
+
         self._frozen = False
+
+        self.document_id_generator: Union[None, Callable[[str, object], str]] = None
+
+        self.__find_collection_name: Callable[[type], str] = kwargs.get(
+            "find_collection_name", self.default_get_collection_name
+        )
+        self.__find_python_class_name: Callable[[type], str] = kwargs.get(
+            "find_python_class_name", lambda object_type: f"{object_type.__module__}.{object_type.__name__}"
+        )
+        self.__should_ignore_entity_changes: Union[None, ShouldIgnoreEntityChanges] = None
+
+        self.throw_if_query_page_size_is_not_set: bool = False
+
+        # Timeouts
+        self.request_timeout: timedelta = timedelta.min
+        self.first_broadcast_attempt_timeout = timedelta(seconds=5)
+        self.second_broadcast_attempt_timeout = timedelta(seconds=30)
+        self.wait_for_indexes_after_save_changes_timeout = timedelta(seconds=15)
+        self.wait_for_replication_after_save_changes_timeout = timedelta(seconds=15)
+        self.wait_for_non_stale_results_timeout = timedelta(seconds=15)
+
+        self.__send_application_identifier = True
 
     def freeze(self):
         self._frozen = True
 
     def is_frozen(self):
         return self._frozen
+
+    @property
+    def find_collection_name(self) -> Callable[[type], str]:
+        return self.__find_collection_name
+
+    @find_collection_name.setter
+    def find_collection_name(self, value) -> None:
+        self.__assert_not_frozen()
+        self.__find_collection_name = value
+
+    @property
+    def find_python_class_name(self) -> Callable[[type], str]:
+        return self.__find_python_class_name
+
+    @find_python_class_name.setter
+    def find_python_class_name(self, value) -> None:
+        self.__assert_not_frozen()
+        self.__find_python_class_name = value
+
+    @property
+    def should_ignore_entity_changes(self) -> ShouldIgnoreEntityChanges:
+        return self.__should_ignore_entity_changes
+
+    @should_ignore_entity_changes.setter
+    def should_ignore_entity_changes(self, value: ShouldIgnoreEntityChanges) -> None:
+        self.__assert_not_frozen()
+        self.__should_ignore_entity_changes = value
 
     @property
     def mappers(self):
@@ -97,6 +157,40 @@ class DocumentConventions(object):
 
         return existing
 
+    def get_collection_name(self, entity_or_type: Union[type, object]) -> str:
+        if not entity_or_type:
+            return None
+        object_type = type(entity_or_type) if not isinstance(entity_or_type, type) else entity_or_type
+        collection_name = self.__find_collection_name(object_type)
+        if collection_name:
+            return collection_name
+
+        return self.default_get_collection_name(object_type)
+
+    def generate_document_id(self, database_name: str, entity: object) -> str:
+        object_type = type(entity)
+        for list_of_registered_id_convention in self.__list_of_registered_id_conventions:
+            return list_of_registered_id_convention[1](database_name, entity)
+        return self.document_id_generator(database_name, entity)
+
+    @staticmethod
+    def default_get_collection_name(object_type: type) -> str:
+        result = DocumentConventions.__cached_default_type_collection_names.get(object_type)
+        if result:
+            return result
+        # we want to reject queries and other operations on abstract types, because you usually
+        # want to use them for polymorphic queries, and that require the conventions to be
+        # applied properly, so we reject the behavior and hint to the user explicitly
+        if inspect.isabstract(object_type):
+            raise ValueError(
+                f"Cannot find collection name for abstract class {object_type}, "
+                f"only concrete class are supported. "
+                f"Did you forget to customize conventions.find_collection_name?"
+            )
+        result = inflector.plural(str(object_type))
+        DocumentConventions.__cached_default_type_collection_names[object_type] = result
+        return result
+
     @staticmethod
     def try_get_type_from_metadata(metadata):
         if "Raven-Python-Type" in metadata:
@@ -127,3 +221,9 @@ class DocumentConventions(object):
             field_name = "{0}_D_Range".format(field_name)
 
         return field_name
+
+    def __assert_not_frozen(self) -> None:
+        if self._frozen:
+            raise RuntimeError(
+                "Conventions has been frozen after documentStore.initialize()" " and no changes can be applied to them"
+            )

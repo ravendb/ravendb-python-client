@@ -43,6 +43,12 @@ class MetadataAsDictionary:
     def has_parent(self):
         return self._parent is not None
 
+    @staticmethod
+    def materialize_from_json(metadata: dict):
+        result: MetadataAsDictionary = MetadataAsDictionary(None)
+        result._initialize(metadata)
+        return result
+
     def _initialize(self, metadata_obj):
         # assign dictionary
         if isinstance(metadata_obj, dict):
@@ -61,7 +67,7 @@ class MetadataAsDictionary:
 
         return self._metadata
 
-    def _convert_value(self, key, value):
+    def _convert_value(self, key: str, value):
         if isinstance(value, (int, str, bool, float, type(None))):
             return value
         if hasattr(value, "__iter__") and type(value) is not dict:  # some collection

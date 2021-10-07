@@ -1,28 +1,26 @@
 import pyravendb.tools.utils
 
 import pyravendb.constants as constants
+from pyravendb.documents.session.document_info import DocumentInfo
+from pyravendb.documents.session.session import DocumentsChanges
 from pyravendb.tools.utils import Utils
 
 
 class JsonOperation:
     @staticmethod
-    def entity_changed(new_obj, document_info, changes, default_json):
-        doc_changes = list() if changes is not None else None
-        if not document_info.get("is_new_document") and document_info.get("entity"):
-            original_dict = Utils.entity_to_dict(document_info.get("original_value"), default_json)
-            original_dict.update({"@metadata": document_info.get("metadata")})
+    def entity_changed(new_obj: dict, document_info: DocumentInfo, changes: dict[str, list[DocumentsChanges]]) -> bool:
+        doc_changes = [] if changes is not None else None
+
+        if not document_info.new_document and document_info.entity:
             return JsonOperation.compare_json(
-                "",
-                document_info.get("key"),
-                original_dict,
-                new_obj,
-                changes,
-                doc_changes,
+                "", document_info.key, document_info.document, new_obj, changes, doc_changes
             )
+
         if changes is None:
             return True
-        JsonOperation.new_change(None, None, None, None, doc_changes, "document_added")
-        changes.update({document_info["key"]: doc_changes})
+
+        JsonOperation.new_change(None, None, None, None, doc_changes, DocumentsChanges.ChangeType.DOCUMENT_ADDED)
+        changes.update({document_info.key: doc_changes})
         return True
 
     @staticmethod
@@ -37,7 +35,14 @@ class JsonOperation:
         doc_changes.append(changes)
 
     @staticmethod
-    def compare_json(field_path, key, original_json, new_json, changes, doc_changes):
+    def compare_json(
+        field_path: str,
+        key: str,
+        original_json: dict,
+        new_json: dict,
+        changes: dict[str, list[DocumentsChanges]],
+        doc_changes: list[DocumentsChanges],
+    ) -> bool:
         old_json_props = set(original_json.keys())
         new_json_props = set(new_json.keys())
 
@@ -47,7 +52,9 @@ class JsonOperation:
         for field in removed_fields:
             if changes is None:
                 return True
-            JsonOperation.new_change(field_path, field, None, None, doc_changes, "removed_field")
+            JsonOperation.new_change(
+                field_path, field, None, None, doc_changes, DocumentsChanges.ChangeType.REMOVED_FIELD
+            )
 
         for prop in new_json_props:
             if (
@@ -61,7 +68,9 @@ class JsonOperation:
             if prop in new_fields:
                 if changes is None:
                     return True
-                JsonOperation.new_change(field_path, prop, new_json[prop], None, doc_changes, "new_field")
+                JsonOperation.new_change(
+                    field_path, prop, new_json[prop], None, doc_changes, DocumentsChanges.ChangeType.NEW_FIELD
+                )
                 continue
 
             new_prop = new_json[prop]
@@ -72,20 +81,26 @@ class JsonOperation:
                     continue
                 if changes is None:
                     return True
-                JsonOperation.new_change(field_path, prop, new_prop, old_prop, doc_changes, "field_changed")
+                JsonOperation.new_change(
+                    field_path, prop, new_prop, old_prop, doc_changes, DocumentsChanges.ChangeType.FIELD_CHANGED
+                )
 
             elif new_prop is None:
                 if old_prop is None:
                     continue
                 if changes is None:
                     return True
-                JsonOperation.new_change(field_path, prop, None, old_prop, doc_changes, "field_changed")
+                JsonOperation.new_change(
+                    field_path, prop, None, old_prop, doc_changes, DocumentsChanges.ChangeType.FIELD_CHANGED
+                )
 
             elif isinstance(new_prop, (list, set)):
                 if not isinstance(old_prop, (list, set)):
                     if changes is None:
                         return True
-                    JsonOperation.new_change(field_path, prop, new_prop, old_prop, doc_changes, "field_changed")
+                    JsonOperation.new_change(
+                        field_path, prop, new_prop, old_prop, doc_changes, DocumentsChanges.ChangeType.FIELD_CHANGED
+                    )
                     continue
                 changed = JsonOperation.compare_json_array(
                     JsonOperation.field_path_combine(field_path, prop),
@@ -102,7 +117,9 @@ class JsonOperation:
                 if old_prop is None:
                     if changes is None:
                         return True
-                    JsonOperation.new_change(field_path, prop, new_prop, None, doc_changes, "field_changed")
+                    JsonOperation.new_change(
+                        field_path, prop, new_prop, None, doc_changes, DocumentsChanges.ChangeType.FIELD_CHANGED
+                    )
                 changed = JsonOperation.compare_json(
                     JsonOperation.field_path_combine(field_path, prop), key, old_prop, new_prop, changes, doc_changes
                 )
@@ -126,7 +143,7 @@ class JsonOperation:
         return f"{field_path}[{position}]"
 
     @staticmethod
-    def compare_json_array(field_path, key, old_collection, new_collection, changes, doc_changes, prop_name):
+    def compare_json_array(field_path: str, key: str, old_collection, new_collection, changes, doc_changes, prop_name):
         # if we don't care about the changes
         if len(old_collection) != len(new_collection) and changes is None:
             return True
@@ -146,7 +163,7 @@ class JsonOperation:
                             new_collection_item,
                             old_collection_item,
                             doc_changes,
-                            "array_value_added",
+                            DocumentsChanges.ChangeType.ARRAY_VALUE_ADDED,
                         )
             elif isinstance(old_collection_item, (list, set)):
                 if isinstance(new_collection_item, (list, set)):
@@ -168,7 +185,7 @@ class JsonOperation:
                             new_collection_item,
                             old_collection_item,
                             doc_changes,
-                            "array_value_changed",
+                            DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED,
                         )
             elif isinstance(new_collection_item, (int, float, bool, str)):
                 if not str(old_collection_item) == str(new_collection_item):
@@ -179,7 +196,7 @@ class JsonOperation:
                             new_collection_item,
                             old_collection_item,
                             doc_changes,
-                            "array_value_changed",
+                            DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED,
                         )
                     changed = True
             else:
@@ -201,7 +218,7 @@ class JsonOperation:
                             new_collection_item,
                             old_collection_item,
                             doc_changes,
-                            "array_value_added",
+                            DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED,
                         )
             position += 1
         if changes is None:
@@ -211,13 +228,25 @@ class JsonOperation:
         while position < len(old_collection):
             old_collection_item = old_collection[position]
             JsonOperation.new_change(
-                field_path, prop_name, None, old_collection_item, doc_changes, "array_value_removed"
+                field_path,
+                prop_name,
+                None,
+                old_collection_item,
+                doc_changes,
+                DocumentsChanges.ChangeType.ARRAY_VALUE_REMOVED,
             )
             position += 1
 
         while position < len(new_collection):
             new_collection_item = new_collection[position]
-            JsonOperation.new_change(field_path, prop_name, new_collection_item, None, doc_changes, "array_value_added")
+            JsonOperation.new_change(
+                field_path,
+                prop_name,
+                new_collection_item,
+                None,
+                doc_changes,
+                DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED,
+            )
             position += 1
 
         return changed
