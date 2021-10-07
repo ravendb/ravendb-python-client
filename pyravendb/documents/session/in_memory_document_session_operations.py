@@ -412,7 +412,7 @@ class InMemoryDocumentSessionOperations:
         )
         self.__operation_executor: OperationExecutor = None
 
-        self._pending_lazy_operations = []
+        self._pending_lazy_operations: list[LazyOperation] = []
         self._on_evaluate_lazy = {}
 
         self.__no_tracking = options.no_tracking

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import time
 import uuid
 from typing import Union, Callable, Optional
@@ -8,6 +9,8 @@ from typing import Union, Callable, Optional
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.commands.commands import HeadDocumentCommand, GetDocumentsCommand
+from pyravendb.documents.commands.multi_get import GetRequest
+from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
 from pyravendb.documents.operations.operations import BatchOperation
 from pyravendb.documents.session.cluster_transaction_operation import (
     ClusterTransactionOperationsBase,
@@ -15,6 +18,8 @@ from pyravendb.documents.session.cluster_transaction_operation import (
 )
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
+from pyravendb.documents.session.operations.operations import MultiGetOperation
 from pyravendb.documents.session.session import SessionOptions, ResponseTimeInformation
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.store.document_store import DocumentStore
@@ -133,9 +138,46 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return response_time_duration
 
-    def __execute_lazy_operations_single_step(self):
-        # todo: multi get operation
-        multi_get_operation = None
+    def __execute_lazy_operations_single_step(
+        self, response_time_information: ResponseTimeInformation, get_requests: list[GetRequest], sw: datetime.datetime
+    ) -> bool:
+        multi_get_operation = MultiGetOperation(self)
+        with multi_get_operation.create_request(get_requests) as multi_get_command:
+            self.request_executor.execute(multi_get_command, self._session_info)
+
+            responses = multi_get_command.result
+
+            if not multi_get_command.aggressively_cached:
+                self.increment_requests_count()
+
+            for i in range(len(self._pending_lazy_operations)):
+                response = responses[i]
+
+                temp_req_time = response.headers.get(constants.Headers.REQUEST_TIME)
+                response.elapsed = datetime.datetime.now() - sw
+                total_time = temp_req_time if temp_req_time is not None else 0
+
+                time_item = ResponseTimeInformation.ResponseTimeItem(get_requests[i].url_and_query, total_time)
+
+                response_time_information.duration_breakdown.append(time_item)
+
+                if response.request_has_errors:
+                    raise RuntimeError(
+                        f"Got an error from server, status code: {response.status_code}{os.linesep}{response.result}"
+                    )
+
+                self._pending_lazy_operations[i].handle_response(response)
+                if self._pending_lazy_operations[i].requires_retry:
+                    return True
+
+            return False
+
+    def include(self, path: str) -> LoaderWithInclude:
+        return MultiLoaderWithInclude(self).include(path)
+
+    def add_lazy_operation(self, object_type, operation: LazyOperation, on_eval: Callable[[object], None]):
+        self._pending_lazy_operations.append(operation)
+        lazy_value = Lazy
 
     class _Advanced:
         def __init__(self, session: DocumentSession):

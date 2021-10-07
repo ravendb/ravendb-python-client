@@ -89,7 +89,7 @@ class DocumentsChanges:
 
 class ResponseTimeInformation:
     class ResponseTimeItem:
-        def __init__(self, url: str, duration: datetime.timedelta):
+        def __init__(self, url: str = None, duration: datetime.timedelta = None):
             self.url = url
             self.duration = duration
 

@@ -4,6 +4,7 @@ import requests
 
 from pyravendb.commands.raven_commands import QueryCommand
 from pyravendb.data.query import IndexQuery
+from pyravendb.documents.commands.multi_get import GetRequest, MultiGetCommand
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session.tokens import FieldsToFetchToken
 
@@ -12,7 +13,7 @@ class MultiGetOperation:
     def __init__(self, session: InMemoryDocumentSessionOperations):
         self.__session = session
 
-    def create_request(self, requests: list[requests.Request]):
+    def create_request(self, requests: list[GetRequest]):
         return MultiGetCommand(self.__session.request_executor, requests)
 
     def set_result(self, result: dict) -> None:

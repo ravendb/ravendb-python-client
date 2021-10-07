@@ -5,7 +5,9 @@ from typing import Union
 
 import requests
 
+from pyravendb import constants
 from pyravendb.connection.requests_executor import RequestsExecutor
+from pyravendb.extensions.http_extensions import HttpExtensions
 from pyravendb.http.http import AggressiveCacheMode, AggressiveCacheOptions
 from pyravendb.http.http_cache import HttpCache, ReleaseCacheItem
 from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType
@@ -61,7 +63,7 @@ class GetResponse:
 class Cached:
     def __init__(self, size: int):
         self.__size = size
-        self.__values: Union[None, list[tuple[ReleaseCacheItem, str]]] = None
+        self.values: Union[None, list[tuple[ReleaseCacheItem, str]]] = None
 
     def __enter__(self):
         return self
@@ -70,14 +72,14 @@ class Cached:
         self.close()
 
     def close(self):
-        if not self.__values:
+        if not self.values:
             return
 
-        for value in self.__values:
+        for value in self.values:
             if value is not None:
                 value[0].close()
 
-        self.__values = None
+        self.values = None
 
 
 class MultiGetCommand(RavenCommand):
@@ -167,10 +169,107 @@ class MultiGetCommand(RavenCommand):
         for command in self.__commands:
             cache_key = self.__get_cache_key(command)[0]
             cached_item, change_vector, cached_ref = self.__http_cache.get(cache_key, "", "")
+            cached_item: ReleaseCacheItem
+            if cached_item.item is None:
+                try:
+                    read_all_from_cache = False
+                    continue
+                finally:
+                    cached_item.close()
+
+            if read_all_from_cache and (
+                track_changes
+                and cached_item.might_have_been_modified
+                or cached_item.age > options.duration
+                or not command.can_cache_aggressively
+            ):
+                read_all_from_cache = False
+
+            command.headers[constants.Headers.IF_NONE_MATCH] = change_vector
+            if self.__cached is None:
+                self.__cached = Cached(len(self.__commands))
+
+            self.__cached.values[self.__commands.index(command)] = (cached_item, cached_ref)
+
+        if read_all_from_cache:
+            with self.__cached as context:
+                self.result = []
+                for i in range(len(self.__commands)):
+                    item_and_cached = self.__cached.values[i]
+                    get_response = GetResponse()
+                    get_response.result = item_and_cached[1]
+                    get_response.status_code = http.HTTPStatus.NOT_MODIFIED
+
+                    self.result.append(get_response)
+
+            self.__cached = None
+
+        return read_all_from_cache
 
     def __get_cache_key(self, command: GetRequest) -> (str, str):
         req_url = self.__base_url + command.url_and_query
         return command.method + "-" + req_url if command.method else req_url, req_url
+
+    # todo: it's gonna be tough... make sure you parse json to get responses correctly down there
+    def set_response_raw(self, response: requests.Response, stream: bytes) -> None:
+        try:
+            try:
+                response = response.json()
+                if "Results" not in response:
+                    self._throw_invalid_response()
+
+                i = 0
+                self.result = []
+
+                for get_response in self.read_responses(response):
+                    command = self.__commands[i]
+                    self.__maybe_set_cache(get_response, command)
+
+                    if self.__cached is not None and get_response.status_code == http.HTTPStatus.NOT_MODIFIED:
+                        cloned_response = GetResponse()
+                        cloned_response.result = self.__cached.values[i][1]
+                        cloned_response.status_code = http.HTTPStatus.NOT_MODIFIED
+                        self.result.append(cloned_response)
+                    else:
+                        self.result.append(get_response)
+
+                    i += 1
+            finally:
+                if self.__cached is not None:
+                    self.__cached.close()
+        except Exception as e:
+            self._throw_invalid_response(e)
+
+    def __maybe_set_cache(self, get_response: GetResponse, command: GetRequest):
+        if get_response.status_code == http.HTTPStatus.NOT_MODIFIED:
+            return
+
+        cache_key = self.__get_cache_key(command)[0]
+
+        result = get_response.result
+        if result == None:
+            self.__http_cache.set_not_found(cache_key, self.aggressively_cached)
+            return
+
+        change_vector = HttpExtensions.get_etag_header(get_response.headers)
+        if change_vector is None:
+            return
+
+        self.__http_cache.set(cache_key, change_vector, result)
+
+    @staticmethod
+    def read_responses(response_json: dict) -> list[GetResponse]:
+        # todo: parse it somehow
+        pass
+
+    @staticmethod
+    def read_response(response_json: dict) -> GetResponse:
+        # todo: part 2 of parsing
+        pass
+
+    @property
+    def is_read_request(self) -> bool:
+        return False
 
     def close_cache(self):
         if self.__cached is not None:
