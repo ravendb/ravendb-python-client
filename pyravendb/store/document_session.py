@@ -812,7 +812,7 @@ class DocumentSession(object):
 
     def increment_requests_count(self):
         self._number_of_requests_in_session += 1
-        if self._number_of_requests_in_session > self.conventions.max_number_of_request_per_session:
+        if self._number_of_requests_in_session > self.conventions.max_number_of_requests_per_session:
             raise exceptions.InvalidOperationException(
                 "The maximum number of requests ({0}) allowed for this session has been reached. Raven limits the number \
                 of remote calls that a session is allowed to make as an early warning system. Sessions are expected to \
@@ -822,7 +822,7 @@ class DocumentSession(object):
                 that you'll look into reducing the number of remote calls first, \
                 since that will speed up your application significantly and result in a\
                 more responsive application.".format(
-                    self.conventions.max_number_of_request_per_session
+                    self.conventions.max_number_of_requests_per_session
                 )
             )
 

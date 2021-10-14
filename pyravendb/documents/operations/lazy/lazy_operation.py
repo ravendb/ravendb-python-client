@@ -1,21 +1,32 @@
-from typing import Callable
+from abc import abstractmethod
+from typing import Callable, Union
 
 import requests
 
+from pyravendb.documents.commands.multi_get import GetRequest, GetResponse
 from pyravendb.documents.queries.query import QueryResult
 
 
 class LazyOperation:
-    def __init__(
-        self,
-        create_request: requests.Request,
-        result: object,
-        query_result: QueryResult,
-        is_requires_retry: bool,
-        handle_response: Callable[[requests.Response], None] = lambda get_response: None,
-    ):
-        self.create_request = create_request
-        self.result = result
-        self.query_result = query_result
-        self.is_requires_retry = is_requires_retry
-        self.handle_response = handle_response
+    @abstractmethod
+    @property
+    def query_result(self) -> QueryResult:
+        pass
+
+    @abstractmethod
+    @property
+    def result(self) -> object:
+        pass
+
+    @abstractmethod
+    @property
+    def is_requires_retry(self) -> bool:
+        pass
+
+    @abstractmethod
+    def handle_response(self, response: GetResponse) -> None:
+        pass
+
+    @abstractmethod
+    def create_request(self) -> GetRequest:
+        pass

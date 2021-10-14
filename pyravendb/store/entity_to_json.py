@@ -102,7 +102,9 @@ class EntityToJson:
             json_node.update({constants.Documents.Metadata.KEY: metadata_node})
 
     @staticmethod
-    def convert_to_entity_static(document, object_type, conventions, events, nested_object_types=None):
+    def convert_to_entity_static(
+        document: dict, object_type: type, conventions: DocumentConventions, events, nested_object_types=None
+    ):
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)

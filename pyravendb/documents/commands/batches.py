@@ -340,6 +340,52 @@ class BatchPatchCommandData(CommandData):
         }
 
 
+class PatchCommandData(CommandData):
+    def __init__(
+        self, key: str, change_vector: str, patch: PatchRequest, patch_if_missing: Optional[PatchRequest] = None
+    ):
+        super().__init__(key, None, change_vector, CommandType.PATCH)
+        if not key:
+            raise ValueError("Key cannot be None")
+
+        if not patch:
+            raise ValueError("Patch cannot be None")
+
+        self.__key = key
+        self.create_if_missing: Union[None, dict] = None
+        self.__change_vector = change_vector
+        self.__patch = patch
+        self.__patch_if_missing = patch_if_missing
+        self.return_document: Union[None, bool] = None
+
+        def __consumer(session: InMemoryDocumentSessionOperations) -> None:
+            self.return_document = session.is_loaded(key)
+
+        self.__on_before_save_changes = __consumer
+
+    @property
+    def patch(self):
+        return self.__patch
+
+    @property
+    def patch_if_missing(self):
+        return self.__patch_if_missing
+
+    @property
+    def on_before_save_changes(self):
+        return self.__on_before_save_changes
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        data = {"Id": self.key, "ChangeVector": self.change_vector, "Patch": self.patch.serialize(), "Type": "PATCH"}
+        if self.patch_if_missing:
+            data.update({"PatchIfMissing": self.patch_if_missing.serialize()})
+        if self.create_if_missing:
+            data.update({"CreateIfMissing": self.create_if_missing})
+        if self.return_document:
+            data.update({"ReturnDocument": self.return_document})
+        return data
+
+
 class PutCompareExchangeCommandData(CommandData):
     def __init__(self, key: str, value: dict, index: int):
         super(PutCompareExchangeCommandData, self).__init__(key=key, command_type=CommandType.COMPARE_EXCHANGE_PUT)
@@ -365,6 +411,14 @@ class DeleteCompareExchangeCommandData(CommandData):
 
     def serialize(self, conventions: DocumentConventions) -> dict:
         return {"Id": self.key, "Index": self.index, "Type": CommandType.COMPARE_EXCHANGE_DELETE}
+
+    @property
+    def key(self):
+        return self._key
+
+    @key.setter
+    def key(self, value):
+        self._key = value
 
 
 # ------------ OPTIONS ------------

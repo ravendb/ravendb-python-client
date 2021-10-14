@@ -64,11 +64,14 @@ class HttpCache:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__items.clear()
-        self.__items = None
+        self.close()
 
     def __len__(self):
         return len(self.__items)
+
+    def close(self):
+        self.__items.clear()
+        self.__items = None
 
     def clear(self) -> None:
         self.__items.clear()
@@ -81,16 +84,14 @@ class HttpCache:
         http_cache_item.generation = self.generation
         self.__items[url] = http_cache_item
 
-    def get(self, url: str, change_vector: str, response: str) -> (ReleaseCacheItem, str, str):
+    def get(self, url: str) -> (ReleaseCacheItem, str, str):
         item = self.__items.get(url, None)
         if item is not None:
             change_vector = item.change_vector
             response = item.payload
             return ReleaseCacheItem(item), change_vector, response
 
-        change_vector = None
-        response = None
-        return ReleaseCacheItem()
+        return ReleaseCacheItem(), None, None
 
     def set_not_found(self, url: str, aggressively_cached: bool) -> None:
         http_cache_item = HttpCacheItem()

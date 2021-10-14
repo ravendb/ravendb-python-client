@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import os
 import time
 import uuid
@@ -8,10 +9,14 @@ from typing import Union, Callable, Optional
 
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.documents.commands.batches import PatchCommandData, CommandType
 from pyravendb.documents.commands.commands import HeadDocumentCommand, GetDocumentsCommand
 from pyravendb.documents.commands.multi_get import GetRequest
+from pyravendb.documents.documents import Lazy, IdTypeAndName
+from pyravendb.documents.indexes.indexes import AbstractCommonApiForIndexes
 from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
-from pyravendb.documents.operations.operations import BatchOperation
+from pyravendb.documents.operations.operations import BatchOperation, PatchRequest
 from pyravendb.documents.session.cluster_transaction_operation import (
     ClusterTransactionOperationsBase,
     ClusterTransactionOperations,
@@ -19,10 +24,15 @@ from pyravendb.documents.session.cluster_transaction_operation import (
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
-from pyravendb.documents.session.operations.operations import MultiGetOperation
-from pyravendb.documents.session.session import SessionOptions, ResponseTimeInformation
+from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
+from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
+from pyravendb.documents.session.session import SessionOptions, ResponseTimeInformation, JavaScriptArray, JavaScriptMap
 from pyravendb.http.raven_command import RavenCommand
+from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
+from pyravendb.loaders.include_builder import IncludeBuilder
+from pyravendb.raven_operations.load_operation import LoadOperation
 from pyravendb.store.document_store import DocumentStore
+from pyravendb.tools.utils import Utils
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):
@@ -72,31 +82,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.request_executor.execute(command, self._session_info)
             self.update_session_after_save_changes(command.result)
             save_changes_operation.set_result(command.result)
-
-    def exists(self, key: str) -> bool:
-        if key is None:
-            raise ValueError("Key cannot be None")
-        if key in self._known_missing_ids:
-            return False
-
-        if self.documents_by_id.get(key) is not None:
-            return True
-
-        command = HeadDocumentCommand(key, None)
-        self.request_executor.execute(command, self._session_info)
-        return command.result is not None
-
-    def refresh(self, entity: object) -> None:
-        document_info = self.documents_by_entity.get(entity)
-        if document_info == None:
-            raise ValueError("Cannot refresh a transient instance")
-        self.increment_requests_count()
-
-        command = GetDocumentsCommand(
-            options=GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
-        )
-        self.request_executor.execute(command, self._session_info)
-        self._refresh_internal(entity, command, document_info)
 
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():
@@ -177,82 +162,392 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     def add_lazy_operation(self, object_type, operation: LazyOperation, on_eval: Callable[[object], None]):
         self._pending_lazy_operations.append(operation)
-        lazy_value = Lazy
+
+        def __supplier():
+            self.execute_all_pending_lazy_operations()
+            return self._get_operation_result(object_type, operation.result)
+
+        lazy_value = Lazy(object_type, __supplier)
+
+        if on_eval is not None:
+            self._on_evaluate_lazy[operation] = lambda the_result: on_eval(
+                self._get_operation_result(object_type, the_result)
+            )
+
+        return lazy_value
+
+    def add_lazy_count_operation(self, operation: LazyOperation):
+        self._pending_lazy_operations.append(operation)
+
+        def __supplier():
+            self.execute_all_pending_lazy_operations()
+            return operation.query_result.total_results
+
+        return Lazy(int, __supplier)
+
+    def lazy_load_internal(
+        self, object_type: type, keys: list[str], includes: list[str], on_eval: Callable[[dict[str, object]], None]
+    ) -> Lazy:
+        if self.check_if_id_already_included(keys, includes):
+            return Lazy(dict, lambda: self.load(object_type, *keys))
+
+        load_operation = LoadOperation(self).by_keys(keys).with_includes(includes)
+        lazy_op = LazyLoadOperation(object_type, self, load_operation).by_keys(*keys).with_includes(*includes)
+
+    def load(self, object_type: type, *keys: str, includes: Callable[[IncludeBuilder], None] = None):
+        if keys is None:
+            raise ValueError("Keys cannot be None")
+        if includes is None:
+            load_operation = LoadOperation(self)
+            self.load_internal_stream(list(keys), load_operation, None)
+            return load_operation.get_documents(object_type)
+        include_builder = IncludeBuilder(self.conventions)
+        includes(include_builder)
+
+        time_series_includes = (
+            [include_builder.time_series_to_include] if include_builder.time_series_to_include is not None else None
+        )
+
+        compare_exchange_values_to_include = (
+            include_builder.compare_exchange_values_to_include
+            if include_builder.compare_exchange_values_to_include is not None
+            else None
+        )
+
+        return self.load_internal(
+            object_type,
+            list(keys),
+            include_builder.documents_to_include if include_builder.documents_to_include else None,
+            include_builder.counters_to_include if include_builder.counters_to_include else None,
+            include_builder.is_all_counters,
+            time_series_includes,
+            compare_exchange_values_to_include,
+        )
+
+    def load_internal(
+        self,
+        object_type: type,
+        keys: list[str],
+        includes: list[str],
+        counter_includes: list[str] = None,
+        include_all_counters: bool = False,
+        time_series_includes: list[TimeSeriesRange] = None,
+        compare_exchange_value_includes: list[str] = None,
+    ) -> dict[str, object]:
+        if not keys:
+            raise ValueError("Keys cannot be None")
+        load_operation = LoadOperation(self)
+        load_operation.by_keys(keys)
+        load_operation.with_includes(includes)
+
+        if include_all_counters:
+            load_operation.with_all_counters()
+        else:
+            load_operation.with_counters(counter_includes)
+
+        load_operation.with_time_series(time_series_includes)
+        load_operation.with_compare_exchange(compare_exchange_value_includes)
+
+        command = load_operation.create_request()
+        if command is not None:
+            self.request_executor.execute(command, self._session_info)
+            load_operation.set_result(command.result)
+
+        return load_operation.get_documents(object_type)
+
+    def load_internal_stream(self, keys: list[str], operation: LoadOperation, stream: bytes) -> None:
+        operation.by_keys(keys)
+
+        command = operation.create_request()
+
+        if command:
+            self._request_executor.execute(command, self._session_info)
+
+            if stream:
+                try:
+                    result = command.result
+                    stream_to_dict = json.loads(stream.decode("utf-8"))
+                    result.__dict__.update(stream_to_dict)
+                except IOError as e:
+                    raise RuntimeError(f"Unable to serialize returned value into stream {e.args[0]}", e)
+            else:
+                operation.set_result(command.result)
 
     class _Advanced:
         def __init__(self, session: DocumentSession):
             self.__session = session
+            self.__vals_count = 0
+            self.__custom_count = 0
 
-        def refresh(self, entity: object):
+        def refresh(self, entity: object) -> None:
+            document_info = self.__session.documents_by_entity.get(entity)
+            if document_info is None:
+                raise ValueError("Cannot refresh a transient instance")
+            self.__session.increment_requests_count()
+
+            command = GetDocumentsCommand(
+                options=GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
+            )
+            self.__session.request_executor.execute(command, self.__session._session_info)
+            self.__session._refresh_internal(entity, command, document_info)
+
+        def raw_query(self, object_type: type, query: str):  # -> RawDocumentQuery:
             pass
 
-        def raw_query(self, object_type: type, query: str) -> RawDocumentQuery:
-            pass
-
-        def graph_query(self, object_type: type, query: str) -> GraphDocumentQuery:
+        def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
 
         def exists(self, key: str) -> bool:
-            pass
+            if key is None:
+                raise ValueError("Key cannot be None")
+            if key in self.__session._known_missing_ids:
+                return False
+
+            if self.__session.documents_by_id.get(key) is not None:
+                return True
+
+            command = HeadDocumentCommand(key, None)
+            self.__session.request_executor.execute(command, self.__session._session_info)
+            return command.result is not None
+
+        def __load_starting_with_internal(
+            self,
+            id_prefix: str,
+            operation: LoadStartingWithOperation,
+            stream: Union[None, bytes],
+            matches: str,
+            start: int,
+            page_size: int,
+            exclude: str,
+            start_after: str,
+        ) -> GetDocumentsCommand:
+            operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
+            command = operation.create_request()
+            if command is not None:
+                self.__session.request_executor.execute(command, self.__session._session_info)
+                if stream:
+                    try:
+                        result = command.result
+                        stream_to_dict = json.loads(stream.decode("utf-8"))
+                        result.__dict__.update(stream_to_dict)
+                    except IOError as e:
+                        raise RuntimeError(f"Unable to serialize returned value into stream {e.args[0]}", e)
+                else:
+                    operation.set_result(command.result)
+            return command
 
         def load_starting_with(
             self,
             object_type: type,
             id_prefix: str,
-            matches: str = None,
-            start: int = 0,
-            page_size: int = 25,
-            exclude: str = None,
-            start_after: str = None,
+            matches: str,
+            start: int,
+            page_size: int,
+            exclude: str,
+            start_after: str,
         ) -> object:
-            pass
+            load_starting_with_operation = LoadStartingWithOperation(self.__session)
+            self.__load_starting_with_internal(
+                id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
+            )
 
         def load_starting_with_into_stream(
             self,
             id_prefix: str,
-            output: iter,
+            output: bytes,
             matches: str = None,
             start: int = 0,
             page_size: int = 25,
             exclude: str = None,
             start_after: str = None,
-        ) -> None:
-            pass
+        ):
+            if not output:
+                raise ValueError("Output cannot be None")
+            if not id_prefix:
+                raise ValueError("Id prefix cannot be None")
+            self.__load_starting_with_internal(
+                id_prefix,
+                LoadStartingWithOperation(self.__session),
+                output,
+                matches,
+                start,
+                page_size,
+                exclude,
+                start_after,
+            )
 
-        def load_into_stream(self, ids: list[str], output: bytes) -> None:
-            pass
+        def load_into_stream(self, keys: list[str], output: bytes) -> None:
+            if keys is None:
+                raise ValueError("Keys cannot be None")
+
+            self.__session.load_internal_stream(keys, LoadOperation(self.__session), output)
+
+        def __try_merge_patches(self, key: str, patch_request: PatchRequest) -> bool:
+            command = self.__session.deferred_commands_map.get(IdTypeAndName.create(key, CommandType.PATCH, None))
+            if command is None:
+                return False
+
+            self.__session.deferred_commands.remove(command)
+            # We'll overwrite the deferredCommandsMap when calling Defer
+            # No need to call deferredCommandsMap.remove((id, CommandType.PATCH, null));
+
+            old_patch: PatchCommandData = command
+            new_script = old_patch.patch.script + "\n" + patch_request.script
+            new_vals = dict(old_patch.patch.values)
+
+            for key, value in patch_request.values.items():
+                new_vals[key] = value
+
+            new_patch_request = PatchRequest()
+            new_patch_request.script = new_script
+            new_patch_request.values = new_vals
+
+            self.__session.defer(PatchCommandData(key, None, new_patch_request, None))
+            return True
 
         def increment(self, key_or_entity: Union[object, str], path: str, value_to_add: object) -> None:
-            pass
+            if not isinstance(key_or_entity, str):
+                metadata = self.__session.get_metadata_for(key_or_entity)
+                key_or_entity = str(metadata.get(constants.Documents.Metadata.ID))
+            patch_request = PatchRequest()
+            variable = f"this.{path}"
+            value = f"args.val_{self.__vals_count}"
+            patch_request.script = f"{variable} = {variable} ? {variable} + {value} : {value} ;"
+            patch_request.values = {f"val_{self.__vals_count}": value_to_add}
+            self.__vals_count += 1
+            if not self.__try_merge_patches(key_or_entity, patch_request):
+                self.__session.defer(PatchCommandData(key_or_entity, None, patch_request, None))
 
         def patch(self, key_or_entity: Union[object, str], path: str, value: object) -> None:
-            pass
+            if not isinstance(key_or_entity, str):
+                metadata = self.__session.get_metadata_for(key_or_entity)
+                key_or_entity = metadata[constants.Documents.Metadata.ID]
+
+            patch_request = PatchRequest()
+            patch_request.script = f"this.{path} = args.val_ {self.__vals_count};"
+            patch_request.values = {f"val_{self.__vals_count}": value}
+
+            self.__vals_count += 1
+
+            if not self.__try_merge_patches(key_or_entity, patch_request):
+                self.__session.defer(PatchCommandData(key_or_entity, None, patch_request, None))
 
         def patch_array(
-            self, key_or_entity: Union[object, str], path_to_array: str, list_adder: Callable[[list], None]
+            self, key_or_entity: Union[object, str], path_to_array: str, array_adder: Callable[[JavaScriptArray], None]
         ) -> None:
-            pass
+            if not isinstance(key_or_entity, str):
+                metadata = self.__session.get_metadata_for(key_or_entity)
+                key_or_entity = str(metadata.get(constants.Documents.Metadata.ID))
+
+            script_array = JavaScriptArray(self.__custom_count, path_to_array)
+            self.__custom_count += 1
+
+            array_adder(script_array)
+
+            patch_request = PatchRequest()
+            patch_request.script = script_array.script
+            patch_request.values = script_array.parameters
+
+            if not self.__try_merge_patches(key_or_entity, patch_request):
+                self.__session.defer(PatchCommandData(key_or_entity, None, patch_request, None))
 
         def patch_object(
-            self, key_or_entity: Union[object, str], path_to_array: str, dictionary_adder: Callable[[dict], None]
+            self, key_or_entity: Union[object, str], path_to_object: str, dictionary_adder: Callable[[dict], None]
         ) -> None:
-            pass
+            if not isinstance(key_or_entity, str):
+                metadata = self.__session.get_metadata_for(key_or_entity)
+                key_or_entity = str(metadata.get(constants.Documents.Metadata.ID))
+
+            script_map = JavaScriptMap(self.__custom_count, path_to_object)
+            self.__custom_count += 1
+
+            patch_request = PatchRequest()
+            patch_request.script = script_map.script
+            patch_request.values = script_map.parameters
+
+            if not self.__try_merge_patches(key_or_entity, patch_request):
+                self.__session.defer(PatchCommandData(key_or_entity, None, patch_request, None))
 
         def add_or_patch(self, key: str, entity: object, path_to_object: str, value: object) -> None:
-            pass
+            patch_request = PatchRequest()
+            patch_request.script = f"this.{path_to_object} = args.val_{self.__vals_count}"
+            patch_request.values = {f"val_{self.__vals_count}": value}
+
+            collection_name = self.__session.request_executor.conventions.get_collection_name(entity)
+            python_type = self.__session.request_executor.conventions.get_python_class_name(type(entity))
+
+            metadata_as_dictionary = MetadataAsDictionary()
+            metadata_as_dictionary[constants.Documents.Metadata.COLLECTION] = collection_name
+            metadata_as_dictionary[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
+
+            document_info = DocumentInfo(key, collection=collection_name, metadata_instance=metadata_as_dictionary)
+
+            new_instance = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
+
+            self.__vals_count += 1
+
+            patch_command_data = PatchCommandData(key, None, patch_request)
+            patch_command_data.create_if_missing = new_instance
+            self.__session.defer(patch_command_data)
 
         def add_or_patch_array(
-            self, key: str, entity: object, path_to_object: str, list_adder: Callable[[list], None]
+            self, key: str, entity: object, path_to_array: str, list_adder: Callable[[JavaScriptArray], None]
         ) -> None:
-            pass
+            script_array = JavaScriptArray(self.__custom_count, path_to_array)
+            self.__custom_count += 1
+
+            list_adder(script_array)
+
+            patch_request = PatchRequest()
+            patch_request.script = script_array.script
+            patch_request.values = script_array.parameters
+
+            collection_name = self.__session.request_executor.conventions.get_collection_name(entity)
+            python_type = self.__session.request_executor.conventions.get_python_class_name(type(entity))
+
+            metadata_as_dictionary = MetadataAsDictionary()
+            metadata_as_dictionary[constants.Documents.Metadata.COLLECTION] = collection_name
+            metadata_as_dictionary[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
+
+            document_info = DocumentInfo(key, collection=collection_name, metadata_instance=metadata_as_dictionary)
+
+            new_instance = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
+
+            self.__vals_count += 1
+
+            patch_command_data = PatchCommandData(key, None, patch_request)
+            patch_command_data.create_if_missing = new_instance
+            self.__session.defer(patch_command_data)
 
         def add_or_increment(self, key: str, entity: object, path_to_object: str, val_to_add: object) -> None:
-            pass
+            variable = f"this.{path_to_object}"
+            value = f"args.val_{self.__vals_count}"
+
+            patch_request = PatchRequest()
+            patch_request.script = f"{variable} = {variable} ? {variable} + {value} : {value}"
+            patch_request.values = {f"val_{self.__vals_count}": val_to_add}
+
+            collection_name = self.__session.request_executor.conventions.get_collection_name(entity)
+            python_type = self.__session.request_executor.conventions.find_python_class_name(entity.__class__)
+
+            metadata_as_dictionary = MetadataAsDictionary()
+            metadata_as_dictionary[constants.Documents.Metadata.COLLECTION] = collection_name
+            metadata_as_dictionary[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
+
+            document_info = DocumentInfo(key, collection=collection_name, metadata_instance=metadata_as_dictionary)
+
+            new_instance = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
+
+            self.__vals_count += 1
+
+            patch_command_data = PatchCommandData(key, None, patch_request)
+            patch_command_data.create_if_missing = new_instance
+            self.__session.defer(patch_command_data)
 
         def stream(
             self,
-            query_or_raw_query: Union[RawDocumentQuery, DocumentQuery],
-            stream_query_stats: Optional[StreamQueryStatistics] = None,
+            query_or_raw_query,  # : Union[RawDocumentQuery, DocumentQuery],
+            stream_query_stats,  # : Optional[StreamQueryStatistics] = None,
         ) -> iter:
             pass
 
@@ -267,7 +562,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         ) -> iter:
             pass
 
-        def stream_into(self, query: Union[DocumentQuery, RawDocumentQuery], output: iter):
+        def stream_into(self):  # query: Union[DocumentQuery, RawDocumentQuery], output: iter):
             pass
 
         def conditional_load(self, object_type: type, key: str, change_vector: str):
@@ -286,5 +581,30 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def session(self) -> InMemoryDocumentSessionOperations:
             return self.__session
 
-        def document_query(self, object_type: type, index_name: str, collection_name: str, is_map_reduce: bool):
-            pass
+        def document_query(
+            self,
+            object_type: type,
+            index_class_or_name: Union[type, str] = None,
+            collection_name: str = None,
+            is_map_reduce: bool = False,
+        ):
+            if isinstance(index_class_or_name, type):
+                if not issubclass(index_class_or_name, AbstractCommonApiForIndexes):
+                    raise TypeError(
+                        f"Incorrect type, {index_class_or_name} isn't an index. It doesn't inherit from"
+                        f" AbstractCommonApiForIndexes"
+                    )
+                # todo: check if below is correct
+                index_class_or_name: AbstractCommonApiForIndexes = Utils.initialize_object(
+                    None, index_class_or_name, True
+                )
+                index_class_or_name = index_class_or_name.index_name
+            index_name_and_collection = self.session._process_query_parameters(
+                object_type, index_class_or_name, collection_name, self.session.conventions
+            )
+            index_name = index_name_and_collection[0]
+            collection_name = index_name_and_collection[1]
+
+            return None  # DocumentQuery(object_type, self, index_name, collection_name, is_map_reduce)
+
+    # todo: stream, query and fors like timeseriesrollupfor, conditional load

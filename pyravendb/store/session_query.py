@@ -1,6 +1,7 @@
 from typing import List, Set, Tuple, Iterable, Union, Callable, Dict
 
 from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.loaders.query_include_builder import QueryIncludeBuilder
 from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.commands.raven_commands import GetFacetsCommand

@@ -11,7 +11,7 @@ class ServerNode:
         def __str__(self):
             return self.value
 
-    def __init__(self, url: str, database: str, cluster_tag: str, server_role: Role):
+    def __init__(self, url: str, database: str, cluster_tag: str = None, server_role: Role = None):
         self.url = url
         self.database = database
         self.cluster_tag = cluster_tag

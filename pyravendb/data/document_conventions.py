@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import threading
 from typing import Union, Callable
 
 import pyravendb.json.metadata_as_dictionary
@@ -6,6 +9,8 @@ from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
 
 from pyravendb.documents.conventions.conventions import ShouldIgnoreEntityChanges
+from pyravendb.documents.operations.configuration.configuration import ClientConfiguration
+from pyravendb.http.http import ReadBalanceBehavior, LoadBalanceBehavior
 from pyravendb.tools.utils import Utils
 from enum import Enum
 import inflect
@@ -20,7 +25,7 @@ class DocumentConventions(object):
     __cached_default_type_collection_names: dict[type, str] = {}
 
     def __init__(self, **kwargs):
-        self.max_number_of_request_per_session = kwargs.get("max_number_of_request_per_session", 30)
+        self.max_number_of_requests_per_session = kwargs.get("max_number_of_request_per_session", 30)
         self.max_ids_to_catch = kwargs.get("max_ids_to_catch", 32)
         # timeout for wait to server in seconds
         self.timeout = kwargs.get("timeout", timedelta(seconds=30))
@@ -40,6 +45,8 @@ class DocumentConventions(object):
         self.__list_of_registered_id_conventions: list[tuple[type, Callable[[str, object], str]]] = []
 
         self._frozen = False
+        self.__original_configuration: Union[None, ClientConfiguration] = None
+        self.__save_enums_as_integers: Union[None, bool] = None
 
         self.document_id_generator: Union[None, Callable[[str, object], str]] = None
 
@@ -52,6 +59,7 @@ class DocumentConventions(object):
         self.__should_ignore_entity_changes: Union[None, ShouldIgnoreEntityChanges] = None
 
         self.throw_if_query_page_size_is_not_set: bool = False
+        self.__find_identity_property = lambda q: q.__name__ == "key"
 
         # Timeouts
         self.request_timeout: timedelta = timedelta.min
@@ -61,13 +69,23 @@ class DocumentConventions(object):
         self.wait_for_replication_after_save_changes_timeout = timedelta(seconds=15)
         self.wait_for_non_stale_results_timeout = timedelta(seconds=15)
 
+        self.__load_balancer_context_seed: Union[None, int] = None
+        self.__load_balance_behavior: Union[None, LoadBalanceBehavior] = None
+        self.__read_balance_behavior: Union[None, ReadBalanceBehavior] = None
+        self.__max_http_cache_size = 128 * 1024 * 1024
+
         self.__send_application_identifier = True
+
+        self.__update_from_lock = threading.Lock()
 
     def freeze(self):
         self._frozen = True
 
     def is_frozen(self):
         return self._frozen
+
+    def get_python_class_name(self, entity_type: type):
+        return self.__find_python_class_name(entity_type)
 
     @property
     def find_collection_name(self) -> Callable[[type], str]:
@@ -77,6 +95,22 @@ class DocumentConventions(object):
     def find_collection_name(self, value) -> None:
         self.__assert_not_frozen()
         self.__find_collection_name = value
+
+    @property
+    def max_http_cache_size(self) -> int:
+        return self.__max_http_cache_size
+
+    @max_http_cache_size.setter
+    def max_http_cache_size(self, value: int):
+        self.__max_http_cache_size = value
+
+    @property
+    def save_enums_as_integers(self) -> bool:
+        return self.__save_enums_as_integers
+
+    @save_enums_as_integers.setter
+    def save_enums_as_integers(self, value: bool):
+        self.__save_enums_as_integers = value
 
     @property
     def find_python_class_name(self) -> Callable[[type], str]:
@@ -95,6 +129,14 @@ class DocumentConventions(object):
     def should_ignore_entity_changes(self, value: ShouldIgnoreEntityChanges) -> None:
         self.__assert_not_frozen()
         self.__should_ignore_entity_changes = value
+
+    @property
+    def read_balance_behavior(self) -> ReadBalanceBehavior:
+        return self.__read_balance_behavior
+
+    @property
+    def send_application_identifier(self) -> bool:
+        return self.__send_application_identifier
 
     @property
     def mappers(self):
@@ -226,4 +268,123 @@ class DocumentConventions(object):
         if self._frozen:
             raise RuntimeError(
                 "Conventions has been frozen after documentStore.initialize()" " and no changes can be applied to them"
+            )
+
+    def clone(self) -> DocumentConventions:
+        cloned = DocumentConventions()
+        cloned.__list_of_registered_id_conventions = [*self.__list_of_registered_id_conventions]
+        cloned._frozen = self._frozen
+        cloned.__should_ignore_entity_changes = self.__should_ignore_entity_changes
+        cloned.__original_configuration = self.__original_configuration
+        cloned.__save_enums_as_integers = self.__save_enums_as_integers
+        cloned.identity_parts_separator = self.identity_parts_separator
+        cloned.disable_topology_update = self.disable_topology_update
+        cloned.__find_identity_property = self.__find_identity_property
+
+        cloned.document_id_generator = self.document_id_generator
+
+        cloned.__find_collection_name = self.__find_collection_name
+        cloned.__find_python_class_name = self.find_python_class_name
+
+        cloned.use_optimistic_concurrency = self.use_optimistic_concurrency
+        cloned.throw_if_query_page_size_is_not_set = self.throw_if_query_page_size_is_not_set
+        cloned.max_number_of_requests_per_session = self.max_number_of_requests_per_session
+
+        cloned.__read_balance_behavior = self.__read_balance_behavior
+        cloned.__load_balance_behavior = self.__load_balance_behavior
+        self.__max_http_cache_size = self.__max_http_cache_size
+
+    def update_from(self, configuration: ClientConfiguration):
+        if configuration.disabled and self.__original_configuration is None:
+            return
+        with self.__update_from_lock:
+            if configuration.disabled and self.__original_configuration is not None:
+                self.max_number_of_requests_per_session = (
+                    self.__original_configuration.max_number_of_requests_per_session
+                    if self.__original_configuration.max_number_of_requests_per_session
+                    else self.max_number_of_requests_per_session
+                )
+                self.__read_balance_behavior = (
+                    self.__original_configuration.read_balance_behavior
+                    if self.__original_configuration.read_balance_behavior
+                    else self.__read_balance_behavior
+                )
+                self.identity_parts_separator = (
+                    self.__original_configuration.identity_parts_separator
+                    if self.__original_configuration.identity_parts_separator
+                    else self.identity_parts_separator
+                )
+                self.__load_balance_behavior = (
+                    self.__original_configuration.load_balance_behavior
+                    if self.__original_configuration.load_balance_behavior
+                    else self.__load_balance_behavior
+                )
+                self.__load_balancer_context_seed = (
+                    self.__original_configuration.load_balancer_context_seed
+                    if self.__original_configuration.load_balancer_context_seed
+                    else self.__load_balancer_context_seed
+                )
+
+                self.__original_configuration = None
+                return
+
+            if self.__original_configuration is None:
+                self.__original_configuration = ClientConfiguration()
+                self.__original_configuration.etag = -1
+                self.__original_configuration.max_number_of_requests_per_session = (
+                    self.max_number_of_requests_per_session
+                )
+                self.__original_configuration.__read_balance_behavior = self.__read_balance_behavior
+                self.__original_configuration.identity_parts_separator = self.identity_parts_separator
+                self.__original_configuration.__load_balance_behavior = self.__load_balance_behavior
+                self.__original_configuration.__load_balancer_context_seed = self.__load_balancer_context_seed
+
+            self.max_number_of_requests_per_session = next(
+                item
+                for item in [
+                    configuration.max_number_of_requests_per_session,
+                    self.__original_configuration.max_number_of_requests_per_session,
+                    self.max_number_of_requests_per_session,
+                ]
+                if item is not None
+            )
+
+            self.__read_balance_behavior = next(
+                item
+                for item in [
+                    configuration.read_balance_behavior,
+                    self.__original_configuration.read_balance_behavior,
+                    self.__read_balance_behavior,
+                ]
+                if item is not None
+            )
+
+            self.identity_parts_separator = next(
+                item
+                for item in [
+                    configuration.identity_parts_separator,
+                    self.__original_configuration.identity_parts_separator,
+                    self.identity_parts_separator,
+                ]
+                if item is not None
+            )
+
+            self.__load_balance_behavior = next(
+                item
+                for item in [
+                    configuration.load_balance_behavior,
+                    self.__original_configuration.load_balance_behavior,
+                    self.__load_balance_behavior,
+                ]
+                if item is not None
+            )
+
+            self.__load_balancer_context_seed = next(
+                item
+                for item in [
+                    configuration.load_balancer_context_seed,
+                    self.__original_configuration.load_balancer_context_seed,
+                    self.__load_balancer_context_seed,
+                ]
+                if item is not None
             )

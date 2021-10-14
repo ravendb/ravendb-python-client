@@ -1,7 +1,5 @@
-import unittest
 from typing import Callable, Union, Dict
 
-from pyravendb.store.document_session import DocumentSession
 from pyravendb.tests.test_base import TestBase, Order, Employee, Company, User
 
 

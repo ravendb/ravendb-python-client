@@ -1,17 +1,26 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from copy import deepcopy
 from enum import Enum
 from typing import Union, Optional
 
 from pyravendb import constants
+from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.exceptions.exceptions import ClientVersionMismatchException
+from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
 from pyravendb.tools.utils import CaseInsensitiveDict
+
+
+class MaintenanceOperation:
+    @abstractmethod
+    def get_command(self, conventions: DocumentConventions) -> RavenCommand:
+        pass
 
 
 class BatchOperation:

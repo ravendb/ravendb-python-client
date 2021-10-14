@@ -4,7 +4,6 @@ import itertools
 import json
 from abc import abstractmethod
 from collections import MutableSet
-
 import uuid as uuid
 from copy import deepcopy, Error
 from typing import Optional, Union, Iterator, Collection, Set, Callable
@@ -28,6 +27,7 @@ from pyravendb.documents.commands.batches import (
 from pyravendb.documents.commands.results import GetDocumentResult
 from pyravendb.documents.documents import IdTypeAndName
 from pyravendb.documents.identity.generate_entity_id_on_the_client import GenerateEntityIdOnTheClient
+from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
 from pyravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from pyravendb.documents.session.document_info import DocumentInfo
@@ -418,7 +418,7 @@ class InMemoryDocumentSessionOperations:
         self.__no_tracking = options.no_tracking
 
         self.__use_optimistic_concurrency = self.request_executor.conventions.use_optimistic_concurrency
-        self.__max_number_of_requests_per_session = self.request_executor.conventions.max_number_of_request_per_session
+        self.__max_number_of_requests_per_session = self.request_executor.conventions.max_number_of_requests_per_session
         self.__generate_entity_id_on_client = GenerateEntityIdOnTheClient(
             self.request_executor.conventions, self._generate_id
         )
@@ -452,7 +452,7 @@ class InMemoryDocumentSessionOperations:
 
         self.__number_of_requests: int = 0
         self.__max_number_of_requests_per_session: int = (
-            self._request_executor.conventions.max_number_of_request_per_session
+            self._request_executor.conventions.max_number_of_requests_per_session
         )
 
         # --- EVENTS ---
@@ -1662,6 +1662,25 @@ class InMemoryDocumentSessionOperations:
     # todo: implement this thing
     def update_session_after_save_changes(self, result: BatchCommandResult):
         returned_transaction_index = result.transaction_index
+
+    def _process_query_parameters(
+        self, object_type: type, index_name: str, collection_name: str, conventions: DocumentConventions
+    ) -> (str, str):
+        is_index = index_name and not index_name.isspace()
+        is_collection = collection_name and not collection_name.isspace()
+
+        if is_index and is_collection:
+            raise ValueError(
+                "Parameters index_name and collection_name are mutually exclusive. Please specify only one."
+            )
+
+        if not is_collection and not is_index:
+            collection_name = conventions.get_collection_name(object_type)
+            collection_name = (
+                collection_name if collection_name else constants.Documents.Metadata.ALL_DOCUMENTS_COLLECTION
+            )
+
+            return index_name, collection_name
 
     class ReplicationWaitOptsBuilder:
         def __init__(self, session: InMemoryDocumentSessionOperations):

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import http
-import json
 from abc import abstractmethod
 from typing import Union, Optional, Callable
 from enum import Enum
@@ -28,12 +27,15 @@ class RavenCommand:
     def __init__(self, result_class: type = None, copy: RavenCommand = None):
         if not ((result_class is not None) ^ (copy is not None)):
             raise ValueError("Pass either result_class or RavenCommand copy")
+
         self._result_class: type = result_class if result_class else copy._result_class
         self.result = None
         self.status_code: Union[None, int] = None
+
         self._response_type: RavenCommandResponseType = (
             RavenCommandResponseType.OBJECT if result_class else copy.response_type
         )
+
         self.timeout: Union[None, datetime.timedelta] = None
         self._can_cache: bool = True if result_class else copy.can_cache
         self._can_cache_aggressively: bool = True if result_class else copy.can_cache_aggressively
@@ -41,9 +43,14 @@ class RavenCommand:
         self.number_of_attempts: Union[None, int] = None
 
         self.failover_topology_etag = -2
+
         self.on_response_failure: Callable[[requests.Response], None] = lambda resp: None
 
         self.failed_nodes: dict[ServerNode, Exception] = {}
+
+    @abstractmethod
+    def is_read_request(self) -> bool:
+        pass
 
     @abstractmethod
     def create_request(self, node: ServerNode) -> (requests.Request, str):

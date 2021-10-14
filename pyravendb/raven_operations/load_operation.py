@@ -1,16 +1,23 @@
+from __future__ import annotations
+import logging
 from typing import Optional, List
 
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.documents.commands.commands import GetDocumentsCommand
 from pyravendb.documents.session.document_info import DocumentInfo
+from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.store.document_session import DocumentSession
 from pyravendb.tools.utils import CaseInsensitiveSet, Utils, CaseInsensitiveDict
 
 
 class LoadOperation:
+
+    logger = logging.getLogger("load_operation")
+
     def __init__(
         self,
-        session: DocumentSession,
+        session: InMemoryDocumentSessionOperations,
         keys: List[str] = None,
         includes: Optional[List[str]] = None,
         counters_to_include: Optional[List[str]] = None,
@@ -29,11 +36,42 @@ class LoadOperation:
         self._results_set = False
         self._results = None
 
-    def create_request(self):
-        if self._session.check_if_already_included(
+    def create_request(self) -> GetDocumentsCommand:
+        if self._session.check_if_id_already_included(
             self._keys, list(self._includes) if self._includes is not None else None
         ):
             return None
+
+        self._session.increment_requests_count()
+
+        self.logger.info(f"Requesting the following ids {','.join(self._keys)} from {self._session.store_identifier}")
+
+        if self._include_all_counters:
+            return GetDocumentsCommand(
+                GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
+                    self._keys,
+                    self._includes,
+                    False,
+                    self._time_series_to_include,
+                    self._compare_exchange_values_to_include,
+                    [],
+                    True,
+                    self._session.conventions,
+                )
+            )
+
+        return GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
+                self._keys,
+                self._includes,
+                False,
+                self._time_series_to_include,
+                self._compare_exchange_values_to_include,
+                self._counters_to_include,
+                False,
+                self._session.conventions,
+            )
+        )
 
     def by_key(self, key: str):
         if not key:
