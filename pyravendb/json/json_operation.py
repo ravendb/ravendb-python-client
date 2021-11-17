@@ -2,7 +2,7 @@ import pyravendb.tools.utils
 
 import pyravendb.constants as constants
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.session import DocumentsChanges
+from pyravendb.documents.session import DocumentsChanges
 from pyravendb.tools.utils import Utils
 
 

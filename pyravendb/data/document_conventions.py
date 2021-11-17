@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import threading
-from typing import Union, Callable
+from typing import Union, Callable, TYPE_CHECKING
 
 import pyravendb.json.metadata_as_dictionary
 from pyravendb.data.indexes import SortOptions
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
 
-from pyravendb.documents.conventions.conventions import ShouldIgnoreEntityChanges
-from pyravendb.documents.operations.configuration.configuration import ClientConfiguration
-from pyravendb.http.http import ReadBalanceBehavior, LoadBalanceBehavior
+from pyravendb.documents.operations.configuration import ClientConfiguration
+from pyravendb.http import ReadBalanceBehavior, LoadBalanceBehavior
 from pyravendb.tools.utils import Utils
 from enum import Enum
 import inflect
@@ -19,6 +18,9 @@ import inspect
 
 inflect.def_classical["names"] = False
 inflector = inflect.engine()
+
+if TYPE_CHECKING:
+    from pyravendb.documents.conventions import ShouldIgnoreEntityChanges
 
 
 class DocumentConventions(object):
@@ -33,7 +35,7 @@ class DocumentConventions(object):
         self.json_default_method = DocumentConventions._json_default
         self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
         self.identity_parts_separator = "/"
-        self.disable_topology_update = kwargs.get("disable_topology_update", False)
+        self.disable_topology_updates = kwargs.get("disable_topology_update", False)
         # If set to 'true' then it will throw an exception when any query is performed (in session)
         # without explicit page size set
         self.raise_if_query_page_size_is_not_set = kwargs.get("raise_if_query_page_size_is_not_set", False)
@@ -48,7 +50,11 @@ class DocumentConventions(object):
         self.__original_configuration: Union[None, ClientConfiguration] = None
         self.__save_enums_as_integers: Union[None, bool] = None
 
+        self.__transform_class_collection_name_to_document_id_prefix = (
+            lambda collection_name: self.default_transform_collection_name_to_document_id_prefix(collection_name)
+        )
         self.document_id_generator: Union[None, Callable[[str, object], str]] = None
+        self.__load_balancer_per_session_context_selector: Union[None, Callable[[str], str]] = None
 
         self.__find_collection_name: Callable[[type], str] = kwargs.get(
             "find_collection_name", self.default_get_collection_name
@@ -97,6 +103,23 @@ class DocumentConventions(object):
         self.__find_collection_name = value
 
     @property
+    def transform_class_collection_name_to_document_id_prefix(self) -> Callable[[str], str]:
+        return self.__transform_class_collection_name_to_document_id_prefix
+
+    @transform_class_collection_name_to_document_id_prefix.setter
+    def transform_class_collection_name_to_document_id_prefix(self, value: Callable[[str], str]) -> None:
+        self.__assert_not_frozen()
+        self.__transform_class_collection_name_to_document_id_prefix = value
+
+    @property
+    def load_balancer_per_session_context_selector(self) -> Callable[[str], str]:
+        return self.__load_balancer_per_session_context_selector
+
+    @load_balancer_per_session_context_selector.setter
+    def load_balancer_per_session_context_selector(self, value: Callable[[str], str]):
+        self.load_balancer_per_session_context_selector = value
+
+    @property
     def max_http_cache_size(self) -> int:
         return self.__max_http_cache_size
 
@@ -131,8 +154,31 @@ class DocumentConventions(object):
         self.__should_ignore_entity_changes = value
 
     @property
+    def load_balancer_context_seed(self) -> int:
+        return self.__load_balancer_context_seed
+
+    @load_balancer_context_seed.setter
+    def load_balancer_context_seed(self, value: int):
+        self.__assert_not_frozen()
+        self.__load_balancer_context_seed = value
+
+    @property
+    def load_balance_behavior(self):
+        return self.__load_balance_behavior
+
+    @load_balance_behavior.setter
+    def load_balance_behavior(self, value: LoadBalanceBehavior):
+        self.__assert_not_frozen()
+        self.__load_balance_behavior = value
+
+    @property
     def read_balance_behavior(self) -> ReadBalanceBehavior:
         return self.__read_balance_behavior
+
+    @read_balance_behavior.setter
+    def read_balance_behavior(self, value: ReadBalanceBehavior):
+        self.__assert_not_frozen()
+        self.__read_balance_behavior = value
 
     @property
     def send_application_identifier(self) -> bool:
@@ -229,7 +275,7 @@ class DocumentConventions(object):
                 f"only concrete class are supported. "
                 f"Did you forget to customize conventions.find_collection_name?"
             )
-        result = inflector.plural(str(object_type))
+        result = inflector.plural(str(object_type.__name__))
         DocumentConventions.__cached_default_type_collection_names[object_type] = result
         return result
 
@@ -278,7 +324,7 @@ class DocumentConventions(object):
         cloned.__original_configuration = self.__original_configuration
         cloned.__save_enums_as_integers = self.__save_enums_as_integers
         cloned.identity_parts_separator = self.identity_parts_separator
-        cloned.disable_topology_update = self.disable_topology_update
+        cloned.disable_topology_updates = self.disable_topology_updates
         cloned.__find_identity_property = self.__find_identity_property
 
         cloned.document_id_generator = self.document_id_generator
@@ -388,3 +434,12 @@ class DocumentConventions(object):
                 ]
                 if item is not None
             )
+
+    @staticmethod
+    def default_transform_collection_name_to_document_id_prefix(collection_name: str) -> str:
+        upper_count = len(list(filter(lambda char: char.isupper, collection_name)))
+        if upper_count <= 1:
+            return collection_name.lower()
+
+        # multiple capital letters, so probably something that we want to preserve caps on.
+        return collection_name

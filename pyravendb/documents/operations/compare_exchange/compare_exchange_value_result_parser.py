@@ -2,7 +2,7 @@ import json
 
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents.operations.compare_exchange.compare_exchange import CompareExchangeValue
+from pyravendb.documents.operations.compare_exchange import CompareExchangeValue
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.projection import create_entity_with_mapper
 from pyravendb.tools.utils import CaseInsensitiveDict

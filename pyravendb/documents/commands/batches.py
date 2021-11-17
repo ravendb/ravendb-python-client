@@ -4,21 +4,23 @@ import datetime
 import json
 from abc import abstractmethod
 from enum import Enum
-from typing import Callable, Union, Optional
+from typing import Callable, Union, Optional, TYPE_CHECKING
 
 import requests
 
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents.operations.operations import PatchRequest
-from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session.session import ForceRevisionStrategy
+import pyravendb.documents.session
 from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.store.entity_to_json import EntityToJson
 from pyravendb.tools.utils import CaseInsensitiveSet, Utils
 from pyravendb.util.util import RaftIdGenerator
+from pyravendb.documents.session import ForceRevisionStrategy
+
+if TYPE_CHECKING:
+    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.operations import PatchRequest
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class CommandType(Enum):
@@ -157,9 +159,7 @@ class SingleNodeBatchCommand(RavenCommand):
                 " Probably a garbled response."
             )
 
-        self.result = EntityToJson.convert_to_entity_static(
-            json.loads(response), BatchCommandResult, self.__conventions, None, None
-        )
+        self.result = Utils.initialize_object(json.loads(response), self._response_type, True)
 
 
 class ClusterWideBatchCommand(SingleNodeBatchCommand):

@@ -4,7 +4,7 @@ from typing import Optional
 
 import requests
 
-from pyravendb.http.http import Topology
+from pyravendb.http import Topology
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.tools.utils import Utils
@@ -22,10 +22,10 @@ class GetDatabaseTopologyCommand(RavenCommand):
     def create_request(self, node: ServerNode) -> (requests.Request, str):
         url = f"{node.url}/topology?name={node.database}{('&'+self.__debug_tag) if self.__debug_tag else None}"
         if self.__application_identifier:
-            url += f"&applicationIdentifier" + str(self.__application_identifier)
+            url += f"&applicationIdentifier=" + str(self.__application_identifier)
         if ".fiddler" in node.url.lower():
             url += f"&localUrl={Utils.escape(node.url,False,False)}"
-        return requests.Request(method="GET", url=url)
+        return requests.Request(method="GET", url=url), url
 
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:

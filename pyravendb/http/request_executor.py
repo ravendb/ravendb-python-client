@@ -1,23 +1,25 @@
-from copy import copy
+from __future__ import annotations
 
-import requests
-import logging
+import datetime
 import json
+import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, Future, FIRST_COMPLETED, wait, ALL_COMPLETED
 import uuid
-from asyncio import Task, Future
-import requests
+from threading import Timer, Semaphore, Lock
 
+import requests
 from copy import copy
-from typing import Union, Callable, Any, Awaitable
 
 from pyravendb import constants
-from pyravendb.custom_exceptions.exceptions import AllTopologyNodesDownException, UnsuccessfulRequestException
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents.operations.configuration.configuration import GetClientConfigurationOperation
-from pyravendb.documents.session.session import SessionInfo
-from pyravendb.exceptions.exceptions import ExceptionDispatcher, ClientVersionMismatchException
-from pyravendb.http.http import (
+from pyravendb.custom_exceptions.exceptions import (
+    AllTopologyNodesDownException,
+    UnsuccessfulRequestException,
+    DatabaseDoesNotExistException,
+    AuthorizationException,
+)
+
+from pyravendb.http import (
     CurrentIndexAndNode,
     NodeSelector,
     Broadcast,
@@ -25,6 +27,7 @@ from pyravendb.http.http import (
     ReadBalanceBehavior,
     UpdateTopologyParameters,
     ResponseDisposeHandling,
+    LoadBalanceBehavior,
 )
 from pyravendb.http.http_cache import HttpCache
 from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType
@@ -33,24 +36,41 @@ from pyravendb.serverwide.commands import GetDatabaseTopologyCommand
 
 from http import HTTPStatus
 
+from pyravendb.exceptions import ExceptionDispatcher, ClientVersionMismatchException
+
+from pyravendb.documents.operations.configuration import GetClientConfigurationOperation
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyravendb.documents.session import SessionInfo
+    from pyravendb.data.document_conventions import DocumentConventions
+    from typing import Union, Callable, Any, Optional
+
 
 class RequestExecutor:
     __INITIAL_TOPOLOGY_ETAG = -2
     __GLOBAL_APPLICATION_IDENTIFIER = uuid.uuid4()
     CLIENT_VERSION = "5.0.0"
+    logger = logging.getLogger("request_executor")
 
+    # todo: initializer should take also cryptography certificates
     def __init__(self, database_name: str, conventions: DocumentConventions):
+        self.__update_topology_timer: Union[None, Timer] = None
         self.conventions = copy(conventions)
         self._node_selector: NodeSelector = None
         self.__default_timeout: datetime.timedelta = conventions.request_timeout
         self.__cache: HttpCache = HttpCache()
 
         self.__topology_taken_from_node: Union[None, ServerNode] = None
-
-        self.__update_client_configuration_semaphore = asyncio.Semaphore(1)
-        self.__update_database_topology_semaphore = asyncio.Semaphore(1)
+        self.__update_client_configuration_semaphore = Semaphore(1)
+        self.__update_database_topology_semaphore = Semaphore(1)
 
         self.__database_name = database_name
+
+        self.__last_returned_response: Union[None, datetime.datetime] = None
+
+        self.__thread_pool = ThreadPoolExecutor(max_workers=10)
 
         self.number_of_server_requests = 0
 
@@ -65,7 +85,11 @@ class RequestExecutor:
         self.first_broadcast_attempt_timeout: Union[None, datetime.timedelta] = None
         self.second_broadcast_attempt_timeout: Union[None, datetime.timedelta] = None
 
+        self._first_topology_update_task: Union[None, Future] = None
+        self._last_known_urls: Union[None, list[str]] = None
         self._disposed: Union[None, bool] = None
+
+        self.__synchronized_lock = Lock()
 
         # --- events ---
         self.__on_before_request: list[Callable[[str, str, requests.Request, int], Any]] = []
@@ -148,15 +172,49 @@ class RequestExecutor:
         for event in self._on_topology_updated:
             event(topology)
 
-    def _update_client_configuration_async(self, server_node: ServerNode) -> Task:
-        if self._disposed:
-            task = asyncio.create_task(asyncio.sleep(0))
-            task.set_result(None)
-            return task
+    @staticmethod
+    def create(initial_urls: list[str], database_name: str, certificate, conventions: DocumentConventions):
+        executor = RequestExecutor(database_name, conventions)
+        executor._first_topology_update_task = executor._first_topology_update(
+            initial_urls, RequestExecutor.__GLOBAL_APPLICATION_IDENTIFIER
+        )
+        return executor
 
-        async def __run_async():
+    @staticmethod
+    def create_for_single_node_with_configuration_updates(
+        url: str, database_name: str, certificate, conventions: DocumentConventions
+    ) -> RequestExecutor:
+        # todo: certificate from cryptography
+        executor = RequestExecutor.create_for_single_node_without_configuration_updates(
+            url, database_name, certificate, conventions
+        )
+        executor._disable_client_configuration_updates = False
+        return executor
+
+    @staticmethod
+    def create_for_single_node_without_configuration_updates(
+        url: str, database_name: str, certificate, conventions: DocumentConventions
+    ) -> RequestExecutor:
+        initial_urls = RequestExecutor.validate_urls([url])
+        executor = RequestExecutor(database_name, conventions)
+
+        topology = Topology(-1, [ServerNode(initial_urls[0], database_name)])
+        executor._node_selector = NodeSelector(topology)
+        executor._topology_etag = RequestExecutor.__INITIAL_TOPOLOGY_ETAG
+        executor._disable_topology_updates = True
+        executor._disable_client_configuration_updates = True
+
+        return executor
+
+    def _update_client_configuration_async(self, server_node: ServerNode) -> Future:
+        if self._disposed:
+            future = Future()
+            future.set_result(None)
+            return future
+
+        def __run_async():
             try:
-                await self.__update_client_configuration_semaphore.acquire()
+                self.__update_client_configuration_semaphore.acquire()
             except InterruptedError as e:
                 raise RuntimeError(e)
 
@@ -180,30 +238,28 @@ class RequestExecutor:
                 self._disable_client_configuration_updates = old_disable_client_configuration_updates
                 self.__update_client_configuration_semaphore.release()
 
-        asyncio.run(__run_async())
+        return self.__thread_pool.submit(__run_async)
 
-    def update_topology_async(self, parameters: UpdateTopologyParameters):
+    def update_topology_async(self, parameters: UpdateTopologyParameters) -> Future:
         if not parameters:
             raise ValueError("Parameters cannot be None")
 
         if self._disable_topology_updates:
-            return asyncio.create_task(asyncio.sleep(0)).set_result(False)
+            fut = Future()
+            fut.set_result(False)
+            return fut
 
         if self._disposed:
-            return asyncio.create_task(asyncio.sleep(0)).set_result(False)
+            fut = Future()
+            fut.set_result(False)
+            return fut
 
-        async def __supply_async():
+        def __supply_async():
             # prevent double topology updates if execution takes too much time
             # --> in cases with transient issues
-            try:
-                await asyncio.sleep(0)
-                lock_taken = asyncio.wait_for(
-                    self.__update_database_topology_semaphore.acquire(), parameters.timeout_in_ms * 1000
-                )
-                if not lock_taken:
-                    return False
-            except RuntimeError:
-                raise
+            lock_taken = self.__update_database_topology_semaphore.acquire(timeout=parameters.timeout_in_ms)
+            if not lock_taken:
+                return False
 
             try:
                 if self._disposed:
@@ -216,8 +272,8 @@ class RequestExecutor:
                 self.execute(parameters.node, None, command, False, None)
                 topology = command.result
 
-                if self._node_selector == None:
-                    self._node_selector = NodeSelector(topology)
+                if self._node_selector is None:
+                    self._node_selector = NodeSelector(topology, self.__thread_pool)
 
                     if self.conventions.read_balance_behavior == ReadBalanceBehavior.FASTEST_NODE:
                         self._node_selector.schedule_speed_test()
@@ -230,14 +286,87 @@ class RequestExecutor:
                 self._topology_etag = self._node_selector.topology.etag
 
                 self._on_topology_updated_invoke(topology)
-            except Exception as e:
-                if not self._disposed:
-                    raise
             finally:
                 self.__update_database_topology_semaphore.release()
             return True
 
-        return asyncio.create_task(__supply_async())
+        return self.__thread_pool.submit(__supply_async)
+
+    def _first_topology_update(self, input_urls: list[str], application_identifier: Union[None, uuid.UUID]) -> Future:
+        initial_urls = self.validate_urls(input_urls)
+        errors: list[tuple[str, Exception]] = []
+
+        def __run(errors: list):
+            for url in initial_urls:
+                try:
+                    server_node = ServerNode(url, self.__database_name)
+                    update_parameters = UpdateTopologyParameters(server_node)
+                    update_parameters.timeout_in_ms = 0x7FFFFFFF
+                    update_parameters.debug_tag = "first-topology-update"
+                    update_parameters.application_identifier = application_identifier
+
+                    self.update_topology_async(update_parameters).result()
+                    self.__initialize_update_topology_timer()
+
+                    self.__topology_taken_from_node = server_node
+                    return
+                except Exception as e:
+                    if isinstance(e.__cause__, AuthorizationException):
+                        self._last_known_urls = initial_urls
+                        raise e.__cause__
+
+                    if isinstance(e.__cause__, DatabaseDoesNotExistException):
+                        self._last_known_urls = initial_urls
+                        raise e.__cause__
+
+                    errors.append((url, e))
+
+            topology = Topology(
+                self._topology_etag,
+                self.topology_nodes
+                if self.topology_nodes
+                else list(map(lambda url_val: ServerNode(url_val, self.__database_name, "!"), initial_urls)),
+            )
+
+            self._node_selector = NodeSelector(topology, self.__thread_pool)
+
+            if initial_urls:
+                self.__initialize_update_topology_timer()
+                return
+
+            self._last_known_urls = initial_urls
+            # todo: details from exceptions in inner_list
+
+        return self.__thread_pool.submit(__run, errors)
+
+    @staticmethod
+    def validate_urls(initial_urls: list[str]) -> list[str]:
+        # todo: implement validation
+        return initial_urls
+
+    def __initialize_update_topology_timer(self):
+        if self.__update_topology_timer is not None:
+            return
+
+        with self.__synchronized_lock:
+            if self.__update_topology_timer is not None:
+                return
+
+            self.__update_topology_timer = Timer(60, self.__update_topology_callback)
+
+    def execute_command(self, command: RavenCommand, session_info: Optional[SessionInfo] = None) -> None:
+        topology_update = self._first_topology_update_task
+        if (
+            topology_update is not None
+            and (topology_update.done() and (not topology_update.exception()) and (not topology_update.cancelled()))
+            or self._disable_topology_updates
+        ):
+            current_index_and_node = self.choose_node_for_request(command, session_info)
+            self.execute(
+                current_index_and_node.current_node, current_index_and_node.current_index, command, True, session_info
+            )
+        else:
+            self.__unlikely_execute(command, topology_update, session_info)
 
     def execute(
         self,
@@ -248,8 +377,8 @@ class RequestExecutor:
         session_info: SessionInfo = None,
         ret_request: bool = False,
     ) -> Union[None, requests.Request]:
-        if command.failover_topology_etag == self.INITIAL_TOPOLOGY_ETAG:
-            command.failover_topology_etag = self.INITIAL_TOPOLOGY_ETAG
+        if command.failover_topology_etag == RequestExecutor.__INITIAL_TOPOLOGY_ETAG:
+            command.failover_topology_etag = RequestExecutor.__INITIAL_TOPOLOGY_ETAG
             if self._node_selector and self._node_selector.topology:
                 topology = self._node_selector.topology
                 if topology.etag:
@@ -270,7 +399,7 @@ class RequestExecutor:
 
         cached_item, change_vector, cached_value = self.__get_from_cache(command, not no_caching, url)
         # todo: if change_vector exists try get from cache - aggressive caching
-        with cached_item as cached_item:
+        with cached_item:
             # todo: try get from cache
             self.__set_request_headers(session_info, change_vector, request)
 
@@ -286,28 +415,31 @@ class RequestExecutor:
             if not response:
                 return
 
-            refresh_task = self.__refresh_if_needed(chosen_node, response)
+            refresh_tasks = self.__refresh_if_needed(chosen_node, response)
 
             command.status_code = response.status_code
             response_dispose = ResponseDisposeHandling.AUTOMATIC
 
             try:
                 if response.status_code == HTTPStatus.NOT_MODIFIED:
-                    ...
-                if response.status_code >= 400:
-                    # if not self.__handle_unsuccessful_response(chosen_node,node_index,command,request,url,session_info,should_retry):
-                    #  pass
                     pass
+                if response.status_code >= 400:
+                    # todo: if not self.__handle_unsuccessful_response(chosen_node,node_index,command,request,url,session_info,should_retry):
+                    pass
+                # todo: on_succeed_request
+                response_dispose, url = command.process_response(self.__cache, response, url)
+                self.__last_returned_response = datetime.datetime.utcnow()
             finally:
                 if response_dispose == ResponseDisposeHandling.AUTOMATIC:
                     response.close()
+                if len(refresh_tasks) > 0:
+                    try:
+                        wait(*refresh_tasks, return_when=ALL_COMPLETED)
+                    except:
+                        raise
+                pass
 
-                try:
-                    refresh_task.result()
-                except:
-                    raise
-
-    def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> asyncio.Future:
+    def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> list[Future]:
         refresh_topology = response.headers.get(constants.Headers.REFRESH_TOPOLOGY, False)
         refresh_client_configuration = response.headers.get(constants.Headers.REFRESH_CLIENT_CONFIGURATION, False)
 
@@ -321,17 +453,17 @@ class RequestExecutor:
             if refresh_topology:
                 topology_task = self.update_topology_async(update_parameters)
             else:
-                topology_task = asyncio.create_task(asyncio.sleep(0))
+                topology_task = Future()
                 topology_task.set_result(False)
 
             if refresh_client_configuration:
                 client_configuration = self._update_client_configuration_async(server_node)
             else:
-                client_configuration = asyncio.create_task(asyncio.sleep(0))
+                client_configuration = Future()
                 client_configuration.set_result(None)
 
-            return asyncio.gather(topology_task, client_configuration)
-        return asyncio.create_task(asyncio.sleep(0))
+            return [topology_task, client_configuration]
+        return []
 
     def __send_request_to_server(
         self,
@@ -404,7 +536,7 @@ class RequestExecutor:
             response = command.send(self.http_session, request)
 
         # PERF: The reason to avoid rechecking every time is that servers wont change so rapidly
-        #       and therefore we dimish its cost by orders of magnitude just doing it
+        #       and therefore we dismish its cost by orders of magnitude just doing it
         #       once in a while. We dont care also about the potential race conditions that may happen
         #       here mainly because the idea is to have a lax mechanism to recheck that is at least
         #       orders of magnitude faster than currently.
@@ -432,26 +564,88 @@ class RequestExecutor:
     def choose_node_for_request(self, cmd: RavenCommand, session_info: SessionInfo) -> CurrentIndexAndNode:
         # When we disable topology updates we cannot rely on the node tag,
         # Because the initial topology will not have them
-        if cmd.selected_node_tag and not cmd.selected_node_tag.isspace():
-            return self._node_selector.get_requested_node(cmd.selected_node_tag)
+        if not self._disable_topology_updates:
+            if cmd.selected_node_tag and not cmd.selected_node_tag.isspace():
+                return self._node_selector.get_requested_node(cmd.selected_node_tag)
+
+        if self.conventions.load_balance_behavior == LoadBalanceBehavior.USE_SESSION_CONTEXT:
+            if session_info is not None and session_info.can_use_load_balance_behavior:
+                return self._node_selector.get_node_by_session_id(session_info.session_id)
+
+    def __unlikely_execute(
+        self, command: RavenCommand, topology_update: Union[None, Future[None]], session_info: SessionInfo
+    ) -> None:
+        self.__wait_for_topology_update(topology_update)
+
+        current_index_and_node = self.choose_node_for_request(command, session_info)
+        self.execute(
+            current_index_and_node.current_node, current_index_and_node.current_index, command, True, session_info
+        )
+
+    def __wait_for_topology_update(self, topology_update: Future[None]) -> None:
+        try:
+            if topology_update is None or topology_update.exception():
+                with self.__synchronized_lock:
+                    if self._first_topology_update_task is None or topology_update == self._first_topology_update_task:
+                        if self._last_known_urls is None:
+                            # shouldn't happen
+                            raise RuntimeError(
+                                "No known topology and no previously known one, cannot proceed, likely a bug"
+                            )
+                        self._first_topology_update_task = self._first_topology_update(self._last_known_urls, None)
+                    topology_update = self._first_topology_update_task
+            topology_update.result()
+        # todo: narrow the exception scope down
+        except BaseException as e:
+            with self.__synchronized_lock:
+                if self._first_topology_update_task == topology_update:
+                    self._first_topology_update_task = None  # next request will raise it
+
+            raise e
+
+    def __update_topology_callback(self) -> None:
+        time = datetime.datetime.now()
+        if (time - self.__last_returned_response.time) <= datetime.timedelta(minutes=5):
+            return
+
+        try:
+            selector = self._node_selector
+            if selector is None:
+                return
+            preferred_node = selector.get_preferred_node()
+            server_node = preferred_node.current_node
+        except Exception as e:
+            self.logger.info("Couldn't get preferred node Topology from _updateTopologyTimer", exc_info=e)
+            return
+
+        update_parameters = UpdateTopologyParameters(server_node)
+        update_parameters.timeout_in_ms = 0
+        update_parameters.debug_tag = "timer-callback"
+
+        try:
+            self.update_topology_async(update_parameters)
+        except Exception as e:
+            self.logger.info("Couldn't update topology from __update_topology_timer", exc_info=e)
 
     def __set_request_headers(
         self, session_info: SessionInfo, cached_change_vector: Union[None, str], request: requests.Request
     ) -> None:
         if cached_change_vector is not None:
-            request.headers.IF_NONE_MATCH = f'"{cached_change_vector}"'
+            request.headers[constants.Headers.IF_NONE_MATCH] = f'"{cached_change_vector}"'
 
         if not self._disable_client_configuration_updates:
-            request.headers.CLIENT_CONFIGURATION_ETAG = f'"{self._client_configuration_etag}"'
+            request.headers[constants.Headers.CLIENT_CONFIGURATION_ETAG] = f'"{self._client_configuration_etag}"'
 
         if session_info and session_info.last_cluster_transaction_index:
-            request.headers.LAST_KNOWN_CLUSTER_TRANSACTION_INDEX = str(session_info.last_cluster_transaction_index)
+            request.headers[constants.Headers.LAST_KNOWN_CLUSTER_TRANSACTION_INDEX] = str(
+                session_info.last_cluster_transaction_index
+            )
 
         if not self._disable_topology_updates:
-            request.headers.TOPOLOGY_ETAG = f'"{self._topology_etag}"'
+            request.headers[constants.Headers.TOPOLOGY_ETAG] = f'"{self._topology_etag}"'
 
-        if not request.headers.CLIENT_VERSION:
-            request.headers.CLIENT_VERSION = RequestExecutor.CLIENT_VERSION
+        if not request.headers.get(constants.Headers.CLIENT_VERSION):
+            request.headers[constants.Headers.CLIENT_VERSION] = RequestExecutor.CLIENT_VERSION
 
     def __get_from_cache(
         self, command: RavenCommand, use_cache: bool, url: str
@@ -518,33 +712,31 @@ class RequestExecutor:
         raise AllTopologyNodesDownException(message)
 
     def should_execute_on_all(self, chosen_node: ServerNode, command: RavenCommand) -> bool:
-        return all(
-            [
-                self.conventions.read_balance_behavior == ReadBalanceBehavior.FASTEST_NODE,
-                self._node_selector,
-                self._node_selector.in_speed_test_phase,
-                len(self._node_selector.topology.nodes) > 1,
-                command.is_read_request(),
-                command.response_type == RavenCommandResponseType.OBJECT,
-                chosen_node is not None,
-                not isinstance(command, Broadcast),
-            ]
+        return (
+            self.conventions.read_balance_behavior == ReadBalanceBehavior.FASTEST_NODE
+            and self._node_selector
+            and self._node_selector.in_speed_test_phase
+            and len(self._node_selector.topology.nodes) > 1
+            and command.is_read_request()
+            and command.response_type == RavenCommandResponseType.OBJECT
+            and chosen_node is not None
+            and not isinstance(command, Broadcast)
         )
 
     def __execute_on_all_to_figure_out_the_fastest(
         self, chosen_node: ServerNode, command: RavenCommand
     ) -> requests.Response:
-        number_failed_tasks = [0]
-        preferred_task: Awaitable = None
+        number_failed_tasks = [0]  # mutable integer
+        preferred_task: Future[RequestExecutor.IndexAndResponse] = None
 
         nodes = self._node_selector.topology.nodes
-        tasks: list = []
+        tasks: list[Future[RequestExecutor.IndexAndResponse]] = [None] * len(nodes)
 
         for i in range(len(nodes)):
             task_number = i
             self.number_of_server_requests += 1
 
-            async def task_fun(
+            async def __supply_async(
                 single_element_list_number_failed_tasks: list[int],
             ) -> (RequestExecutor.IndexAndResponse, int):
                 try:
@@ -556,23 +748,23 @@ class RequestExecutor:
                     tasks[task_number] = None
                     raise RuntimeError("Request execution failed", e)
 
-            task = asyncio.create_task(task_fun(number_failed_tasks))
+            task = self.__thread_pool.submit(__supply_async, number_failed_tasks)
+
             if nodes[i].cluster_tag == chosen_node.cluster_tag:
-                preferred_task: Task = task
+                preferred_task = task
             else:
-                task.add_done_callback(lambda result: result.response.close(None, None, None))
+                task.add_done_callback(lambda result: result.response.close())
 
             tasks[i] = task
 
-        loop = asyncio.get_running_loop()
         while number_failed_tasks[0] < len(tasks):
             try:
-                first_finished, slow = asyncio.wait(tasks, loop=loop, return_when=asyncio.FIRST_COMPLETED)
+                first_finished, slow = wait(list(filter(lambda t: t is not None, tasks)), return_when=FIRST_COMPLETED)
                 fastest = first_finished.pop().result()
                 fastest: RequestExecutor.IndexAndResponse
                 self._node_selector.record_fastest(fastest.index, nodes[fastest.index])
                 break
-            except Exception:
+            except BaseException:
                 for i in range(len(nodes)):
                     if tasks[i].exception() is not None:
                         number_failed_tasks[0] += 1
@@ -584,6 +776,7 @@ class RequestExecutor:
         return preferred_task.result().response
 
     def __create_request(self, node: ServerNode, command: RavenCommand) -> (requests.Request, str):
+        # todo: it's so stupid to get request.url from create_request, that sends request.url....  and assign it twice!
         request, request.url = command.create_request(node)
         # todo: 1117 - 1133
         return (request, request.url) if request else (None, None)
@@ -612,7 +805,7 @@ class RequestExecutor:
         failed_nodes = command.failed_nodes
 
         command.failed_nodes = {}
-        broadcast_tasks: dict[Task, RequestExecutor.BroadcastState] = {}
+        broadcast_tasks: dict[Future[None], RequestExecutor.BroadcastState] = {}
 
         try:
             self.__send_to_all_nodes(broadcast_tasks, session_info, command)
@@ -622,7 +815,7 @@ class RequestExecutor:
             for task, broadcast_state in broadcast_tasks.items():
                 if task:
 
-                    def __exceptionally(self_task: Task):
+                    def __exceptionally(self_task: Future):
                         if self_task.exception():
                             index = broadcast_state.index
                             node = self._node_selector.topology.nodes[index]
@@ -635,15 +828,15 @@ class RequestExecutor:
 
                     task.add_done_callback(__exceptionally)
 
-    def __wait_for_broadcast_result(self, command: RavenCommand, tasks: dict[Future, BroadcastState]) -> object:
+    def __wait_for_broadcast_result(self, command: RavenCommand, tasks: dict[Future[None], BroadcastState]) -> object:
         while tasks:
             error = None
             try:
-                first_finished, slow = asyncio.wait(tasks.keys(), return_when=asyncio.FIRST_COMPLETED)
+                wait(tasks.keys(), return_when=FIRST_COMPLETED)
             except Exception as e:
                 error = e
 
-            completed = filter(lambda task: task.done(), tasks.keys()).__next__()
+            completed = filter(Future.done, tasks.keys()).__next__()
 
             if error is not None:
                 failed = tasks.get(completed)
@@ -669,7 +862,7 @@ class RequestExecutor:
         raise AllTopologyNodesDownException(f"Broadcasting {command.__class__.__name__} failed: {exceptions}")
 
     def __send_to_all_nodes(
-        self, tasks: dict[Task, BroadcastState], session_info: SessionInfo, command: Union[RavenCommand, Broadcast]
+        self, tasks: dict[Future, BroadcastState], session_info: SessionInfo, command: Union[RavenCommand, Broadcast]
     ):
         for index in range(len(self._node_selector.topology.nodes)):
             state = self.BroadcastState(
@@ -680,8 +873,8 @@ class RequestExecutor:
 
             # todo: aggressive caching options
 
-            async def __coro() -> None:
-                # aggressive caching options
+            async def __run_async() -> None:
+                # todo: aggressive caching options
                 try:
                     request = self.execute(state.node, None, state.command, False, session_info, True)
                     state.request = request
@@ -689,7 +882,8 @@ class RequestExecutor:
                     # todo: aggressive_caching
                     pass
 
-            tasks[asyncio.create_task(__coro())] = state
+            task = self.__thread_pool.submit(__run_async)
+            tasks[task] = state
 
     def __handle_server_down(
         self,

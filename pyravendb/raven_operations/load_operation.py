@@ -1,14 +1,15 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.data.timeseries import TimeSeriesRange
-from pyravendb.documents.commands.commands import GetDocumentsCommand
+from pyravendb.documents.commands import GetDocumentsCommand
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.store.document_session import DocumentSession
-from pyravendb.tools.utils import CaseInsensitiveSet, Utils, CaseInsensitiveDict
+from pyravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict
+
+if TYPE_CHECKING:
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class LoadOperation:

@@ -4,7 +4,6 @@ from pyravendb.commands.raven_commands import GetTopologyCommand, GetStatisticsC
 from pyravendb.connection.requests_helpers import *
 from pyravendb.custom_exceptions import exceptions
 from OpenSSL import crypto
-from pyravendb.data.document_conventions import DocumentConventions
 from threading import Lock
 from pyravendb.tools.utils import Utils
 from datetime import datetime, timedelta
@@ -16,6 +15,11 @@ import errno
 import os
 import io
 import logging
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyravendb.data.document_conventions import DocumentConventions
 
 logging.basicConfig(filename="requests_executor_info.log", level=logging.DEBUG)
 log = logging.getLogger()

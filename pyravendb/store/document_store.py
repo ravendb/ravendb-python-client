@@ -1,13 +1,13 @@
-from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
-from pyravendb.store.document_session import DocumentSession
 from pyravendb.changes.database_changes import DatabaseChanges
 from pyravendb.subscriptions.document_subscriptions import DocumentSubscriptions
 from threading import Lock
 import uuid
 import time
+
+from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.http.request_executor import RequestExecutor
 
 
 class DocumentStore(object):
@@ -137,7 +137,7 @@ class DocumentStore(object):
             if self._request_executors.get(db_name) is None:
                 self._request_executors.setdefault(
                     db_name,
-                    RequestsExecutor.create(self.urls, db_name, self._certificate, self.conventions),
+                    RequestExecutor.create(self.urls, db_name, self._certificate, self.conventions),
                 )
             return self._request_executors[db_name]
 
@@ -161,9 +161,9 @@ class DocumentStore(object):
         self._assert_initialize()
         session_id = uuid.uuid4()
         requests_executor = request_executor if request_executor is not None else self.get_request_executor(database)
-        session = DocumentSession(database, self, requests_executor, session_id)
-        self.events.session_created(session)
-        return session
+        # session = DocumentSession(database, self, requests_executor, session_id)
+        # self.events.session_created(session)
+        # return session
 
     def generate_id(self, db_name, entity):
         if self.generator:
@@ -237,7 +237,7 @@ class ServerOperationExecutor:
                 ClusterRequestExecutor,
             )
 
-            if self._store.conventions.disable_topology_update:
+            if self._store.conventions.disable_topology_updates:
                 self._request_executor = ClusterRequestExecutor.create_for_single_node(
                     self._store.urls[0], self._store.certificate
                 )

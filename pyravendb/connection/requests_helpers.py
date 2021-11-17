@@ -3,7 +3,7 @@ from typing import Union
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from threading import Lock, Thread
 
-from pyravendb.http.http import CurrentIndexAndNode
+from pyravendb.http import CurrentIndexAndNode
 from pyravendb.tools.utils import Utils
 
 

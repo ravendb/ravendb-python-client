@@ -35,7 +35,7 @@ class ServerNode:
 
     @property
     def last_server_version(self) -> str:
-        return self.last_server_version
+        return self.__last_server_version
 
     def should_update_server_version(self) -> bool:
         if self.last_server_version is None or self.__last_server_version_check > 100:

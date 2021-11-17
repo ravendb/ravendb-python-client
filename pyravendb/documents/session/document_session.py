@@ -5,18 +5,12 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, Optional
+from typing import Union, Callable, TYPE_CHECKING
 
 from pyravendb import constants
-from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.data.timeseries import TimeSeriesRange
-from pyravendb.documents.commands.batches import PatchCommandData, CommandType
-from pyravendb.documents.commands.commands import HeadDocumentCommand, GetDocumentsCommand
-from pyravendb.documents.commands.multi_get import GetRequest
-from pyravendb.documents.documents import Lazy, IdTypeAndName
-from pyravendb.documents.indexes.indexes import AbstractCommonApiForIndexes
-from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
-from pyravendb.documents.operations.operations import BatchOperation, PatchRequest
+import pyravendb.documents
+from pyravendb.documents.indexes import AbstractCommonApiForIndexes
 from pyravendb.documents.session.cluster_transaction_operation import (
     ClusterTransactionOperationsBase,
     ClusterTransactionOperations,
@@ -26,13 +20,20 @@ from pyravendb.documents.session.in_memory_document_session_operations import In
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
 from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
-from pyravendb.documents.session.session import SessionOptions, ResponseTimeInformation, JavaScriptArray, JavaScriptMap
-from pyravendb.http.raven_command import RavenCommand
+from pyravendb.documents.session import SessionOptions, ResponseTimeInformation, JavaScriptArray, JavaScriptMap
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.loaders.include_builder import IncludeBuilder
 from pyravendb.raven_operations.load_operation import LoadOperation
 from pyravendb.store.document_store import DocumentStore
 from pyravendb.tools.utils import Utils
+from pyravendb.documents.commands.batches import PatchCommandData, CommandType
+from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand
+from pyravendb.documents.commands.multi_get import GetRequest
+from pyravendb.documents.operations import BatchOperation, PatchRequest
+
+if TYPE_CHECKING:
+    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):
@@ -79,7 +80,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 raise RuntimeError("Cannot execute save_changes when entity tracking is disabled.")
 
             # todo: rebuild request executor
-            self.request_executor.execute(command, self._session_info)
+            self.request_executor.execute_command(command, self._session_info)
             self.update_session_after_save_changes(command.result)
             save_changes_operation.set_result(command.result)
 
@@ -167,7 +168,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.execute_all_pending_lazy_operations()
             return self._get_operation_result(object_type, operation.result)
 
-        lazy_value = Lazy(object_type, __supplier)
+        lazy_value = pyravendb.documents.Lazy(object_type, __supplier)
 
         if on_eval is not None:
             self._on_evaluate_lazy[operation] = lambda the_result: on_eval(
@@ -183,13 +184,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.execute_all_pending_lazy_operations()
             return operation.query_result.total_results
 
-        return Lazy(int, __supplier)
+        return pyravendb.documents.Lazy(int, __supplier)
 
     def lazy_load_internal(
         self, object_type: type, keys: list[str], includes: list[str], on_eval: Callable[[dict[str, object]], None]
-    ) -> Lazy:
+    ) -> pyravendb.documents.Lazy:
         if self.check_if_id_already_included(keys, includes):
-            return Lazy(dict, lambda: self.load(object_type, *keys))
+            return pyravendb.documents.Lazy(dict, lambda: self.load(object_type, *keys))
 
         load_operation = LoadOperation(self).by_keys(keys).with_includes(includes)
         lazy_op = LazyLoadOperation(object_type, self, load_operation).by_keys(*keys).with_includes(*includes)
@@ -383,7 +384,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.load_internal_stream(keys, LoadOperation(self.__session), output)
 
         def __try_merge_patches(self, key: str, patch_request: PatchRequest) -> bool:
-            command = self.__session.deferred_commands_map.get(IdTypeAndName.create(key, CommandType.PATCH, None))
+            command = self.__session.deferred_commands_map.get(
+                pyravendb.documents.IdTypeAndName.create(key, CommandType.PATCH, None)
+            )
             if command is None:
                 return False
 

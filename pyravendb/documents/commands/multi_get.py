@@ -8,7 +8,7 @@ import requests
 from pyravendb import constants
 from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.extensions.http_extensions import HttpExtensions
-from pyravendb.http.http import AggressiveCacheMode, AggressiveCacheOptions
+from pyravendb.http import AggressiveCacheMode, AggressiveCacheOptions
 from pyravendb.http.http_cache import HttpCache, ReleaseCacheItem
 from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from pyravendb.http.server_node import ServerNode
