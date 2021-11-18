@@ -1,8 +1,9 @@
 from __future__ import annotations
 from abc import abstractmethod
-from typing import TypeVar
+from typing import TypeVar, TYPE_CHECKING
 
-from pyravendb.documents.session.document_session import DocumentSession
+if TYPE_CHECKING:
+    from pyravendb.documents.session.document_session import DocumentSession
 
 _T = TypeVar("_T")
 

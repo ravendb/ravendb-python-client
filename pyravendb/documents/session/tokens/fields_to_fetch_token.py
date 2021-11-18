@@ -1,6 +1,6 @@
 from typing import Union
 
-from pyravendb.documents.session.tokens import QueryToken
+from pyravendb.documents.session.tokens.query_token import QueryToken
 
 
 class FieldsToFetchToken(QueryToken):

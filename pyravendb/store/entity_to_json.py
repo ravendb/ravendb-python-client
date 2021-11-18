@@ -1,19 +1,20 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from pyravendb import constants
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.tools.projection import create_entity_with_mapper
 from pyravendb.tools.utils import Utils, _DynamicStructure
 from copy import deepcopy
-import json
+
+if TYPE_CHECKING:
+    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class EntityToJson:
-    def __init__(self, session: InMemoryDocumentSessionOperations):
+    def __init__(self, session: "InMemoryDocumentSessionOperations"):
         self._session = session
         self._missing_dictionary = dict()
 
@@ -23,16 +24,16 @@ class EntityToJson:
 
     def convert_entity_to_json(self, entity: object, document_info: DocumentInfo) -> dict:
         if document_info is not None:
-            self._session.events.before_conversion_to_json_internal(document_info.key, entity)
+            self._session.on_before_conversion_to_document(self, document_info.key, entity)
         document = EntityToJson._convert_entity_to_json_internal(self, entity, document_info)
         if document_info is not None:
-            self._session.events.after_conversion_to_document(document_info.key, entity, document)
+            self._session.on_after_conversion_to_document(document_info.key, entity, document, self)
         return document
 
     @staticmethod
     def convert_entity_to_json_internal_static(
         entity,
-        conventions: DocumentConventions,
+        conventions: "DocumentConventions",
         document_info: DocumentInfo,
         remove_identity_property: Optional[bool] = True,
     ) -> dict:
@@ -43,7 +44,7 @@ class EntityToJson:
         return json_node
 
     @staticmethod
-    def convert_entity_to_json_static(entity, conventions: DocumentConventions, document_info: DocumentInfo):
+    def convert_entity_to_json_static(entity, conventions: "DocumentConventions", document_info: DocumentInfo):
         return EntityToJson.convert_entity_to_json_internal_static(entity, conventions, document_info)
 
     def _convert_entity_to_json_internal(
@@ -55,12 +56,13 @@ class EntityToJson:
             self.try_remove_identity_property(json_node)
         return json_node
 
+    # todo: refactor this method, make it more useful/simple and less ugly (like this return...[0])
     def convert_to_entity(
         self, entity_type: type, key: str, document: dict, track_entity: bool, nested_object_types=None
     ):
         conventions = self._session.conventions
         events = self._session.events
-        self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)
+        return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)[0]
 
     @staticmethod
     def populate_entity(entity, document: dict):
@@ -103,17 +105,18 @@ class EntityToJson:
 
     @staticmethod
     def convert_to_entity_static(
-        document: dict, object_type: type, conventions: DocumentConventions, events, nested_object_types=None
+        document: dict, object_type: type, conventions: "DocumentConventions", events, nested_object_types=None
     ):
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         mapper = conventions.mappers.get(object_type, None)
 
-        events.before_conversion_to_entity(document, metadata, type_from_metadata)
+        # todo: events
+        # events.before_conversion_to_entity(document, metadata, type_from_metadata)
 
         if object_type == dict:
-            events.after_conversion_to_entity(document, document, metadata)
+            # events.after_conversion_to_entity(document, document, metadata)
             return document, metadata, original_document
 
         if type_from_metadata is None:
@@ -121,7 +124,7 @@ class EntityToJson:
                 metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
             else:  # no type defined on document or during load, return a dict
                 dyn = _DynamicStructure(**document)
-                events.after_conversion_to_entity(dyn, document, metadata)
+                # events.after_conversion_to_entity(dyn, document, metadata)
                 return dyn, metadata, original_document
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
@@ -172,7 +175,7 @@ class EntityToJson:
 
         if "Id" in entity.__dict__:
             entity.Id = metadata.get("@id", None)
-        events.after_conversion_to_entity(entity, document, metadata)
+        # events.after_conversion_to_entity(entity, document, metadata)
         return entity, metadata, original_document
 
     def remove_from_missing(self, entity):

@@ -9,7 +9,7 @@ class GetDocumentsResult:
         next_page_start: int,
     ):
         self.includes = includes
-        self.resulsts = results
+        self.results = results
         self.counter_includes = counter_includes
         self.time_series_includes = time_series_includes
         self.compare_exchange_includes = compare_exchange_includes

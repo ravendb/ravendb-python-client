@@ -1,16 +1,13 @@
 import logging
 from typing import Union
-
-import requests
-
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.commands.raven_commands import QueryCommand
 from pyravendb.data.query import IndexQuery
-from pyravendb.documents.commands.commands import GetDocumentsCommand
+from pyravendb.documents.commands import GetDocumentsCommand
 from pyravendb.documents.commands.multi_get import GetRequest, MultiGetCommand
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session.tokens import FieldsToFetchToken
+from pyravendb.documents.session.tokens.fields_to_fetch_token import FieldsToFetchToken
 
 
 class MultiGetOperation:
@@ -124,7 +121,7 @@ class LoadStartingWithOperation:
             self.__results = result
             return
 
-        for document in result.resulsts:
+        for document in result.results:
             if not document:
                 continue
             new_document_info = DocumentInfo.get_new_document_info(document)
@@ -144,7 +141,7 @@ class LoadStartingWithOperation:
 
             final_results = [
                 self.__session.track_entity(object_type, DocumentInfo.get_new_document_info(document))
-                for document in self.__results.resulsts
+                for document in self.__results.results
             ]
         else:
             final_results = [self.__get_document(object_type, key) for key in self.__returned_ids]

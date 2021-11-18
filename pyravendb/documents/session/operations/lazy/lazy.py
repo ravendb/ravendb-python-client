@@ -100,7 +100,7 @@ class LazyLoadOperation(LazyOperation):
             self.__requires_retry = True
             return
 
-        # todo: make sure it'll work lol
+        # todo: make sure it's working
         multi_load_result = (
             EntityToJson.convert_to_entity_static(
                 json.loads(response.result), GetDocumentsResult, self.__session.conventions, None, None

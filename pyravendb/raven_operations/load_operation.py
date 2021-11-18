@@ -1,14 +1,15 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.data.timeseries import TimeSeriesRange
-from pyravendb.documents.commands.commands import GetDocumentsCommand
+from pyravendb.documents.commands import GetDocumentsCommand
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.store.document_session import DocumentSession
-from pyravendb.tools.utils import CaseInsensitiveSet, Utils, CaseInsensitiveDict
+from pyravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict
+
+if TYPE_CHECKING:
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class LoadOperation:
@@ -27,14 +28,16 @@ class LoadOperation:
     ):
         self._session = session
         self._keys = keys
-        self._includes = includes
-        self._counters_to_include = counters_to_include
-        self._compare_exchange_values_to_include = compare_exchange_values_to_include
-        self._time_series_to_include = time_series_to_include
+        self._includes = includes if includes is not None else []
+        self._counters_to_include = counters_to_include if counters_to_include is not None else []
+        self._compare_exchange_values_to_include = (
+            compare_exchange_values_to_include if compare_exchange_values_to_include is not None else []
+        )
+        self._time_series_to_include = time_series_to_include if time_series_to_include is not None else []
         self._include_all_counters = include_all_counters
-        self._time_series_to_include = time_series_to_include
+        self._time_series_to_include = time_series_to_include if time_series_to_include is not None else []
         self._results_set = False
-        self._results = None
+        self._results = []
 
     def create_request(self) -> GetDocumentsCommand:
         if self._session.check_if_id_already_included(
@@ -103,11 +106,11 @@ class LoadOperation:
         return self
 
     def by_keys(self, keys: List[str]):
-        distinct = CaseInsensitiveSet()
-        self._keys = list([distinct.add(key) for key in keys if key and key.strip()])
+        distinct = CaseInsensitiveSet(filter(lambda key: key and key.strip(), keys))
+        self._keys = list(distinct)
         return self
 
-    def get_document(self, object_type: type, key: str = None):
+    def get_document(self, object_type: type):
         if self._session.no_tracking:
             if not self._results_set and len(self._keys) > 0:
                 raise RuntimeError("Cannot execute get_document before operation execution.")
@@ -121,19 +124,21 @@ class LoadOperation:
 
             document_info = DocumentInfo.get_new_document_info(document)
             return self._session.track_entity(object_type, document_info=document_info)
+        return self.__get_document(object_type, self._keys[0])
 
-        if not key:
-            key = self._keys[0]
+    def __get_document(self, object_type: type, key: str):
+        if key is None:
+            # todo: fix these ugly protected calls below
+            return self._session._get_default_value(object_type)
 
-        doc = self._session.advanced.get_document_by_id(key)
-        if doc:
-            return self._session.track_entity(object_type, doc)
+        if self._session.is_deleted(key):
+            return self._session._get_default_value(object_type)
 
-        doc = self._session.included_documents_by_id.get(key)
-        if doc:
-            return self._session.track_entity(object_type, doc)
+        doc = self._session.documents_by_id.get(key)
+        if doc is not None:
+            return self._session.track_entity(object_type, document_info=doc)
 
-        return None
+        return self._session._get_default_value(object_type)
 
     def get_documents(self, object_type: type):
         final_results = CaseInsensitiveDict()
@@ -162,7 +167,7 @@ class LoadOperation:
         for key in self._keys:
             if not key:
                 continue
-            final_results[key] = self.get_document(object_type, key)
+            final_results[key] = self.__get_document(object_type, key)
 
         return final_results
 
@@ -173,7 +178,7 @@ class LoadOperation:
             return
 
         if not result:
-            self._session.register_missing(self._keys)
+            self._session.register_missing(*self._keys)
             return
 
         self._session.register_includes(result.includes)
@@ -185,3 +190,20 @@ class LoadOperation:
 
         if self._time_series_to_include:
             self._session.register_time_series(result.time_series_includes)
+
+        if self._compare_exchange_values_to_include:
+            self._session.get_cluster_session().register_compare_exchange_values(result.compare_exchange_includes)
+
+        for document in result.results:
+            if document is None:
+                continue
+
+            new_document_info = DocumentInfo.get_new_document_info(document)
+            self._session.documents_by_id.add(new_document_info)
+
+        for key in self._keys:
+            value = self._session.documents_by_id.get(key, None)
+            if value is None:
+                self._session.register_missing(key)
+
+        self._session.register_missing_includes(result.results, result.includes, self._includes)

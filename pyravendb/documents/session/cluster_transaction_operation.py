@@ -1,6 +1,6 @@
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, TYPE_CHECKING
 
-from pyravendb.documents.operations.compare_exchange.compare_exchange import (
+from pyravendb.documents.operations.compare_exchange import (
     CompareExchangeSessionValue,
     CompareExchangeValue,
     CompareExchangeValueState,
@@ -8,14 +8,16 @@ from pyravendb.documents.operations.compare_exchange.compare_exchange import (
 from pyravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
     CompareExchangeValueResultParser,
 )
-from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session.transaction_mode import TransactionMode
-from pyravendb.store.document_session import DocumentSession
+
+if TYPE_CHECKING:
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from pyravendb.documents.session.transaction_mode import TransactionMode
+    from pyravendb.store.document_session import DocumentSession
 from pyravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 
 
 class ClusterTransactionOperationsBase:
-    def __init__(self, session: DocumentSession):
+    def __init__(self, session: "DocumentSession"):
         if session.transaction_mode != TransactionMode.CLUSTER_WIDE:
             raise RuntimeError(
                 "This function is part of cluster transaction session, "
@@ -25,7 +27,7 @@ class ClusterTransactionOperationsBase:
         self._state = CaseInsensitiveDict()
 
     @property
-    def session(self) -> DocumentSession:
+    def session(self) -> "DocumentSession":
         return self._session
 
     @property
@@ -142,7 +144,7 @@ class ClusterTransactionOperationsBase:
         value = self._state.get(key)
         return value is not None, value
 
-    def prepare_compare_exchange_entities(self, result: InMemoryDocumentSessionOperations.SaveChangesData) -> None:
+    def prepare_compare_exchange_entities(self, result: "InMemoryDocumentSessionOperations.SaveChangesData") -> None:
         if len(self._state) == 0:
             return
 
@@ -160,7 +162,7 @@ class ClusterTransactionOperationsBase:
 
 
 class ClusterTransactionOperations(ClusterTransactionOperationsBase):
-    def __init__(self, session: DocumentSession):
+    def __init__(self, session: "DocumentSession"):
         super().__init__(session)
 
     def lazily(self):

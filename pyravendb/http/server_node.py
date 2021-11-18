@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 
 class ServerNode:
@@ -11,7 +12,13 @@ class ServerNode:
         def __str__(self):
             return self.value
 
-    def __init__(self, url: str, database: str, cluster_tag: str = None, server_role: Role = None):
+    def __init__(
+        self,
+        url: str,
+        database: Optional[str] = None,
+        cluster_tag: Optional[str] = None,
+        server_role: Optional[Role] = None,
+    ):
         self.url = url
         self.database = database
         self.cluster_tag = cluster_tag
@@ -35,7 +42,7 @@ class ServerNode:
 
     @property
     def last_server_version(self) -> str:
-        return self.last_server_version
+        return self.__last_server_version
 
     def should_update_server_version(self) -> bool:
         if self.last_server_version is None or self.__last_server_version_check > 100:

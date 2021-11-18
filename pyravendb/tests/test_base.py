@@ -8,14 +8,9 @@ from typing import Iterable, List
 from datetime import timedelta
 from pyravendb import constants
 from pyravendb.data.indexes import IndexState, IndexErrors
-from pyravendb.store.document_store import DocumentStore
+from pyravendb.documents import DocumentStore
+from pyravendb.raven_operations.maintenance_operations import GetStatisticsOperation, GetIndexErrorsOperation
 from pyravendb.raven_operations.server_operations import *
-from pyravendb.raven_operations.maintenance_operations import (
-    IndexDefinition,
-    PutIndexesOperation,
-    GetStatisticsOperation,
-    GetIndexErrorsOperation,
-)
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 

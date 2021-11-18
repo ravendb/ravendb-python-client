@@ -4,21 +4,23 @@ import datetime
 import json
 from abc import abstractmethod
 from enum import Enum
-from typing import Callable, Union, Optional
+from typing import Callable, Union, Optional, TYPE_CHECKING
 
 import requests
 
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents.operations.operations import PatchRequest
-from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session.session import ForceRevisionStrategy
+import pyravendb.documents.session
 from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.store.entity_to_json import EntityToJson
 from pyravendb.tools.utils import CaseInsensitiveSet, Utils
 from pyravendb.util.util import RaftIdGenerator
+from pyravendb.documents.session import ForceRevisionStrategy
+
+if TYPE_CHECKING:
+    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.operations import PatchRequest
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class CommandType(Enum):
@@ -114,7 +116,7 @@ class SingleNodeBatchCommand(RavenCommand):
     def is_read_request(self):
         return False
 
-    def create_request(self, node: ServerNode) -> (requests.Request, str):
+    def create_request(self, node: ServerNode) -> requests.Request:
         request = requests.Request(method="POST")
         request.data = {"Commands": [command.serialize(self.__conventions) for command in self.__commands]}
         if self.__mode == TransactionMode.CLUSTER_WIDE:
@@ -122,7 +124,11 @@ class SingleNodeBatchCommand(RavenCommand):
         # todo: attachments stuff
         sb = [f"{node.url}/databases/{node.database}/bulk_docs"]
         self.__append_options(sb)
-        return request, sb
+
+        request.headers["Content-type"] = "application/json"
+        request.url = sb[0]
+
+        return request
 
     def __append_options(self, sb: list[str]) -> None:
         if self.__options is None:
@@ -156,10 +162,7 @@ class SingleNodeBatchCommand(RavenCommand):
                 "Got None response from the server after doing a batch, something is very wrong."
                 " Probably a garbled response."
             )
-
-        self.result = EntityToJson.convert_to_entity_static(
-            json.loads(response), BatchCommandResult, self.__conventions, None, None
-        )
+        self.result = Utils.initialize_object(json.loads(response), self._result_class, True)
 
 
 class ClusterWideBatchCommand(SingleNodeBatchCommand):
@@ -184,33 +187,33 @@ class CommandData:
         command_type: CommandType = None,
         on_before_save_changes: Callable = None,
     ):
-        self.__key = key
-        self.__name = name
-        self.__change_vector = change_vector
-        self.__command_type = command_type
-        self.__on_before_save_changes = on_before_save_changes
+        self._key = key
+        self._name = name
+        self._change_vector = change_vector
+        self._command_type = command_type
+        self._on_before_save_changes = on_before_save_changes
 
     @property
     def key(self) -> str:
-        return self.__key
+        return self._key
 
     @property
     def name(self) -> str:
-        return self.__name
+        return self._name
 
     @property
     def change_vector(self) -> str:
-        return self.__change_vector
+        return self._change_vector
 
     @property
     def command_type(self) -> CommandType:
-        return self.__command_type
+        return self._command_type
 
     @property
     def on_before_save_changes(
         self,
     ) -> Callable[[InMemoryDocumentSessionOperations], None]:
-        return self.__on_before_save_changes
+        return self._on_before_save_changes
 
     @abstractmethod
     def serialize(self, conventions: DocumentConventions) -> dict:
@@ -249,8 +252,8 @@ class PutCommandDataBase(CommandData):
 
     def serialize(self, conventions: DocumentConventions) -> dict:
         result = {
-            "Id": self.__key,
-            "ChangeVector": self.__change_vector,
+            "Id": self._key,
+            "ChangeVector": self._change_vector,
             "Document": self.__document,
             "Type": CommandType.PUT,
         }
