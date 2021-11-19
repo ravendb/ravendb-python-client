@@ -161,14 +161,16 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def include(self, path: str) -> LoaderWithInclude:
         return MultiLoaderWithInclude(self).include(path)
 
-    def add_lazy_operation(self, object_type, operation: LazyOperation, on_eval: Callable[[object], None]):
+    def add_lazy_operation(
+        self, object_type, operation: LazyOperation, on_eval: Callable[[object], None]
+    ) -> pyravendb.documents.Lazy:
         self._pending_lazy_operations.append(operation)
 
         def __supplier():
             self.execute_all_pending_lazy_operations()
             return self._get_operation_result(object_type, operation.result)
 
-        lazy_value = pyravendb.documents.Lazy(object_type, __supplier)
+        lazy_value = pyravendb.documents.Lazy(__supplier)
 
         if on_eval is not None:
             self._on_evaluate_lazy[operation] = lambda the_result: on_eval(
@@ -177,25 +179,27 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return lazy_value
 
-    def add_lazy_count_operation(self, operation: LazyOperation):
+    def add_lazy_count_operation(self, operation: LazyOperation) -> pyravendb.documents.Lazy:
         self._pending_lazy_operations.append(operation)
 
         def __supplier():
             self.execute_all_pending_lazy_operations()
             return operation.query_result.total_results
 
-        return pyravendb.documents.Lazy(int, __supplier)
+        return pyravendb.documents.Lazy(__supplier)
 
     def lazy_load_internal(
         self, object_type: type, keys: list[str], includes: list[str], on_eval: Callable[[dict[str, object]], None]
     ) -> pyravendb.documents.Lazy:
         if self.check_if_id_already_included(keys, includes):
-            return pyravendb.documents.Lazy(dict, lambda: self.load(object_type, *keys))
+            return pyravendb.documents.Lazy(lambda: self.load(object_type, *keys))
 
         load_operation = LoadOperation(self).by_keys(keys).with_includes(includes)
         lazy_op = LazyLoadOperation(object_type, self, load_operation).by_keys(*keys).with_includes(*includes)
 
-    def load(self, object_type: type, *keys: str, includes: Callable[[IncludeBuilder], None] = None):
+    def load(
+        self, object_type: type, *keys: str, includes: Callable[[IncludeBuilder], None] = None
+    ) -> dict[str, object]:
         if keys is None:
             raise ValueError("Keys cannot be None")
         if includes is None:
