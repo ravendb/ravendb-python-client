@@ -3,9 +3,9 @@ from enum import Enum
 from typing import Union, Optional
 
 from pyravendb import constants
-from pyravendb.custom_exceptions.exceptions import RavenException
 from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.commands.batches import PutCompareExchangeCommandData, DeleteCompareExchangeCommandData
+from pyravendb.exceptions.raven_exceptions import RavenException
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import pyravendb.store.entity_to_json
 from pyravendb.tools.projection import create_entity_with_mapper

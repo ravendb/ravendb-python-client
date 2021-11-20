@@ -19,6 +19,8 @@ from pyravendb.custom_exceptions.exceptions import (
     DatabaseDoesNotExistException,
     AuthorizationException,
 )
+from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
+from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 
 from pyravendb.http import (
     CurrentIndexAndNode,
@@ -38,7 +40,6 @@ from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetCluster
 
 from http import HTTPStatus
 
-from pyravendb.exceptions import ExceptionDispatcher, ClientVersionMismatchException
 
 from pyravendb.documents.operations.configuration import GetClientConfigurationOperation
 

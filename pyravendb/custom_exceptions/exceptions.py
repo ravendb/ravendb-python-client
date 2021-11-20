@@ -78,16 +78,6 @@ class ChangeProcessingException(Exception):
     pass
 
 
-class RavenException(RuntimeError):
-    def __init__(self, message: str = None, cause: BaseException = None):
-        super(RavenException, self).__init__(*(message, cause) if cause else message)
-        self.reached_leader = None
-
-    @staticmethod
-    def generic(error: str, json: str):
-        return RavenException(f"{error}. Response: {json}")
-
-
 # <---------- Subscription Exceptions ---------->
 
 

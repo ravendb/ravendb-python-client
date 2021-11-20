@@ -2,15 +2,10 @@ from __future__ import annotations
 
 import json
 
-from pyravendb.custom_exceptions.exceptions import RavenException
+from pyravendb.exceptions.raven_exceptions import ConflictException, BadResponseException
 
 
-class BadResponseException(RavenException):
-    def __init__(self, message: str = None, cause: BaseException = None):
-        super(BadResponseException, self).__init__(message, cause)
-
-
-class DocumentConflictException(BadResponseException):
+class DocumentConflictException(ConflictException):
     def __init__(self, message: str, doc_id: str = None, largest_etag: int = None):
         super(DocumentConflictException, self).__init__(message)
         self.doc_id = doc_id

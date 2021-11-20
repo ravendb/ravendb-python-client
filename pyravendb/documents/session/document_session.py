@@ -11,10 +11,7 @@ from pyravendb import constants
 from pyravendb.data.timeseries import TimeSeriesRange
 import pyravendb.documents
 from pyravendb.documents.indexes import AbstractCommonApiForIndexes
-from pyravendb.documents.session.cluster_transaction_operation import (
-    ClusterTransactionOperationsBase,
-    ClusterTransactionOperations,
-)
+from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
@@ -34,6 +31,7 @@ from pyravendb.documents.operations import BatchOperation, PatchRequest
 if TYPE_CHECKING:
     from pyravendb.data.document_conventions import DocumentConventions
     from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
+    from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):

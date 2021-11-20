@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+import datetime
+import json
+import time
 from abc import abstractmethod
 from copy import deepcopy
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING
+from typing import Union, Optional, TYPE_CHECKING, Callable, Generic, TypeVar
+
+import requests
 
 from pyravendb import constants
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.transaction_mode import TransactionMode
-from pyravendb.exceptions import ClientVersionMismatchException
+from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
+from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
+from pyravendb.http import ServerNode, VoidRavenCommand
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.tools.utils import CaseInsensitiveDict
+from pyravendb.primitives import OperationCancelledException
+from pyravendb.tools.utils import CaseInsensitiveDict, Utils
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
 
 if TYPE_CHECKING:
@@ -20,6 +28,9 @@ if TYPE_CHECKING:
     from pyravendb.http.request_executor import RequestExecutor
     from pyravendb.documents import DocumentStore
     from pyravendb.serverwide import ServerOperationExecutor
+
+
+_T = TypeVar("_T")
 
 
 class MaintenanceOperationExecutor:
@@ -38,11 +49,148 @@ class MaintenanceOperationExecutor:
         )
         return self.__request_executor
 
+    def server(self) -> ServerOperationExecutor:
+        if self.__server_operation_executor is not None:
+            return self.__server_operation_executor
+        self.__server_operation_executor = ServerOperationExecutor(self.__store)
+        return self.__server_operation_executor
 
-class MaintenanceOperation:
+    def for_database(self, database_name: str) -> MaintenanceOperationExecutor:
+        if str.lower(self.__database_name) == str.lower(database_name):
+            return self
+
+        return MaintenanceOperationExecutor(self.__store, database_name)
+
+    def send(self, operation: Union[VoidMaintenanceOperation, MaintenanceOperation]):
+        self.__assert_database_name_set()
+        command = operation.get_command(self.__get_request_executor().conventions)
+        self.__get_request_executor().execute_command(command)
+        return None if isinstance(operation, VoidMaintenanceOperation) else command.result
+
+    def send_async(self, operation: MaintenanceOperation[OperationIdResult]) -> Operation:
+        self.__assert_database_name_set()
+        command = operation.get_command(self.__get_request_executor().conventions)
+
+        self.__get_request_executor().execute_command(command)
+        node = command.selected_node_tag if command.selected_node_tag else command.result.operation_node_tag
+        return Operation(
+            self.__get_request_executor(),
+            #  todo : changes
+            #  lambda: self.__store.changes(self.__database_name, node),
+            lambda: None,
+            self.__get_request_executor().conventions,
+            command.result.operation_id,
+            node,
+        )
+
+    def __assert_database_name_set(self) -> None:
+        if self.__database_name is None:
+            raise ValueError(
+                "Cannot use maintenance without a database defined, did you forget to call 'for_database'?"
+            )
+
+
+# todo: DatabaseChanges class
+class Operation:
+    def __init__(
+        self,
+        request_executor: RequestExecutor,
+        changes: Callable[[], "DatabaseChanges"],
+        conventions: DocumentConventions,
+        key: int,
+        node_tag: str = None,
+    ):
+        self.__request_executor = request_executor
+        self.__conventions = conventions
+        self.__key = key
+        self.node_tag = node_tag
+
+    def fetch_operations_status(self) -> dict:
+        command = self._get_operation_state_command(self.__conventions, self.__key, self.node_tag)
+        self.__request_executor.execute_command(command)
+
+        return command.result
+
+    def _get_operation_state_command(
+        self, conventions: DocumentConventions, key: int, node_tag: str = None
+    ) -> RavenCommand[dict]:
+        return GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
+
+    def wait_for_completion(self) -> None:
+        while True:
+            status = self.fetch_operations_status()
+            # todo: check if it isn't a string at the begging - if there's a need to parse on string
+            operation_status = str(status.get("Status"))
+
+            if operation_status == "Completed":
+                return
+            elif operation_status == "Canceled":
+                raise OperationCancelledException()
+            elif operation_status == "Faulted":
+                result = status.get("Result")
+                exception_result: OperationExceptionResult = Utils.initialize_object(
+                    result, OperationExceptionResult, True
+                )
+                schema = ExceptionDispatcher.ExceptionSchema(
+                    self.__request_executor.url, exception_result.error, exception_result.message, exception_result.type
+                )
+                raise ExceptionDispatcher.get(schema, exception_result.status_code)
+
+            time.sleep(0.5)
+
+
+class MaintenanceOperation(Generic[_T]):
     @abstractmethod
-    def get_command(self, conventions: DocumentConventions) -> RavenCommand:
+    def get_command(self, conventions: DocumentConventions) -> RavenCommand[_T]:
         pass
+
+
+class VoidMaintenanceOperation(MaintenanceOperation[None]):
+    @abstractmethod
+    def get_command(self, conventions: DocumentConventions) -> VoidRavenCommand:
+        pass
+
+
+class OperationIdResult:
+    def __init__(self, operation_id: int = None, operation_node_tag: str = None):
+        self.operation_id = operation_id
+        self.operation_node_tag = operation_node_tag
+
+
+class OperationExceptionResult:
+    def __init__(self, ex_type: str, message: str, error: str, status_code: int):
+        self.type = ex_type
+        self.message = message
+        self.error = error
+        self.status_code = status_code
+
+
+class GetOperationStateOperation(MaintenanceOperation):
+    def __init__(self, key: int, node_tag: str = None):
+        self.__key = key
+        self.__node_tag = node_tag
+
+    def get_command(self, conventions: DocumentConventions) -> RavenCommand:
+        return self.GetOperationStateCommand(self.__key, self.__node_tag)
+
+    class GetOperationStateCommand(RavenCommand[dict]):
+        def __init__(self, key: int, node_tag: str = None):
+            super().__init__(dict)
+            self.__key = key
+            self.__selected_node_tag = node_tag
+
+            self.__timeout = datetime.timedelta(seconds=15)
+
+        def is_read_request(self) -> bool:
+            return True
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request("GET", f"{node.url}/databases/{node.database}/operations/state?id={self.__key}")
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                return
+            self.result = json.loads(response)
 
 
 class BatchOperation:

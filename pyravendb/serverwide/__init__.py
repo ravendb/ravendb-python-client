@@ -1,11 +1,18 @@
 from __future__ import annotations
-
-import typing
+from typing import Union, TYPE_CHECKING
 
 import pyravendb.http.request_executor as req_ex
+from pyravendb.documents.operations import OperationIdResult, Operation
+from pyravendb.http import Topology
+from pyravendb.serverwide.operations import (
+    ServerOperation,
+    VoidServerOperation,
+    ServerWideOperation,
+    GetBuildNumberOperation,
+)
 from pyravendb.tools.utils import CaseInsensitiveDict
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from pyravendb.documents import DocumentStore
 
 
@@ -27,10 +34,29 @@ class ServerOperationExecutor:
 
         # todo: if node tag is null add after_close_listener
 
-    def send(self, operation: ServerOperation):
-        command = operation.get_command()
+    def send(self, operation: Union[VoidServerOperation, ServerOperation]):
+        if isinstance(operation, VoidServerOperation):
+            command = operation.get_command(self.__request_executor.conventions)
+            self.__request_executor.execute_command(command)
 
-    def close(self):
+        if isinstance(operation, ServerOperation):
+            command = operation.get_command(self.__request_executor.conventions)
+            self.__request_executor.execute_command(command)
+
+            return command.result
+
+    def send_async(self, operation: ServerOperation[OperationIdResult]) -> Operation:
+        command = operation.get_command(self.__request_executor.conventions)
+
+        self.__request_executor.execute_command(command)
+        return ServerWideOperation(
+            self.__request_executor,
+            self.__request_executor.conventions,
+            command.result.operation_id,
+            command.selected_node_tag if command.selected_node_tag else command.result.operation_node_tag,
+        )
+
+    def close(self) -> None:
         if self.__node_tag is not None:
             return
 
@@ -45,6 +71,28 @@ class ServerOperationExecutor:
                     request_executor.close()
 
             cache.clear()
+
+    def __get_topology(self, request_executor: req_ex.ClusterRequestExecutor) -> Topology:
+        topology: Topology = None
+        try:
+            topology = request_executor.topology
+            if topology is None:
+                # a bit rude way to make sure that topology was refreshed
+                # but it handles a case when first topology update failed
+
+                operation = GetBuildNumberOperation()
+                command = operation.get_command(request_executor.conventions)
+                request_executor.execute_command(command)
+
+                topology = request_executor.topology
+
+        except:
+            pass
+
+        if topology is None:
+            raise RuntimeError("Could not fetch the topology")
+
+        return topology
 
     @staticmethod
     def create_request_executor(store: DocumentStore) -> req_ex.ClusterRequestExecutor:

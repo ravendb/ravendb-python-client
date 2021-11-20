@@ -6,6 +6,7 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any, Union, Optional, TypeVar, Generic, TYPE_CHECKING
 
+from pyravendb.documents.operations import MaintenanceOperationExecutor
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session import SessionOptions
@@ -192,7 +193,7 @@ class DocumentStore(DocumentStoreBase):
         # todo: database changes
         # todo: aggressive cache
         # todo: hilo
-        # todo: maintenance operation executor
+        self.__maintenance_operation_executor: Union[None, MaintenanceOperationExecutor] = None
         # todo: operation executor
         # todo: database smuggler
         self.__identifier: Union[None, str] = None
