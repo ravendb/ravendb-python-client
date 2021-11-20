@@ -56,7 +56,7 @@ class MaintenanceOperationExecutor:
         return self.__server_operation_executor
 
     def for_database(self, database_name: str) -> MaintenanceOperationExecutor:
-        if str.lower(self.__database_name) == str.lower(database_name):
+        if self.__database_name.lower() == database_name.lower():
             return self
 
         return MaintenanceOperationExecutor(self.__store, database_name)
