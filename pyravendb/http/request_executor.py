@@ -166,6 +166,10 @@ class RequestExecutor:
         return requests.session()
 
     @property
+    def cache(self) -> HttpCache:
+        return self.__cache
+
+    @property
     def topology_nodes(self) -> list[ServerNode]:
         return self.topology.nodes
 

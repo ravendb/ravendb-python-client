@@ -11,11 +11,13 @@ from typing import Union, Optional, TYPE_CHECKING, Callable, Generic, TypeVar
 import requests
 
 from pyravendb import constants
+from pyravendb.documents.session import SessionInfo
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 from pyravendb.http import ServerNode, VoidRavenCommand
+from pyravendb.http.http_cache import HttpCache
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
 from pyravendb.primitives import OperationCancelledException
@@ -31,6 +33,48 @@ if TYPE_CHECKING:
 
 
 _T = TypeVar("_T")
+_Operation_T = TypeVar("_Operation_T")
+
+
+class OperationExecutor:
+    def __init__(self, store: DocumentStore, database_name: str = None):
+        self.__store = store
+        self.__database_name = database_name
+        if not self.__database_name.isspace():
+            self.__request_executor = store.get_request_executor(self.__database_name)
+        else:
+            raise ValueError("Cannot use operations without a database defined, did you forget to call 'for_database'?")
+
+    def for_database(self, database_name: str) -> OperationExecutor:
+        if self.__database_name.lower() == database_name.lower():
+            return self
+        return OperationExecutor(self.__store, database_name)
+
+    def send(self, operation: Union[IOperation, VoidOperation], session_info: SessionInfo = None):
+        command = operation.get_command(
+            self.__store, self.__request_executor.conventions, self.__request_executor.cache
+        )
+        self.__request_executor.execute_command(command, session_info)
+        return None if isinstance(operation, VoidOperation) else command.result
+
+    def send_async(self, operation: IOperation[OperationIdResult]) -> Operation:
+        command = operation.get_command(
+            self.__store, self.__request_executor.conventions, self.__request_executor.cache
+        )
+        self.__request_executor.execute_command(command)
+        node = command.selected_node_tag if command.selected_node_tag else command.result.operation_node_tag
+        return Operation(
+            self.__request_executor,
+            lambda: None,
+            self.__request_executor.conventions,
+            command.result.operation_id,
+            node,
+        )
+
+    # todo: send patch operations - create send_patch method
+    #  or
+    #  refactor 'send' methods above to act different while taking different sets of args
+    #  (see jvmravendb OperationExecutor.java line 83-EOF)
 
 
 class MaintenanceOperationExecutor:
@@ -137,6 +181,19 @@ class Operation:
                 raise ExceptionDispatcher.get(schema, exception_result.status_code)
 
             time.sleep(0.5)
+
+
+class IOperation(Generic[_Operation_T]):
+    def get_command(
+        self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache
+    ) -> RavenCommand[_Operation_T]:
+        pass
+
+
+class VoidOperation(IOperation[None]):
+    @abstractmethod
+    def get_command(self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache) -> VoidRavenCommand:
+        pass
 
 
 class MaintenanceOperation(Generic[_T]):
