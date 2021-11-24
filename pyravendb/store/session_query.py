@@ -1,7 +1,17 @@
+from typing import List, Set, Tuple, Iterable, Union, Callable, Dict
+
+from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.loaders.query_include_builder import QueryIncludeBuilder
 from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
 from pyravendb.commands.raven_commands import GetFacetsCommand
 from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType, FacetQuery
+from pyravendb.documents.session.tokens.query_token import (
+    CompareExchangeValueIncludesToken,
+    TimeSeriesIncludesToken,
+    CounterIncludesToken,
+    QueryToken,
+)
 from pyravendb.tools.utils import Utils
 from datetime import timedelta, datetime
 import time
@@ -10,15 +20,11 @@ import re
 
 class _Token:
     def __init__(self, field_name="", value=None, token=None, write=None, **kwargs):
-        self.__dict__.update(
-            {
-                "field_name": field_name,
-                "value": value,
-                "token": token,
-                "write": write,
-                **kwargs,
-            }
-        )
+        self.field_name = field_name
+        self.value = value
+        self.token = token
+        self.write = write
+        self.__dict__.update(kwargs)
 
 
 class Query(object):
@@ -55,7 +61,11 @@ class Query(object):
         self._group_by_tokens = None
         self._order_by_tokens = None
         self._where_tokens = None
-        self.includes = None
+        self._includes_alias: Union[None, str] = None
+        self.document_includes: Union[None, Set[str]] = None
+        self.compare_exchange_value_includes_tokens: Union[None, List[CompareExchangeValueIncludesToken]] = None
+        self.counter_includes_tokens: Union[None, List[CounterIncludesToken]] = None
+        self.time_series_includes_tokens: Union[None, List[TimeSeriesIncludesToken]] = None
         self._current_clause_depth = None
         self.is_intersect = None
         self.the_wait_for_non_stale_results = False
@@ -112,7 +122,7 @@ class Query(object):
         self._group_by_tokens = []  # List[_Token]
         self._order_by_tokens = []  # List[_Token]
         self._where_tokens = []  # List[_Token]
-        self.includes = set()
+        self.document_includes = set()
         self._current_clause_depth = 0
         self.is_intersect = False
         self.start = 0
@@ -245,20 +255,40 @@ class Query(object):
                 index += 1
 
     def build_include(self, query_builder):
-        if self.includes is not None and len(self.includes) > 0:
-            query_builder.append(" INCLUDE ")
+        if any(
+            [
+                self.document_includes,
+                self.counter_includes_tokens,
+                self.time_series_includes_tokens,
+                self.compare_exchange_value_includes_tokens,
+            ]
+        ):
+            query_builder.append(" include ")
             first = True
-            for include in self.includes:
+            for include in self.document_includes:
                 if not first:
                     query_builder.append(",")
                 first = False
-                required_quotes = False
-                if not re.match("^[A-Za-z0-9_]+$", include):
-                    required_quotes = True
-                if required_quotes:
-                    query_builder.append("'{0}'".format(include.replace("'", "\\'")))
-                else:
-                    query_builder.append(include)
+                query_builder.append(
+                    "'" + include.replace("'", "\\'") + "'" if not re.match("^[A-Za-z0-9_]+$", include) else include
+                )
+
+            first = self.write_include_tokens(self.counter_includes_tokens, first, query_builder)
+            first = self.write_include_tokens(self.time_series_includes_tokens, first, query_builder)
+            self.write_include_tokens(self.compare_exchange_value_includes_tokens, first, query_builder)
+
+    @staticmethod
+    def write_include_tokens(tokens: Iterable[QueryToken], first: bool, query_builder: List[str]) -> bool:
+        if not tokens:
+            return first
+
+        for token in tokens:
+            if not first:
+                query_builder.append(",")
+            first = False
+            token.write_to(query_builder)
+
+        return first
 
     def assert_no_raw_query(self):
         if self._query:
@@ -348,8 +378,7 @@ class Query(object):
         if fuzzy:
             where_rql += "," + fuzzy + ")"
         if boost:
-            where_rql += "," + str(boost) + ")"
-
+            where_rql += ", " + str(float(boost)) + ")"
         return where_rql
 
     @staticmethod
@@ -381,6 +410,8 @@ class Query(object):
                         and c != "@"
                         and c != "["
                         and c != "]"
+                        and c != "("
+                        and c != ")"
                         and not inside_escaped
                     ):
                         escape = True
@@ -412,6 +443,16 @@ class Query(object):
                 self.and_also()
             self._where_tokens.append(_Token(write="NOT"))
 
+    def add_parameter(self, name, value):
+        if name in self.query_parameters:
+            raise ValueError(f"The parameter {name} was already added")
+        if isinstance(value, timedelta):
+            value = Utils.timedelta_tick(value)
+        elif isinstance(value, datetime):
+            value = Utils.datetime_to_string(value)
+        self.query_parameters[name] = value
+        return self
+
     def add_query_parameter(self, value):
 
         if isinstance(value, timedelta):
@@ -419,7 +460,7 @@ class Query(object):
         elif isinstance(value, datetime):
             value = Utils.datetime_to_string(value)
 
-        parameter_name = "p{0}".format(len(self.query_parameters))
+        parameter_name = f"p{len(self.query_parameters)}"
         self.query_parameters[parameter_name] = value
         return parameter_name
 
@@ -887,8 +928,8 @@ class Query(object):
         return self
 
     def or_else(self):
-        if len(self.query_builder) > 0:
-            self.query_builder += " OR"
+        if len(self._where_tokens) > 0:
+            self._where_tokens.append(_Token(write=" OR"))
         return self
 
     def boost(self, boost):
@@ -931,9 +972,66 @@ class Query(object):
 
         self.negate = not self.negate
 
-    def include(self, path):
-        self.includes.add(path)
+    def _include(self, includes: Union[str, QueryIncludeBuilder] = None):
+        if not includes:
+            return
+
+        if isinstance(includes, str):
+            self.document_includes.add(includes)
+            return
+        if includes.documents_to_include:
+            self.document_includes.update(includes.documents_to_include)
+
+        self._include_counters(includes.alias, includes.counters_to_include_by_source_path)
+
+        if includes.time_series_to_include:
+            self._include_time_series(includes.alias, includes.time_series_to_include_by_source_alias)
+
+        if includes.compare_exchange_values_to_include:
+            self.compare_exchange_value_includes_tokens = []
+            for compare_exchange_value in includes.compare_exchange_values_to_include:
+                self.compare_exchange_value_includes_tokens.append(
+                    CompareExchangeValueIncludesToken.create(compare_exchange_value)
+                )
+
+    def include(self, *args: str, builder: Callable[[QueryIncludeBuilder], None] = None):
+        if builder:
+            include_builder = QueryIncludeBuilder(self.session.conventions)
+            builder(include_builder)
+            self._include(include_builder)
+        if args:
+            for arg in args:
+                self._include(arg)
         return self
+
+    def _include_counters(self, alias: str, counter_to_include_by_doc_id: Dict[str, Tuple[bool, Set[str]]]):
+        if not counter_to_include_by_doc_id:
+            return
+        self.counter_includes_tokens = []
+        self._includes_alias = alias
+
+        for k, v in counter_to_include_by_doc_id.items():
+            if v[0]:
+                self.counter_includes_tokens.append(CounterIncludesToken.all(k))
+                continue
+
+            if not v[1]:
+                continue
+
+            for name in v[1]:
+                self.counter_includes_tokens.append(CounterIncludesToken.create(k, name))
+
+    def _include_time_series(self, alias: str, time_series_to_include: Dict[str, Set[TimeSeriesRange]]):
+        if not time_series_to_include:
+            return
+
+        self.time_series_includes_tokens = []
+        if self._includes_alias is None:
+            self._includes_alias = alias
+
+        for k, v in time_series_to_include:
+            for range in v:
+                self.time_series_includes_tokens.append(TimeSeriesIncludesToken.create(k, range))
 
     def no_tracking(self):  # todo: RDBC-465
         self._disable_entities_tracking = True
@@ -1017,9 +1115,14 @@ class Query(object):
         results = []
         response_results = response.pop("Results")
         response_includes = response.pop("Includes", None)
+        response_counter_includes = response.pop("CounterIncludes", None)
         self.session.save_includes(response_includes)
+        response_counter_includes_names = (
+            response.pop("IncludedCounterNames") if "IncludedCounterNames" in response else None
+        )
+        self.session.register_counters(response_counter_includes, response_counter_includes_names)
         for result in response_results:
-            (entity, metadata, original_document,) = Utils.convert_to_entity(
+            (entity, metadata, original_document,) = self.session.entity_to_json.convert_to_entity(
                 result,
                 self.object_type,
                 self.session.conventions,

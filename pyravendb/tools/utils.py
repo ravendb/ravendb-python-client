@@ -14,6 +14,77 @@ import sys
 import re
 
 
+class CaseInsensitiveDict(dict):
+    @classmethod
+    def _k(cls, key):
+        return key.lower() if isinstance(key, str) else key
+
+    def __init__(self, *args, **kwargs):
+        super(CaseInsensitiveDict, self).__init__(*args, **kwargs)
+        self._convert_keys()
+
+    def __getitem__(self, key):
+        return super(CaseInsensitiveDict, self).__getitem__(self.__class__._k(key))
+
+    def __setitem__(self, key, value):
+        super(CaseInsensitiveDict, self).__setitem__(self.__class__._k(key), value)
+
+    def __delitem__(self, key):
+        return super(CaseInsensitiveDict, self).__delitem__(self.__class__._k(key))
+
+    def __contains__(self, key):
+        return super(CaseInsensitiveDict, self).__contains__(self.__class__._k(key))
+
+    def pop(self, key, *args, **kwargs):
+        return super(CaseInsensitiveDict, self).pop(self.__class__._k(key), *args, **kwargs)
+
+    def get(self, key, *args, **kwargs):
+        return super(CaseInsensitiveDict, self).get(self.__class__._k(key), *args, **kwargs)
+
+    def setdefault(self, key, *args, **kwargs):
+        return super(CaseInsensitiveDict, self).setdefault(self.__class__._k(key), *args, **kwargs)
+
+    def update(self, e=None, **f):
+        super(CaseInsensitiveDict, self).update(self.__class__(e))
+        super(CaseInsensitiveDict, self).update(self.__class__(**f))
+
+    def _convert_keys(self):
+        for k in list(self.keys()):
+            v = super(CaseInsensitiveDict, self).pop(k)
+            self.__setitem__(k, v)
+
+
+class CaseInsensitiveSet(set):
+    @classmethod
+    def _v(cls, value):
+        return value.lower() if isinstance(value, str) else value
+
+    def __init__(self, *args, **kwargs):
+        super(CaseInsensitiveSet, self).__init__(*args, **kwargs)
+        self._convert_values()
+
+    def __contains__(self, value):
+        return super(CaseInsensitiveSet, self).__contains__(self.__class__._v(value))
+
+    def add(self, element) -> None:
+        super().add(self._v(element))
+
+    def discard(self, element) -> None:
+        super().discard(self._v(element))
+
+    def remove(self, element) -> None:
+        super().remove(self._v(element))
+
+    def update(self, e=None, **f):
+        super(CaseInsensitiveSet, self).update(self.__class__(e))
+        super(CaseInsensitiveSet, self).update(self.__class__(**f))
+
+    def _convert_values(self):
+        for v in self:
+            super().discard(v)
+            self.add(v)
+
+
 class _DynamicStructure(object):
     def __init__(self, **entries):
         self.__dict__.update(entries)
@@ -449,3 +520,15 @@ class Utils(object):
     @staticmethod
     def entity_to_dict(entity, default_method):
         return json.loads(json.dumps(entity, default=default_method))
+
+    @staticmethod
+    def add_hours(date: datetime, hours: int):
+        return date + timedelta(hours=hours)
+
+    @staticmethod
+    def add_days(date: datetime, days: int):
+        return date + timedelta(days=days)
+
+    @staticmethod
+    def add_minutes(date: datetime, minutes: int):
+        return date + timedelta(minutes=minutes)

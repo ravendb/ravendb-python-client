@@ -54,6 +54,10 @@ class UnsuccessfulRequestException(Exception):
     pass
 
 
+class RequestedNodeUnavailableException(Exception):
+    pass
+
+
 class AggregateException(Exception):
     pass
 

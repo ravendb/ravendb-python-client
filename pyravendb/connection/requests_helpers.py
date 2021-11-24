@@ -1,5 +1,9 @@
+from typing import Union
+
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from threading import Lock, Thread
+
+from pyravendb.http import CurrentIndexAndNode
 from pyravendb.tools.utils import Utils
 
 
@@ -67,10 +71,11 @@ class Topology(object):
 
 
 class NodeSelector(object):
-    def __init__(self, topology):
+    def __init__(self, topology: Topology):
         self.topology = topology
         self._current_node_index = 0
         self.lock = Lock()
+        self.state = self.__NodeSelectorState(topology)
 
     @property
     def current_node_index(self):
@@ -106,6 +111,9 @@ class NodeSelector(object):
                     return True
 
             old_topology = self.topology
+
+    def get_requested_node(self, node_tag: str) -> CurrentIndexAndNode:
+        state = self.state
 
     def get_current_node(self):
         if len(self.topology.nodes) == 0:

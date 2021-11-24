@@ -1,7 +1,8 @@
+from typing import Tuple, Set, Union, List, Optional
 from pyravendb.commands.raven_commands import RavenCommand, GetStatisticsCommand
 from pyravendb.tools.utils import Utils
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexDefinition
+from pyravendb.data.indexes import IndexDefinition, IndexErrors, IndexingError, IndexLockMode, IndexPriority
 from abc import abstractmethod
 
 
@@ -299,6 +300,64 @@ class GetIndexOperation(MaintenanceOperation):
                 raise response.raise_for_status()
 
 
+class GetIndexesOperation(MaintenanceOperation):
+    def __init__(self, start: int, page_size: int):
+        super(GetIndexesOperation, self).__init__()
+        self._start = start
+        self._page_size = page_size
+
+    def get_command(self, conventions):
+        return self._GetIndexesCommand(self._start, self._page_size)
+
+    class _GetIndexesCommand(RavenCommand):
+        def __init__(self, start: int, page_size: int):
+            super().__init__(method="GET", is_read_request=True)
+            self.start = start
+            self.page_size = page_size
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/indexes?start={self.start}&pageSize{self.page_size} "
+            )
+
+        def set_response(self, response):
+            response = response.json()["Results"]
+            result = []
+            for index in response:
+                data = {}
+                for key, value in index.items():
+                    data[Utils.convert_to_snake_case(key)] = value
+                result.append(IndexDefinition(**data))
+            return result
+
+
+class GetIndexingStatusOperation(MaintenanceOperation):
+    def __init__(self):
+        super(GetIndexingStatusOperation, self).__init__()
+
+    def get_command(self, conventions):
+        return self._GetIndexingStatusCommand()
+
+    class _GetIndexingStatusCommand(RavenCommand):
+        def __init__(self):
+            super(GetIndexingStatusOperation._GetIndexingStatusCommand, self).__init__(
+                method="GET", is_read_request=True
+            )
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/status"
+
+        def set_response(self, response):
+            if response is None:
+                raise ValueError("Invalid response")
+
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            return response
+
+
 class GetIndexNamesOperation(MaintenanceOperation):
     def __init__(self, start, page_size):
         super(GetIndexNamesOperation, self).__init__()
@@ -376,6 +435,52 @@ class PutIndexesOperation(MaintenanceOperation):
                 response.raise_for_status()
 
 
+class DisableIndexOperation(MaintenanceOperation):
+    def __init__(self, name: str):
+        super().__init__()
+        self._index_name = name
+
+    def get_command(self, conventions):
+        return self._DisableIndexCommand(self._index_name)
+
+    class _DisableIndexCommand(RavenCommand):
+        def __init__(self, index_name: str):
+            self._index_name = index_name
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}/admin/indexes"
+                f"/disable?name={Utils.escape(self._index_name, False, False)}"
+            )
+
+        def set_response(self, response):
+            pass
+
+
+class EnableIndexOperation(MaintenanceOperation):
+    def __init__(self, name: str):
+        super().__init__()
+        self._index_name = name
+
+    def get_command(self, conventions):
+        return self._EnableIndexCommand(self._index_name)
+
+    class _EnableIndexCommand(RavenCommand):
+        def __init__(self, index_name: str):
+            self._index_name = index_name
+            super().__init__(method="POST")
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}/admin/indexes"
+                f"/enable?name={Utils.escape(self._index_name, False, False)}"
+            )
+
+        def set_response(self, response):
+            pass
+
+
 class StopIndexingOperation(MaintenanceOperation):
     def __init__(self):
         super().__init__()
@@ -416,8 +521,8 @@ class StartIndexOperation(MaintenanceOperation):
     def __init__(self, index_name):
         if not index_name:
             raise ValueError("Index name can't be None or empty")
+        super(StartIndexOperation, self).__init__()
         self._index_name = index_name
-        super().__init__(self._index_name)
 
     def get_command(self, conventions):
         return self._StartIndexCommand(self._index_name)
@@ -430,7 +535,10 @@ class StartIndexOperation(MaintenanceOperation):
             super().__init__(method="POST")
 
         def create_request(self, server_node):
-            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/start?name={Utils.quote_key(self._index_name)}"
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/admin/indexes/start?name={Utils.quote_key(self._index_name)}"
+            )
 
         def set_response(self, response):
             pass
@@ -440,26 +548,291 @@ class StopIndexOperation(MaintenanceOperation):
     def __init__(self, index_name):
         if not index_name:
             raise ValueError("Index name can't be None or empty")
+        super(StopIndexOperation, self).__init__()
         self._index_name = index_name
-        super().__init__(self._index_name)
 
     def get_command(self, conventions):
         return self._StopIndexCommand(self._index_name)
 
     class _StopIndexCommand(RavenCommand):
         def __init__(self, index_name):
+            super().__init__(method="POST")
             if not index_name:
                 raise ValueError("Index name can't be None or empty")
             self._index_name = index_name
-            super().__init__(method="POST")
 
         def create_request(self, server_node):
-            self.url = f"{server_node.url}/databases/{server_node.database}/admin/indexes/stop?name={Utils.quote_key(self._index_name)}"
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/admin/indexes/stop?name={Utils.quote_key(self._index_name)}"
+            )
 
         def set_response(self, response):
             pass
 
 
-class GetStatisticsOperation(MaintenanceOperation):
+class GetIndexStatisticsOperation(MaintenanceOperation):
+    def __init__(self, name):
+        super(GetIndexStatisticsOperation, self).__init__()
+        self._index_name = name
+
     def get_command(self, conventions):
-        return GetStatisticsCommand()
+        return self._GetIndexStatisticsCommand(self._index_name)
+
+    class _GetIndexStatisticsCommand(RavenCommand):
+        def __init__(self, index_name: str):
+            super().__init__(method="GET")
+            if not index_name:
+                raise ValueError("Index name can't be None or empty")
+            self._index_name = index_name
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/indexes/stats?name={Utils.escape(self._index_name, False, False)}"
+            )
+
+        def set_response(self, response):
+            if response is None:
+                raise ValueError("Invalid response")
+
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            if "Results" not in response:
+                raise ValueError("Invalid response")
+
+            return response["Results"]
+
+
+class GetIndexesStatisticsOperation(MaintenanceOperation):
+    def __init__(self):
+        super(GetIndexesStatisticsOperation, self).__init__()
+
+    def get_command(self, conventions):
+        return self._GetIndexesStatisticsCommand()
+
+    class _GetIndexesStatisticsCommand(RavenCommand):
+        def __init__(self):
+            super().__init__(method="GET", is_read_request=True)
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/stats"
+
+        def set_response(self, response):
+            if response is None:
+                raise ValueError("Invalid response")
+
+            response = response.json()
+            if "Error" in response:
+                raise exceptions.ErrorResponseException(response["Error"])
+            if "Results" not in response:
+                raise ValueError("Invalid response")
+
+            return response["Results"]
+
+
+class GetStatisticsOperation(MaintenanceOperation):
+    def __init__(self, debug_tag: str = None, node_tag: str = None):
+        super(GetStatisticsOperation, self).__init__()
+        self._debug_tag = debug_tag
+        self._node_tag = node_tag
+
+    def get_command(self, conventions):
+        return GetStatisticsCommand(self._debug_tag, self._node_tag)
+
+
+class GetTermsOperation(MaintenanceOperation):
+    def __init__(self, index_name: str, field: str, from_value: str, page_size: int = None):
+        if index_name is None:
+            raise ValueError("Index name cannot be None")
+        if field is None:
+            raise ValueError("Field cannot be null")
+        super(GetTermsOperation, self).__init__()
+        self._index_name = index_name
+        self._field = field
+        self._from_value = from_value
+        self._page_size = page_size
+
+    def get_command(self, conventions):
+        return self._GetTermsCommand(self._index_name, self._field, self._from_value, self._page_size)
+
+    class _GetTermsCommand(RavenCommand):
+        def __init__(self, index_name: str, field: str, from_value: str, page_size: int):
+            self._index_name = index_name
+            self._field = field
+            self._from_value = from_value
+            self._page_size = page_size
+            super().__init__(method="GET", is_read_request=True)
+
+        def create_request(self, server_node):
+            self.url = (
+                f"{server_node.url}/databases/{server_node.database}"
+                f"/indexes/terms?name={Utils.escape(self._index_name, False, False)}"
+                f"&field={Utils.escape(self._field, False, False)}"
+                f"&fromValue={self._from_value if self._from_value is not None else ''}"
+                f"&pageSize={self._page_size if self._page_size is not None else ''}"
+            )
+
+        def set_response(self, response):
+            if response is None:
+                raise ValueError("Invalid response")
+            response = response.json()
+            return response["Terms"]
+
+
+class GetCollectionStatisticsOperation(MaintenanceOperation):
+    def get_command(self, conventions):
+        return self._GetCollectionStatisticsCommand()
+
+    class _GetCollectionStatisticsCommand(RavenCommand):
+        def __init__(self):
+            super().__init__(method="GET", is_read_request=True)
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/collections/stats"
+
+        def set_response(self, response):
+            if response and response.status_code == 200:
+                return response.json()
+            return None
+
+
+class GetIndexErrorsOperation(MaintenanceOperation):
+    def __init__(self, index_names: Optional[Union[List[str], Tuple[str], Set[str]]] = None):
+        super(GetIndexErrorsOperation, self).__init__()
+        self._index_names = index_names
+
+    def get_command(self, conventions):
+        return self._GetIndexErrorsCommand(self._index_names)
+
+    class _GetIndexErrorsCommand(RavenCommand):
+        def __init__(self, index_names):
+            super().__init__(method="GET", is_read_request=True)
+            self._index_names = index_names
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/errors"
+            if self._index_names and len(self._index_names) != 0:
+                self.url += "?"
+                for index_name in self._index_names:
+                    self.url += f"&name={Utils.escape(index_name, None, None)}"
+
+        def set_response(self, response):
+            if response and response.status_code == 200:
+                response = response.json()
+                if response.get("Results", False):
+                    return [
+                        IndexErrors(
+                            entry["Name"],
+                            [
+                                IndexingError(
+                                    error["Error"],
+                                    Utils.string_to_datetime(error["Timestamp"]),
+                                    error["Document"],
+                                    error["Action"],
+                                )
+                                for error in entry["Errors"]
+                            ],
+                        )
+                        for entry in response["Results"]
+                    ]
+
+
+class IndexHasChangedOperation(MaintenanceOperation):
+    def __init__(self, index: IndexDefinition):
+        if index is None:
+            raise ValueError("Index cannot be null")
+        super(IndexHasChangedOperation, self).__init__()
+        self._index = index
+
+    def get_command(self, conventions):
+        return self._IndexHasChangedCommand(self._index)
+
+    class _IndexHasChangedCommand(RavenCommand):
+        def __init__(self, index: IndexDefinition):
+            super().__init__(method="POST", is_read_request=False)
+            self._index = index
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/has-changed"
+            self.data = {
+                "Configuration": self._index.configuration,
+                "Fields": self._index.fields,
+                "LockMode": self._index.lock_mode,
+                "Maps": self._index.maps,
+                "Name": self._index.name,
+                "OutputReduceToCollection": self._index.output_reduce_to_collection,
+                "Priority": self._index.priority,
+                "Reduce": self._index.reduce,
+                "SourceType": self._index.source_type,
+                "Type": self._index.type,
+            }
+
+        def set_response(self, response):
+            if not response:
+                raise ValueError("Response is invalid")
+            response = response.json()
+            return response["Changed"]
+
+
+class SetIndexesLockOperation(MaintenanceOperation):
+    def __init__(self, mode: IndexLockMode, *index_names: str):
+        if len(index_names) == 0:
+            raise ValueError("Index names count cannot be zero. Pass at least one index name.")
+        super(SetIndexesLockOperation, self).__init__()
+        self._mode = mode
+        self._index_names = index_names
+        self.__filter_auto_indexes()
+
+    def get_command(self, conventions):
+        return self._SetIndexesLockCommand(self._mode, self._index_names)
+
+    def __filter_auto_indexes(self):
+        for name in self._index_names:
+            if name.startswith("auto/"):
+                raise ValueError("Index list contains Auto-Indexes. Lock Mode is not set for Auto-Indexes")
+
+    class _SetIndexesLockCommand(RavenCommand):
+        def __init__(self, mode: IndexLockMode, index_names: Union[List[str], Tuple[str], Set[str]]):
+            super().__init__(
+                method="POST",
+                is_raft_request=True,
+            )
+            self._mode = mode
+            self._index_names = index_names
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/set-lock"
+            self.data = {"IndexNames": self._index_names, "Mode": self._mode}
+
+        def set_response(self, response):
+            pass
+
+
+class SetIndexesPriorityOperation(MaintenanceOperation):
+    def __init__(self, priority: IndexPriority, *index_names: str):
+        if len(index_names) == 0:
+            raise ValueError("Index names count cannot be zero. Pass at least one index name.")
+        super(SetIndexesPriorityOperation, self).__init__()
+        self._priority = priority
+        self._index_names = index_names
+
+    def get_command(self, conventions):
+        return self._SetIndexesPriorityCommand(self._priority, self._index_names)
+
+    class _SetIndexesPriorityCommand(RavenCommand):
+        def __init__(self, priority: IndexPriority, index_names: Union[List[str], Tuple[str], Set[str]]):
+            super().__init__(
+                method="POST",
+                is_raft_request=True,
+            )
+            self._priority = priority
+            self._index_names = index_names
+
+        def create_request(self, server_node):
+            self.url = f"{server_node.url}/databases/{server_node.database}/indexes/set-priority"
+            self.data = {"IndexNames": self._index_names, "Priority": self._priority}
+
+        def set_response(self, response):
+            pass

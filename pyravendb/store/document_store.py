@@ -1,13 +1,13 @@
-from pyravendb.connection.requests_executor import RequestsExecutor
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.hilo.hilo_generator import MultiDatabaseHiLoKeyGenerator
-from pyravendb.store.document_session import DocumentSession
 from pyravendb.changes.database_changes import DatabaseChanges
 from pyravendb.subscriptions.document_subscriptions import DocumentSubscriptions
 from threading import Lock
 import uuid
 import time
+
+from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.http.request_executor import RequestExecutor
 
 
 class DocumentStore(object):
@@ -20,6 +20,7 @@ class DocumentStore(object):
                 OR      tuple  - ("/path/to/cert.pem")
                 OR      tuple  - ("/path/to/cert.crt", "/path/to/cert.key")
         """
+        self.__identifier = None
         if not isinstance(urls, list):
             urls = [urls]
         self.urls = urls
@@ -71,6 +72,22 @@ class DocumentStore(object):
             self._operations_executor = OperationExecutor(self)
         return self._operations_executor
 
+    @property
+    def identifier(self) -> str:
+        if self.__identifier is not None:
+            return self.__identifier
+
+        if self.urls is None:
+            return None
+
+        if self.database is not None:
+            return str.join(",", self.urls) + f" (DB: {self.database})"
+        return str.join(",", self.urls)
+
+    @identifier.setter
+    def identifier(self, identifier: str) -> None:
+        self.__identifier = identifier
+
     def __enter__(self):
         return self
 
@@ -120,7 +137,7 @@ class DocumentStore(object):
             if self._request_executors.get(db_name) is None:
                 self._request_executors.setdefault(
                     db_name,
-                    RequestsExecutor.create(self.urls, db_name, self._certificate, self.conventions),
+                    RequestExecutor.create(self.urls, db_name, self.conventions),
                 )
             return self._request_executors[db_name]
 
@@ -144,9 +161,9 @@ class DocumentStore(object):
         self._assert_initialize()
         session_id = uuid.uuid4()
         requests_executor = request_executor if request_executor is not None else self.get_request_executor(database)
-        session = DocumentSession(database, self, requests_executor, session_id)
-        self.events.session_created(session)
-        return session
+        # session = DocumentSession(database, self, requests_executor, session_id)
+        # self.events.session_created(session)
+        # return session
 
     def generate_id(self, db_name, entity):
         if self.generator:
@@ -191,6 +208,11 @@ class MaintenanceOperationExecutor:
             self._request_executor = self._store.get_request_executor(self._database_name)
         return self._request_executor
 
+    def for_database(self, database_name: str):
+        if self._database_name == database_name:
+            return self
+        return MaintenanceOperationExecutor(self._store, database_name)
+
     def send(self, operation):
         try:
             operation_type = getattr(operation, "operation")
@@ -199,7 +221,7 @@ class MaintenanceOperationExecutor:
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self.request_executor.conventions)
+        command = operation.get_command()
         return self.request_executor.execute(command)
 
 
@@ -215,7 +237,7 @@ class ServerOperationExecutor:
                 ClusterRequestExecutor,
             )
 
-            if self._store.conventions.disable_topology_update:
+            if self._store.conventions.disable_topology_updates:
                 self._request_executor = ClusterRequestExecutor.create_for_single_node(
                     self._store.urls[0], self._store.certificate
                 )
@@ -231,7 +253,7 @@ class ServerOperationExecutor:
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self.request_executor.conventions)
+        command = operation.get_command()
         return self.request_executor.execute(command)
 
 
@@ -275,5 +297,5 @@ class OperationExecutor(object):
         except AttributeError:
             raise ValueError("Invalid operation")
 
-        command = operation.get_command(self._store, self.request_executor.conventions)
+        command = operation.get_command()
         return self.request_executor.execute(command)

@@ -1,3 +1,6 @@
+from typing import Union
+
+from pyravendb.documents.queries.query import ProjectionBehavior
 from pyravendb.tools.utils import Utils
 from abc import ABCMeta
 from enum import Enum
@@ -42,6 +45,7 @@ class IndexQueryBase(object):
         wait_for_non_stale_results=False,
         wait_for_non_stale_results_timeout=None,
         cutoff_etag=None,
+        projection_behavior: ProjectionBehavior = None,
     ):
         """
         @param str query: Actual query that will be performed.
@@ -61,6 +65,7 @@ class IndexQueryBase(object):
         self.wait_for_non_stale_results = wait_for_non_stale_results
         self.wait_for_non_stale_results_timeout = wait_for_non_stale_results_timeout
         self.cutoff_etag = cutoff_etag
+        self.projection_behavior = projection_behavior
 
     def __str__(self):
         return self.query
@@ -95,6 +100,7 @@ class IndexQuery(IndexQueryBase):
             "allow_multiple_index_entries_for_same_document_to_result_transformer",
             False,
         )
+        self.disable_caching: Union[None, bool] = None
         self.includes = includes if includes is not None else []
         self.show_timings = show_timings
         self.skip_duplicate_checking = skip_duplicate_checking
