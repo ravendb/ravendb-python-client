@@ -41,7 +41,6 @@ from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.json_operation import JsonOperation
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.store.document_store import OperationExecutor
 from pyravendb.store.entity_to_json import EntityToJson
 from pyravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
 

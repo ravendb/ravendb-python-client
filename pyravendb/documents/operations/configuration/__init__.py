@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import json
-from typing import Union, TYPE_CHECKING
+from enum import Enum
+from typing import Union, Optional
 
 import requests
-
-from pyravendb.documents.operations import MaintenanceOperation
 from pyravendb.http import LoadBalanceBehavior, ReadBalanceBehavior
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.tools.utils import Utils
+
+
+class StudioEnvironment(Enum):
+    NONE = "NONE"
+    DEVELOPMENT = "DEVELOPMENT"
+    TESTING = "TESTING"
+    PRODUCTION = "PRODUCTION"
+
+
+class StudioConfiguration:
+    def __init__(self, disabled: Optional[bool] = None, environment: Optional[StudioEnvironment] = None):
+        self.disabled = disabled
+        self.environment = environment
 
 
 class ClientConfiguration:
@@ -35,7 +47,7 @@ class ClientConfiguration:
         self.__identity_parts_separator = value
 
 
-class GetClientConfigurationOperation(MaintenanceOperation):
+class GetClientConfigurationOperation:
     def get_command(self, **kwargs) -> RavenCommand:
         return self.GetClientConfigurationCommand()
 
