@@ -54,7 +54,9 @@ class TestSubscription(TestBase):
             session.save_changes()
 
         creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
-        self.store.subscriptions.create(creation_options,,
+        self.store.subscriptions.create(
+            creation_options,
+        )
 
         request_executor = self.store.get_request_executor()
         subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
@@ -78,7 +80,9 @@ class TestSubscription(TestBase):
             session.store(User("Raven", "DB"))
             session.save_changes()
 
-        self.store.subscriptions.create("FROM Users where last_name='Shalom'",,
+        self.store.subscriptions.create(
+            "FROM Users where last_name='Shalom'",
+        )
 
         request_executor = self.store.get_request_executor()
         subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
@@ -107,7 +111,9 @@ class TestSubscription(TestBase):
             session.save_changes()
         try:
             creation_options = SubscriptionCreationOptions("FROM Users where last_name='Shalom'")
-            name = self.store.subscriptions.create(creation_options,,
+            name = self.store.subscriptions.create(
+                creation_options,
+            )
 
             worker_options = SubscriptionWorkerOptions(name, strategy=SubscriptionOpeningStrategy.wait_for_free)
             self.assertEqual(len(self.results), 0)
@@ -154,7 +160,9 @@ class TestSubscription(TestBase):
 
         users = []
         subscription_creation_options = SubscriptionCreationOptions("From Users")
-        subscription_name = self.store.subscriptions.create(subscription_creation_options,,
+        subscription_name = self.store.subscriptions.create(
+            subscription_creation_options,
+        )
 
         worker_options = SubscriptionWorkerOptions(
             subscription_name,
