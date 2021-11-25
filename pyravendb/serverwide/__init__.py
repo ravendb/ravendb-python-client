@@ -149,7 +149,8 @@ class ServerOperationExecutor:
 class DatabaseRecord:
     def __init__(self, database_name: Optional[str] = None):
         self.database_name = database_name
-        self.disabled: Union[None, bool] = None
+        self.disabled: bool = False
+        self.encrypted: bool = False
         self.settings: dict[str, str] = {}
         self.conflict_solver_config: Union[None, ConflictSolver] = None
         self.documents_compression: Union[None, DocumentsCompressionConfiguration] = None
@@ -188,8 +189,8 @@ class DatabaseRecord:
         return {
             # todo: replace with .to_json() 's
             "DatabaseName": self.database_name,
-            "Disabled": self.disabled if self.disabled is not None else False,
-            "Encrypted": False,
+            "Disabled": self.disabled,
+            "Encrypted": self.encrypted,
             "EtagForBackup": self.etag_for_backup if self.etag_for_backup else 0,
             "DeletionInProgress": self.deletion_in_progress,
             "RollingIndexes": self.rolling_indexes,
