@@ -6,13 +6,14 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any, Union, Optional, TypeVar, Generic, TYPE_CHECKING
 
-from pyravendb.documents.operations import MaintenanceOperationExecutor, OperationExecutor
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session import SessionOptions
 from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.data.document_conventions import DocumentConventions
+
+import pyravendb.documents.operations as documents_operations
 
 T = TypeVar("T")
 
@@ -134,6 +135,14 @@ class DocumentStoreBase:
     def close(self):
         pass
 
+    @abstractmethod
+    def maintenance(self) -> documents_operations.MaintenanceOperationExecutor:
+        pass
+
+    @abstractmethod
+    def operations(self) -> documents_operations.OperationExecutor:
+        pass
+
     # todo: changes
 
     # todo: aggressive_caching
@@ -193,8 +202,8 @@ class DocumentStore(DocumentStoreBase):
         # todo: database changes
         # todo: aggressive cache
         # todo: hilo
-        self.__maintenance_operation_executor: Union[None, MaintenanceOperationExecutor] = None
-        self.__operation_executor: Union[None, OperationExecutor] = None
+        self.__maintenance_operation_executor: Union[None, documents_operations.MaintenanceOperationExecutor] = None
+        self.__operation_executor: Union[None, documents_operations.OperationExecutor] = None
         # todo: database smuggler
         self.__identifier: Union[None, str] = None
 
@@ -320,3 +329,17 @@ class DocumentStore(DocumentStoreBase):
     def _assert_valid_configuration(self) -> None:
         if not self.urls:
             raise ValueError("Document store URLs cannot be empty.")
+
+    def maintenance(self) -> documents_operations.MaintenanceOperationExecutor:
+        self.assert_initialized()
+
+        if self.__maintenance_operation_executor is None:
+            self.__maintenance_operation_executor = documents_operations.MaintenanceOperationExecutor(self)
+
+        return self.__maintenance_operation_executor
+
+    def operations(self) -> documents_operations.OperationExecutor:
+        if self.__operation_executor is None:
+            self.__operation_executor = documents_operations.OperationExecutor(self)
+
+        return self.__operation_executor

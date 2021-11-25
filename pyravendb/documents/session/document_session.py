@@ -21,7 +21,6 @@ from pyravendb.documents.session import SessionOptions, ResponseTimeInformation,
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.loaders.include_builder import IncludeBuilder
 from pyravendb.raven_operations.load_operation import LoadOperation
-from pyravendb.store.document_store import DocumentStore
 from pyravendb.tools.utils import Utils
 from pyravendb.documents.commands.batches import PatchCommandData, CommandType
 from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand
@@ -35,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):
-    def __init__(self, store: DocumentStore, key: uuid.UUID, options: SessionOptions):
+    def __init__(self, store: pyravendb.documents.DocumentStore, key: uuid.UUID, options: SessionOptions):
         super().__init__(store, key, options)
 
         self.__advanced: DocumentSession._Advanced = DocumentSession._Advanced(self)

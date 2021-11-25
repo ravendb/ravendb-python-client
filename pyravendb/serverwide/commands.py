@@ -55,7 +55,7 @@ class GetClusterTopologyCommand(RavenCommand[ClusterTopologyResponse]):
         if response is None:
             super()._throw_invalid_response()
 
-        self.result: ClusterTopologyResponse = Utils.initialize_object(json.loads(response), self._result_class, True)
+        self.result: ClusterTopologyResponse = ClusterTopologyResponse.from_json(json.loads(response))
 
     def is_read_request(self) -> bool:
         return True

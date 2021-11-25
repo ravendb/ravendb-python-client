@@ -87,6 +87,7 @@ class RavenCommand(Generic[ResultClass]):
     def number_of_attempts(self, value: int):
         self._number_of_attempts = value
 
+    @abstractmethod
     def set_response(self, response: str, from_cache: bool) -> None:
         if self._response_type == RavenCommandResponseType.EMPTY or RavenCommandResponseType.RAW:
             self._throw_invalid_response()

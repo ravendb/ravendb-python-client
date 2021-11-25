@@ -7,10 +7,10 @@ from enum import Enum
 from typing import Iterable, List
 from datetime import timedelta
 from pyravendb import constants
-from pyravendb.data.indexes import IndexState, IndexErrors
 from pyravendb.documents import DocumentStore
-from pyravendb.raven_operations.maintenance_operations import GetStatisticsOperation, GetIndexErrorsOperation
-from pyravendb.raven_operations.server_operations import *
+from pyravendb.documents.indexes import IndexState, IndexErrors
+from pyravendb.serverwide import DatabaseRecord
+from pyravendb.serverwide.operations import CreateDatabaseOperation, DeleteDatabaseOperation
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 
@@ -145,9 +145,9 @@ class TestBase(unittest.TestCase):
 
     @staticmethod
     def wait_for_database_topology(store, database_name, replication_factor=1):
-        topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
+        topology = None  # store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         while topology is not None and len(topology["Members"]) < replication_factor:
-            topology = store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
+            topology = None  # store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
         return topology
 
     @staticmethod
@@ -157,7 +157,7 @@ class TestBase(unittest.TestCase):
         admin = store.maintenance.for_database(database)
         timestamp = datetime.datetime.now()
         while datetime.datetime.now() - timestamp < timeout:
-            database_statistics = admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
+            database_statistics = None  # admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
             indexes = list(filter(lambda index: index["State"] != IndexState.disabled, database_statistics["Indexes"]))
             if all(
                 [
@@ -174,7 +174,7 @@ class TestBase(unittest.TestCase):
             except RuntimeError as e:
                 raise RuntimeError(e)
 
-        errors = admin.send(GetIndexErrorsOperation())
+        errors = None  # admin.send(GetIndexErrorsOperation())
         all_index_errors_text = ""
 
         def __format_index_errors(errors_list: IndexErrors):
@@ -198,24 +198,17 @@ class TestBase(unittest.TestCase):
             self.store.conventions = conventions
         self.store.initialize()
         created = False
+        database_record = DatabaseRecord("NorthWindTest")
         while not created:
-            try:
-                self.store.maintenance.server.send(CreateDatabaseOperation(database_name=self.default_database))
-                created = True
-            except Exception as e:
-                if "already exists!" in str(e):
-                    self.store.maintenance.server.send(
-                        DeleteDatabaseOperation(database_name=self.default_database, hard_delete=True)
-                    )
-                    continue
-                raise
+            self.store.maintenance().server().send(CreateDatabaseOperation(database_record))
+            created = True
         TestBase.wait_for_database_topology(self.store, self.default_database)
 
-        self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
-        self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
+        # self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
+        # self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
 
     def tearDown(self):
-        self.store.maintenance.server.send(DeleteDatabaseOperation(database_name="NorthWindTest", hard_delete=True))
+        self.store.maintenance().server().send(DeleteDatabaseOperation(self.store.database, True))
         self.store.close()
 
     def assertRaisesWithMessage(self, func, exception, msg, *args, **kwargs):

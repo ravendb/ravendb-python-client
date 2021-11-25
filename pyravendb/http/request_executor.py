@@ -19,6 +19,7 @@ from pyravendb.custom_exceptions.exceptions import (
     DatabaseDoesNotExistException,
     AuthorizationException,
 )
+from pyravendb.documents.operations.configuration import GetClientConfigurationOperation
 from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 
@@ -40,8 +41,6 @@ from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetCluster
 
 from http import HTTPStatus
 
-
-from pyravendb.documents.operations.configuration import GetClientConfigurationOperation
 
 from typing import TYPE_CHECKING
 
@@ -1124,7 +1123,7 @@ class ClusterRequestExecutor(RequestExecutor):
 
             return True
 
-        self._thread_pool_executor.submit(__supply_async)
+        return self._thread_pool_executor.submit(__supply_async)
 
     def _update_client_configuration_async(self, server_node: ServerNode) -> Future:
         result = Future()

@@ -48,6 +48,17 @@ class ClusterTopologyResponse:
         self.status = status
         self.etag = etag
 
+    @staticmethod
+    def from_json(json_dict: dict) -> ClusterTopologyResponse:
+
+        return ClusterTopologyResponse(
+            json_dict["Leader"],
+            json_dict["NodeTag"],
+            ClusterTopology.from_json(json_dict["Topology"]),
+            json_dict["Etag"],
+            json_dict["Status"],
+        )
+
 
 # --------- BEHAVIOR ----------
 class ReadBalanceBehavior(Enum):
@@ -116,6 +127,17 @@ class ClusterTopology:
             return True
 
         return self.__watchers is not None and node in self.__watchers
+
+    @staticmethod
+    def from_json(json_dict: dict) -> ClusterTopology:
+        topology = ClusterTopology()
+        topology.etag = json_dict["Etag"]
+        topology.topology_id = json_dict["TopologyId"]
+        topology.members = json_dict["Members"]
+        topology.promotables = json_dict["Promotables"]
+        topology.watchers = json_dict["Watchers"]
+        topology.last_node_id = json_dict["LastNodeId"]
+        return topology
 
 
 class UpdateTopologyParameters:
@@ -373,3 +395,9 @@ class NodeStatus:
         self.last_reply = last_reply
         self.last_sent_message = last_sent_message
         self.last_matching_index = last_matching_index
+
+
+class RaftCommand:
+    @abstractmethod
+    def raft_unique_request_id(self) -> str:
+        pass
