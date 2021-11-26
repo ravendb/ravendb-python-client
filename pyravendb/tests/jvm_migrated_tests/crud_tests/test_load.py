@@ -77,9 +77,9 @@ class TestLoad(TestBase):
 
         with self.store.open_session() as session:
             users = session.load(ids, UserWithId)
-            user77 = users[77]
-            self.assertIsNotNone(user77)
-            self.assertEqual(user77.Id, "users/77")
+            self.assertEqual(200, len(users))
+            for user in users:
+                self.assertIsNotNone(user)
 
     def test_load_can_use_cache(self):
         with self.store.open_session() as session:
@@ -112,10 +112,10 @@ class TestLoad(TestBase):
 
         with self.store.open_session() as session:
             users_arr = ["users/1", None, "users/2", None]  # jvm - String[]
-            users_by_id_1 = dict([(user.Id, user) for user in session.load(users_arr)])
+            users_by_id_1 = dict([(user.Id, user) for _, user in session.load(users_arr).items()])
 
             users_set = list({"users/1", None, "users/2", None})  # jvm - HashSet(Arrays.asList(...))
-            users_by_id_2 = dict([(user.Id, user) for user in session.load(users_set)])
+            users_by_id_2 = dict([(user.Id, user) for _, user in session.load(users_set).items()])
 
             self.assertIsNotNone(users_by_id_1["users/1"])
             self.assertIsNotNone(users_by_id_1["users/2"])
@@ -127,15 +127,15 @@ class TestLoad(TestBase):
             foo = Foo("Beginning")
             session.store(foo)
 
-            fid = session.advanced.get_document_id(foo)
+            fid = session.get_document_id(foo)
             bar = Bar(name="End", foo_id=fid)
             session.store(bar)
 
-            bar_id = session.advanced.get_document_id(bar)
+            bar_id = session.get_document_id(bar)
             session.save_changes()
 
         with self.store.open_session() as session:
-            bar = session.load([bar_id], Bar, includes="foo_id")
+            bar = session.load([bar_id], Bar, includes=lambda x: x.include_documents("foo_id"))
             self.assertIsNotNone(bar)
             self.assertEqual(1, len(bar))
             self.assertIsNotNone(bar[0].Id)

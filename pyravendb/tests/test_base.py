@@ -136,21 +136,6 @@ class Patch(object):
 
 class TestBase(unittest.TestCase):
     @staticmethod
-    def delete_all_topology_files():
-        import os
-
-        file_list = [f for f in os.listdir(".") if f.endswith("topology")]
-        for f in file_list:
-            os.remove(f)
-
-    @staticmethod
-    def wait_for_database_topology(store, database_name, replication_factor=1):
-        topology = None  # store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
-        while topology is not None and len(topology["Members"]) < replication_factor:
-            topology = None  # store.maintenance.server.send(GetDatabaseRecordOperation(database_name))
-        return topology
-
-    @staticmethod
     def wait_for_indexing(
         store: DocumentStore, database: str = None, timeout: timedelta = timedelta(minutes=1), node_tag: str = None
     ):
@@ -200,15 +185,14 @@ class TestBase(unittest.TestCase):
         created = False
         database_record = DatabaseRecord("NorthWindTest")
         while not created:
-            self.store.maintenance().server().send(CreateDatabaseOperation(database_record))
+            self.store.maintenance.server.send(CreateDatabaseOperation(database_record))
             created = True
-        TestBase.wait_for_database_topology(self.store, self.default_database)
 
         # self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
         # self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
 
     def tearDown(self):
-        self.store.maintenance().server().send(DeleteDatabaseOperation(self.store.database, True))
+        self.store.maintenance.server.send(DeleteDatabaseOperation(self.store.database, True))
         self.store.close()
 
     def assertRaisesWithMessage(self, func, exception, msg, *args, **kwargs):

@@ -8,7 +8,7 @@ import requests
 
 from pyravendb import constants
 from pyravendb.commands.commands_results import GetDocumentsResult
-
+from pyravendb.documents.queries import HashCalculator
 from pyravendb.data.timeseries import TimeSeriesRange
 from pyravendb.documents.identity import HiLoResult
 from pyravendb.extensions.http_extensions import HttpExtensions
@@ -214,17 +214,14 @@ class GetDocumentsCommand(RavenCommand):
         else:
             http_post = requests.Request("POST")
             try:
-                calculate_hash = self.__calculate_hash(unique_ids)
+                calculate_hash = HashCalculator.calculate_hash_from_str_collection(unique_ids)
                 path_builder.append(f"&loadHash={calculate_hash}")
             except IOError as e:
                 raise RuntimeError(f"Unable to computer query hash: {e.args[0]}")
 
             http_post.data = {"Ids": [str(key) for key in unique_ids]}
+            http_post.url = "".join(path_builder)
             return http_post
-
-    @staticmethod
-    def __calculate_hash(unique_ids: set[str]) -> str:
-        return hashlib.md5("".join(unique_ids)).hexdigest()
 
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:
@@ -258,9 +255,9 @@ class NextHiLoCommand(RavenCommand[HiLoResult]):
         # todo: check escapeUriString vs escapeDataString difference - maybe write escape for uri
         path = (
             f"/hilo/next?tag={Utils.escape(self.__tag,None,None)}"
-            f"&lastBatchSize={self.__last_batch_size}"
+            f"&lastBatchSize={self.__last_batch_size if self.__last_batch_size is not None else 0}"
             f"&lastRangeAt={date}"
-            f"&identityPartsSeparator{Utils.escape(self.__identity_parts_separator, False,False)}"
+            f"&identityPartsSeparator={Utils.escape(self.__identity_parts_separator,True,False)}"
             f"&lastMax={self.__last_range_max}"
         )
 
@@ -268,7 +265,7 @@ class NextHiLoCommand(RavenCommand[HiLoResult]):
         return requests.Request(method="GET", url=url)
 
     def set_response(self, response: str, from_cache: bool) -> None:
-        self.result = Utils.initialize_object(json.loads(response), self._result_class)
+        self.result = HiLoResult.from_json(json.loads(response))
 
 
 class HiLoReturnCommand(VoidRavenCommand):
@@ -288,7 +285,7 @@ class HiLoReturnCommand(VoidRavenCommand):
         self.__end = end
 
     def create_request(self, node: ServerNode) -> (requests.Request):
-        return (
-            requests.Request("PUT"),
-            f"{node.url}/databases/{node.database}/hilo/return?tag={self.__tag}&end={self.__end}&last={self.__last}",
+        return requests.Request(
+            "PUT",
+            url=f"{node.url}/databases/{node.database}/hilo/return?tag={self.__tag}&end={self.__end}&last={self.__last}",
         )

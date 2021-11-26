@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import datetime
 import json
-import time
 from abc import abstractmethod
 from copy import deepcopy
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING, Callable, Generic, TypeVar
+from typing import Union, Optional, TYPE_CHECKING, Generic, TypeVar
 
 import requests
 
@@ -15,14 +14,12 @@ from pyravendb.documents.operations.operation import Operation
 from pyravendb.documents.session import SessionInfo
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.transaction_mode import TransactionMode
-from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 from pyravendb.http import ServerNode, VoidRavenCommand
 from pyravendb.http.http_cache import HttpCache
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.primitives import OperationCancelledException
-from pyravendb.tools.utils import CaseInsensitiveDict, Utils
+from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
 
 from pyravendb.serverwide import ServerOperationExecutor
@@ -95,6 +92,7 @@ class MaintenanceOperationExecutor:
         )
         return self.__request_executor
 
+    @property
     def server(self) -> ServerOperationExecutor:
         if self.__server_operation_executor is not None:
             return self.__server_operation_executor

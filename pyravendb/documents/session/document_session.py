@@ -5,7 +5,7 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING
+from typing import Union, Callable, TYPE_CHECKING, Optional
 
 from pyravendb import constants
 from pyravendb.data.timeseries import TimeSeriesRange
@@ -195,14 +195,20 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         lazy_op = LazyLoadOperation(object_type, self, load_operation).by_keys(*keys).with_includes(*includes)
 
     def load(
-        self, object_type: type, *keys: str, includes: Callable[[IncludeBuilder], None] = None
-    ) -> dict[str, object]:
-        if keys is None:
+        self,
+        key_or_keys: Union[list[str], str],
+        object_type: Optional[type] = None,
+        includes: Callable[[IncludeBuilder], None] = None,
+    ) -> Union[dict[str, object], object]:
+        if key_or_keys is None:
             raise ValueError("Keys cannot be None")
         if includes is None:
             load_operation = LoadOperation(self)
-            self.load_internal_stream(list(keys), load_operation, None)
-            return load_operation.get_documents(object_type)
+            self.load_internal_stream(
+                [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys, load_operation, None
+            )
+            result = load_operation.get_documents(object_type)
+            return result.popitem()[1] if len(result) == 1 else result if result else None
         include_builder = IncludeBuilder(self.conventions)
         includes(include_builder)
 
@@ -216,15 +222,17 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             else None
         )
 
-        return self.load_internal(
+        result = self.load_internal(
             object_type,
-            list(keys),
+            list(key_or_keys),
             include_builder.documents_to_include if include_builder.documents_to_include else None,
             include_builder.counters_to_include if include_builder.counters_to_include else None,
             include_builder.is_all_counters,
             time_series_includes,
             compare_exchange_values_to_include,
         )
+
+        return result.popitem()[1] if len(result) == 1 else result
 
     def load_internal(
         self,
@@ -252,7 +260,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         command = load_operation.create_request()
         if command is not None:
-            self.request_executor.execute(command, self._session_info)
+            self.request_executor.execute_command(command, self._session_info)
             load_operation.set_result(command.result)
 
         return load_operation.get_documents(object_type)

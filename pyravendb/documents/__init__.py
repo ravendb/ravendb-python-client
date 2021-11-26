@@ -330,6 +330,7 @@ class DocumentStore(DocumentStoreBase):
         if not self.urls:
             raise ValueError("Document store URLs cannot be empty.")
 
+    @property
     def maintenance(self) -> documents_operations.MaintenanceOperationExecutor:
         self.assert_initialized()
 
@@ -338,6 +339,7 @@ class DocumentStore(DocumentStoreBase):
 
         return self.__maintenance_operation_executor
 
+    @property
     def operations(self) -> documents_operations.OperationExecutor:
         if self.__operation_executor is None:
             self.__operation_executor = documents_operations.OperationExecutor(self)
