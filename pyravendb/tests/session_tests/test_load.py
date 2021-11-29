@@ -98,8 +98,10 @@ class TestLoad(TestBase):
 
     def test_multi_load_with_duplicate_id(self):
         with self.store.open_session() as session:
-            products = session.load(Product, ["products/101", "products/101", "products/10"])
-            self.assertEqual(len(products), 3)
+            products = session.load(["products/101", "products/101", "products/10"], Product)
+            self.assertEqual(
+                len(products), 2
+            )  # the new convention - we return a set of the results, we don't send duplicated keys in request
             for product in products:
                 self.assertIsNotNone(product)
 
