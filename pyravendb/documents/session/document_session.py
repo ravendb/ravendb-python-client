@@ -5,7 +5,7 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional
+from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List
 
 from pyravendb import constants
 from pyravendb.data.timeseries import TimeSeriesRange
@@ -122,7 +122,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return response_time_duration
 
     def __execute_lazy_operations_single_step(
-        self, response_time_information: ResponseTimeInformation, get_requests: list[GetRequest], sw: datetime.datetime
+        self, response_time_information: ResponseTimeInformation, get_requests: List[GetRequest], sw: datetime.datetime
     ) -> bool:
         multi_get_operation = MultiGetOperation(self)
         with multi_get_operation.create_request(get_requests) as multi_get_command:
@@ -186,7 +186,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return pyravendb.documents.Lazy(__supplier)
 
     def lazy_load_internal(
-        self, object_type: type, keys: list[str], includes: list[str], on_eval: Callable[[dict[str, object]], None]
+        self, object_type: type, keys: List[str], includes: List[str], on_eval: Callable[[Dict[str, object]], None]
     ) -> pyravendb.documents.Lazy:
         if self.check_if_id_already_included(keys, includes):
             return pyravendb.documents.Lazy(lambda: self.load(object_type, *keys))
@@ -196,10 +196,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     def load(
         self,
-        key_or_keys: Union[list[str], str],
+        key_or_keys: Union[List[str], str],
         object_type: Optional[type] = None,
         includes: Callable[[IncludeBuilder], None] = None,
-    ) -> Union[dict[str, object], object]:
+    ) -> Union[Dict[str, object], object]:
         if key_or_keys is None:
             raise ValueError("Keys cannot be None")
         if includes is None:
@@ -237,13 +237,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def load_internal(
         self,
         object_type: type,
-        keys: list[str],
-        includes: list[str],
-        counter_includes: list[str] = None,
+        keys: List[str],
+        includes: List[str],
+        counter_includes: List[str] = None,
         include_all_counters: bool = False,
-        time_series_includes: list[TimeSeriesRange] = None,
-        compare_exchange_value_includes: list[str] = None,
-    ) -> dict[str, object]:
+        time_series_includes: List[TimeSeriesRange] = None,
+        compare_exchange_value_includes: List[str] = None,
+    ) -> Dict[str, object]:
         if not keys:
             raise ValueError("Keys cannot be None")
         load_operation = LoadOperation(self)
@@ -265,7 +265,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return load_operation.get_documents(object_type)
 
-    def load_internal_stream(self, keys: list[str], operation: LoadOperation, stream: bytes) -> None:
+    def load_internal_stream(self, keys: List[str], operation: LoadOperation, stream: bytes) -> None:
         operation.by_keys(keys)
 
         command = operation.create_request()
@@ -386,7 +386,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 start_after,
             )
 
-        def load_into_stream(self, keys: list[str], output: bytes) -> None:
+        def load_into_stream(self, keys: List[str], output: bytes) -> None:
             if keys is None:
                 raise ValueError("Keys cannot be None")
 

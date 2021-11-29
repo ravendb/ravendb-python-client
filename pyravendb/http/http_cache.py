@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum
-from typing import Union, Optional
+from typing import Union, Optional, Dict, Set
 
 
 class ItemFlags(Enum):
@@ -17,7 +17,7 @@ class HttpCacheItem:
         self.change_vector: Union[None, str] = None
         self.payload: Union[None, str] = None
         self.last_server_update: datetime.datetime = datetime.datetime.now()
-        self.flags: set[ItemFlags] = {ItemFlags.NONE}
+        self.flags: Set[ItemFlags] = {ItemFlags.NONE}
         self.generation: Union[None, int] = None
 
         self.cache: Union[None, HttpCache] = None
@@ -57,7 +57,7 @@ class HttpCache:
     NOT_FOUND_RESPONSE = "404 Response"
 
     def __init__(self):
-        self.__items: dict[str, HttpCacheItem] = {}
+        self.__items: Dict[str, HttpCacheItem] = {}
         self.generation = 0
 
     def __enter__(self):

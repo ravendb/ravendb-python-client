@@ -1,9 +1,10 @@
 import datetime
+from typing import List
 
 
 class TimeSeriesEntry:
     def __init__(
-        self, timestamp: datetime.datetime = None, tag: str = None, values: list[int] = None, rollup: bool = None
+        self, timestamp: datetime.datetime = None, tag: str = None, values: List[int] = None, rollup: bool = None
     ):
         self.timestamp = timestamp
         self.tag = tag

@@ -1,4 +1,4 @@
-from typing import Union, Tuple, TYPE_CHECKING
+from typing import Union, Tuple, TYPE_CHECKING, List, Dict
 
 from pyravendb.documents.operations.compare_exchange import (
     CompareExchangeSessionValue,
@@ -69,19 +69,19 @@ class ClusterTransactionOperationsBase:
         self._state.clear()
 
     def _get_compare_exchange_value_internal(
-        self, object_type: type, keys: [Union[list[str], str]]
-    ) -> Union[CompareExchangeValue, dict[str, CompareExchangeValue]]:
+        self, object_type: type, keys: [Union[List[str], str]]
+    ) -> Union[CompareExchangeValue, Dict[str, CompareExchangeValue]]:
         if isinstance(keys, str):
             keys = [keys]
 
     def _get_compare_exchange_value_internal_page(
         self, object_type: type, starts_with: str, start: int, page_size: int
-    ) -> dict[str, CompareExchangeValue]:
+    ) -> Dict[str, CompareExchangeValue]:
         pass
 
     def get_compare_exchange_value_from_session_internal(
-        self, object_type: type, key_or_keys: Union[str, list[str]], not_tracked: Union[bool, CaseInsensitiveSet[str]]
-    ) -> Union[CompareExchangeValue, dict[str, CompareExchangeValue]]:
+        self, object_type: type, key_or_keys: Union[str, List[str]], not_tracked: Union[bool, "CaseInsensitiveSet[str]"]
+    ) -> Union[CompareExchangeValue, Dict[str, CompareExchangeValue]]:
         if not object_type:
             raise ValueError("Object_type cannot be None")
 

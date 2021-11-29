@@ -2,6 +2,7 @@ import datetime
 from typing import Set, Tuple, Dict, Union
 from pyravendb.data import document_conventions
 from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 
 
 class IncludeBaseBuilder:

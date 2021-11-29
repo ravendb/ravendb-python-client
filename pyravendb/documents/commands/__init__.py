@@ -2,7 +2,7 @@ import datetime
 import hashlib
 import http
 import json
-from typing import Optional, Union
+from typing import Optional, Union, List
 from typing import TYPE_CHECKING
 import requests
 
@@ -58,7 +58,7 @@ class GetDocumentsCommand(RavenCommand):
     class GetDocumentsCommandOptionsBase:
         def __init__(
             self,
-            counter_includes: Optional[list[str]] = None,
+            counter_includes: Optional[List[str]] = None,
             include_all_counters: Optional[bool] = None,
             conventions: "DocumentConventions" = None,
         ):
@@ -70,9 +70,9 @@ class GetDocumentsCommand(RavenCommand):
         def __init__(
             self,
             key: str,
-            includes: list[str],
+            includes: List[str],
             metadata_only: bool,
-            counter_includes: Optional[list[str]] = None,
+            counter_includes: Optional[List[str]] = None,
             include_all_counters: Optional[bool] = None,
             conventions: "DocumentConventions" = None,
         ):
@@ -84,12 +84,12 @@ class GetDocumentsCommand(RavenCommand):
     class GetDocumentsByIdsCommandOptions(GetDocumentsCommandOptionsBase):
         def __init__(
             self,
-            keys: list[str],
-            includes: Optional[list[str]] = None,
+            keys: List[str],
+            includes: Optional[List[str]] = None,
             metadata_only: Optional[bool] = None,
-            time_series_includes: Optional[list[TimeSeriesRange]] = None,
-            compare_exchange_value_includes: Optional[list[str]] = None,
-            counter_includes: Optional[list[str]] = None,
+            time_series_includes: Optional[List[TimeSeriesRange]] = None,
+            compare_exchange_value_includes: Optional[List[str]] = None,
+            counter_includes: Optional[List[str]] = None,
             include_all_counters: Optional[bool] = None,
             conventions: "DocumentConventions" = None,
         ):
@@ -110,7 +110,7 @@ class GetDocumentsCommand(RavenCommand):
             matches: Optional[str] = None,
             exclude: Optional[str] = None,
             metadata_only: Optional[bool] = None,
-            counter_includes: Optional[list[str]] = None,
+            counter_includes: Optional[List[str]] = None,
             include_all_counters: Optional[bool] = None,
             conventions: "DocumentConventions" = None,
         ):
@@ -140,7 +140,7 @@ class GetDocumentsCommand(RavenCommand):
         return True
 
     def create_request(self, node: ServerNode) -> (requests.Request):
-        path_builder: list[str] = [node.url, f"/databases/{node.database}/docs?"]
+        path_builder: List[str] = [node.url, f"/databases/{node.database}/docs?"]
         if "start" in self.__options.__dict__:
             self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
             path_builder.append(f"&start={self.__options.start}")
@@ -199,7 +199,7 @@ class GetDocumentsCommand(RavenCommand):
         return request
 
     def prepare_request_with_multiple_ids(
-        self, path_builder: list[str], request: requests.Request, ids: list[str]
+        self, path_builder: List[str], request: requests.Request, ids: List[str]
     ) -> requests.Request:
         unique_ids = set()
         unique_ids.update(ids)

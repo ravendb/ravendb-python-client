@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
-import pyravendb.store.document_store
+
+from pyravendb.documents import DocumentStore
 from pyravendb.tests.test_base import TestBase, User, UserWithId
 from pyravendb.hilo.hilo_generator import HiLoKeyGenerator, MultiDatabaseHiLoKeyGenerator
 
@@ -75,7 +76,7 @@ class TestHiLo(TestBase):
             self.assertEqual(hilo_doc.Max, 160)
 
     def test_return_unused_range_on_close(self):
-        new_store = pyravendb.store.document_store.DocumentStore(self.store.urls, self.store.database)
+        new_store = DocumentStore(self.store.urls, self.store.database)
         new_store.initialize()
         with new_store.open_session() as session:
             hilo_doc = HiLoDocument(32)
@@ -87,7 +88,7 @@ class TestHiLo(TestBase):
 
         new_store.close()
 
-        new_store = pyravendb.store.document_store.DocumentStore(self.store.urls, self.store.database)
+        new_store = DocumentStore(self.store.urls, self.store.database)
         new_store.initialize()
 
         with new_store.open_session() as session:

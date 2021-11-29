@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Dict
 
 import requests
 
@@ -14,7 +14,7 @@ class HttpExtensions:
                 return HttpExtensions.etag_header_to_change_vector(headers)
 
     @staticmethod
-    def get_etag_header(response_or_headers: Union[requests.Response, dict[str, str]]) -> Union[None, str]:
+    def get_etag_header(response_or_headers: Union[requests.Response, Dict[str, str]]) -> Union[None, str]:
         headers = (
             response_or_headers.headers if isinstance(response_or_headers, requests.Response) else response_or_headers
         )

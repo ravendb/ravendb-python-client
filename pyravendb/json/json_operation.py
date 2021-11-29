@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 import pyravendb.tools.utils
 
 import pyravendb.constants as constants
@@ -8,7 +10,7 @@ from pyravendb.tools.utils import Utils
 
 class JsonOperation:
     @staticmethod
-    def entity_changed(new_obj: dict, document_info: DocumentInfo, changes: dict[str, list[DocumentsChanges]]) -> bool:
+    def entity_changed(new_obj: dict, document_info: DocumentInfo, changes: Dict[str, List[DocumentsChanges]]) -> bool:
         doc_changes = [] if changes is not None else None
 
         if not document_info.new_document and document_info.entity:
@@ -38,10 +40,10 @@ class JsonOperation:
     def compare_json(
         field_path: str,
         key: str,
-        original_json: dict,
-        new_json: dict,
-        changes: dict[str, list[DocumentsChanges]],
-        doc_changes: list[DocumentsChanges],
+        original_json: Dict,
+        new_json: Dict,
+        changes: Dict[str, List[DocumentsChanges]],
+        doc_changes: List[DocumentsChanges],
     ) -> bool:
         old_json_props = set(original_json.keys())
         new_json_props = set(new_json.keys())

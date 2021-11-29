@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
@@ -164,7 +164,7 @@ class Utils(object):
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
-    def fill_with_nested_object_types(entity: object, nested_object_types: dict[str, type]) -> object:
+    def fill_with_nested_object_types(entity: object, nested_object_types: Dict[str, type]) -> object:
         for key in nested_object_types:
             attr = getattr(entity, key)
             if attr:
@@ -200,7 +200,7 @@ class Utils(object):
 
     @staticmethod
     def convert_json_dict_to_object(
-        json_dict: dict, object_type: Optional[type] = None, nested_object_types: Optional[dict[str, type]] = None
+        json_dict: dict, object_type: Optional[type] = None, nested_object_types: Optional[Dict[str, type]] = None
     ) -> object:
         if object_type == dict:
             return json_dict

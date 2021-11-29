@@ -5,7 +5,7 @@ import json
 from abc import abstractmethod
 from copy import deepcopy
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING, Generic, TypeVar
+from typing import Union, Optional, TYPE_CHECKING, Generic, TypeVar, Dict, List
 
 import requests
 
@@ -206,13 +206,13 @@ class GetOperationStateOperation(MaintenanceOperation):
 class BatchOperation:
     def __init__(self, session: InMemoryDocumentSessionOperations):
         self.__session = session
-        self.__entities: list[object] = []
+        self.__entities: List[object] = []
         self.__session_commands_count: Union[None, int] = None
         self.__all_commands_count: Union[None, int] = None
         self.__on_successful_request: Union[
             None, InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess
         ] = None
-        self.__modifications: Union[None, dict[str, DocumentInfo]] = None
+        self.__modifications: Union[None, Dict[str, DocumentInfo]] = None
 
     def create_request(self) -> Union[None, SingleNodeBatchCommand]:
         result = self.__session.prepare_for_save_changes()
@@ -538,7 +538,7 @@ class BatchOperation:
 
 class PatchRequest:
     def __init__(self):
-        self.values: dict[str, object] = {}
+        self.values: Dict[str, object] = {}
         self.script = ""
 
     @staticmethod

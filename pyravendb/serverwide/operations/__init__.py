@@ -4,7 +4,7 @@ import datetime
 import enum
 import json
 from abc import abstractmethod
-from typing import Generic, TypeVar, TYPE_CHECKING, Optional
+from typing import Generic, TypeVar, TYPE_CHECKING, Optional, List
 import requests
 
 from pyravendb import constants
@@ -96,7 +96,7 @@ class DatabasePutResult:
         raft_command_index: Optional[int] = None,
         name: Optional[str] = None,
         topology: Optional[pyravendb.serverwide.DatabaseTopology] = None,
-        nodes_added_to: Optional[list[str]] = None,
+        nodes_added_to: Optional[List[str]] = None,
     ):
         self.raft_command_index = raft_command_index
         self.name = name
@@ -169,7 +169,7 @@ class CreateDatabaseOperation(ServerOperation):
 
 
 class DeleteDatabaseResult:
-    def __init__(self, raft_command_index: Optional[int] = None, pending_deletes: Optional[list[str]] = None):
+    def __init__(self, raft_command_index: Optional[int] = None, pending_deletes: Optional[List[str]] = None):
         self.raft_command_index = raft_command_index
         self.pending_deletes = pending_deletes
 
@@ -182,9 +182,9 @@ class DeleteDatabaseOperation(ServerOperation[DeleteDatabaseResult]):
     class Parameters:
         def __init__(
             self,
-            database_names: Optional[list[str]] = None,
+            database_names: Optional[List[str]] = None,
             hard_delete: Optional[bool] = None,
-            from_nodes: Optional[list[str]] = None,
+            from_nodes: Optional[List[str]] = None,
             time_to_wait_for_confirmation: Optional[datetime.timedelta] = None,
         ):
             self.database_names = database_names

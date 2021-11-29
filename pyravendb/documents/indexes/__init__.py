@@ -2,7 +2,7 @@ from __future__ import annotations
 import datetime
 from enum import Enum
 from abc import abstractmethod
-from typing import Union, Optional
+from typing import Union, Optional, List, Dict, Set
 from pyravendb.documents.indexes.spatial import SpatialOptions, AutoSpatialOptions
 
 
@@ -145,12 +145,12 @@ class IndexDefinition:
         self.priority: Union[None, IndexPriority] = None
         self.state: Union[None, IndexState] = None
         self.lock_mode: Union[None, IndexLockMode] = None
-        self.additional_sources: dict[str, str] = {}
-        self.additional_assemblies: set[AdditionalAssembly] = set()
-        self.maps: Union[None, set[str]] = None
-        self.fields: Union[None, dict[str, IndexFieldOptions]] = {}
+        self.additional_sources: Dict[str, str] = {}
+        self.additional_assemblies: Set[AdditionalAssembly] = set()
+        self.maps: Union[None, Set[str]] = None
+        self.fields: Union[None, Dict[str, IndexFieldOptions]] = {}
         self.reduce: Union[None, str] = None
-        self.configuration: dict[str, str] = {}
+        self.configuration: Dict[str, str] = {}
         self.__index_source_type: Union[None, IndexSourceType] = None
         self.__index_type: Union[None, IndexType] = None
         self.output_reduce_to_collection: Union[None, str] = None
@@ -212,8 +212,8 @@ class AutoIndexDefinition:
         priority: Optional[IndexPriority] = None,
         state: Optional[IndexState] = None,
         collection: Optional[str] = None,
-        map_fields: Optional[dict[str, AutoIndexFieldOptions]] = None,
-        group_by_fields: Optional[dict[str, AutoIndexFieldOptions]] = None,
+        map_fields: Optional[Dict[str, AutoIndexFieldOptions]] = None,
+        group_by_fields: Optional[Dict[str, AutoIndexFieldOptions]] = None,
     ):
         self.type = type
         self.name = name
@@ -252,7 +252,7 @@ class AdditionalAssembly:
         package_name: Optional[str] = None,
         package_version: Optional[str] = None,
         package_source_url: Optional[str] = None,
-        usings: Optional[set[str]] = None,
+        usings: Optional[Set[str]] = None,
     ):
         self.assembly_name = assembly_name
         self.assembly_path = assembly_path
@@ -262,19 +262,19 @@ class AdditionalAssembly:
         self.usings = usings
 
     @staticmethod
-    def only_usings(usings: set[str]) -> AdditionalAssembly:
+    def only_usings(usings: Set[str]) -> AdditionalAssembly:
         if not usings:
             raise ValueError("using cannot be None or empty")
         return AdditionalAssembly(usings=usings)
 
     @staticmethod
-    def from_runtime(assembly_name: str, usings: Optional[set[str]] = None) -> AdditionalAssembly:
+    def from_runtime(assembly_name: str, usings: Optional[Set[str]] = None) -> AdditionalAssembly:
         if not assembly_name or assembly_name.isspace():
             raise ValueError("Assembly name cannot be None or whitespace")
         return AdditionalAssembly(assembly_name, usings=usings)
 
     @staticmethod
-    def from_path(assembly_path: str, usings: Optional[set[str]] = None) -> AdditionalAssembly:
+    def from_path(assembly_path: str, usings: Optional[Set[str]] = None) -> AdditionalAssembly:
         if not assembly_path or assembly_path.isspace():
             raise ValueError("Assembly path cannot be None or whitespace")
         return AdditionalAssembly(assembly_path=assembly_path, usings=usings)
@@ -284,7 +284,7 @@ class AdditionalAssembly:
         package_name: str,
         package_version: str,
         package_source_url: Optional[str] = None,
-        usings: Optional[set[str]] = None,
+        usings: Optional[Set[str]] = None,
     ) -> AdditionalAssembly:
         if not package_name or package_name.isspace():
             raise ValueError("Package name cannot be None or whitespace")
@@ -302,9 +302,9 @@ class AdditionalAssembly:
 class AbstractCommonApiForIndexes:
     @abstractmethod
     def __init__(self):
-        self.__additional_sources: Union[None, dict[str, str]] = None
-        self.__additional_assemblies: Union[None, set[AdditionalAssembly]] = None
-        self.__configuration: Union[None, dict[str, str]] = None
+        self.__additional_sources: Union[None, Dict[str, str]] = None
+        self.__additional_assemblies: Union[None, Set[AdditionalAssembly]] = None
+        self.__configuration: Union[None, Dict[str, str]] = None
 
     @property
     def is_map_reduce(self) -> bool:
@@ -315,11 +315,11 @@ class AbstractCommonApiForIndexes:
         return type(self).__name__.replace("_", "/")
 
     @property
-    def additional_sources(self) -> dict[str, str]:
+    def additional_sources(self) -> Dict[str, str]:
         return self.__additional_sources
 
     @additional_sources.setter
-    def additional_sources(self, value: dict[str, str]):
+    def additional_sources(self, value: Dict[str, str]):
         self.__additional_sources = value
 
     @property
@@ -327,38 +327,38 @@ class AbstractCommonApiForIndexes:
         return self.__additional_assemblies
 
     @additional_assemblies.setter
-    def additional_assemblies(self, value: set[AdditionalAssembly]):
+    def additional_assemblies(self, value: Set[AdditionalAssembly]):
         self.__additional_assemblies = value
 
     @property
-    def configuration(self) -> dict[str, str]:
+    def configuration(self) -> Dict[str, str]:
         return self.__configuration
 
     @configuration.setter
-    def configuration(self, value: dict[str, str]):
+    def configuration(self, value: Dict[str, str]):
         self.__configuration = value
 
     @staticmethod
-    def only_usings(usings: set[str]) -> AdditionalAssembly:
+    def only_usings(usings: Set[str]) -> AdditionalAssembly:
         if not usings:
             raise ValueError("Using cannot be None or empty")
         return AdditionalAssembly(usings=usings)
 
     @staticmethod
-    def from_runtime(assembly_name: str, usings: set[str] = None) -> AdditionalAssembly:
+    def from_runtime(assembly_name: str, usings: Set[str] = None) -> AdditionalAssembly:
         if not assembly_name or assembly_name.isspace():
             raise ValueError("assembly_name cannot be None or whitespace.")
         return AdditionalAssembly(assembly_name=assembly_name, usings=usings)
 
     @staticmethod
-    def from_path(assembly_path: str, usings: set[str] = None) -> AdditionalAssembly:
+    def from_path(assembly_path: str, usings: Set[str] = None) -> AdditionalAssembly:
         if not assembly_path or assembly_path.isspace():
             raise ValueError("assembly_path cannot be None or whitespace")
         return AdditionalAssembly(assembly_path=assembly_path, usings=usings)
 
     @staticmethod
     def from_nuget(
-        package_name: str, package_version: str, package_source_url: str = None, usings: set[str] = None
+        package_name: str, package_version: str, package_source_url: str = None, usings: Set[str] = None
     ) -> AdditionalAssembly:
         if not package_name or package_name.isspace():
             raise ValueError("package_name cannot be None or whitespace")
@@ -383,7 +383,7 @@ class RollingIndexState(Enum):
 
 
 class RollingIndex:
-    def __init__(self, active_deployments: Optional[dict[str, RollingIndexDeployment]]):
+    def __init__(self, active_deployments: Optional[Dict[str, RollingIndexDeployment]]):
         self.active_deployments = active_deployments
 
 
@@ -419,6 +419,6 @@ class IndexingError:
 
 
 class IndexErrors:
-    def __init__(self, name: Optional[str] = None, errors: Optional[list[IndexingError]] = None):
+    def __init__(self, name: Optional[str] = None, errors: Optional[List[IndexingError]] = None):
         self.name = name
         self.errors = errors

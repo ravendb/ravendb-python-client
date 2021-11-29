@@ -42,7 +42,7 @@ from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetCluster
 from http import HTTPStatus
 
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Dict
 
 if TYPE_CHECKING:
     from pyravendb.documents.session import SessionInfo
@@ -62,7 +62,7 @@ class RequestExecutor:
         database_name: str,
         conventions: DocumentConventions,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
-        initial_urls: Optional[list[str]] = None,
+        initial_urls: Optional[List[str]] = None,
     ):
         self.__update_topology_timer: Union[None, Timer] = None
         self.conventions = copy(conventions)
@@ -74,7 +74,7 @@ class RequestExecutor:
         self.__update_client_configuration_semaphore = Semaphore(1)
         self.__update_database_topology_semaphore = Semaphore(1)
 
-        self.__failed_nodes_timers: dict[ServerNode, NodeStatus] = {}
+        self.__failed_nodes_timers: Dict[ServerNode, NodeStatus] = {}
 
         self.__database_name = database_name
 
@@ -102,16 +102,16 @@ class RequestExecutor:
         ] = conventions.second_broadcast_attempt_timeout
 
         self._first_topology_update_task: Union[None, Future] = None
-        self._last_known_urls: Union[None, list[str]] = None
+        self._last_known_urls: Union[None, List[str]] = None
         self._disposed: Union[None, bool] = None
 
         self.__synchronized_lock = Lock()
 
         # --- events ---
-        self.__on_before_request: list[Callable[[str, str, requests.Request, int], Any]] = []
-        self.__on_failed_request: list[Callable[[str, str, BaseException], None]] = []
+        self.__on_before_request: List[Callable[[str, str, requests.Request, int], Any]] = []
+        self.__on_failed_request: List[Callable[[str, str, BaseException], None]] = []
 
-        self._on_topology_updated: list[Callable[[Topology], None]] = []
+        self._on_topology_updated: List[Callable[[Topology], None]] = []
 
     def __enter__(self):
         return self
@@ -169,7 +169,7 @@ class RequestExecutor:
         return self.__cache
 
     @property
-    def topology_nodes(self) -> list[ServerNode]:
+    def topology_nodes(self) -> List[ServerNode]:
         return self.topology.nodes
 
     @property
@@ -193,7 +193,7 @@ class RequestExecutor:
             event(topology)
 
     @staticmethod
-    def create(initial_urls: list[str], database_name: str, conventions: DocumentConventions):
+    def create(initial_urls: List[str], database_name: str, conventions: DocumentConventions):
         executor = RequestExecutor(database_name, conventions)
         executor._first_topology_update_task = executor._first_topology_update(
             initial_urls, RequestExecutor.__GLOBAL_APPLICATION_IDENTIFIER
@@ -312,9 +312,9 @@ class RequestExecutor:
 
         return self._thread_pool_executor.submit(__supply_async)
 
-    def _first_topology_update(self, input_urls: list[str], application_identifier: Union[None, uuid.UUID]) -> Future:
+    def _first_topology_update(self, input_urls: List[str], application_identifier: Union[None, uuid.UUID]) -> Future:
         initial_urls = self.validate_urls(input_urls)
-        errors: list[tuple[str, Exception]] = []
+        errors: List[tuple[str, Exception]] = []
 
         def __run(errors: list):
             for url in initial_urls:
@@ -360,7 +360,7 @@ class RequestExecutor:
         return self._thread_pool_executor.submit(__run, errors)
 
     @staticmethod
-    def validate_urls(initial_urls: list[str]) -> list[str]:
+    def validate_urls(initial_urls: List[str]) -> List[str]:
         # todo: implement validation
         return initial_urls
 
@@ -465,7 +465,7 @@ class RequestExecutor:
                         raise
                 pass
 
-    def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> list[Future]:
+    def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> List[Future]:
         refresh_topology = response.headers.get(constants.Headers.REFRESH_TOPOLOGY, False)
         refresh_client_configuration = response.headers.get(constants.Headers.REFRESH_CLIENT_CONFIGURATION, False)
 
@@ -767,14 +767,14 @@ class RequestExecutor:
         preferred_task: Future[RequestExecutor.IndexAndResponse] = None
 
         nodes = self._node_selector.topology.nodes
-        tasks: list[Future[RequestExecutor.IndexAndResponse]] = [None] * len(nodes)
+        tasks: List[Future[RequestExecutor.IndexAndResponse]] = [None] * len(nodes)
 
         for i in range(len(nodes)):
             task_number = i
             self.number_of_server_requests += 1
 
             async def __supply_async(
-                single_element_list_number_failed_tasks: list[int],
+                single_element_list_number_failed_tasks: List[int],
             ) -> (RequestExecutor.IndexAndResponse, int):
                 try:
                     request, str_ref = self.__create_request(nodes[task_number], command)
@@ -845,7 +845,7 @@ class RequestExecutor:
         failed_nodes = command.failed_nodes
 
         command.failed_nodes = {}
-        broadcast_tasks: dict[Future[None], RequestExecutor.BroadcastState] = {}
+        broadcast_tasks: Dict[Future[None], RequestExecutor.BroadcastState] = {}
 
         try:
             self.__send_to_all_nodes(broadcast_tasks, session_info, command)
@@ -868,7 +868,7 @@ class RequestExecutor:
 
                     task.add_done_callback(__exceptionally)
 
-    def __wait_for_broadcast_result(self, command: RavenCommand, tasks: dict[Future[None], BroadcastState]) -> object:
+    def __wait_for_broadcast_result(self, command: RavenCommand, tasks: Dict[Future[None], BroadcastState]) -> object:
         while tasks:
             error = None
             try:
@@ -902,7 +902,7 @@ class RequestExecutor:
         raise AllTopologyNodesDownException(f"Broadcasting {command.__class__.__name__} failed: {exceptions}")
 
     def __send_to_all_nodes(
-        self, tasks: dict[Future, BroadcastState], session_info: SessionInfo, command: Union[RavenCommand, Broadcast]
+        self, tasks: Dict[Future, BroadcastState], session_info: SessionInfo, command: Union[RavenCommand, Broadcast]
     ):
         for index in range(len(self._node_selector.topology.nodes)):
             state = self.BroadcastState(
@@ -1033,7 +1033,7 @@ class ClusterRequestExecutor(RequestExecutor):
 
     # todo: security, cryptography, https
     def __init__(
-        self, conventions: DocumentConventions, thread_pool_executor: ThreadPoolExecutor, initial_urls: list[str]
+        self, conventions: DocumentConventions, thread_pool_executor: ThreadPoolExecutor, initial_urls: List[str]
     ):
         super(ClusterRequestExecutor, self).__init__(None, conventions, thread_pool_executor, initial_urls)
         self.__cluster_topology_semaphore = Semaphore(1)
@@ -1064,7 +1064,7 @@ class ClusterRequestExecutor(RequestExecutor):
 
     @staticmethod
     def create_without_database_name(
-        initial_urls: list[str], thread_pool_executor: ThreadPoolExecutor, conventions: DocumentConventions
+        initial_urls: List[str], thread_pool_executor: ThreadPoolExecutor, conventions: DocumentConventions
     ):
         executor = ClusterRequestExecutor(
             (conventions if conventions else DocumentConventions()), thread_pool_executor, initial_urls

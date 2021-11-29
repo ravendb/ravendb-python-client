@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Union, Callable, TYPE_CHECKING
+from typing import Union, Callable, TYPE_CHECKING, Dict
 
 import pyravendb.json.metadata_as_dictionary
 from pyravendb.data.indexes import SortOptions
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class DocumentConventions(object):
-    __cached_default_type_collection_names: dict[type, str] = {}
+    __cached_default_type_collection_names: Dict[type, str] = {}
 
     def __init__(self, **kwargs):
         self.max_number_of_requests_per_session = kwargs.get("max_number_of_request_per_session", 30)

@@ -2,6 +2,7 @@ from __future__ import annotations
 import datetime
 from abc import abstractmethod
 from enum import Enum
+from typing import List, Dict
 
 
 class ProjectionBehavior(Enum):
@@ -13,7 +14,7 @@ class ProjectionBehavior(Enum):
 
 
 class QueryTimings:
-    def __init__(self, duration_in_ms: int, timings: dict[str, QueryTimings]):
+    def __init__(self, duration_in_ms: int, timings: Dict[str, QueryTimings]):
         self.duration_in_ms = duration_in_ms
         self.timings = timings
 
@@ -34,11 +35,11 @@ class QueryResultBase:
         self,
         results: object = None,
         includes: object = None,
-        counter_includes: dict = None,
-        included_counter_names: dict[str, list[str]] = None,
-        time_series_includes: dict = None,
-        compare_exchange_value_includes: dict = None,
-        included_paths: list[str] = None,
+        counter_includes: Dict = None,
+        included_counter_names: Dict[str, List[str]] = None,
+        time_series_includes: Dict = None,
+        compare_exchange_value_includes: Dict = None,
+        included_paths: List[str] = None,
         is_stale: bool = None,
         index_time_stamp: datetime.datetime = None,
         index_name: str = None,
@@ -70,8 +71,8 @@ class GenericQueryResult(QueryResultBase):
         long_total_result: int = None,
         capped_max_results: int = None,
         skipped_results: int = None,
-        highlightings: dict[str, dict[str, list[str]]] = None,
-        explanations: dict[str, list[str]] = None,
+        highlightings: Dict[str, Dict[str, List[str]]] = None,
+        explanations: Dict[str, List[str]] = None,
         duration_in_ms: int = None,
         result_size: int = None,
         **kwargs,
