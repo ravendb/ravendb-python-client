@@ -140,9 +140,9 @@ class TestLoad(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.load("orderd/1", includes="product_id")
+            session.load("orderd/1", includes=lambda builder: builder.include_documents("product_id"))
             product = session.load("productd/1")
-        self.assertEqual(1, session.number_of_requests_in_session)
+        self.assertEqual(1, session.number_of_requests)
         self.assertEqual("some_product", product.name)
 
 

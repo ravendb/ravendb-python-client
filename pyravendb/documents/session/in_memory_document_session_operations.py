@@ -85,7 +85,7 @@ class RefEqEntityHolder(object):
         self.__unhashable_items[RefEq(key)] = value
 
     def __getitem__(self, key):
-        return self.__unhashable_items[RefEq(key)]
+        return self.__unhashable_items[RefEq(key)].ref
 
     def __getattribute__(self, item):
         if item == "_RefEqEntityHolder__unhashable_items":
@@ -226,7 +226,7 @@ class DocumentsByEntityHolder(object):
 
         first_unhashable = (
             (
-                self.DocumentsByEntityEnumeratorResult(key, value.ref, True)
+                self.DocumentsByEntityEnumeratorResult(key, value, True)
                 for key, value in self.__documents_by_entity_unhashable.items()
             )
             if len(self.__documents_by_entity_unhashable) > 0
@@ -243,8 +243,8 @@ class DocumentsByEntityHolder(object):
         )
         second_unhashable = (
             (
-                self.DocumentsByEntityEnumeratorResult(key, value.ref, False)
-                for key, value in self.__on_before_store_documents_by_entity_unhashable
+                self.DocumentsByEntityEnumeratorResult(key, value, False)
+                for key, value in self.__on_before_store_documents_by_entity_unhashable.items()
             )
             if len(self.__on_before_store_documents_by_entity_unhashable) > 0
             else None
@@ -292,7 +292,7 @@ class DocumentsByEntityHolder(object):
 
     class DocumentsByEntityEnumeratorResult:
         def __init__(self, key: object, value: DocumentInfo, execute_on_before_store: bool):
-            self.__key = key
+            self.__key = key.ref if isinstance(key, RefEq) else key
             self.__value = value
             self.__execute_on_before_store = execute_on_before_store
 
