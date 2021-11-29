@@ -4,7 +4,7 @@ import datetime
 import uuid
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Any, Union, Optional, TypeVar, Generic, TYPE_CHECKING
+from typing import Callable, Any, Union, Optional, TypeVar, Generic, TYPE_CHECKING, List, Dict
 
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
@@ -75,13 +75,13 @@ class DocumentStoreBase:
 
         self.__conventions = None
         self._initialized: bool = False
-        self._urls: list[str] = []
+        self._urls: List[str] = []
         self._database: Union[None, str] = None
         self._disposed: Union[None, bool] = None
         # todo: cryptography & ceritifiactes
 
         # todo: events
-        self.on_before_store: list[Callable[[InMemoryDocumentSessionOperations, str, object], None]] = []
+        self.on_before_store: List[Callable[[InMemoryDocumentSessionOperations, str, object], None]] = []
 
     def __enter__(self):
         return self
@@ -109,7 +109,7 @@ class DocumentStoreBase:
         return self._urls
 
     @urls.setter
-    def urls(self, value: list[str]):
+    def urls(self, value: List[str]):
         self.__assert_not_initialized("urls")
 
         if value is None:
@@ -192,12 +192,12 @@ class DocumentStoreBase:
 
 
 class DocumentStore(DocumentStoreBase):
-    def __init__(self, urls: Optional[Union[str, list[str]]] = None, database: Optional[str] = None):
+    def __init__(self, urls: Optional[Union[str, List[str]]] = None, database: Optional[str] = None):
         super(DocumentStore, self).__init__()
         self.__thread_pool_executor = ThreadPoolExecutor()
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
-        self.__request_executors: dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
+        self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
 
         # todo: database changes
         # todo: aggressive cache

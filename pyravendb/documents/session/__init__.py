@@ -3,19 +3,17 @@ import datetime
 import hashlib
 import threading
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING
-
-import cryptography.hazmat.primitives.hashes
+from typing import Union, Optional, TYPE_CHECKING, List, Dict
 
 from pyravendb.http import LoadBalanceBehavior
 
 if TYPE_CHECKING:
     from pyravendb.http.request_executor import RequestExecutor
     from pyravendb.store.session_query import Query
-    from pyravendb.store.document_store import DocumentStore
     from pyravendb.documents.session.transaction_mode import TransactionMode
     from pyravendb.raven_operations.query_operation import QueryOperation
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from pyravendb.documents import DocumentStore
 
 
 class ForceRevisionStrategy(Enum):
@@ -147,7 +145,7 @@ class ResponseTimeInformation:
         self,
         total_server_duration: datetime.timedelta = datetime.timedelta.min,
         total_client_duration: datetime.timedelta = datetime.timedelta.min,
-        duration_breakdown: list[ResponseTimeItem] = None,
+        duration_breakdown: List[ResponseTimeItem] = None,
     ):
         self.total_server_duration = total_server_duration
         self.total_client_duration = total_client_duration
@@ -163,14 +161,14 @@ class JavaScriptArray:
         self.__path_to_array = path_to_array
         self.__arg_counter = 0
         self.__script_lines = []
-        self.__parameters: dict[str, object] = {}
+        self.__parameters: Dict[str, object] = {}
 
     @property
     def script(self) -> str:
         return "\r".join(self.__script_lines)
 
     @property
-    def parameters(self) -> dict[str, object]:
+    def parameters(self) -> Dict[str, object]:
         return self.__parameters
 
     def __get_next_argument_name(self) -> str:
@@ -202,14 +200,14 @@ class JavaScriptMap:
         self.__path_to_map = path_to_map
         self.__arg_counter = 0
         self.__script_lines = []
-        self.__parameters: dict[str, object] = {}
+        self.__parameters: Dict[str, object] = {}
 
     @property
     def script(self) -> str:
         return "\r".join(self.__script_lines)
 
     @property
-    def parameters(self) -> dict[str, object]:
+    def parameters(self) -> Dict[str, object]:
         return self.__parameters
 
     def __get_next_argument_name(self) -> str:

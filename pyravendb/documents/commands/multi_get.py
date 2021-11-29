@@ -1,7 +1,7 @@
 import datetime
 import http
 from abc import abstractmethod
-from typing import Union
+from typing import Union, List
 
 import requests
 
@@ -63,7 +63,7 @@ class GetResponse:
 class Cached:
     def __init__(self, size: int):
         self.__size = size
-        self.values: Union[None, list[tuple[ReleaseCacheItem, str]]] = None
+        self.values: Union[None, List[tuple[ReleaseCacheItem, str]]] = None
 
     def __enter__(self):
         return self
@@ -89,7 +89,7 @@ class MultiGetCommand(RavenCommand):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_cache()
 
-    def __init__(self, request_executor: RequestExecutor, commands: list[GetRequest]):
+    def __init__(self, request_executor: RequestExecutor, commands: List[GetRequest]):
         super(MultiGetCommand, self).__init__(list)
 
         if not request_executor:
@@ -257,7 +257,7 @@ class MultiGetCommand(RavenCommand):
         self.__http_cache.set(cache_key, change_vector, result)
 
     @staticmethod
-    def read_responses(response_json: dict) -> list[GetResponse]:
+    def read_responses(response_json: dict) -> List[GetResponse]:
         # todo: parse it somehow
         pass
 

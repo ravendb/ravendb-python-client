@@ -1,4 +1,5 @@
 import json
+from typing import Dict
 
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
@@ -12,7 +13,7 @@ class CompareExchangeValueResultParser:
     @staticmethod
     def get_values(
         object_type: type, response: str, materialize_metadata: bool, conventions: DocumentConventions
-    ) -> dict[str, CompareExchangeValue]:
+    ) -> Dict[str, CompareExchangeValue]:
         results = CaseInsensitiveDict()
         if not response:
             return results

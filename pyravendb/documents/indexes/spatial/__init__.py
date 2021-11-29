@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 
 class SpatialFieldType(Enum):
@@ -89,4 +89,4 @@ class AutoSpatialOptions(SpatialOptions):
     def __init__(self, options: Optional[SpatialOptions] = None):
         super().__init__(options)
         self.method_type: Union[None, AutoSpatialMethodType] = None
-        self.method_argument: Union[None, list[str]] = None
+        self.method_argument: Union[None, List[str]] = None

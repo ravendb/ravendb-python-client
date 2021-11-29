@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Union, List
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.commands.raven_commands import QueryCommand
 from pyravendb.data.query import IndexQuery
@@ -14,7 +14,7 @@ class MultiGetOperation:
     def __init__(self, session: InMemoryDocumentSessionOperations):
         self.__session = session
 
-    def create_request(self, requests: list[GetRequest]):
+    def create_request(self, requests: List[GetRequest]):
         return MultiGetCommand(self.__session.request_executor, requests)
 
     def set_result(self, result: dict) -> None:
@@ -81,7 +81,7 @@ class LoadStartingWithOperation:
         self.__exclude: Union[None, str] = None
         self.__start_after: Union[None, str] = None
 
-        self.__returned_ids: list[str] = []
+        self.__returned_ids: List[str] = []
         self.__results_set: bool = False
         self.__results: Union[None, GetDocumentsResult] = None
 
@@ -128,7 +128,7 @@ class LoadStartingWithOperation:
             self.__session.documents_by_id.update(new_document_info)
             self.__returned_ids.append(new_document_info.key)
 
-    def get_documents(self, object_type: type) -> list[object]:
+    def get_documents(self, object_type: type) -> List[object]:
         i = 0
         final_results = []
 

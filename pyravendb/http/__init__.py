@@ -6,7 +6,7 @@ import uuid
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from typing import Union
+from typing import Union, List, Dict
 
 import requests
 
@@ -41,7 +41,7 @@ class VoidRavenCommand(RavenCommand[None]):
 
 
 class ClusterTopologyResponse:
-    def __init__(self, leader: str, node_tag: str, topology: ClusterTopology, etag: int, status: dict[str, NodeStatus]):
+    def __init__(self, leader: str, node_tag: str, topology: ClusterTopology, etag: int, status: Dict[str, NodeStatus]):
         self.leader = leader
         self.node_tag = node_tag
         self.topology = topology
@@ -105,7 +105,7 @@ class AggressiveCacheOptions:
 
 # ----- REQUEST EXECUTOR -----
 class Topology:
-    def __init__(self, etag: int, nodes: list[ServerNode]):
+    def __init__(self, etag: int, nodes: List[ServerNode]):
         self.etag = etag
         self.nodes = nodes
 
@@ -116,9 +116,9 @@ class ClusterTopology:
         self.topology_id = None
         self.etag = None
 
-        self.members: dict[str, str] = {}
-        self.promotables: dict[str, str] = {}
-        self.watchers: dict[str, str] = {}
+        self.members: Dict[str, str] = {}
+        self.promotables: Dict[str, str] = {}
+        self.watchers: Dict[str, str] = {}
 
     def __contains__(self, node: str) -> bool:
         if self.__members is not None and node in self.__members:
@@ -129,7 +129,7 @@ class ClusterTopology:
         return self.__watchers is not None and node in self.__watchers
 
     @staticmethod
-    def from_json(json_dict: dict) -> ClusterTopology:
+    def from_json(json_dict: Dict) -> ClusterTopology:
         topology = ClusterTopology()
         topology.etag = json_dict["Etag"]
         topology.topology_id = json_dict["TopologyId"]

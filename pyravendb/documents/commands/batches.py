@@ -4,7 +4,7 @@ import datetime
 import json
 from abc import abstractmethod
 from enum import Enum
-from typing import Callable, Union, Optional, TYPE_CHECKING
+from typing import Callable, Union, Optional, TYPE_CHECKING, List, Set
 
 import requests
 
@@ -87,7 +87,7 @@ class SingleNodeBatchCommand(RavenCommand):
     def __init__(
         self,
         conventions: DocumentConventions,
-        commands: list[CommandData],
+        commands: List[CommandData],
         options: BatchOptions = None,
         mode: TransactionMode = TransactionMode.SINGLE_NODE,
     ):
@@ -96,7 +96,7 @@ class SingleNodeBatchCommand(RavenCommand):
         self.__commands = commands
         self.__options = options
         self.__mode = mode
-        self.__attachment_streams: set[bytes] = set()
+        self.__attachment_streams: Set[bytes] = set()
         if not conventions:
             raise ValueError("Conventions cannot be None")
         if commands is None:
@@ -130,7 +130,7 @@ class SingleNodeBatchCommand(RavenCommand):
 
         return request
 
-    def __append_options(self, sb: list[str]) -> None:
+    def __append_options(self, sb: List[str]) -> None:
         if self.__options is None:
             return
         sb.append("?")
@@ -167,7 +167,7 @@ class SingleNodeBatchCommand(RavenCommand):
 
 class ClusterWideBatchCommand(SingleNodeBatchCommand):
     def __init__(
-        self, conventions: DocumentConventions, commands: list[CommandData], options: Optional[BatchOptions] = None
+        self, conventions: DocumentConventions, commands: List[CommandData], options: Optional[BatchOptions] = None
     ):
         super().__init__(conventions, commands, options, TransactionMode.CLUSTER_WIDE)
 
@@ -293,8 +293,8 @@ class BatchPatchCommandData(CommandData):
             command_type=CommandType.BATCH_PATCH, name=None, change_vector=None, key=None
         )
 
-        self.__seen_ids: set[str] = CaseInsensitiveSet()
-        self.__ids: list[BatchPatchCommandData.IdAndChangeVector] = []
+        self.__seen_ids: Set[str] = CaseInsensitiveSet()
+        self.__ids: List[BatchPatchCommandData.IdAndChangeVector] = []
         self.__patch = patch
         self.__patch_if_missing = patch_if_missing
         self.on_before_save_changes: Callable[[InMemoryDocumentSessionOperations], None] = None
@@ -449,7 +449,7 @@ class IndexBatchOptions:
         wait_for_indexes: bool = None,
         wait_for_indexes_timeout: datetime.timedelta = None,
         throw_on_timeout_in_wait_for_indexes: bool = None,
-        wait_for_specific_indexes: list[str] = None,
+        wait_for_specific_indexes: List[str] = None,
     ):
         self.wait_for_indexes = wait_for_indexes
         self.wait_for_indexes_timeout = wait_for_indexes_timeout

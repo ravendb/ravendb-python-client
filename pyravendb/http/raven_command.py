@@ -4,7 +4,7 @@ import datetime
 import http
 from http import HTTPStatus
 from abc import abstractmethod
-from typing import Union, Optional, Callable, Generic, TypeVar
+from typing import Union, Optional, Callable, Generic, TypeVar, Dict
 from enum import Enum
 
 import requests
@@ -51,7 +51,7 @@ class RavenCommand(Generic[ResultClass]):
 
         self.on_response_failure: Callable[[requests.Response], None] = lambda resp: None
 
-        self.failed_nodes: dict[ServerNode, Exception] = {}
+        self.failed_nodes: Dict[ServerNode, Exception] = {}
 
     @abstractmethod
     def is_read_request(self) -> bool:

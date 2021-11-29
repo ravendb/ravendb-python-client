@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Union
+from typing import Union, List
 from pyravendb.tools.utils import Utils
 from pyravendb.data.query import IndexQuery
 from pyravendb.store.entity_to_json import EntityToJson
@@ -30,9 +30,9 @@ class LazyLoadOperation(LazyOperation):
         self.__object_type = object_type
         self.__session = session
         self.__load_operation = load_operation
-        self.__keys: Union[None, list[str]] = None
-        self.__includes: Union[None, list[str]] = None
-        self.__already_in_session: Union[None, list[str]] = None
+        self.__keys: Union[None, List[str]] = None
+        self.__includes: Union[None, List[str]] = None
+        self.__already_in_session: Union[None, List[str]] = None
 
         self.__result: Union[None, object] = None
         self.__query_result: Union[None, QueryResult] = None

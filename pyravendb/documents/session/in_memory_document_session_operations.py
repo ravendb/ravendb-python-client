@@ -7,7 +7,7 @@ from abc import abstractmethod
 from collections import MutableSet
 import uuid as uuid
 from copy import deepcopy, Error
-from typing import Optional, Union, Callable, TYPE_CHECKING
+from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set
 
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
@@ -132,9 +132,9 @@ class DocumentsByIdHolder(object):
 
 class DocumentsByEntityHolder(object):
     def __init__(self):
-        self.__documents_by_entity_hashable: dict[object, DocumentInfo] = dict()
+        self.__documents_by_entity_hashable: Dict[object, DocumentInfo] = dict()
         self.__documents_by_entity_unhashable: RefEqEntityHolder[RefEq, DocumentInfo] = RefEqEntityHolder()
-        self.__on_before_store_documents_by_entity_hashable: dict[object, DocumentInfo] = dict()
+        self.__on_before_store_documents_by_entity_hashable: Dict[object, DocumentInfo] = dict()
         self.__on_before_store_documents_by_entity_unhashable: RefEqEntityHolder[
             RefEq, DocumentInfo
         ] = RefEqEntityHolder()
@@ -402,19 +402,19 @@ class InMemoryDocumentSessionOperations:
 
     class SaveChangesData:
         def __init__(self, session: InMemoryDocumentSessionOperations):
-            self.deferred_commands: list[CommandData] = []
-            self.deferred_commands_map: dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
-            self.session_commands: list[CommandData] = []
-            self.entities: list = []
+            self.deferred_commands: List[CommandData] = []
+            self.deferred_commands_map: Dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
+            self.session_commands: List[CommandData] = []
+            self.entities: List = []
             self.options = session._save_changes_options
             self.on_success = InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess(session)
 
         class ActionsToRunOnSuccess:
             def __init__(self, session: InMemoryDocumentSessionOperations):
                 self.__session = session
-                self.__documents_by_id_to_remove: list[str] = []
-                self.__documents_by_entity_to_remove: list = []
-                self.__document_infos_to_update: list[tuple[DocumentInfo, dict]] = []
+                self.__documents_by_id_to_remove: List[str] = []
+                self.__documents_by_entity_to_remove: List = []
+                self.__document_infos_to_update: List[tuple[DocumentInfo, dict]] = []
                 self.__clear_deleted_entities: bool = False
 
             def remove_document_by_id(self, key: str):
@@ -471,7 +471,7 @@ class InMemoryDocumentSessionOperations:
         )
         self.__operation_executor: OperationExecutor = None
 
-        self._pending_lazy_operations: list[LazyOperation] = []
+        self._pending_lazy_operations: List[LazyOperation] = []
         self._on_evaluate_lazy = {}
 
         self.__no_tracking = options.no_tracking
@@ -491,18 +491,18 @@ class InMemoryDocumentSessionOperations:
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
-        self.documents_by_entity: Union[DocumentsByEntityHolder, dict[object, DocumentInfo]] = DocumentsByEntityHolder()
+        self.documents_by_entity: Union[DocumentsByEntityHolder, Dict[object, DocumentInfo]] = DocumentsByEntityHolder()
 
-        self.__counters_by_doc_id: dict[str, list[bool, dict[str, int]]] = {}
-        self.__time_series_by_doc_id: dict[str, dict[str, list[TimeSeriesRangeResult]]] = {}
+        self.__counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
+        self.__time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
         self.deleted_entities: Union[
-            set[DeletedEntitiesHolder.DeletedEntitiesEnumeratorResult], DeletedEntitiesHolder
+            Set[DeletedEntitiesHolder.DeletedEntitiesEnumeratorResult], DeletedEntitiesHolder
         ] = DeletedEntitiesHolder()
-        self.deferred_commands: list[CommandData] = []
-        self.deferred_commands_map: dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
+        self.deferred_commands: List[CommandData] = []
+        self.deferred_commands_map: Dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
         self.no_tracking: bool = False
-        self.ids_for_creating_forced_revisions: dict[str, ForceRevisionStrategy] = CaseInsensitiveDict()
+        self.ids_for_creating_forced_revisions: Dict[str, ForceRevisionStrategy] = CaseInsensitiveDict()
         # todo: pendingLazyOperations, onEvaluateLazy
         self._generate_document_keys_on_store: bool = True
         self._save_changes_options: BatchOptions = None
@@ -569,7 +569,7 @@ class InMemoryDocumentSessionOperations:
         document_info.metadata_instance = metadata
         return metadata
 
-    def get_counters_for(self, entity: object) -> list[str]:
+    def get_counters_for(self, entity: object) -> List[str]:
         if entity is None:
             raise ValueError("Entity cannot be None")
         document_info = self.__get_document_info(entity)
@@ -577,7 +577,7 @@ class InMemoryDocumentSessionOperations:
         counters_array = document_info.metadata.get(constants.Documents.Metadata.COUNTERS)
         return counters_array if counters_array else None
 
-    def get_time_series_for(self, entity: object) -> list[str]:
+    def get_time_series_for(self, entity: object) -> List[str]:
         if not entity:
             raise ValueError("Instance cannot be None")
         document_info = self.__get_document_info(entity)
@@ -947,7 +947,7 @@ class InMemoryDocumentSessionOperations:
         self.ids_for_creating_forced_revisions.clear()
 
     def __prepare_for_entities_deletion(
-        self, result: SaveChangesData, changes: Union[None, dict[str, list[DocumentsChanges]]]
+        self, result: SaveChangesData, changes: Union[None, Dict[str, List[DocumentsChanges]]]
     ) -> None:
         for deleted_entity in self.deleted_entities:
             document_info = self.documents_by_entity.get(deleted_entity.entity)
@@ -1074,7 +1074,7 @@ class InMemoryDocumentSessionOperations:
         )
 
     def _entity_changed(
-        self, new_obj: dict, document_info: DocumentInfo, changes: Union[None, dict[str, list[DocumentsChanges]]]
+        self, new_obj: dict, document_info: DocumentInfo, changes: Union[None, Dict[str, List[DocumentsChanges]]]
     ) -> bool:
         return JsonOperation.entity_changed(new_obj, document_info, changes)
 
@@ -1130,7 +1130,7 @@ class InMemoryDocumentSessionOperations:
 
         index_options.wait_for_indexes = True
 
-    def __get_all_entities_changes(self, changes: dict[str, list[DocumentsChanges]]) -> None:
+    def __get_all_entities_changes(self, changes: Dict[str, List[DocumentsChanges]]) -> None:
         for key, value in self.documents_by_id:
             self.__update_metadata_modifications(value)
             new_obj = self.entity_to_json.convert_entity_to_json(value.entity, value)
@@ -1237,7 +1237,7 @@ class InMemoryDocumentSessionOperations:
                 continue
             self.included_documents_by_id[new_document_info.key] = new_document_info
 
-    def register_missing_includes(self, results, includes: dict, include_paths: list[str]):
+    def register_missing_includes(self, results, includes: dict, include_paths: List[str]):
         if self.no_tracking:
             return
 
@@ -1268,8 +1268,8 @@ class InMemoryDocumentSessionOperations:
     def register_counters(
         self,
         result_counters: dict,
-        counters_to_include: Union[dict[str, list[str]], list[str]],
-        keys: list[str] = None,
+        counters_to_include: Union[Dict[str, List[str]], List[str]],
+        keys: List[str] = None,
         got_all: bool = None,
     ):
         keys_case = keys is not None and got_all is not None
@@ -1296,7 +1296,7 @@ class InMemoryDocumentSessionOperations:
         ) if keys_case else self.__register_missing_counters(counters_to_include)
 
     def _register_counters_internal(
-        self, result_counters: dict, counters_to_include: dict[str, list[str]], from_query_result: bool, got_all: bool
+        self, result_counters: dict, counters_to_include: Dict[str, List[str]], from_query_result: bool, got_all: bool
     ):
         for key, result_counters in result_counters.items():
             if not result_counters:
@@ -1317,7 +1317,7 @@ class InMemoryDocumentSessionOperations:
             self.__register_counters_for_document(key, got_all, result_counters, counters_to_include)
 
     def __register_counters_for_document(
-        self, key: str, got_all: bool, result_counters: list[dict], counters_to_include: dict[str, list[str]]
+        self, key: str, got_all: bool, result_counters: List[Dict], counters_to_include: Dict[str, List[str]]
     ):
         cache = self.__counters_by_doc_id.get(key)
         if not cache:
@@ -1346,7 +1346,7 @@ class InMemoryDocumentSessionOperations:
         cache[0] = got_all
         self.__counters_by_doc_id[key] = cache
 
-    def __set_got_all_in_cache_if_needed(self, counters_to_include: dict[str, list[str]]):
+    def __set_got_all_in_cache_if_needed(self, counters_to_include: Dict[str, List[str]]):
         if not counters_to_include:
             return
         for key, value in counters_to_include:
@@ -1361,7 +1361,7 @@ class InMemoryDocumentSessionOperations:
         cache[0] = True
         self.__counters_by_doc_id[key] = cache
 
-    def __register_missing_counters(self, counters_to_include: dict[str, list[str]]):
+    def __register_missing_counters(self, counters_to_include: Dict[str, List[str]]):
         if not counters_to_include:
             return
 
@@ -1376,7 +1376,7 @@ class InMemoryDocumentSessionOperations:
                     continue
                 cache[1][counter] = None
 
-    def __register_missing_counters_for_keys(self, keys: list[str], counters_to_include: list[str]):
+    def __register_missing_counters_for_keys(self, keys: List[str], counters_to_include: list[str]):
         if not counters_to_include:
             return
 
@@ -1408,7 +1408,7 @@ class InMemoryDocumentSessionOperations:
                     self.__add_to_cache(cache, range_val, name)
 
     @staticmethod
-    def __add_to_cache(cache: dict[str, list[TimeSeriesRangeResult]], new_range: TimeSeriesRangeResult, name: str):
+    def __add_to_cache(cache: Dict[str, List[TimeSeriesRangeResult]], new_range: TimeSeriesRangeResult, name: str):
         local_ranges = cache.get(name)
         if not local_ranges:
             cache[name] = list([new_range])
@@ -1458,9 +1458,9 @@ class InMemoryDocumentSessionOperations:
         to_date: datetime.datetime,
         from_range_index: int,
         to_range_index: int,
-        ranges: list[TimeSeriesRangeResult],
-        cache: dict[str, list[TimeSeriesRangeResult]],
-        values: list[TimeSeriesEntry],
+        ranges: List[TimeSeriesRangeResult],
+        cache: Dict[str, List[TimeSeriesRangeResult]],
+        values: List[TimeSeriesEntry],
     ):
         if from_range_index == -1:
             # didn't find a 'from_range' => all ranges in cache start after 'from'
@@ -1615,9 +1615,9 @@ class InMemoryDocumentSessionOperations:
     def __merge_ranges(
         from_range_index: int,
         to_range_index: int,
-        local_ranges: list[TimeSeriesRangeResult],
+        local_ranges: List[TimeSeriesRangeResult],
         new_range: TimeSeriesRangeResult,
-    ) -> list[TimeSeriesEntry]:
+    ) -> List[TimeSeriesEntry]:
         merged_values = []
         if from_range_index != -1 and local_ranges[from_range_index].to_date.time() >= new_range.from_date.time():
             for val in local_ranges[from_range_index].entries:
@@ -1656,12 +1656,12 @@ class InMemoryDocumentSessionOperations:
     def __deserialize_from_transformer(self, object_type: type, key: str, document: dict, track_entity: bool) -> object:
         return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity, None)
 
-    def check_if_id_already_included(self, ids: list[str], includes: Union[list[list], list[str]]) -> bool:
+    def check_if_id_already_included(self, ids: List[str], includes: Union[List[List], List[str]]) -> bool:
         if not includes:
             return False
         if not isinstance(includes[1], str):
             return self.check_if_id_already_included(ids, [arr[1] for arr in includes])
-        includes: list[str]
+        includes: List[str]
         for key in ids:
             if key in self._known_missing_ids:
                 continue

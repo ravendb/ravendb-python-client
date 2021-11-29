@@ -2,7 +2,7 @@ from __future__ import annotations
 import datetime
 from collections import Callable
 from threading import Lock
-from typing import Any, Union, Optional, Iterable
+from typing import Any, Union, Optional, Iterable, Dict
 
 from typing import TYPE_CHECKING
 
@@ -62,7 +62,7 @@ class GenerateEntityIdOnTheClient:
 class MultiDatabaseHiLoGenerator:
     def __init__(self, store: DocumentStore):
         self._store = store
-        self._generators: dict[str, MultiTypeHiLoGenerator] = {}
+        self._generators: Dict[str, MultiTypeHiLoGenerator] = {}
 
     def generate_document_id(self, database: str, entity: object) -> str:
         database = self._store.get_effective_database(database)
@@ -87,7 +87,7 @@ class MultiTypeHiLoGenerator:
         self.__identity_parts_separator = self._conventions.identity_parts_separator
 
         self.__generator_lock = Lock()
-        self.__id_generators_by_tag: dict[str, HiLoIdGenerator] = {}
+        self.__id_generators_by_tag: Dict[str, HiLoIdGenerator] = {}
 
     def generate_document_id(self, entity: object) -> str:
         identity_parts_separator = self._conventions.identity_parts_separator
