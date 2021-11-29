@@ -168,7 +168,7 @@ class GetDocumentsCommand(RavenCommand):
                 GetDocumentsCommand.GetDocumentsByIdCommandOptions, GetDocumentsCommand.GetDocumentsByIdsCommandOptions
             ]
             for include in self.__options.includes:
-                path_builder.append(f"&include{include}")
+                path_builder.append(f"&include={include}")
 
         if self.__options.include_all_counters:
             path_builder.append(f"&counter={constants.Counters.ALL}")

@@ -224,7 +224,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         result = self.load_internal(
             object_type,
-            list(key_or_keys),
+            [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys,
             include_builder.documents_to_include if include_builder.documents_to_include else None,
             include_builder.counters_to_include if include_builder.counters_to_include else None,
             include_builder.is_all_counters,

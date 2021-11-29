@@ -491,7 +491,7 @@ class InMemoryDocumentSessionOperations:
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
-        self.documents_by_entity: Union[DocumentsByEntityHolder, Dict[object, DocumentInfo]] = DocumentsByEntityHolder()
+        self.documents_by_entity: Union[DocumentsByEntityHolder] = DocumentsByEntityHolder()
 
         self.__counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
         self.__time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
@@ -557,6 +557,10 @@ class InMemoryDocumentSessionOperations:
         if self.__counters_by_doc_id is None:
             self.__counters_by_doc_id = CaseInsensitiveDict()
         return self.__counters_by_doc_id
+
+    @property
+    def number_of_requests(self) -> int:
+        return self.__number_of_requests
 
     def get_metadata_for(self, entity: object) -> MetadataAsDictionary:
         if entity is None:
@@ -698,7 +702,7 @@ class InMemoryDocumentSessionOperations:
                 if key in self.included_documents_by_id:
                     self.included_documents_by_id.pop(key)
                 self.documents_by_id.update({doc_info.key: doc_info})
-                self.documents_by_entity.update({doc_info.entity: doc_info})
+                self.documents_by_entity[doc_info.entity] = doc_info
 
             return doc_info.entity
 
@@ -1228,7 +1232,7 @@ class InMemoryDocumentSessionOperations:
         if not includes:
             return
 
-        for key, value in includes:
+        for key, value in includes.items():
             if value is None:
                 continue
             object_node = json.loads(json.dumps(value))
@@ -1657,9 +1661,7 @@ class InMemoryDocumentSessionOperations:
         return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity, None)
 
     def check_if_id_already_included(self, ids: List[str], includes: Union[List[List], List[str]]) -> bool:
-        if not includes:
-            return False
-        if not isinstance(includes[1], str):
+        if includes and not isinstance(includes[0], str):
             return self.check_if_id_already_included(ids, [arr[1] for arr in includes])
         includes: List[str]
         for key in ids:
