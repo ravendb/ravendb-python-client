@@ -6,7 +6,6 @@ from typing import Any, Union, Optional, Iterable
 
 from typing import TYPE_CHECKING
 
-from pyravendb.hilo.hilo_generator import RangeValue
 
 import pyravendb.documents.commands
 
@@ -77,7 +76,7 @@ class MultiDatabaseHiLoGenerator:
 
     def return_usuned_range(self) -> None:
         for generator in self._generators.values():
-            generator.return_unusged_range()
+            generator.return_unused_range()
 
 
 class MultiTypeHiLoGenerator:
@@ -212,7 +211,7 @@ class HiLoIdGenerator:
         self._server_tag = hilo_command.result.server_tag
         self.__last_range_date = hilo_command.result.last_range_at
         self.__last_batch_size = hilo_command.result.last_size
-        self.__range = RangeValue(hilo_command.result.low, hilo_command.result.high)
+        self.__range = HiLoIdGenerator.RangeValue(hilo_command.result.low, hilo_command.result.high)
 
     def return_unused_range(self) -> None:
         return_command = pyravendb.documents.commands.HiLoReturnCommand(
@@ -239,3 +238,14 @@ class HiLoResult:
         self.last_size = last_size
         self.server_tag = server_tag
         self.last_range_at = last_range_at
+
+    @staticmethod
+    def from_json(json_dict: dict) -> HiLoResult:
+        return HiLoResult(
+            json_dict["Prefix"],
+            json_dict["Low"],
+            json_dict["High"],
+            json_dict["LastSize"],
+            json_dict["ServerTag"],
+            json_dict["LastRangeAt"],
+        )

@@ -1,6 +1,5 @@
 import unittest
-
-from pyravendb.documents import DocumentStore
+import pyravendb.tests.test_base
 
 
 class User:
@@ -9,23 +8,17 @@ class User:
         self.name = name
 
 
-class MyTestCase(unittest.TestCase):
-    def test_something(self):
-        with DocumentStore("http://127.0.0.1:8080", "NorthWindTest") as store:
-            store.initialize()
-            with store.open_session() as session:
-                u = User("users/1", "Rioghan")
-                session.store(u)
-                session.save_changes()
-                loaded = session.load(User, "users/1")
-                self.assertEqual(u, loaded.popitem()[1])
+class MyTest(pyravendb.tests.test_base.TestBase):
+    def test_setup(self):
+        with self.store.open_session() as session:
+            u = User("users/1", "Rioghan")
+            session.store(u)
+            session.save_changes()
+            loaded = session.load("users/1", User)
+            self.assertEqual(u, loaded)
 
-                session.clear()
+            session.clear()
 
-                loaded = session.load(User, "users/1").popitem()[1]
-                self.assertEqual(u.Id, loaded.Id)
-                self.assertEqual(u.name, loaded.name)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            loaded = session.load("users/1", User)
+            self.assertEqual(u.Id, loaded.Id)
+            self.assertEqual(u.name, loaded.name)

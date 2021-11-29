@@ -6,7 +6,7 @@ from typing import Union
 import requests
 
 from pyravendb import constants
-from pyravendb.connection.requests_executor import RequestsExecutor
+from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.extensions.http_extensions import HttpExtensions
 from pyravendb.http import AggressiveCacheMode, AggressiveCacheOptions
 from pyravendb.http.http_cache import HttpCache, ReleaseCacheItem
@@ -89,7 +89,7 @@ class MultiGetCommand(RavenCommand):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_cache()
 
-    def __init__(self, request_executor: RequestsExecutor, commands: list[GetRequest]):
+    def __init__(self, request_executor: RequestExecutor, commands: list[GetRequest]):
         super(MultiGetCommand, self).__init__(list)
 
         if not request_executor:

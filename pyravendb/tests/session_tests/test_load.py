@@ -1,6 +1,5 @@
-from pyravendb.commands.raven_commands import PutDocumentCommand
+from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions import exceptions
 from dataclasses import dataclass
 import unittest
 
@@ -74,7 +73,6 @@ class TestLoad(TestBase):
 
     def tearDown(self):
         super(TestLoad, self).tearDown()
-        self.delete_all_topology_files()
 
     def test_can_handle_nested_values(self):
         request_executor = self.store.get_request_executor()
@@ -100,7 +98,7 @@ class TestLoad(TestBase):
 
     def test_multi_load_with_duplicate_id(self):
         with self.store.open_session() as session:
-            products = session.load(["products/101", "products/101", "products/10"])
+            products = session.load(Product, ["products/101", "products/101", "products/10"])
             self.assertEqual(len(products), 3)
             for product in products:
                 self.assertIsNotNone(product)
@@ -126,12 +124,12 @@ class TestLoad(TestBase):
 
     def test_load_track_entity_with_object_type_fail(self):
         with self.store.open_session() as session:
-            with self.assertRaises(exceptions.InvalidOperationException):
+            with self.assertRaises(InvalidOperationException):
                 session.load("products/101", object_type=Foo)
 
     def test_load_with_include(self):
         with self.store.open_session() as session:
-            session.load("orders/105", includes="product_id")
+            session.load("orders/105", includes=lambda builder: builder.include_documents("product_id"))
             session.load("products/101")
         self.assertEqual(session.number_of_requests_in_session, 1)
 

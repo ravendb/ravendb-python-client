@@ -12,6 +12,7 @@ from typing import Optional, Union, Callable, TYPE_CHECKING
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.identity import GenerateEntityIdOnTheClient
+from pyravendb.documents.operations import OperationExecutor
 from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException
 from pyravendb.data.timeseries import TimeSeriesRangeResult
@@ -41,7 +42,6 @@ from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.json_operation import JsonOperation
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.store.document_store import OperationExecutor
 from pyravendb.store.entity_to_json import EntityToJson
 from pyravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
 
@@ -659,15 +659,13 @@ class InMemoryDocumentSessionOperations:
 
     def track_entity(
         self,
-        entity_type: type,
+        entity_type: type = None,
         key: str = None,
         document: dict = None,
         metadata: dict = None,
         no_tracking: bool = None,
         document_info: Optional[DocumentInfo] = None,
     ):
-        if not entity_type:
-            raise ValueError("Track entity is missing object type")
         if document_info:
             key = document_info.key
             document = document_info.document

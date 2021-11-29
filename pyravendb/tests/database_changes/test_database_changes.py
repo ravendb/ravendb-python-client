@@ -24,7 +24,6 @@ class TestDatabaseChanges(TestBase):
 
     def tearDown(self):
         super(TestDatabaseChanges, self).tearDown()
-        self.delete_all_topology_files()
 
     def test_for_all_documents(self):
         event = Event()

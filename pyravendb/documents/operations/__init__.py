@@ -2,34 +2,33 @@ from __future__ import annotations
 
 import datetime
 import json
-import time
 from abc import abstractmethod
 from copy import deepcopy
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING, Callable, Generic, TypeVar
+from typing import Union, Optional, TYPE_CHECKING, Generic, TypeVar
 
 import requests
 
 from pyravendb import constants
+from pyravendb.documents.operations.operation import Operation
 from pyravendb.documents.session import SessionInfo
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.transaction_mode import TransactionMode
-from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 from pyravendb.http import ServerNode, VoidRavenCommand
 from pyravendb.http.http_cache import HttpCache
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.primitives import OperationCancelledException
-from pyravendb.tools.utils import CaseInsensitiveDict, Utils
+from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
+
+from pyravendb.serverwide import ServerOperationExecutor
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from pyravendb.data.document_conventions import DocumentConventions
     from pyravendb.http.request_executor import RequestExecutor
     from pyravendb.documents import DocumentStore
-    from pyravendb.serverwide import ServerOperationExecutor
 
 
 _T = TypeVar("_T")
@@ -93,6 +92,7 @@ class MaintenanceOperationExecutor:
         )
         return self.__request_executor
 
+    @property
     def server(self) -> ServerOperationExecutor:
         if self.__server_operation_executor is not None:
             return self.__server_operation_executor
@@ -134,55 +134,8 @@ class MaintenanceOperationExecutor:
             )
 
 
-# todo: DatabaseChanges class
-class Operation:
-    def __init__(
-        self,
-        request_executor: RequestExecutor,
-        changes: Callable[[], "DatabaseChanges"],
-        conventions: DocumentConventions,
-        key: int,
-        node_tag: str = None,
-    ):
-        self.__request_executor = request_executor
-        self.__conventions = conventions
-        self.__key = key
-        self.node_tag = node_tag
-
-    def fetch_operations_status(self) -> dict:
-        command = self._get_operation_state_command(self.__conventions, self.__key, self.node_tag)
-        self.__request_executor.execute_command(command)
-
-        return command.result
-
-    def _get_operation_state_command(
-        self, conventions: DocumentConventions, key: int, node_tag: str = None
-    ) -> RavenCommand[dict]:
-        return GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
-
-    def wait_for_completion(self) -> None:
-        while True:
-            status = self.fetch_operations_status()
-            # todo: check if it isn't a string at the begging - if there's a need to parse on string
-            operation_status = str(status.get("Status"))
-
-            if operation_status == "Completed":
-                return
-            elif operation_status == "Canceled":
-                raise OperationCancelledException()
-            elif operation_status == "Faulted":
-                result = status.get("Result")
-                exception_result: OperationExceptionResult = Utils.initialize_object(
-                    result, OperationExceptionResult, True
-                )
-                schema = ExceptionDispatcher.ExceptionSchema(
-                    self.__request_executor.url, exception_result.error, exception_result.message, exception_result.type
-                )
-                raise ExceptionDispatcher.get(schema, exception_result.status_code)
-
-            time.sleep(0.5)
-
-
+# todo: research if it is necessary to create such class that
+#  mimics Operation interface and isn't an Operation class at the same time
 class IOperation(Generic[_Operation_T]):
     def get_command(
         self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache

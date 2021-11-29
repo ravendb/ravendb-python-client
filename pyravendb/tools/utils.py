@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
@@ -162,6 +164,32 @@ class Utils(object):
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
+    def fill_with_nested_object_types(entity: object, nested_object_types: dict[str, type]) -> object:
+        for key in nested_object_types:
+            attr = getattr(entity, key)
+            if attr:
+                try:
+                    if isinstance(attr, list):
+                        nested_list = []
+                        for attribute in attr:
+                            nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
+                        setattr(entity, key, nested_list)
+                    elif nested_object_types[key] is datetime:
+                        setattr(entity, key, Utils.string_to_datetime(attr))
+                    elif nested_object_types[key] is timedelta:
+                        setattr(entity, key, Utils.string_to_timedelta(attr))
+                    else:
+                        setattr(
+                            entity,
+                            key,
+                            Utils.initialize_object(attr, nested_object_types[key]),
+                        )
+                except TypeError as e:
+                    print(e)
+                    pass
+        return entity
+
+    @staticmethod
     def initialize_object(obj, object_type, convert_to_snake_case=None):
         initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
         o = object_type(**initialize_dict)
@@ -169,6 +197,44 @@ class Utils(object):
             for key, value in obj.items():
                 setattr(o, key, value)
         return o
+
+    @staticmethod
+    def convert_json_dict_to_object(
+        json_dict: dict, object_type: Optional[type] = None, nested_object_types: Optional[dict[str, type]] = None
+    ) -> object:
+        if object_type == dict:
+            return json_dict
+
+        if object_type is None:
+            return _DynamicStructure(**json_dict)
+
+        if nested_object_types is None:
+            return Utils.initialize_object(json_dict, object_type, True)
+
+        entity = _DynamicStructure(**json_dict)
+        entity.__class__ = object_type
+        entity = Utils.initialize_object(json_dict, object_type, True)
+        if nested_object_types:
+            Utils.fill_with_nested_object_types(entity, nested_object_types)
+        Utils.deep_convert_to_snake_case(entity)
+        return entity
+
+    @staticmethod
+    def deep_convert_to_snake_case(entity):
+        if entity is None:
+            return
+        if type(entity) in [int, float, bool, str, set, list, tuple, dict]:
+            return
+        changes = {}
+        for key, value in entity.__dict__.items():
+            # todo: i dont' like the way we try to convert to snake case content of the object dict
+            new_key = Utils.convert_to_snake_case(key)
+            if key != new_key:
+                changes.update({(key, new_key): value})  # collect the keys that changed (snake case conversion)
+            Utils.deep_convert_to_snake_case(value)
+        for keys, value in changes.items():  # erase
+            entity.__dict__[keys[1]] = value
+            del entity.__dict__[keys[0]]
 
     @staticmethod
     def convert_to_entity(document, object_type, conventions, events, nested_object_types=None):
@@ -215,28 +281,7 @@ class Utils(object):
             entity = Utils.initialize_object(document, object_type)
 
             if nested_object_types:
-                for key in nested_object_types:
-                    attr = getattr(entity, key)
-                    if attr:
-                        try:
-                            if isinstance(attr, list):
-                                nested_list = []
-                                for attribute in attr:
-                                    nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
-                                setattr(entity, key, nested_list)
-                            elif nested_object_types[key] is datetime:
-                                setattr(entity, key, Utils.string_to_datetime(attr))
-                            elif nested_object_types[key] is timedelta:
-                                setattr(entity, key, Utils.string_to_timedelta(attr))
-                            else:
-                                setattr(
-                                    entity,
-                                    key,
-                                    Utils.initialize_object(attr, nested_object_types[key]),
-                                )
-                        except TypeError as e:
-                            print(e)
-                            pass
+                Utils.fill_with_nested_object_types(entity, nested_object_types)
 
         if "Id" in entity.__dict__:
             entity.Id = metadata.get("@id", None)
@@ -351,7 +396,7 @@ class Utils(object):
 
     @staticmethod
     def timedelta_to_str(timedelta_obj):
-        timedelta_str = ""
+        timedelta_str = None
         if isinstance(timedelta_obj, timedelta):
             total_seconds = timedelta_obj.seconds
             days = timedelta_obj.days
