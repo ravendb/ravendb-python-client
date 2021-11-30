@@ -14,7 +14,7 @@ from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.identity import GenerateEntityIdOnTheClient
 from pyravendb.documents.operations import OperationExecutor
 from pyravendb.http.request_executor import RequestExecutor
-from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException
+from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from pyravendb.documents.commands.batches import (
     CommandData,
@@ -491,7 +491,7 @@ class InMemoryDocumentSessionOperations:
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
-        self.documents_by_entity: Union[DocumentsByEntityHolder] = DocumentsByEntityHolder()
+        self.documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
         self.__counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
         self.__time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
@@ -808,9 +808,9 @@ class InMemoryDocumentSessionOperations:
 
         if (
             pyravendb.documents.IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None)
-            in self.deferred_commands_map
+            in self.deferred_commands_map.keys()
         ):
-            raise RuntimeError(
+            raise InvalidOperationException(
                 f"Can't store document, there is a deferred command registered for this document in the session. "
                 f"Document id:{key}"
             )

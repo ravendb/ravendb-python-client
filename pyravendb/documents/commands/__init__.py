@@ -152,18 +152,18 @@ class GetDocumentsCommand(RavenCommand):
         if "metadata_only" in self.__options.__dict__ and self.__options.metadata_only:
             path_builder.append("&metadataOnly=true")
 
-        if "starts_with" in self.__options.__dict__:
+        if "starts_with" in self.__options.__dict__ and self.__options.starts_with:
             self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
             path_builder.append(f"&start={self.__options.starts_with}")
 
-            if "matches" in self.__options.__dict__:
+            if "matches" in self.__options.__dict__ and self.__options.matches:
                 path_builder.append(f"&matches={self.__options.matches}")
-            if "exclude" in self.__options.__dict__:
+            if "exclude" in self.__options.__dict__ and self.__options.exclude:
                 path_builder.append(f"&exclude={self.__options.exclude}")
-            if "start_after" in self.__options.__dict__:
+            if "start_after" in self.__options.__dict__ and self.__options.start_after:
                 path_builder.append(f"&startAfter={self.__options.start_after}")
 
-        if "includes" in self.__options.__dict__:
+        if "includes" in self.__options.__dict__ and self.__options.includes:
             self.__options: Union[
                 GetDocumentsCommand.GetDocumentsByIdCommandOptions, GetDocumentsCommand.GetDocumentsByIdsCommandOptions
             ]
@@ -176,14 +176,17 @@ class GetDocumentsCommand(RavenCommand):
             for counter in self.__options.counter_includes:
                 path_builder.append(f"counter={counter}")
 
-        if "time_series_includes" in self.__options.__dict__:
+        if "time_series_includes" in self.__options.__dict__ and self.__options.time_series_includes:
             self.__options: GetDocumentsCommand.GetDocumentsByIdsCommandOptions
             for time_series in self.__options.time_series_includes:
                 path_builder.append(
                     f"&timeseries={time_series.name}&from={time_series.from_date}&to={time_series.to_date}"
                 )
 
-        if "compare_exchange_value_includes" in self.__options.__dict__:
+        if (
+            "compare_exchange_value_includes" in self.__options.__dict__
+            and self.__options.compare_exchange_value_includes
+        ):
             for compare_exchange_value in self.__options.compare_exchange_value_includes:
                 path_builder.append(f"&cmpxchg={compare_exchange_value}")
 
@@ -207,7 +210,7 @@ class GetDocumentsCommand(RavenCommand):
 
         if is_get:
             for key in unique_ids:
-                path_builder.append(f"&id={Utils.escape(key,False,False) if key else ''}")
+                path_builder.append(f"&id={key if key else ''}")  # todo: check if need to escape at this point
 
             return requests.Request("GET", "".join(path_builder))
 
@@ -227,8 +230,7 @@ class GetDocumentsCommand(RavenCommand):
         if response is None:
             self.result = None
             return
-
-        self.result = Utils.initialize_object(json.loads(response), self._result_class, True)
+        self.result = GetDocumentsResult.from_json(json.loads(response))
 
 
 class NextHiLoCommand(RavenCommand[HiLoResult]):

@@ -69,17 +69,19 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     def save_changes(self) -> None:
         save_changes_operation = BatchOperation(self)
-        with save_changes_operation.create_request() as command:
-            if command is None:
-                return
+        command = save_changes_operation.create_request()
+        if command:
+            with command:
+                if command is None:
+                    return
 
-            if self.no_tracking:
-                raise RuntimeError("Cannot execute save_changes when entity tracking is disabled.")
+                if self.no_tracking:
+                    raise RuntimeError("Cannot execute save_changes when entity tracking is disabled.")
 
-            # todo: rebuild request executor - WIP
-            self.request_executor.execute_command(command, self._session_info)
-            self.update_session_after_save_changes(command.result)
-            save_changes_operation.set_result(command.result)
+                # todo: rebuild request executor - WIP
+                self.request_executor.execute_command(command, self._session_info)
+                self.update_session_after_save_changes(command.result)
+                save_changes_operation.set_result(command.result)
 
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():

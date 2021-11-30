@@ -51,8 +51,6 @@ class IdTypeAndName:
         self.name = name
 
     def __eq__(self, other):
-        if self == other:
-            return True
         if other is None or type(self) != type(other):
             return False
         other: IdTypeAndName
@@ -63,7 +61,7 @@ class IdTypeAndName:
         return self.name == other.name if self.name is not None else other.name is None
 
     def __hash__(self):
-        return id(self)
+        return hash((self.key, self.command_type, self.name))
 
     @staticmethod
     def create(key: str, command_type: CommandType, name: str) -> IdTypeAndName:
