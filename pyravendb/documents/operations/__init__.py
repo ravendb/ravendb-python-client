@@ -288,9 +288,9 @@ class BatchOperation:
             if command_type == CommandType.PUT:
                 self.__handle_put(i, batch_result, False)
             elif command_type == CommandType.DELETE:
-                self.__handle_force_revision_creation(batch_result)
-            elif command_type == CommandType.PATCH:
                 self.__handle_delete(batch_result)
+            elif command_type == CommandType.PATCH:
+                self.__handle_patch(batch_result)
             elif command_type == CommandType.ATTACHMENT_PUT:
                 raise NotImplementedError()
             elif command_type == CommandType.ATTACHMENT_DELETE:
@@ -409,7 +409,7 @@ class BatchOperation:
 
         if document_info.entity is not None:
             self.__session.documents_by_entity.pop(document_info.entity, None)
-            self.__session.deleted_entities.remove(document_info.entity)
+            self.__session.deleted_entities.discard(document_info.entity)
 
     def __handle_force_revision_creation(self, batch_result: dict) -> None:
         if not self.__get_boolean_field(batch_result, CommandType.FORCE_REVISION_CREATION, "RevisionCreated"):

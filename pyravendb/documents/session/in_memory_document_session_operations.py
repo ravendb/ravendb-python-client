@@ -324,6 +324,7 @@ class DeletedEntitiesHolder(MutableSet):
             "evict",
             "clear",
             "discard",
+            "DeletedEntitiesEnumeratorResult",
             "_DeletedEntitiesHolder__deleted_entities",
             "_DeletedEntitiesHolder__prepare_entities_deleted",
             "_DeletedEntitiesHolder__on_before_deleted_entities",
@@ -402,8 +403,10 @@ class InMemoryDocumentSessionOperations:
 
     class SaveChangesData:
         def __init__(self, session: InMemoryDocumentSessionOperations):
-            self.deferred_commands: List[CommandData] = []
-            self.deferred_commands_map: Dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
+            self.deferred_commands: List[CommandData] = session.deferred_commands
+            self.deferred_commands_map: Dict[
+                pyravendb.documents.IdTypeAndName, CommandData
+            ] = session.deferred_commands_map
             self.session_commands: List[CommandData] = []
             self.entities: List = []
             self.options = session._save_changes_options
@@ -879,7 +882,8 @@ class InMemoryDocumentSessionOperations:
             result.deferred_commands_map.update(self.deferred_commands_map)
 
         for deferred_command in result.deferred_commands:
-            deferred_command.on_before_save_changes(self)
+            if deferred_command.on_before_save_changes:
+                deferred_command.on_before_save_changes(self)
 
         return result
 
@@ -957,10 +961,11 @@ class InMemoryDocumentSessionOperations:
             document_info = self.documents_by_entity.get(deleted_entity.entity)
             if document_info is None:
                 continue
-            if changes is None:
+            if changes is not None:
                 doc_changes = []
                 change = DocumentsChanges("", "", DocumentsChanges.ChangeType.DOCUMENT_DELETED)
                 doc_changes.append(change)
+                changes[document_info.key] = doc_changes
             else:
                 command = result.deferred_commands_map.get(
                     pyravendb.documents.IdTypeAndName.create(document_info.key, CommandType.CLIENT_ANY_COMMAND, None)

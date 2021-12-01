@@ -9,13 +9,13 @@ class TestRavenDB10566(TestBase):
         self.name = None
 
         def update_item(session, doc_id, entity):
-            self.name = session.advanced.get_metadata_for(entity).get("Name")
+            self.name = session.get_metadata_for(entity).get("Name")
 
         with self.store.open_session() as session:
-            session.events.after_save_change = update_item
+            session.on_after_save_changes = update_item
             user = User("Oren", 30)
             session.store(user, "users/oren")
-            metadata = session.advanced.get_metadata_for(user)
+            metadata = session.get_metadata_for(user)
             metadata.update({"Name": "FooBar"})
             session.save_changes()
 

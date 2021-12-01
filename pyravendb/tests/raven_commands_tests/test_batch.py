@@ -1,26 +1,41 @@
 import unittest
-from pyravendb.commands.raven_commands import BatchCommand, GetDocumentCommand
-from pyravendb.commands import commands_data
-from pyravendb.data.patches import PatchRequest
+
+from pyravendb.documents.commands import GetDocumentsCommand
+from pyravendb.documents.commands.batches import (
+    DeleteCommandData,
+    PatchCommandData,
+    PutCommandDataBase,
+    SingleNodeBatchCommand,
+)
+from pyravendb.documents.operations import PatchRequest
 from pyravendb.tests.test_base import TestBase
 
 
 class TestDelete(TestBase):
     def setUp(self):
         super(TestDelete, self).setUp()
-        self.put_command1 = commands_data.PutCommandData(
+        self.put_command1 = PutCommandDataBase(
             "products/1-A",
-            document={"Name": "tests", "Category": "testing"},
-            metadata={"Raven-Python-Type": "Products", "@collection": "Products"},
+            None,
+            {
+                "Name": "tests",
+                "Category": "testing",
+                "@metadata": {"Raven-Python-Type": "Products", "@collection": "Products"},
+            },
         )
-        self.put_command2 = commands_data.PutCommandData(
+        self.put_command2 = PutCommandDataBase(
             "products/2-A",
-            document={"Name": "testsDelete", "Category": "testing"},
-            metadata={"Raven-Python-Type": "Products", "@collection": "Products"},
+            None,
+            {
+                "Name": "testsDelete",
+                "Category": "testing",
+                "@metadata": {"Raven-Python-Type": "Products", "@collection": "Products"},
+            },
         )
-        self.delete_command = commands_data.DeleteCommandData("products/2-A")
-        patch = PatchRequest("this.Name = 'testing';")
-        self.scripted_patch_command = commands_data.PatchCommandData("products/1-A", patch)
+        self.delete_command = DeleteCommandData("products/2-A", None)
+        patch = PatchRequest()
+        patch.script = "this.Name = 'testing';"
+        self.scripted_patch_command = PatchCommandData("products/1-A", None, patch)
         self.requests_executor = self.store.get_request_executor()
 
     def tearDown(self):
@@ -28,25 +43,31 @@ class TestDelete(TestBase):
         self.delete_all_topology_files()
 
     def test_success_one_command(self):
-        batch_command = BatchCommand([self.put_command1])
-        batch_result = self.requests_executor.execute(batch_command)
-        self.assertEqual(len(batch_result), 1)
+        batch_command = SingleNodeBatchCommand(self.store.conventions, [self.put_command1])
+        self.requests_executor.execute_command(batch_command)
+        batch_result = batch_command.result
+        self.assertEqual(len(batch_result.results), 1)
 
     def test_success_multi_commands(self):
-        batch_command = BatchCommand([self.put_command1, self.put_command2, self.delete_command])
-        batch_result = self.requests_executor.execute(batch_command)
-        self.assertEqual(len(batch_result), 3)
+        batch_command = SingleNodeBatchCommand(
+            self.store.conventions, [self.put_command1, self.put_command2, self.delete_command]
+        )
+        self.requests_executor.execute_command(batch_command)
+        batch_result = batch_command.result
+        self.assertEqual(len(batch_result.results), 3)
 
     def test_scripted_patch(self):
-        batch_command = BatchCommand([self.put_command1, self.scripted_patch_command])
-        self.requests_executor.execute(batch_command)
-        result = self.requests_executor.execute(GetDocumentCommand("products/1-A"))
-        self.assertEqual(result["Results"][0]["Name"], "testing")
+        batch_command = SingleNodeBatchCommand(self.store.conventions, [self.put_command1, self.scripted_patch_command])
+        self.requests_executor.execute_command(batch_command)
+        get_doc_command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsByIdCommandOptions("products/1-A"))
+        self.requests_executor.execute_command(get_doc_command)
+        get_result = get_doc_command.result
+        self.assertEqual(get_result.results[0]["Name"], "testing")
 
     def test_fail(self):
         with self.assertRaises(ValueError):
-            batch_command = BatchCommand([self.put_command1, self.put_command2, None])
-            self.requests_executor.execute(batch_command)
+            batch_command = SingleNodeBatchCommand(self.store.conventions, [self.put_command1, self.put_command2, None])
+            self.requests_executor.execute_command(batch_command)
 
     if __name__ == "__main__":
         unittest.main()

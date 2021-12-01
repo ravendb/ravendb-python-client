@@ -70,8 +70,8 @@ class GetDocumentsCommand(RavenCommand):
         def __init__(
             self,
             key: str,
-            includes: List[str],
-            metadata_only: bool,
+            includes: Optional[List[str]] = None,
+            metadata_only: Optional[bool] = False,
             counter_includes: Optional[List[str]] = None,
             include_all_counters: Optional[bool] = None,
             conventions: "DocumentConventions" = None,
