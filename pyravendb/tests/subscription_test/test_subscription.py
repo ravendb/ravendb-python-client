@@ -151,6 +151,7 @@ class TestSubscription(TestBase):
             subscription.close()
             subscription_throw.close()
 
+    @unittest.skip("Definitely takes too long")
     def test_subscription_with_close_when_no_docs_left(self):
         with self.store.open_session() as session:
             for _ in range(0, 5000):

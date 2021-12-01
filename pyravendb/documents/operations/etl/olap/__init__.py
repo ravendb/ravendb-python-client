@@ -10,7 +10,7 @@ from pyravendb.documents.operations.backups import (
 )
 from pyravendb.documents.operations.connection_strings import ConnectionString
 from pyravendb.documents.operations.etl import EtlConfiguration
-from pyravendb.serverwide import ConnectionStringType
+import pyravendb.serverwide
 
 
 class OlapConnectionString(ConnectionString):
@@ -34,7 +34,7 @@ class OlapConnectionString(ConnectionString):
 
     @property
     def get_type(self):
-        return ConnectionStringType.OLAP
+        return pyravendb.serverwide.ConnectionStringType.OLAP
 
 
 # todo: implement

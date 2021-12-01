@@ -1,9 +1,7 @@
+from pyravendb.documents import DocumentStore
+from pyravendb.serverwide.database_record import DatabaseRecord
+from pyravendb.serverwide.operations import DeleteDatabaseOperation, CreateDatabaseOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import DocumentStore
-from pyravendb.raven_operations.server_operations import (
-    CreateDatabaseOperation,
-    DeleteDatabaseOperation,
-)
 import hashlib
 from shutil import rmtree
 import os
@@ -32,16 +30,11 @@ class TestSystemTopologyCreation(TestBase):
     def test_topology_creation(self):
         created = False
         while not created:
-            try:
-                self.store.maintenance.server.send(CreateDatabaseOperation(database_name=DATABASE))
-                created = True
-            except Exception as e:
-                if "already exists!" in str(e):
-                    self.store.maintenance.server.send(
-                        DeleteDatabaseOperation(database_name=DATABASE, hard_delete=True)
-                    )
-                    continue
-                raise
+            resp = self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(DATABASE)))
+            if not resp:
+                self.store.maintenance.server.send(DeleteDatabaseOperation(database_name=DATABASE, hard_delete=True))
+                continue
+            created = True
         TestBase.wait_for_database_topology(self.store, DATABASE)
 
         with DocumentStore(urls=self.default_urls, database=DATABASE) as store:
@@ -53,7 +46,9 @@ class TestSystemTopologyCreation(TestBase):
 
         cluster_topology_hash = hashlib.md5("{0}".format(self.default_urls[0]).encode("utf-8")).hexdigest()
 
-        self.assertTrue(os.path.exists(os.path.join(TOPOLOGY_FILES_DIR, topology_hash + ".raven-topology")))
+        self.assertTrue(
+            os.path.exists(os.path.join(TOPOLOGY_FILES_DIR, topology_hash + ".raven-topology"))
+        )  # todo: fix from here - make sure the right folder and files appear
         self.assertTrue(
             os.path.exists(
                 os.path.join(
