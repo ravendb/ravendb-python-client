@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 class VoidRavenCommand(RavenCommand[None]):
     def __init__(self):
-        super().__init__(None)
+        super().__init__(void_command=True)
         self._response_type = RavenCommandResponseType.EMPTY
 
     @abstractmethod
@@ -35,6 +35,9 @@ class VoidRavenCommand(RavenCommand[None]):
 
     def is_read_request(self) -> bool:
         return False
+
+    def set_response(self, response: str, from_cache: bool) -> None:
+        pass
 
 
 # ---------- RESPONSE ----------

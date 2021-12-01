@@ -2,12 +2,13 @@ from __future__ import annotations
 import datetime
 from collections import Callable
 from threading import Lock
-from typing import Any, Union, Optional, Iterable, Dict
+from typing import Any, Union, Optional, Iterable, Dict, Tuple
 
 from typing import TYPE_CHECKING
 
 
 import pyravendb.documents.commands
+from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
     from pyravendb.documents import DocumentStore
@@ -19,7 +20,7 @@ class GenerateEntityIdOnTheClient:
         self.__conventions = conventions
         self.__generate_id = generate_id
 
-    def try_get_id_from_instance(self, entity: object) -> tuple[bool, Union[str, None]]:
+    def try_get_id_from_instance(self, entity: object) -> Tuple[bool, Union[str, None]]:
         if not entity:
             raise ValueError("Entity cannot be None")
         identity_property = "Id"  # todo: make sure it's ok, create get_identity_property within conventions if not
@@ -69,12 +70,13 @@ class MultiDatabaseHiLoGenerator:
         generator = self._generators.get(database, None)
         if generator is None:
             generator = self.generate_multi_type_hi_lo_func(database)
+            self._generators[database] = generator
         return generator.generate_document_id(entity)
 
     def generate_multi_type_hi_lo_func(self, database: str) -> MultiTypeHiLoGenerator:
         return MultiTypeHiLoGenerator(self._store, database)
 
-    def return_usuned_range(self) -> None:
+    def return_unused_range(self) -> None:
         for generator in self._generators.values():
             generator.return_unused_range()
 
@@ -247,5 +249,5 @@ class HiLoResult:
             json_dict["High"],
             json_dict["LastSize"],
             json_dict["ServerTag"],
-            json_dict["LastRangeAt"],
+            Utils.string_to_datetime(json_dict["LastRangeAt"]),
         )

@@ -29,22 +29,24 @@ ResultClass = TypeVar("ResultClass")
 
 
 class RavenCommand(Generic[ResultClass]):
-    def __init__(self, result_class: type = None, copy: RavenCommand = None):
-        if not ((result_class is not None) ^ (copy is not None)):
-            raise ValueError("Pass either result_class or RavenCommand copy")
-
-        self._result_class: type = result_class if result_class else copy._result_class
+    # void_command is rarely used arg that determine if the user didn't pass result_class due to copying RavenCommand
+    # or if user wants to create VoidRavenCommand that inherits from this class and its' result type is None
+    def __init__(self, result_class: type = None, copy: RavenCommand = None, void_command: Optional[bool] = False):
+        if not ((result_class is not None or void_command) ^ (copy is not None)):
+            raise ValueError("Pass either result_class or RavenCommand copy.")
+        is_not_copy = result_class or void_command
+        self._result_class: type = result_class if is_not_copy else copy._result_class
         self.result: Union[None, ResultClass] = None
         self.status_code: Union[None, int] = None
 
         self._response_type: RavenCommandResponseType = (
-            RavenCommandResponseType.OBJECT if result_class else copy.response_type
+            RavenCommandResponseType.OBJECT if is_not_copy else copy.response_type
         )
 
         self.timeout: Union[None, datetime.timedelta] = None
-        self._can_cache: bool = True if result_class else copy.can_cache
-        self._can_cache_aggressively: bool = True if result_class else copy.can_cache_aggressively
-        self._selected_node_tag: Union[None, str] = None if result_class else copy.selected_node_tag
+        self._can_cache: bool = True if is_not_copy else copy.can_cache
+        self._can_cache_aggressively: bool = True if is_not_copy else copy.can_cache_aggressively
+        self._selected_node_tag: Union[None, str] = None if is_not_copy else copy.selected_node_tag
         self._number_of_attempts: Union[None, int] = None
 
         self.failover_topology_etag = -2

@@ -398,6 +398,7 @@ class Utils(object):
     def timedelta_to_str(timedelta_obj):
         timedelta_str = None
         if isinstance(timedelta_obj, timedelta):
+            timedelta_str = ""
             total_seconds = timedelta_obj.seconds
             days = timedelta_obj.days
             hours = total_seconds // 3600

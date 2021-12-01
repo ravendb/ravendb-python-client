@@ -230,7 +230,11 @@ class DocumentStore(DocumentStoreBase):
         # todo: event on before close
         # todo: evict items from cache based on changes
         # todo: clear database changes
-        # todo: clear hilo
+        if self.__multi_db_hilo is not None:
+            try:
+                self.__multi_db_hilo.return_unused_range()
+            except:
+                pass  # ignore
         # todo: clear subscriptions
         self._disposed = True
         # todo: event after close
