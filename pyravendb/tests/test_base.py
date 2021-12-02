@@ -9,6 +9,7 @@ from datetime import timedelta
 from pyravendb import constants
 from pyravendb.documents import DocumentStore
 from pyravendb.documents.indexes import IndexState, IndexErrors
+from pyravendb.documents.operations import GetStatisticsOperation
 from pyravendb.serverwide.database_record import DatabaseRecord
 from pyravendb.serverwide.operations import CreateDatabaseOperation, DeleteDatabaseOperation, GetDatabaseRecordOperation
 
@@ -157,8 +158,10 @@ class TestBase(unittest.TestCase):
         admin = store.maintenance.for_database(database)
         timestamp = datetime.datetime.now()
         while datetime.datetime.now() - timestamp < timeout:
-            database_statistics = None  # admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
-            indexes = list(filter(lambda index: index["State"] != IndexState.disabled, database_statistics["Indexes"]))
+            database_statistics = admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
+            indexes = list(
+                filter(lambda index: index["State"] != str(IndexState.DISABLED), database_statistics["Indexes"])
+            )
             if all(
                 [
                     not index["IsStale"]

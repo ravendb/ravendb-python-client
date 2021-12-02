@@ -203,7 +203,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         includes: Callable[[IncludeBuilder], None] = None,
     ) -> Union[Dict[str, object], object]:
         if key_or_keys is None:
-            raise ValueError("Keys cannot be None")
+            return None  # todo: return default value of object_type, not always None
         if includes is None:
             load_operation = LoadOperation(self)
             self.load_internal_stream(

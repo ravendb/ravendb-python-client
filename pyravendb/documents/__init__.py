@@ -196,10 +196,8 @@ class DocumentStore(DocumentStoreBase):
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
         self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
-
         # todo: database changes
         # todo: aggressive cache
-        # todo: hilo
         self.__maintenance_operation_executor: Union[None, documents_operations.MaintenanceOperationExecutor] = None
         self.__operation_executor: Union[None, documents_operations.OperationExecutor] = None
         # todo: database smuggler

@@ -560,3 +560,31 @@ class PatchStatus(Enum):
 
     def __str__(self):
         return self.value
+
+
+class GetStatisticsOperation(MaintenanceOperation[dict]):
+    def __init__(self, debug_tag: str = None, node_tag: str = None):
+        self.debug_tag = debug_tag
+        self.node_tag = node_tag
+
+    def get_command(self, conventions: DocumentConventions) -> RavenCommand[dict]:
+        return self.__GetStatisticsCommand(self.debug_tag, self.node_tag)
+
+    class __GetStatisticsCommand(RavenCommand[dict]):
+        def __init__(self, debug_tag: str, node_tag: str):
+            super().__init__(dict)
+            self.debug_tag = debug_tag
+            self.node_tag = node_tag
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "GET",
+                f"{node.url}/databases/{node.database}"
+                f"/stats{f'?{self.debug_tag}' if self.debug_tag is not None else ''}",
+            )
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            self.result = json.loads(response)
+
+        def is_read_request(self) -> bool:
+            return True
