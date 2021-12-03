@@ -91,16 +91,20 @@ class SingleNodeBatchCommand(RavenCommand):
         options: BatchOptions = None,
         mode: TransactionMode = TransactionMode.SINGLE_NODE,
     ):
+        if not conventions:
+            raise ValueError("Conventions cannot be None")
+        if commands is None:
+            raise ValueError("Commands cannot be None")
+        for command in commands:
+            if command is None:
+                raise ValueError("Command cannot be None")
+
         super().__init__(result_class=BatchCommandResult)
         self.__conventions = conventions
         self.__commands = commands
         self.__options = options
         self.__mode = mode
         self.__attachment_streams: Set[bytes] = set()
-        if not conventions:
-            raise ValueError("Conventions cannot be None")
-        if commands is None:
-            raise ValueError("Commands cannot be None")
 
         for command in commands:
             # todo: attachments stuff

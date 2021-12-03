@@ -51,8 +51,6 @@ class IdTypeAndName:
         self.name = name
 
     def __eq__(self, other):
-        if self == other:
-            return True
         if other is None or type(self) != type(other):
             return False
         other: IdTypeAndName
@@ -63,7 +61,7 @@ class IdTypeAndName:
         return self.name == other.name if self.name is not None else other.name is None
 
     def __hash__(self):
-        return id(self)
+        return hash((self.key, self.command_type, self.name))
 
     @staticmethod
     def create(key: str, command_type: CommandType, name: str) -> IdTypeAndName:
@@ -198,10 +196,8 @@ class DocumentStore(DocumentStoreBase):
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
         self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
-
         # todo: database changes
         # todo: aggressive cache
-        # todo: hilo
         self.__maintenance_operation_executor: Union[None, documents_operations.MaintenanceOperationExecutor] = None
         self.__operation_executor: Union[None, documents_operations.OperationExecutor] = None
         # todo: database smuggler
@@ -232,7 +228,11 @@ class DocumentStore(DocumentStoreBase):
         # todo: event on before close
         # todo: evict items from cache based on changes
         # todo: clear database changes
-        # todo: clear hilo
+        if self.__multi_db_hilo is not None:
+            try:
+                self.__multi_db_hilo.return_unused_range()
+            except:
+                pass  # ignore
         # todo: clear subscriptions
         self._disposed = True
         # todo: event after close

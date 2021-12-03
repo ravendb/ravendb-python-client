@@ -2,7 +2,7 @@ from typing import Optional
 
 from pyravendb.documents.operations.connection_strings import ConnectionString
 from pyravendb.documents.operations.etl import EtlConfiguration
-from pyravendb.serverwide import ConnectionStringType
+import pyravendb.serverwide
 
 
 class SqlConnectionString(ConnectionString):
@@ -13,7 +13,7 @@ class SqlConnectionString(ConnectionString):
 
     @property
     def get_type(self):
-        return ConnectionStringType.SQL
+        return pyravendb.serverwide.ConnectionStringType.SQL
 
 
 # todo: implement

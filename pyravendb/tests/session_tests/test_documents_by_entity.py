@@ -61,12 +61,11 @@ class TestDocumentsByEntity(TestBase):
 
             self.assertEqual(3, len(session.documents_by_entity))  # __len__
 
-            self.assertEqual(3, len(session.documents_by_entity.items()))  # items
+            self.assertEqual(3, len([item for item in session.documents_by_entity]))  # __iter__
 
-            self.assertEqual(3, len([item.data for item in session.documents_by_entity]))  # __iter__
-
+            entities_keys = [e.value.key for e in session.documents_by_entity]
             for data in intel:  # __contains__
-                self.assertIn(data, session.documents_by_entity)
+                self.assertIn(data, entities_keys)
 
             session.documents_by_entity.clear()  # clear
             self.assertEqual(0, len(session.documents_by_entity))

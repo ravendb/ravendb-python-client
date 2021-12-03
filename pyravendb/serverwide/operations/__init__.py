@@ -9,6 +9,7 @@ import requests
 
 from pyravendb import constants
 from pyravendb.documents.operations.operation import Operation
+from pyravendb.serverwide.database_record import DatabaseRecordWithEtag, DatabaseRecord
 from pyravendb.tools.utils import Utils
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.util.util import RaftIdGenerator
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
     from pyravendb.http import VoidRavenCommand, ServerNode
     from pyravendb.http.request_executor import RequestExecutor
     from pyravendb.data.document_conventions import DocumentConventions
-    from pyravendb.serverwide import DatabaseRecord
 
 T = TypeVar("T")
 
@@ -68,7 +68,7 @@ class GetServerWideOperationStateOperation(ServerOperation[dict]):
     def __init__(self, key: int):
         self.__key = key
 
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[T]:
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[dict]:
         return self.GetServerWideOperationStateCommand(self.__key)
 
     class GetServerWideOperationStateCommand(RavenCommand[dict]):
@@ -118,7 +118,7 @@ class CreateDatabaseOperation(ServerOperation):
         self.__database_record = database_record
         self.__replication_factor = replication_factor
 
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[T]:
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DatabasePutResult]:
         return CreateDatabaseOperation.CreateDatabaseCommand(
             conventions, self.__database_record, self.__replication_factor
         )
@@ -220,7 +220,7 @@ class DeleteDatabaseOperation(ServerOperation[DeleteDatabaseResult]):
             )
         )
 
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[T]:
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DeleteDatabaseResult]:
         return self.__DeleteDatabaseCommand(conventions, self.__parameters)
 
     class __DeleteDatabaseCommand(RavenCommand[DeleteDatabaseResult], RaftCommand):
@@ -262,9 +262,15 @@ class BuildNumber:
         self.commit_hash = commit_hash
         self.full_version = full_version
 
+    @staticmethod
+    def from_json(json_dict: dict) -> BuildNumber:
+        return BuildNumber(
+            json_dict["ProductVersion"], json_dict["BuildVersion"], json_dict["CommitHash"], json_dict["FullVersion"]
+        )
+
 
 class GetBuildNumberOperation(ServerOperation[BuildNumber]):
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[T]:
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[BuildNumber]:
         return self.GetBuildNumberCommand()
 
     class GetBuildNumberCommand(RavenCommand[BuildNumber]):
@@ -280,5 +286,29 @@ class GetBuildNumberOperation(ServerOperation[BuildNumber]):
         def set_response(self, response: str, from_cache: bool) -> None:
             if response is None:
                 self._throw_invalid_response()
+            self.result = BuildNumber.from_json(json.loads(response))
 
-            self.result = Utils.initialize_object(response, self._result_class, True)
+
+class GetDatabaseRecordOperation(ServerOperation[DatabaseRecordWithEtag]):
+    def __init__(self, database: str):
+        self.__database = database
+
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DatabaseRecordWithEtag]:
+        return self.GetDatabaseRecordCommand(self.__database)
+
+    class GetDatabaseRecordCommand(RavenCommand[DatabaseRecordWithEtag]):
+        def __init__(self, database_name: str):
+            super().__init__(DatabaseRecordWithEtag)
+            self.__database_name = database_name
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request("GET", f"{node.url}/admin/databases?name={self.__database_name}")
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                self.result = None
+                return
+            self.result = DatabaseRecordWithEtag.from_json(json.loads(response))

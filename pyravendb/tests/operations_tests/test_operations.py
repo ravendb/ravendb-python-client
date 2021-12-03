@@ -1,3 +1,5 @@
+from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import *
 from pyravendb.raven_operations.operations import *
 import unittest
@@ -35,14 +37,10 @@ class TestOperations(TestBase):
         self.assertIsNone(attachment)
 
     def test_patch_by_index(self):
-        self.store.maintenance.send(
-            PutIndexesOperation(
-                IndexDefinition(
-                    "Patches",
-                    maps="from doc in docs.Patches select new {patched = doc.patched}",
-                )
-            )
-        )
+        index = IndexDefinition()
+        index.name = "Patches"
+        index.maps = ["from doc in docs.Patches select new {patched = doc.patched}"]
+        self.store.maintenance.send(PutIndexesOperation(index))
 
         with self.store.open_session() as session:
             session.store(Patch(patched=False))

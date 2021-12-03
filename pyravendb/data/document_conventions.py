@@ -275,7 +275,7 @@ class DocumentConventions(object):
                 f"only concrete class are supported. "
                 f"Did you forget to customize conventions.find_collection_name?"
             )
-        result = inflector.plural(str(object_type.__name__))
+        result = inflector.plural(str(object_type.__name__)).lower()  # todo: lower?
         DocumentConventions.__cached_default_type_collection_names[object_type] = result
         return result
 

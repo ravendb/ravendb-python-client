@@ -98,8 +98,10 @@ class TestLoad(TestBase):
 
     def test_multi_load_with_duplicate_id(self):
         with self.store.open_session() as session:
-            products = session.load(Product, ["products/101", "products/101", "products/10"])
-            self.assertEqual(len(products), 3)
+            products = session.load(["products/101", "products/101", "products/10"], Product)
+            self.assertEqual(
+                len(products), 2
+            )  # the new convention - we return a set of the results, we don't send duplicated keys in request
             for product in products:
                 self.assertIsNotNone(product)
 
@@ -131,7 +133,7 @@ class TestLoad(TestBase):
         with self.store.open_session() as session:
             session.load("orders/105", includes=lambda builder: builder.include_documents("product_id"))
             session.load("products/101")
-        self.assertEqual(session.number_of_requests_in_session, 1)
+        self.assertEqual(1, session.number_of_requests)
 
     def test_load_with_include_dataclass(self):
         with self.store.open_session() as session:
@@ -140,9 +142,9 @@ class TestLoad(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.load("orderd/1", includes="product_id")
+            session.load("orderd/1", includes=lambda builder: builder.include_documents("product_id"))
             product = session.load("productd/1")
-        self.assertEqual(1, session.number_of_requests_in_session)
+        self.assertEqual(1, session.number_of_requests)
         self.assertEqual("some_product", product.name)
 
 

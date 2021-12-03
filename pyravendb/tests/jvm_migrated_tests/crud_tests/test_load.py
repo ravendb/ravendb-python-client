@@ -137,11 +137,10 @@ class TestLoad(TestBase):
         with self.store.open_session() as session:
             bar = session.load([bar_id], Bar, includes=lambda x: x.include_documents("foo_id"))
             self.assertIsNotNone(bar)
-            self.assertEqual(1, len(bar))
-            self.assertIsNotNone(bar[0].Id)
+            self.assertIsNotNone(bar.Id)
 
-            num_of_reqs = session.advanced.number_of_requests_in_session()
-            foo = session.load(bar[0].foo_id, Foo)
+            num_of_reqs = session.number_of_requests
+            foo = session.load(bar.foo_id, Foo)
             self.assertIsNotNone(foo)
             self.assertEqual(foo.name, "Beginning")
-            self.assertEqual(session.advanced.number_of_requests_in_session(), num_of_reqs)
+            self.assertEqual(session.number_of_requests, num_of_reqs)

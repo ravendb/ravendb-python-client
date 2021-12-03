@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 
 from pyravendb.documents import DocumentStore
+from pyravendb.documents.identity import HiLoIdGenerator, MultiDatabaseHiLoGenerator
 from pyravendb.tests.test_base import TestBase, User, UserWithId
-from pyravendb.hilo.hilo_generator import HiLoKeyGenerator, MultiDatabaseHiLoKeyGenerator
 
 
 class HiLoDocument:
@@ -26,50 +26,54 @@ class TestHiLo(TestBase):
             session.store(hilo_doc, "Raven/HiLo/users")
             session.save_changes()
 
-            hi_lo_key_gen = HiLoKeyGenerator("users", self.store, self.store.database)
-            ids = [hi_lo_key_gen.generate_document_key()]
+            hi_lo_key_gen = HiLoIdGenerator(
+                "users", self.store, self.store.database, self.store.conventions.identity_parts_separator
+            )
+            ids = [hi_lo_key_gen.next_id()]
+
             hilo_doc.Max = 12
             session.store(hilo_doc, "Raven/Hilo/users", None)
             session.save_changes()
 
             for i in range(128):
-                next_id = hi_lo_key_gen.generate_document_key()
-                for identifier in ids:
-                    self.assertIsNot(next_id, identifier)
+                next_id = hi_lo_key_gen.next_id()
+                self.assertNotIn(next_id, ids)
                 ids.append(next_id)
 
             self.assertEqual(len(set(ids)), len(ids))
 
     def test_hilo_multi_db(self):
         with self.store.open_session() as session:
-            products_hilo = HiLoDocument(128)
             hilo_doc = HiLoDocument(64)
-
             session.store(hilo_doc, "Raven/Hilo/users")
+
+            products_hilo = HiLoDocument(128)
             session.store(products_hilo, "Raven/Hilo/products")
+
             session.save_changes()
 
-            multi_db_hilo = MultiDatabaseHiLoKeyGenerator(self.store)
-
-            generate_document_key = multi_db_hilo.generate_document_key(None, User())
+            multi_db_hilo = MultiDatabaseHiLoGenerator(self.store)
+            generate_document_key = multi_db_hilo.generate_document_id(None, User())
             self.assertEqual(generate_document_key, "users/65-A")
-
-            generate_document_key = multi_db_hilo.generate_document_key(None, Product())
+            generate_document_key = multi_db_hilo.generate_document_id(None, Product())
             self.assertEqual(generate_document_key, "products/129-A")
 
     def test_capacity_should_double(self):
-        hilo_generator = HiLoKeyGenerator("users", self.store, self.store.database)
+        hilo_generator = HiLoIdGenerator(
+            "users", self.store, self.store.database, self.store.conventions.identity_parts_separator
+        )
         with self.store.open_session() as session:
             hilo_doc = HiLoDocument(64)
             session.store(hilo_doc, "Raven/Hilo/users")
             session.save_changes()
+
             for i in range(32):
-                hilo_generator.generate_document_key()
+                hilo_generator.generate_document_id(User())
 
         with self.store.open_session() as session:
             hilo_doc = session.load("Raven/Hilo/users", HiLoDocument)
             self.assertEqual(hilo_doc.Max, 96)
-            hilo_generator.generate_document_key()
+            hilo_generator.generate_document_id(User())
 
         with self.store.open_session() as session:
             hilo_doc = session.load("Raven/Hilo/users", HiLoDocument)
@@ -82,8 +86,9 @@ class TestHiLo(TestBase):
             hilo_doc = HiLoDocument(32)
             session.store(hilo_doc, "Raven/Hilo/users")
             session.save_changes()
-            session.store(User(None, 10))
-            session.store(User(None, 10))
+
+            session.store(User())
+            session.store(User())
             session.save_changes()
 
         new_store.close()
@@ -93,7 +98,7 @@ class TestHiLo(TestBase):
 
         with new_store.open_session() as session:
             hilo_doc = session.load("Raven/Hilo/users", HiLoDocument)
-            self.assertEqual(hilo_doc.Max, 34)
+            self.assertEqual(34, hilo_doc.Max)
 
         new_store.close()
 

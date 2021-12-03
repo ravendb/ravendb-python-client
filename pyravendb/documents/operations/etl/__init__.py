@@ -1,7 +1,7 @@
 from typing import Optional, Generic, TypeVar, List
 
 from pyravendb.documents.operations.connection_strings import ConnectionString
-from pyravendb.serverwide import ConnectionStringType
+import pyravendb.serverwide
 
 _T = TypeVar("_T")
 
@@ -14,7 +14,7 @@ class RavenConnectionString(ConnectionString):
 
     @property
     def get_type(self):
-        return ConnectionStringType.RAVEN
+        return pyravendb.serverwide.ConnectionStringType.RAVEN
 
 
 # todo: implement

@@ -1,5 +1,5 @@
+from pyravendb.documents.commands import GetDocumentsCommand
 from pyravendb.tests.test_base import TestBase, User
-from pyravendb.commands.raven_commands import GetDocumentCommand
 
 
 class Person(User):
@@ -13,7 +13,7 @@ class TestBasicDocument(TestBase):
         super(TestBasicDocument, self).setUp()
 
     def test_get(self):
-        dummy = {"name": None, "age": None}
+        dummy = {"name": None, "age": None, "Id": None}
         with self.store.open_session() as session:
             user1 = User("jacus", None)
             user2 = User("arek", None)
@@ -22,8 +22,11 @@ class TestBasicDocument(TestBase):
             session.save_changes()
 
         req_executor = self.store.get_request_executor()
-        get_document_command = GetDocumentCommand(["users/1", "users/2"])
-        results = req_executor.execute(get_document_command)["Results"]
+        get_document_command = GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(["users/1", "users/2"])
+        )
+        req_executor.execute_command(get_document_command)
+        results = get_document_command.result.results
         self.assertEqual(len(results), 2)
         doc1 = results[0]
         doc2 = results[1]
@@ -41,8 +44,11 @@ class TestBasicDocument(TestBase):
             self.assertEqual(user1.name, "jacus")
             self.assertEqual(user2.name, "arek")
 
-        get_document_command = GetDocumentCommand(["users/1", "users/2"], None, True)
-        results = req_executor.execute(get_document_command)["Results"]
+        get_document_command = GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(["users/1", "users/2"], None, True)
+        )
+        req_executor.execute_command(get_document_command)
+        results = get_document_command.result.results
         self.assertEqual(len(results), 2)
         doc1 = results[0]
         doc2 = results[1]

@@ -138,6 +138,10 @@ class LoadOperation:
         if doc is not None:
             return self._session.track_entity(object_type, document_info=doc)
 
+        doc = self._session.included_documents_by_id.get(key)
+        if doc is not None:
+            return self._session.track_entity(object_type, document_info=doc)
+
         return self._session._get_default_value(object_type)
 
     def get_documents(self, object_type: type):

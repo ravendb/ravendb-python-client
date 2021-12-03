@@ -1,5 +1,4 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_store import DocumentStore
 from pyravendb.custom_exceptions import exceptions
 from dataclasses import dataclass
 import unittest
@@ -23,7 +22,6 @@ class TestSessionStore(TestBase):
 
     def tearDown(self):
         super(TestSessionStore, self).tearDown()
-        self.delete_all_topology_files()
 
     def test_store_without_key(self):
         foo = Foo("test", 10)

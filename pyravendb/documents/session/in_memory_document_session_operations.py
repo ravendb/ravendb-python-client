@@ -14,7 +14,7 @@ from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.documents.identity import GenerateEntityIdOnTheClient
 from pyravendb.documents.operations import OperationExecutor
 from pyravendb.http.request_executor import RequestExecutor
-from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException
+from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from pyravendb.documents.commands.batches import (
     CommandData,
@@ -85,7 +85,7 @@ class RefEqEntityHolder(object):
         self.__unhashable_items[RefEq(key)] = value
 
     def __getitem__(self, key):
-        return self.__unhashable_items[RefEq(key)]
+        return self.__unhashable_items[RefEq(key)].ref
 
     def __getattribute__(self, item):
         if item == "_RefEqEntityHolder__unhashable_items":
@@ -226,7 +226,7 @@ class DocumentsByEntityHolder(object):
 
         first_unhashable = (
             (
-                self.DocumentsByEntityEnumeratorResult(key, value.ref, True)
+                self.DocumentsByEntityEnumeratorResult(key, value, True)
                 for key, value in self.__documents_by_entity_unhashable.items()
             )
             if len(self.__documents_by_entity_unhashable) > 0
@@ -243,8 +243,8 @@ class DocumentsByEntityHolder(object):
         )
         second_unhashable = (
             (
-                self.DocumentsByEntityEnumeratorResult(key, value.ref, False)
-                for key, value in self.__on_before_store_documents_by_entity_unhashable
+                self.DocumentsByEntityEnumeratorResult(key, value, False)
+                for key, value in self.__on_before_store_documents_by_entity_unhashable.items()
             )
             if len(self.__on_before_store_documents_by_entity_unhashable) > 0
             else None
@@ -292,7 +292,7 @@ class DocumentsByEntityHolder(object):
 
     class DocumentsByEntityEnumeratorResult:
         def __init__(self, key: object, value: DocumentInfo, execute_on_before_store: bool):
-            self.__key = key
+            self.__key = key.ref if isinstance(key, RefEq) else key
             self.__value = value
             self.__execute_on_before_store = execute_on_before_store
 
@@ -324,6 +324,7 @@ class DeletedEntitiesHolder(MutableSet):
             "evict",
             "clear",
             "discard",
+            "DeletedEntitiesEnumeratorResult",
             "_DeletedEntitiesHolder__deleted_entities",
             "_DeletedEntitiesHolder__prepare_entities_deleted",
             "_DeletedEntitiesHolder__on_before_deleted_entities",
@@ -402,8 +403,10 @@ class InMemoryDocumentSessionOperations:
 
     class SaveChangesData:
         def __init__(self, session: InMemoryDocumentSessionOperations):
-            self.deferred_commands: List[CommandData] = []
-            self.deferred_commands_map: Dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
+            self.deferred_commands: List[CommandData] = session.deferred_commands
+            self.deferred_commands_map: Dict[
+                pyravendb.documents.IdTypeAndName, CommandData
+            ] = session.deferred_commands_map
             self.session_commands: List[CommandData] = []
             self.entities: List = []
             self.options = session._save_changes_options
@@ -491,7 +494,7 @@ class InMemoryDocumentSessionOperations:
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
-        self.documents_by_entity: Union[DocumentsByEntityHolder, Dict[object, DocumentInfo]] = DocumentsByEntityHolder()
+        self.documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
         self.__counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
         self.__time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
@@ -557,6 +560,10 @@ class InMemoryDocumentSessionOperations:
         if self.__counters_by_doc_id is None:
             self.__counters_by_doc_id = CaseInsensitiveDict()
         return self.__counters_by_doc_id
+
+    @property
+    def number_of_requests(self) -> int:
+        return self.__number_of_requests
 
     def get_metadata_for(self, entity: object) -> MetadataAsDictionary:
         if entity is None:
@@ -698,7 +705,7 @@ class InMemoryDocumentSessionOperations:
                 if key in self.included_documents_by_id:
                     self.included_documents_by_id.pop(key)
                 self.documents_by_id.update({doc_info.key: doc_info})
-                self.documents_by_entity.update({doc_info.entity: doc_info})
+                self.documents_by_entity[doc_info.entity] = doc_info
 
             return doc_info.entity
 
@@ -804,9 +811,9 @@ class InMemoryDocumentSessionOperations:
 
         if (
             pyravendb.documents.IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None)
-            in self.deferred_commands_map
+            in self.deferred_commands_map.keys()
         ):
-            raise RuntimeError(
+            raise InvalidOperationException(
                 f"Can't store document, there is a deferred command registered for this document in the session. "
                 f"Document id:{key}"
             )
@@ -875,7 +882,8 @@ class InMemoryDocumentSessionOperations:
             result.deferred_commands_map.update(self.deferred_commands_map)
 
         for deferred_command in result.deferred_commands:
-            deferred_command.on_before_save_changes(self)
+            if deferred_command.on_before_save_changes:
+                deferred_command.on_before_save_changes(self)
 
         return result
 
@@ -953,10 +961,11 @@ class InMemoryDocumentSessionOperations:
             document_info = self.documents_by_entity.get(deleted_entity.entity)
             if document_info is None:
                 continue
-            if changes is None:
+            if changes is not None:
                 doc_changes = []
                 change = DocumentsChanges("", "", DocumentsChanges.ChangeType.DOCUMENT_DELETED)
                 doc_changes.append(change)
+                changes[document_info.key] = doc_changes
             else:
                 command = result.deferred_commands_map.get(
                     pyravendb.documents.IdTypeAndName.create(document_info.key, CommandType.CLIENT_ANY_COMMAND, None)
@@ -1228,7 +1237,7 @@ class InMemoryDocumentSessionOperations:
         if not includes:
             return
 
-        for key, value in includes:
+        for key, value in includes.items():
             if value is None:
                 continue
             object_node = json.loads(json.dumps(value))
@@ -1657,9 +1666,7 @@ class InMemoryDocumentSessionOperations:
         return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity, None)
 
     def check_if_id_already_included(self, ids: List[str], includes: Union[List[List], List[str]]) -> bool:
-        if not includes:
-            return False
-        if not isinstance(includes[1], str):
+        if includes and not isinstance(includes[0], str):
             return self.check_if_id_already_included(ids, [arr[1] for arr in includes])
         includes: List[str]
         for key in ids:

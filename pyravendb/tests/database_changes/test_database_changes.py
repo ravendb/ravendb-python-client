@@ -1,6 +1,6 @@
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.indexes import IndexDefinition
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.changes.observers import ActionObserver
 from datetime import datetime, timedelta
 import unittest

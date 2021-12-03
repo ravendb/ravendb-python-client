@@ -1,25 +1,28 @@
-from pyravendb.raven_operations.maintenance_operations import (
+from pyravendb.documents.indexes import IndexDefinition, IndexLockMode, IndexPriority
+from pyravendb.documents.operations.indexes import (
     PutIndexesOperation,
     GetIndexNamesOperation,
     DeleteIndexOperation,
-    GetIndexingStatusOperation,
-    GetIndexStatisticsOperation,
-    GetIndexErrorsOperation,
     DisableIndexOperation,
+    GetIndexingStatusOperation,
+    IndexingStatus,
     EnableIndexOperation,
-    SetIndexesLockOperation,
-    GetIndexOperation,
-    SetIndexesPriorityOperation,
+    IndexStatus,
+    IndexRunningStatus,
+    GetIndexStatisticsOperation,
     StopIndexOperation,
     StartIndexOperation,
     StopIndexingOperation,
     StartIndexingOperation,
-    GetIndexesOperation,
     GetIndexesStatisticsOperation,
+    GetIndexErrorsOperation,
+    GetIndexesOperation,
+    GetIndexOperation,
+    SetIndexesLockOperation,
+    SetIndexesPriorityOperation,
     GetTermsOperation,
     IndexHasChangedOperation,
 )
-from pyravendb.data.indexes import IndexDefinition, IndexingStatus, IndexLockMode, IndexPriority
 
 from pyravendb.tests.test_base import TestBase, UserWithId
 
@@ -27,13 +30,17 @@ from pyravendb.tests.test_base import TestBase, UserWithId
 class UsersIndex(IndexDefinition):
     def __init__(self, name="UsersByName"):
         maps = "from user in docs.userwithids select new { user.name }"
-        super(UsersIndex, self).__init__(name, maps)
+        super(UsersIndex, self).__init__()
+        self.name = name
+        self.maps = [maps]
 
 
 class UsersInvalidIndex(IndexDefinition):
     def __init__(self):
         maps = "from u in docs.userwithids select new { a = 5 / u.Age }"
-        super(UsersInvalidIndex, self).__init__("InvalidIndex", maps)
+        super().__init__()
+        self.name = "InvalidIndex"
+        self.maps = [maps]
 
 
 class TestIndexOperation(TestBase):
@@ -44,13 +51,13 @@ class TestIndexOperation(TestBase):
         index = UsersIndex()
         self.store.maintenance.send(PutIndexesOperation(index))
         names = self.store.maintenance.send(GetIndexNamesOperation(0, 10))
-        self.assertEqual(2, len(names))  # @all_docs are second
+        self.assertEqual(1, len(names))
         self.assertIn("UsersByName", names)
 
         self.store.maintenance.send(DeleteIndexOperation("UsersByName"))
         names = self.store.maintenance.send(GetIndexNamesOperation(0, 10))
 
-        self.assertEqual(1, len(names))  # just @all_docs
+        self.assertEqual(0, len(names))
 
     def test_can_disable_and_enable_index(self):
         index = UsersIndex()
@@ -58,17 +65,17 @@ class TestIndexOperation(TestBase):
         self.store.maintenance.send(DisableIndexOperation(index.name))
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
-        index_status = indexing_status["Indexes"][0]
-        self.assertEqual(str(IndexingStatus.disabled), index_status["Status"])
+        index_status = indexing_status.indexes[0]
+        self.assertEqual(IndexRunningStatus.DISABLED, index_status.status)
 
         self.store.maintenance.send(EnableIndexOperation(index.name))
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
-        self.assertEqual(str(IndexingStatus.running), indexing_status["Status"])
+        self.assertEqual(IndexRunningStatus.RUNNING, indexing_status.status)
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
-        index_status = indexing_status["Indexes"][0]
-        self.assertEqual(str(IndexingStatus.running), index_status["Status"])
+        index_status = indexing_status.indexes[0]
+        self.assertEqual(IndexRunningStatus.RUNNING, index_status.status)
 
     def test_can_get_index_statistics(self):
         index = UsersIndex()
@@ -90,24 +97,24 @@ class TestIndexOperation(TestBase):
             session.save_changes()
         self.wait_for_indexing(self.store, self.store.database)
         index_errors = self.store.maintenance.send(GetIndexErrorsOperation())
-        per_index_errors = self.store.maintenance.send(GetIndexErrorsOperation([index.name]))
-        self.assertEqual(2, len(index_errors))
+        per_index_errors = self.store.maintenance.send(GetIndexErrorsOperation(index.name))
+        self.assertEqual(1, len(index_errors))
         self.assertEqual(1, len(per_index_errors[0].errors))
         self.assertEqual(1, len(per_index_errors[0].errors))
 
     def test_can_set_index_lock_mode(self):
         index = UsersIndex()
         self.store.maintenance.send(PutIndexesOperation(index))
-        self.store.maintenance.send(SetIndexesLockOperation(IndexLockMode.locked_error, index.name))
+        self.store.maintenance.send(SetIndexesLockOperation(IndexLockMode.LOCKED_ERROR, index.name))
         new_index = self.store.maintenance.send(GetIndexOperation(index.name))
-        self.assertEqual(str(IndexLockMode.locked_error), new_index.lock_mode)
+        self.assertEqual(IndexLockMode.LOCKED_ERROR, new_index.lock_mode)
 
     def test_can_set_index_priority(self):
         index = UsersIndex()
         self.store.maintenance.send(PutIndexesOperation(index))
-        self.store.maintenance.send(SetIndexesPriorityOperation(IndexPriority.high, index.name))
+        self.store.maintenance.send(SetIndexesPriorityOperation(IndexPriority.HIGH, index.name))
         new_index = self.store.maintenance.send(GetIndexOperation(index.name))
-        self.assertEqual(str(IndexPriority.high), new_index.priority)
+        self.assertEqual(IndexPriority.HIGH, new_index.priority)
 
     def test_can_stop_start_index(self):
         index = UsersIndex()
@@ -116,15 +123,15 @@ class TestIndexOperation(TestBase):
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
 
-        self.assertEqual(str(IndexingStatus.running), indexing_status["Status"])
-        self.assertEqual(str(IndexingStatus.paused), indexing_status["Indexes"][0]["Status"])
+        self.assertEqual(IndexRunningStatus.RUNNING, indexing_status.status)
+        self.assertEqual(IndexRunningStatus.PAUSED, indexing_status.indexes[0].status)
 
         self.store.maintenance.send(StartIndexOperation(index.name))
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
 
-        self.assertEqual(str(IndexingStatus.running), indexing_status["Status"])
-        self.assertEqual(str(IndexingStatus.running), indexing_status["Indexes"][0]["Status"])
+        self.assertEqual(IndexRunningStatus.RUNNING, indexing_status.status)
+        self.assertEqual(IndexRunningStatus.RUNNING, indexing_status.indexes[0].status)
 
     def test_can_stop_start_indexing(self):
         index = UsersIndex()
@@ -133,23 +140,23 @@ class TestIndexOperation(TestBase):
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
 
-        self.assertEqual(str(IndexingStatus.paused), indexing_status["Status"])
+        self.assertEqual(IndexRunningStatus.PAUSED, indexing_status.status)
 
         self.store.maintenance.send(StartIndexingOperation())
 
         indexing_status = self.store.maintenance.send(GetIndexingStatusOperation())
 
-        self.assertEqual(str(IndexingStatus.running), indexing_status["Status"])
+        self.assertEqual(IndexRunningStatus.RUNNING, indexing_status.status)
 
     def test_get_can_indexes(self):
         index = UsersIndex()
         self.store.maintenance.send(PutIndexesOperation(index))
-        self.assertEqual(2, len(self.store.maintenance.send(GetIndexesOperation(0, 10))))
+        self.assertEqual(1, len(self.store.maintenance.send(GetIndexesOperation(0, 10))))
 
     def test_get_can_indexes_stats(self):
         index = UsersIndex()
         self.store.maintenance.send(PutIndexesOperation(index))
-        self.assertEqual(2, len(self.store.maintenance.send(GetIndexesStatisticsOperation())))
+        self.assertEqual(1, len(self.store.maintenance.send(GetIndexesStatisticsOperation())))
 
     def test_get_terms(self):
         index = UsersIndex()

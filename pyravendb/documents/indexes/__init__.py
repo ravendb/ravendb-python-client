@@ -4,121 +4,122 @@ from enum import Enum
 from abc import abstractmethod
 from typing import Union, Optional, List, Dict, Set
 from pyravendb.documents.indexes.spatial import SpatialOptions, AutoSpatialOptions
+from pyravendb.tools.utils import Utils
 
 
 class IndexLockMode(Enum):
-    UNLOCK = "UNLOCK"
-    LOCKED_IGNORE = "LOCKED_IGNORE"
-    LOCKED_ERROR = "LOCKED_ERROR"
-    SIDE_BY_SIDE = "SIDE_BY_SIDE"
+    UNLOCK = "Unlock"
+    LOCKED_IGNORE = "LockedIgnore"
+    LOCKED_ERROR = "LockedError"
+    SIDE_BY_SIDE = "SideBySide"
 
     def __str__(self):
         return self.value
 
 
 class IndexState(Enum):
-    NORMAL = "NORMAL"
-    DISABLED = "DISABLED"
-    IDLE = "IDLE"
-    ERROR = "ERROR"
+    NORMAL = "Normal"
+    DISABLED = "Disabled"
+    IDLE = "Idle"
+    ERROR = "Error"
 
     def __str__(self):
         return self.value
 
 
 class IndexPriority(Enum):
-    LOW = "LOW"
-    NORMAL = "NORMAL"
-    HIGH = "HIGH"
+    LOW = "Low"
+    NORMAL = "Normal"
+    HIGH = "High"
 
     def __str__(self):
         return self.value
 
 
 class IndexDeploymentMode(Enum):
-    PARALLEL = "PARALLEL"
-    ROLLING = "ROLLING"
+    PARALLEL = "Parallel"
+    ROLLING = "Rolling"
 
     def __str__(self):
         return self.value
 
 
 class FieldStorage(Enum):
-    YES = " YES"
-    NO = "NO"
+    YES = " Yes"
+    NO = "No"
 
 
 class FieldIndexing(Enum):
-    YES = " YES"
-    NO = "NO"
-    SEARCH = "SEARCH"
-    EXACT = "EXACT"
-    HIGHLIGHTING = "HIGHLIGHTING"
-    DEFAULT = "DEFAULT"
+    YES = " Yes"
+    NO = "No"
+    SEARCH = "Search"
+    EXACT = "Exact"
+    HIGHLIGHTING = "Highlighting"
+    DEFAULT = "Default"
 
     def __str__(self):
         return self.value
 
 
 class AutoFieldIndexing(Enum):
-    NO = "NO"
-    SEARCH = "SEARCH"
-    EXACT = "EXACT"
-    HIGHLIGHTING = "HIGHLIGHTING"
-    DEFAULT = "DEFAULT"
+    NO = "No"
+    SEARCH = "Search"
+    EXACT = "Exact"
+    HIGHLIGHTING = "Highlighting"
+    DEFAULT = "Default"
 
     def __str__(self):
         return self.value
 
 
 class FieldTermVector(Enum):
-    YES = " YES"
-    NO = "NO"
-    WITH_POSITIONS = "WITH_POSITIONS"
-    WITH_OFFSETS = "WITH_OFFSETS"
-    WITH_POSITIONS_AND_OFFSETS = "WITH_POSITIONS_AND_OFFSETS"
+    YES = " Yes"
+    NO = "No"
+    WITH_POSITIONS = "WithPositions"
+    WITH_OFFSETS = "WithOffsets"
+    WITH_POSITIONS_AND_OFFSETS = "WithPositionsAndOffsets"
 
     def __str__(self):
         return self.value
 
 
 class IndexSourceType(Enum):
-    NONE = "NONE"
-    DOCUMENTS = "DOCUMENTS"
-    TIME_SERIES = "TIME_SERIES"
-    COUNTERS = "COUNTERS"
+    NONE = "None"
+    DOCUMENTS = "Documents"
+    TIME_SERIES = "TimeSeries"
+    COUNTERS = "Counters"
 
     def __str__(self):
         return self.value
 
 
 class IndexType(Enum):
-    NONE = "NONE"
-    AUTO_MAP = "AUTO_MAP"
-    AUTO_MAP_REDUCE = "AUTO_MAP_REDUCE"
-    MAP = "MAP"
-    MAP_REDUCE = "MAP_REDUCE"
-    FAULTY = "FAULTY"
-    JAVA_SCRIPT_MAP = "JAVA_SCRIPT_MAP"
-    JAVA_SCRIPT_MAP_REDUCE = "JAVA_SCRIPT_MAP_REDUCE"
+    NONE = "None"
+    AUTO_MAP = "AutoMap"
+    AUTO_MAP_REDUCE = "AutoMapReduce"
+    MAP = "Map"
+    MAP_REDUCE = "MapReduce"
+    FAULTY = "Faulty"
+    JAVA_SCRIPT_MAP = "JavaScriptMap"
+    JAVA_SCRIPT_MAP_REDUCE = "JavaScriptMapReduce"
 
     def __str__(self):
         return self.value
 
 
 class AggregationOperation(Enum):
-    NONE = "NONE"
-    COUNT = "COUNT"
-    SUM = "SUM"
+    NONE = "None"
+    COUNT = "Count"
+    SUM = "Sum"
 
     def __str__(self):
         return self.value
 
 
 class GroupByArrayBehavior(Enum):
-    NOT_APPLICABLE = "NOT_APPLICABLE"
-    BY_CONTENT = "BY_CONTENT"
-    BY_INDIVIDUAL_VALUES = "BY_INDIVIDUAL_VALUES"
+    NOT_APPLICABLE = "NotApplicable"
+    BY_CONTENT = "ByContent"
+    BY_INDIVIDUAL_VALUES = "ByIndividualValues"
 
 
 class IndexFieldOptions:
@@ -158,6 +159,59 @@ class IndexDefinition:
         self.pattern_for_output_reduce_to_collection_references: Union[None, str] = None
         self.pattern_references_collection_name: Union[None, str] = None
         self.deployment_mode: Union[None, IndexDeploymentMode] = None
+
+    @staticmethod
+    def from_json(json_dict: dict) -> IndexDefinition:
+        result = IndexDefinition()
+        result.name = json_dict["Name"]
+        result.priority = IndexPriority(json_dict["Priority"])
+        result.state = IndexState(json_dict["State"])
+        result.lock_mode = IndexLockMode(json_dict["LockMode"])
+        result.additional_sources = json_dict["AdditionalSources"]
+        result.additional_assemblies = set(map(AdditionalAssembly, json_dict["AdditionalAssemblies"]))
+        result.maps = json_dict["Maps"]
+        result.fields = map(
+            lambda key, value: {key: IndexFieldOptions(value)}, json_dict["Fields"]
+        )  # todo: do also nested types taken in IndexFieldOptions init
+        result.reduce = json_dict["Reduce"]
+        result.configuration = json_dict["Configuration"]
+        source_type = json_dict.get("IndexSourceType", None)
+        if source_type is not None:
+            result.__index_source_type = IndexSourceType(source_type)
+        index_type = json_dict.get("IndexType", None)
+        if index_type is not None:
+            result.__index_type = IndexType(index_type)
+        result.output_reduce_to_collection = json_dict["OutputReduceToCollection"]
+        result.reduce_output_index = json_dict["ReduceOutputIndex"]
+        result.pattern_for_output_reduce_to_collection_references = json_dict[
+            "PatternForOutputReduceToCollectionReferences"
+        ]
+        result.pattern_references_collection_name = json_dict["PatternReferencesCollectionName"]
+        deploy = json_dict.get("DeploymentMode", None)
+        if deploy is not None:
+            result.deployment_mode = IndexDeploymentMode(deploy)
+        return result
+
+    def to_json(self) -> dict:
+        return {
+            "Name": self.name,
+            "Priority": self.priority,
+            "State": self.state,
+            "LockMode": self.lock_mode,
+            "AdditionalSources": self.additional_sources,
+            "AdditionalAssemblies": set(map(lambda x: x.to_json(), self.additional_assemblies)),
+            "Maps": self.maps,
+            "Fields": self.fields,
+            "Reduce": self.reduce,
+            "Configuration": self.configuration,
+            "IndexSourceType": self.__index_source_type,
+            "IndexType": self.__index_type,
+            "OutputReduceToCollection": self.output_reduce_to_collection,
+            "ReduceOutputIndex": self.reduce_output_index,
+            "PatternForOutputReduceToCollectionReferences": self.pattern_for_output_reduce_to_collection_references,
+            "PatternReferencesCollectionName": self.pattern_references_collection_name,
+            "DeploymentMode": self.deployment_mode,
+        }
 
     @property
     def source_type(self) -> IndexSourceType:
@@ -260,6 +314,16 @@ class AdditionalAssembly:
         self.package_version = package_version
         self.package_source = package_source_url
         self.usings = usings
+
+    def to_json(self) -> dict:
+        return {
+            "AssemblyName": self.assembly_name,
+            "AssemblyPath": self.assembly_path,
+            "PackageName": self.package_name,
+            "PackageVersion": self.package_version,
+            "PackageSource": self.package_source,
+            "Usings": self.usings,
+        }
 
     @staticmethod
     def only_usings(usings: Set[str]) -> AdditionalAssembly:
@@ -417,8 +481,21 @@ class IndexingError:
     def __str__(self):
         return f"Error: {self.error}, Document: {self.document}, Action: {self.action}"
 
+    @staticmethod
+    def from_json(json_dict: dict) -> IndexingError:
+        return IndexingError(
+            json_dict["Error"],
+            Utils.string_to_datetime(json_dict["Timestamp"]),
+            json_dict["Document"],
+            json_dict["Action"],
+        )
+
 
 class IndexErrors:
     def __init__(self, name: Optional[str] = None, errors: Optional[List[IndexingError]] = None):
         self.name = name
         self.errors = errors
+
+    @staticmethod
+    def from_json(json_dict: dict) -> IndexErrors:
+        return IndexErrors(json_dict["Name"], list(map(lambda x: IndexingError.from_json(x), json_dict["Errors"])))
