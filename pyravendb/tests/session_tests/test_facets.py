@@ -1,7 +1,5 @@
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.query import Facet, FacetMode
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
-from pyravendb.data.indexes import IndexDefinition
 import unittest
 
 

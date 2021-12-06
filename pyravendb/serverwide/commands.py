@@ -20,7 +20,7 @@ class GetDatabaseTopologyCommand(RavenCommand):
         return True
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/topology?name={node.database}{('&'+self.__debug_tag) if self.__debug_tag else None}"
+        url = f"{node.url}/topology?name={node.database}{('&'+self.__debug_tag) if self.__debug_tag else ''}"
         if self.__application_identifier:
             url += f"&applicationIdentifier=" + str(self.__application_identifier)
         if ".fiddler" in node.url.lower():
@@ -40,7 +40,7 @@ class GetDatabaseTopologyCommand(RavenCommand):
 
 
 class GetClusterTopologyCommand(RavenCommand[ClusterTopologyResponse]):
-    def __init__(self, debug_tag: str):
+    def __init__(self, debug_tag: str = None):
         super(GetClusterTopologyCommand, self).__init__(ClusterTopologyResponse)
         self.__debug_tag = debug_tag
 

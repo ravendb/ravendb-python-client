@@ -285,6 +285,47 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             else:
                 operation.set_result(command.result)
 
+    def load_starting_with(
+        self,
+        object_type: type,
+        id_prefix: str,
+        matches: Optional[str] = None,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        exclude: Optional[str] = None,
+        start_after: Optional[str] = None,
+    ):
+        load_starting_with_operation = LoadStartingWithOperation(self)
+        self.__load_starting_with_internal(
+            id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
+        )
+        return load_starting_with_operation.get_documents(object_type)
+
+    def __load_starting_with_internal(
+        self,
+        id_prefix: str,
+        operation: LoadStartingWithOperation,
+        stream,
+        matches: str,
+        start: int,
+        page_size: int,
+        exclude: str,
+        start_after: str,
+    ):
+        operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
+        command = operation.create_request()
+        if command:
+            self._request_executor.execute_command(command, self._session_info)
+            if stream:
+                pass  # todo: stream
+            else:
+                operation.set_result(command.result)
+
+        return command
+
+    def counters_for(self):
+        pass  # todo: implement
+
     class _Advanced:
         def __init__(self, session: DocumentSession):
             self.__session = session
@@ -319,7 +360,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 return True
 
             command = HeadDocumentCommand(key, None)
-            self.__session.request_executor.execute(command, self.__session._session_info)
+            self.__session.request_executor.execute_command(command, self.__session._session_info)
             return command.result is not None
 
         def __load_starting_with_internal(

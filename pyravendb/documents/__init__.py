@@ -17,7 +17,7 @@ import pyravendb.documents.operations as documents_operations
 
 T = TypeVar("T")
 
-import pyravendb.documents.identity
+import pyravendb.identity
 
 if TYPE_CHECKING:
     from pyravendb.documents.commands.batches import CommandType
@@ -313,7 +313,7 @@ class DocumentStore(DocumentStoreBase):
         RequestExecutor.validate_urls(self.urls)  # todo: pass also certificate
 
         if self.conventions.document_id_generator is None:  # don't overwrite what the user is doing
-            generator = pyravendb.documents.identity.MultiDatabaseHiLoGenerator(self)
+            generator = pyravendb.identity.MultiDatabaseHiLoGenerator(self)
             self.__multi_db_hilo = generator
 
             self.conventions.document_id_generator = generator.generate_document_id

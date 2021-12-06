@@ -19,10 +19,9 @@ from pyravendb.http import ServerNode, VoidRavenCommand
 from pyravendb.http.http_cache import HttpCache
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
+from pyravendb.serverwide.server_operation_executor import ServerOperationExecutor
 from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
-
-from pyravendb.serverwide import ServerOperationExecutor
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations

@@ -1,6 +1,5 @@
+from pyravendb.serverwide.operations import GetDatabaseNamesOperation
 from pyravendb.tests.test_base import *
-from pyravendb.commands.raven_commands import WaitForRaftIndexCommand
-from pyravendb.connection.cluster_requests_executor import ClusterRequestExecutor
 import unittest
 
 
@@ -12,7 +11,7 @@ class TestServerOperations(TestBase):
     def test_create_database_name_longer_than_260_chars(self):
         name = "long_database_name_" + "".join(["z" for _ in range(100)])
         try:
-            self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
+            self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(name)))
             TestBase.wait_for_database_topology(self.store, name)
             database_names = self.store.maintenance.server.send(GetDatabaseNamesOperation(0, 3))
             self.assertTrue(name in database_names)
@@ -25,10 +24,10 @@ class TestServerOperations(TestBase):
     def test_cannot_create_database_with_the_same_name(self):
         name = "Duplicate"
         try:
-            self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
+            self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(name)))
             TestBase.wait_for_database_topology(self.store, name)
-            with self.assertRaises(Exception):
-                self.store.maintenance.server.send(CreateDatabaseOperation(database_name=name))
+            self.assertIsNone(self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(name))))
+
         finally:
             try:
                 self.store.maintenance.server.send(DeleteDatabaseOperation(database_name=name, hard_delete=True))

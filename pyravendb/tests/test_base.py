@@ -207,7 +207,7 @@ class TestBase(unittest.TestCase):
             created = True
 
         TestBase.wait_for_database_topology(self.store, self.default_database)
-        # self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
+        self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
         # self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
 
     def tearDown(self):

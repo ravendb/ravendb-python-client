@@ -1,7 +1,7 @@
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.indexes import IndexDefinition, FieldIndexing, IndexFieldOptions
 from pyravendb.data.query import QueryOperator
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from datetime import datetime
 
 

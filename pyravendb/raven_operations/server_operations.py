@@ -142,40 +142,6 @@ class DeleteDatabaseOperation(ServerOperation):
             return {"raft_command_index": response["RaftCommandIndex"]}
 
 
-class GetDatabaseNamesOperation(ServerOperation):
-    def __init__(self, start, page_size):
-        super(GetDatabaseNamesOperation, self).__init__()
-        self._start = start
-        self._page_size = page_size
-
-    def get_command(self, conventions):
-        return self._GetDatabaseNamesCommand(self._start, self._page_size)
-
-    class _GetDatabaseNamesCommand(RavenCommand):
-        def __init__(self, start, page_size):
-            super(GetDatabaseNamesOperation._GetDatabaseNamesCommand, self).__init__(method="GET", is_read_request=True)
-            self._start = start
-            self._page_size = page_size
-
-        def create_request(self, server_node):
-            self.url = "{0}/databases?start={1}&pageSize={2}&namesOnly=true".format(
-                server_node.url, self._start, self._page_size
-            )
-
-        def set_response(self, response):
-            if response is None:
-                raise ValueError("Invalid response")
-
-            response = response.json()
-            if "Error" in response:
-                raise exceptions.ErrorResponseException(response["Error"])
-
-            if "Databases" not in response:
-                raise ValueError("Invalid response")
-
-            return response["Databases"]
-
-
 class GetDatabaseRecordOperation(ServerOperation):
     def __init__(self, database_name):
         super(GetDatabaseRecordOperation, self).__init__()

@@ -30,7 +30,7 @@ class VoidRavenCommand(RavenCommand[None]):
         self._response_type = RavenCommandResponseType.EMPTY
 
     @abstractmethod
-    def create_request(self, node: ServerNode) -> (requests.Request):
+    def create_request(self, node: ServerNode) -> requests.Request:
         pass
 
     def is_read_request(self) -> bool:

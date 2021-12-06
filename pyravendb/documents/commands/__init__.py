@@ -1,5 +1,5 @@
+from __future__ import annotations
 import datetime
-import hashlib
 import http
 import json
 from typing import Optional, Union, List
@@ -10,7 +10,7 @@ from pyravendb import constants
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.documents.queries import HashCalculator
 from pyravendb.data.timeseries import TimeSeriesRange
-from pyravendb.documents.identity import HiLoResult
+from pyravendb.identity import HiLoResult
 from pyravendb.extensions.http_extensions import HttpExtensions
 from pyravendb.http import ResponseDisposeHandling, VoidRavenCommand
 from pyravendb.http.http_cache import HttpCache
@@ -23,9 +23,62 @@ if TYPE_CHECKING:
     from pyravendb.data.document_conventions import DocumentConventions
 
 
-class HeadDocumentCommand(RavenCommand):
+class PutResult:
+    def __init__(self, key: Optional[str] = None, change_vector: Optional[str] = None):
+        self.key = key
+        self.change_vector = change_vector
+
+    @staticmethod
+    def from_json(json_dict: dict) -> PutResult:
+        return PutResult(json_dict["Id"], json_dict["ChangeVector"])
+
+
+class PutDocumentCommand(RavenCommand[PutResult]):
+    def __init__(self, key: str, change_vector: str, document: dict):
+        if not key:
+            raise ValueError("Key cannot be None")
+
+        if document is None:
+            raise ValueError("Document cannot be None")
+
+        super().__init__(PutResult)
+        self.__key = key
+        self.__change_vector = change_vector
+        self.__document = document
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        request = requests.Request("PUT", f"{node.url}/databases/{node.database}/docs?id={self.__key}")
+        request.data = json.loads(json.dumps(self.__document))
+        self._add_change_vector_if_not_none(self.__change_vector, request)
+        return request
+
+    def set_response(self, response: str, from_cache: bool) -> None:
+        self.result = PutResult.from_json(json.loads(response))
+
+    def is_read_request(self) -> bool:
+        return False
+
+
+class DeleteDocumentCommand(VoidRavenCommand):
+    def __init__(self, key: str, change_vector: Optional[str] = None):
+        if not key:
+            raise ValueError("Key cannot be None")
+        super().__init__()
+        self.__key = key
+        self.__change_vector = change_vector
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        self.ensure_is_not_null_or_string(self.__key, "id")
+        request = requests.Request(
+            "DELETE", f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key, None,None)}"
+        )
+        self._add_change_vector_if_not_none(self.__change_vector, request)
+        return request
+
+
+class HeadDocumentCommand(RavenCommand[str]):
     def __init__(self, key: str, change_vector: str):
-        super(HeadDocumentCommand, self).__init__(result_class=str)
+        super(HeadDocumentCommand, self).__init__(str)
         if key is None:
             raise ValueError("Key cannot be None")
         self.__key = key
@@ -34,8 +87,8 @@ class HeadDocumentCommand(RavenCommand):
     def is_read_request(self) -> bool:
         return False
 
-    def create_request(self, node: ServerNode) -> (requests.Request):
-        url = f"{node.url}/databases/{node.database}/docs?id{Utils.escape(self.__key,True,False)}"
+    def create_request(self, node: ServerNode) -> requests.Request:
+        url = f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key,True,False)}"
         request = requests.Request("HEAD", url)
         if self.__change_vector is not None:
             request.headers["If-None-Match"] = self.__change_vector
@@ -52,6 +105,12 @@ class HeadDocumentCommand(RavenCommand):
 
         self.result = HttpExtensions.get_required_etag_header(response)
         return ResponseDisposeHandling.AUTOMATIC
+
+    def set_response(self, response: str, from_cache: bool) -> None:
+        if response is not None:
+            raise ValueError("Invalid response")
+
+        self.result = None
 
 
 class GetDocumentsCommand(RavenCommand):

@@ -104,8 +104,8 @@ class LoadStartingWithOperation:
 
         return GetDocumentsCommand(
             GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(
-                self.__start,
-                self.__page_size,
+                self.__start if self.__start else 0,  # todo: replace with more elegant solution
+                self.__page_size if self.__page_size else 25,
                 self.__start_with,
                 self.__start_after,
                 self.__matches,
@@ -125,7 +125,7 @@ class LoadStartingWithOperation:
             if not document:
                 continue
             new_document_info = DocumentInfo.get_new_document_info(document)
-            self.__session.documents_by_id.update(new_document_info)
+            self.__session.documents_by_id.add(new_document_info)
             self.__returned_ids.append(new_document_info.key)
 
     def get_documents(self, object_type: type) -> List[object]:
@@ -149,7 +149,7 @@ class LoadStartingWithOperation:
         return final_results
 
     def __get_document(self, object_type: type, key: str) -> object:
-        if not key:  # todo: check if ok
+        if not key:
             return None
 
         if self.__session.is_deleted(key):
@@ -157,6 +157,6 @@ class LoadStartingWithOperation:
 
         doc = self.__session.documents_by_id.get(key)
         if doc:
-            return self.__session.track_entity(object_type, doc)
+            return self.__session.track_entity(object_type, document_info=doc)
 
         return None

@@ -306,6 +306,10 @@ class RequestExecutor:
                 self._topology_etag = self._node_selector.topology.etag
 
                 self._on_topology_updated_invoke(topology)
+            except Exception as e:
+                if not self._disposed:
+                    raise e
+
             finally:
                 self.__update_database_topology_semaphore.release()
             return True

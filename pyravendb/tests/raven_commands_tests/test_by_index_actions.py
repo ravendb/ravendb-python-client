@@ -1,16 +1,10 @@
 import unittest
 from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexFieldOptions, SortOptions, IndexDefinition
-from pyravendb.data.query import IndexQuery
+from pyravendb.documents.commands import PutDocumentCommand
+from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
-from pyravendb.raven_operations.operations import (
-    QueryOperationOptions,
-    PatchByQueryOperation,
-    DeleteByQueryOperation,
-)
 
 
 class TestByIndexActions(TestBase):
@@ -18,24 +12,25 @@ class TestByIndexActions(TestBase):
         super(TestByIndexActions, self).setUp()
         index_map = "from doc in docs.Testings " "select new{" "Name = doc.Name," "DocNumber = doc.DocNumber} "
 
-        self.index_sort = IndexDefinition(
-            name="Testing_Sort",
-            maps=index_map,
-            fields={"DocNumber": IndexFieldOptions(sort_options=SortOptions.numeric)},
-        )
+        self.index_sort = IndexDefinition()
+
+        self.index_sort.name = "Testing_Sort"
+        self.index_sort.maps = index_map
+
         self.patch = "this.Name = 'Patched';"
         self.store.maintenance.send(PutIndexesOperation(self.index_sort))
         self.requests_executor = self.store.get_request_executor()
         for i in range(100):
             put_command = PutDocumentCommand(
                 "testing/" + str(i),
+                None,
                 {
                     "Name": "test" + str(i),
                     "DocNumber": i,
                     "@metadata": {"@collection": "Testings"},
                 },
             )
-            self.requests_executor.execute(put_command)
+            self.requests_executor.execute_command(put_command)
 
     def tearDown(self):
         super(TestByIndexActions, self).tearDown()
@@ -71,7 +66,7 @@ class TestByIndexActions(TestBase):
             self.store, self.store.conventions
         )
         with self.assertRaises(exceptions.InvalidOperationException):
-            response = self.requests_executor.execute(delete_by_index_command)
+            response = self.requests_executor.execute_command(delete_by_index_command)
             self.assertIsNotNone(response)
             self.store.operations.wait_for_operation_complete(response["operation_id"])
 

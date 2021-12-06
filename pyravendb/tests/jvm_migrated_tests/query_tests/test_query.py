@@ -1,7 +1,8 @@
 import datetime
 import unittest
 
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation, GetCollectionStatisticsOperation
+from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.raven_operations.maintenance_operations import GetCollectionStatisticsOperation
 from pyravendb.tests.test_base import TestBase, User, UserWithId, Address, Order
 from pyravendb.data.indexes import IndexDefinition
 from pyravendb.data.query import OrderingType, QueryOperator
