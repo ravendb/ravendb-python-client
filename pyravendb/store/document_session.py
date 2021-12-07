@@ -1,7 +1,6 @@
 from pyravendb.json.json_operation import JsonOperation
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
-from pyravendb.store.session_query import Query
 from pyravendb.commands import commands_data
 from pyravendb.commands.raven_commands import *
 from pyravendb.raven_operations.operations import GetAttachmentOperation
@@ -22,6 +21,8 @@ from typing import Dict, List
 from copy import deepcopy
 from itertools import chain
 import json
+
+from ..documents.session.document_query import Query
 
 
 class _SaveChangesData(object):

@@ -11,7 +11,7 @@ from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set
 
 from pyravendb import constants
 from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents.identity import GenerateEntityIdOnTheClient
+from pyravendb.identity import GenerateEntityIdOnTheClient
 from pyravendb.documents.operations import OperationExecutor
 from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
@@ -677,13 +677,15 @@ class InMemoryDocumentSessionOperations:
             key = document_info.key
             document = document_info.document
             metadata = document_info.metadata
-            no_tracking = self.no_tracking
+            no_tracking = (
+                self.no_tracking if no_tracking is None else no_tracking
+            )  # todo: remove if when rebuilding Query
         else:
             if not key or not document or not metadata or no_tracking:
                 raise ValueError(
                     "Pass either (entity_type, DocumentInfo) or (entity_type, key, document, metadata and no_tracking)"
                 )
-        no_tracking = self.no_tracking or no_tracking
+        no_tracking = no_tracking or self.no_tracking
         if not key:
             return self.__deserialize_from_transformer(entity_type, None, document, False)
         doc_info = self.documents_by_id.get(key)
@@ -719,8 +721,8 @@ class InMemoryDocumentSessionOperations:
             new_document_info = DocumentInfo(
                 key=key, document=document, metadata=metadata, entity=entity, change_vector=change_vector
             )
-            self.documents_by_id.update({new_document_info.key: new_document_info})
-            self.documents_by_entity.update({new_document_info.entity: new_document_info})
+            self.documents_by_id[new_document_info.key] = new_document_info
+            self.documents_by_entity[new_document_info.entity] = new_document_info
         return entity
 
     @staticmethod
@@ -747,7 +749,9 @@ class InMemoryDocumentSessionOperations:
             if document_info is not None:
                 new_obj = self.entity_to_json.convert_entity_to_json(document_info.entity, document_info)
                 if document_info.entity is not None and self._entity_changed(new_obj, document_info, None):
-                    raise RuntimeError("Can't delete changed entity using identifier. Use delete(entity) instead.")
+                    raise InvalidOperationException(
+                        "Can't delete changed entity using identifier. Use delete(entity) instead."
+                    )
 
                 if document_info.entity is not None:
                     self.documents_by_entity.pop(document_info.entity, None)
@@ -767,7 +771,9 @@ class InMemoryDocumentSessionOperations:
 
         value = self.documents_by_entity.get(entity)
         if value is None:
-            raise RuntimeError(f"{entity} is not associated with the session, cannot delete unknown entity instance.")
+            raise InvalidOperationException(
+                f"{entity} is not associated with the session, cannot delete unknown entity instance."
+            )
 
         self.deleted_entities.add(entity)
         self.included_documents_by_id.pop(value.key, None)
@@ -945,7 +951,7 @@ class InMemoryDocumentSessionOperations:
             for key, value in document_info.metadata_instance.items():
                 if value is None or isinstance(value, MetadataAsDictionary) and value.is_dirty is True:
                     dirty = True
-                document_info.metadata[key] = json.loads(json.dumps(value))
+                document_info.metadata[key] = json.loads(json.dumps(value, default=Utils.json_default))
         return dirty
 
     def __prepare_for_creating_revisions_from_ids(self, result: SaveChangesData) -> None:
@@ -1760,7 +1766,7 @@ class InMemoryDocumentSessionOperations:
                 collection_name if collection_name else constants.Documents.Metadata.ALL_DOCUMENTS_COLLECTION
             )
 
-            return index_name, collection_name
+        return index_name, collection_name
 
     class ReplicationWaitOptsBuilder:
         def __init__(self, session: InMemoryDocumentSessionOperations):

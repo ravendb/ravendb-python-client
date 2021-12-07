@@ -15,28 +15,28 @@ class TestRavenDB10641(TestBase):
             v = Document()
             session.store(v, "items/first")
             items = {"lang": "en"}
-            session.advanced.get_metadata_for(v).update({"Items": items})
+            session.get_metadata_for(v).update({"Items": items})
             session.save_changes()
 
         with self.store.open_session() as session:
             v = session.load("items/first", Document)
-            metadata = session.advanced.get_metadata_for(v).get("Items")
+            metadata = session.get_metadata_for(v).get("Items")
             metadata.update({"lang": "sv"})
             session.save_changes()
 
         with self.store.open_session() as session:
             v = session.load("items/first", Document)
-            metadata = session.advanced.get_metadata_for(v)
+            metadata = session.get_metadata_for(v)
             metadata.update({"test": "123"})
             session.save_changes()
 
         with self.store.open_session() as session:
             v = session.load("items/first", Document)
-            metadata = session.advanced.get_metadata_for(v)
+            metadata = session.get_metadata_for(v)
             session.save_changes()
 
         with self.store.open_session() as session:
             v = session.load("items/first", Document)
-            metadata = session.advanced.get_metadata_for(v)
+            metadata = session.get_metadata_for(v)
             self.assertEqual("sv", metadata.get("Items").get("lang"))
             self.assertEqual("123", metadata.get("test"))

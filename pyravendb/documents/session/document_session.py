@@ -13,6 +13,7 @@ import pyravendb.documents
 from pyravendb.documents.indexes import AbstractCommonApiForIndexes
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
+from pyravendb.documents.session.document_query import Query
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
@@ -201,6 +202,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         key_or_keys: Union[List[str], str],
         object_type: Optional[type] = None,
         includes: Callable[[IncludeBuilder], None] = None,
+        nested_object_types: Dict[str, type] = None,
     ) -> Union[Dict[str, object], object]:
         if key_or_keys is None:
             return None  # todo: return default value of object_type, not always None
@@ -285,6 +287,58 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             else:
                 operation.set_result(command.result)
 
+    def load_starting_with(
+        self,
+        object_type: type,
+        id_prefix: str,
+        matches: Optional[str] = None,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        exclude: Optional[str] = None,
+        start_after: Optional[str] = None,
+    ):
+        load_starting_with_operation = LoadStartingWithOperation(self)
+        self.__load_starting_with_internal(
+            id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
+        )
+        return load_starting_with_operation.get_documents(object_type)
+
+    def __load_starting_with_internal(
+        self,
+        id_prefix: str,
+        operation: LoadStartingWithOperation,
+        stream,
+        matches: str,
+        start: int,
+        page_size: int,
+        exclude: str,
+        start_after: str,
+    ):
+        operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
+        command = operation.create_request()
+        if command:
+            self._request_executor.execute_command(command, self._session_info)
+            if stream:
+                pass  # todo: stream
+            else:
+                operation.set_result(command.result)
+
+        return command
+
+    def counters_for(self):
+        pass  # todo: implement
+
+    def query(
+        self,
+        object_type: type = None,
+        collection_name: Optional[str] = None,
+        index_name: Optional[str] = None,
+        **kwargs,
+    ) -> Query:
+        if collection_name is not None and index_name is not None:
+            raise ValueError("Pass either collection_name or index_name")
+        return self.__document_query_generator.document_query(object_type, index_name, collection_name, **kwargs)
+
     class _Advanced:
         def __init__(self, session: DocumentSession):
             self.__session = session
@@ -303,8 +357,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.request_executor.execute(command, self.__session._session_info)
             self.__session._refresh_internal(entity, command, document_info)
 
-        def raw_query(self, object_type: type, query: str):  # -> RawDocumentQuery:
-            pass
+        def raw_query(self, query: str, query_parameters: Optional[dict] = None, **kwargs):  # -> RawDocumentQuery:
+            self._query = Query(self.__session)(**kwargs)
+            return self._query.raw_query(query)
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
@@ -319,7 +374,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 return True
 
             command = HeadDocumentCommand(key, None)
-            self.__session.request_executor.execute(command, self.__session._session_info)
+            self.__session.request_executor.execute_command(command, self.__session._session_info)
             return command.result is not None
 
         def __load_starting_with_internal(
@@ -601,6 +656,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             index_class_or_name: Union[type, str] = None,
             collection_name: str = None,
             is_map_reduce: bool = False,
+            **kwargs,
         ):
             if isinstance(index_class_or_name, type):
                 if not issubclass(index_class_or_name, AbstractCommonApiForIndexes):
@@ -619,6 +675,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             index_name = index_name_and_collection[0]
             collection_name = index_name_and_collection[1]
 
-            return None  # DocumentQuery(object_type, self, index_name, collection_name, is_map_reduce)
+            q = Query(self.session)
+            q(object_type, index_name, collection_name, is_map_reduce, **kwargs)
+            return q
 
     # todo: stream, query and fors like timeseriesrollupfor, conditional load

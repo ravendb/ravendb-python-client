@@ -1,6 +1,6 @@
 import unittest
-from pyravendb.commands.raven_commands import *
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.documents.commands import PutDocumentCommand, DeleteDocumentCommand
 from pyravendb.tests.test_base import TestBase
 
 
@@ -8,14 +8,16 @@ class TestDelete(TestBase):
     def setUp(self):
         super(TestDelete, self).setUp()
         self.requests_executor = self.store.get_request_executor()
-        self.response = self.requests_executor.execute(
-            PutDocumentCommand("products/101", {"Name": "test", "@metadata": {}})
-        )
+        command = PutDocumentCommand("products/101", None, {"Name": "test", "@metadata": {}})
+        self.requests_executor.execute_command(command)
+        self.response = command.result
 
-        self.requests_executor.execute(PutDocumentCommand("products/10", {"Name": "test", "@metadata": {}}))
-        self.other_response = self.requests_executor.execute(
-            PutDocumentCommand("products/102", {"Name": "test", "@metadata": {}})
+        self.requests_executor.execute_command(
+            PutDocumentCommand("products/10", None, {"Name": "test", "@metadata": {}})
         )
+        other_command = PutDocumentCommand("products/102", None, {"Name": "test", "@metadata": {}})
+        self.requests_executor.execute_command(other_command)
+        self.other_response = other_command.result
 
     def tearDown(self):
         super(TestDelete, self).tearDown()
@@ -23,15 +25,19 @@ class TestDelete(TestBase):
 
     def test_delete_success_no_change_vector(self):
         delete_command = DeleteDocumentCommand("products/10")
-        self.assertIsNone(self.requests_executor.execute(delete_command))
+        self.requests_executor.execute_command(delete_command)
+        self.assertIsNone(delete_command.result)
 
     def test_delete_success_with_change_vector(self):
-        delete_command = DeleteDocumentCommand("products/102", self.other_response["ChangeVector"])
-        self.assertIsNone(self.requests_executor.execute(delete_command))
+        delete_command = DeleteDocumentCommand("products/102", self.other_response.change_vector)
+        self.requests_executor.execute_command(delete_command)
+        self.assertIsNone(delete_command.result)
 
     def test_delete_fail(self):
         with self.assertRaises(Exception):
-            self.requests_executor.execute(DeleteDocumentCommand("products/101", self.response["ChangeVector"] + "10"))
+            self.requests_executor.execute_command(
+                DeleteDocumentCommand("products/101", self.response["ChangeVector"] + "10")
+            )
 
     if __name__ == "__main__":
         unittest.main()

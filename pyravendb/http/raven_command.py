@@ -168,6 +168,6 @@ class RavenCommand(Generic[ResultClass]):
     def _add_change_vector_if_not_none(self, change_vector: str, request: requests.Request):
         if change_vector:
             if request.headers is not None:
-                request.headers.update["If-Match"] = f'"{change_vector}"'
+                request.headers["If-Match"] = f'"{change_vector}"'
             else:
                 request.headers = {"If-Match": f'"{change_vector}'}

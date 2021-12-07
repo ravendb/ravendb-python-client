@@ -19,7 +19,7 @@ class TestTrackEntity(TestBase):
     def test_deleting_entity_that_is_not_tracked_should_throw(self):
         with self.store.open_session() as session:
             user = UserWithId(None, None)
-            ex_message = f"{user} is not associated with the session, cannot delete unknown entity instance"
+            ex_message = f"{user} is not associated with the session, cannot delete unknown entity instance."
             self.assertRaisesWithMessage(session.delete, InvalidOperationException, ex_message, user)
 
     def test_loading_deleted_document_should_return_null(self):

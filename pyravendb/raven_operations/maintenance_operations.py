@@ -228,20 +228,3 @@ class PutConnectionStringOperation(MaintenanceOperation):
             except ValueError:
                 raise response.raise_for_status()
             return {"raft_command_index": response["RaftCommandIndex"]}
-
-
-class GetCollectionStatisticsOperation(MaintenanceOperation):
-    def get_command(self, conventions):
-        return self._GetCollectionStatisticsCommand()
-
-    class _GetCollectionStatisticsCommand(RavenCommand):
-        def __init__(self):
-            super().__init__(method="GET", is_read_request=True)
-
-        def create_request(self, server_node):
-            self.url = f"{server_node.url}/databases/{server_node.database}/collections/stats"
-
-        def set_response(self, response):
-            if response and response.status_code == 200:
-                return response.json()
-            return None

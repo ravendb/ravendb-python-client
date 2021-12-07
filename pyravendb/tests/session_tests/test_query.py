@@ -1,9 +1,9 @@
 from datetime import datetime
 
+from pyravendb.documents.indexes import IndexDefinition, IndexFieldOptions, FieldStorage
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.raven_operations.maintenance_operations import PutIndexesOperation
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.indexes import IndexDefinition, SortOptions, IndexFieldOptions
 import unittest
 
 
@@ -37,14 +37,10 @@ class TestQuery(TestBase):
     def setUp(self):
         super(TestQuery, self).setUp()
         index_map = "from doc in docs " "select new {" "name = doc.name," "key = doc.key," "doc_id = doc.key_doc.name}"
-        index_definition = IndexDefinition(
-            name="Testing_Sort",
-            maps=index_map,
-            fields={
-                "key": IndexFieldOptions(sort_options=SortOptions.numeric),
-                "doc_id": IndexFieldOptions(storage=True),
-            },
-        )
+        index_definition = IndexDefinition()
+        index_definition.name = "Testing_Sort"
+        index_definition.maps = index_map
+        # fields -> "key": IndexFieldOptions(),  sort options numeric
 
         maps = (
             "from order in docs.Orders "
@@ -52,11 +48,10 @@ class TestQuery(TestBase):
             "key = order.key,"
             'order_and_id = order.name+"_"+order.product_id}'
         )
-        second_index_definition = IndexDefinition(
-            name="SelectTestingIndex",
-            maps=maps,
-            fields={"order_and_id": IndexFieldOptions(storage=True)},
-        )
+        second_index_definition = IndexDefinition()
+        second_index_definition.name = "SelectTestingIndex"
+        second_index_definition.maps = maps
+        # fields -> "order_and_id": IndexFieldOptions(),  sort options numeric
 
         self.store.maintenance.send(PutIndexesOperation(index_definition, second_index_definition))
 

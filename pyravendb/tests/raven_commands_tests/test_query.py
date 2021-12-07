@@ -1,7 +1,9 @@
 from pyravendb.data.query import IndexQuery
+from pyravendb.documents.commands import PutDocumentCommand
+from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.raven_operations.query_operation import QueryCommand
 from pyravendb.tests.test_base import TestBase
-from pyravendb.commands.raven_commands import *
-from pyravendb.custom_exceptions.exceptions import ErrorResponseException
 from pyravendb.data.document_conventions import DocumentConventions
 import time
 
@@ -10,9 +12,10 @@ class TestQuery(TestBase):
     def setUp(self):
         super(TestQuery, self).setUp()
         self.requests_executor = self.store.get_request_executor()
-        self.requests_executor.execute(
+        self.requests_executor.execute_command(
             PutDocumentCommand(
                 "products/10",
+                None,
                 {
                     "Name": "test",
                     "@metadata": {
@@ -22,6 +25,10 @@ class TestQuery(TestBase):
                 },
             )
         )
+        i = IndexDefinition()
+        i.name = "AllDocuments"
+        i.maps = self.index_map
+        self.store.maintenance.send(PutIndexesOperation(i))
 
     def tearDown(self):
         super(TestQuery, self).tearDown()
@@ -35,7 +42,8 @@ class TestQuery(TestBase):
             ),
             conventions=DocumentConventions(),
         )
-        response = self.requests_executor.execute(query_command)
+        self.requests_executor.execute_command(query_command)
+        response = query_command.result
         self.assertEqual(response["Results"][0]["Name"], "test")
 
     def test_get_only_metadata(self):
@@ -47,7 +55,8 @@ class TestQuery(TestBase):
             conventions=DocumentConventions(),
             metadata_only=True,
         )
-        response = self.requests_executor.execute(query_command)
+        self.requests_executor.execute_command(query_command)
+        response = query_command.result
         self.assertFalse("Name" in response["Results"][0])
 
     def test_get_only_index_entries(self):
@@ -62,7 +71,8 @@ class TestQuery(TestBase):
 
         start = time.time()
         while True and time.time() - start < 30:
-            response = self.requests_executor.execute(query_command)
+            self.requests_executor.execute_command(query_command)
+            response = query_command.result
             if not response["IsStale"]:
                 break
         self.assertFalse("@metadata" in response["Results"][0])
@@ -75,7 +85,8 @@ class TestQuery(TestBase):
             ),
             conventions=DocumentConventions(),
         )
-        self.assertIsNone(self.requests_executor.execute(query_command))
+        self.requests_executor.execute_command(query_command)
+        self.assertIsNone(query_command.result)
 
     def test_fail_with_wrong_query(self):
         query_command = QueryCommand(
@@ -85,4 +96,5 @@ class TestQuery(TestBase):
             ),
             conventions=DocumentConventions(),
         )
-        self.assertIsNone(self.requests_executor.execute(query_command))
+        self.requests_executor.execute_command(query_command)
+        self.assertIsNone(query_command.result)

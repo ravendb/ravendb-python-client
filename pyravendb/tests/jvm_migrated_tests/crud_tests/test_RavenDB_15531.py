@@ -1,5 +1,3 @@
-import unittest
-
 from pyravendb.tests.test_base import TestBase
 
 

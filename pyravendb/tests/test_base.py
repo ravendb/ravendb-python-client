@@ -170,7 +170,7 @@ class TestBase(unittest.TestCase):
                 ]
             ):
                 return
-            if any([IndexState.error == index["State"] for index in indexes]):
+            if any([IndexState.ERROR == index["State"] for index in indexes]):
                 break
             try:
                 time.sleep(0.1)
@@ -207,8 +207,7 @@ class TestBase(unittest.TestCase):
             created = True
 
         TestBase.wait_for_database_topology(self.store, self.default_database)
-        # self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
-        # self.store.maintenance.send(PutIndexesOperation(IndexDefinition("AllDocuments", maps=self.index_map)))
+        self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
 
     def tearDown(self):
         self.store.maintenance.server.send(DeleteDatabaseOperation(self.store.database, True))

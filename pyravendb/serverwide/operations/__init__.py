@@ -312,3 +312,38 @@ class GetDatabaseRecordOperation(ServerOperation[DatabaseRecordWithEtag]):
                 self.result = None
                 return
             self.result = DatabaseRecordWithEtag.from_json(json.loads(response))
+
+
+class GetDatabaseNamesOperation(ServerOperation[List[str]]):
+    def __init__(self, start: int, page_size: int):
+        super(GetDatabaseNamesOperation, self).__init__()
+        self.__start = start
+        self.__page_size = page_size
+
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[List[str]]:
+        return self.__GetDatabaseNamesCommand(self.__start, self.__page_size)
+
+    class __GetDatabaseNamesCommand(RavenCommand[List[str]]):
+        def __init__(self, start: int, page_size: int):
+            super().__init__(list)
+            self.__start = start
+            self.__page_size = page_size
+
+        def create_request(self, server_node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "GET", f"{server_node.url}/databases?start={self.__start}&pageSize={self.__page_size}&namesOnly=true"
+            )
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                raise ValueError("Invalid response")
+
+            response = json.loads(response)
+
+            if "Databases" not in response:
+                raise ValueError("Invalid response")
+
+            self.result = response["Databases"]
+
+        def is_read_request(self) -> bool:
+            return True

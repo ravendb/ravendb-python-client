@@ -2,7 +2,7 @@ from __future__ import annotations
 import datetime
 from enum import Enum
 from abc import abstractmethod
-from typing import Union, Optional, List, Dict, Set
+from typing import Union, Optional, List, Dict, Set, Iterable
 from pyravendb.documents.indexes.spatial import SpatialOptions, AutoSpatialOptions
 from pyravendb.tools.utils import Utils
 
@@ -141,14 +141,14 @@ class IndexFieldOptions:
 
 
 class IndexDefinition:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.name: Union[None, str] = None
         self.priority: Union[None, IndexPriority] = None
         self.state: Union[None, IndexState] = None
         self.lock_mode: Union[None, IndexLockMode] = None
         self.additional_sources: Dict[str, str] = {}
         self.additional_assemblies: Set[AdditionalAssembly] = set()
-        self.maps: Union[None, Set[str]] = None
+        self.__maps: Union[None, Set[str]] = None
         self.fields: Union[None, Dict[str, IndexFieldOptions]] = {}
         self.reduce: Union[None, str] = None
         self.configuration: Dict[str, str] = {}
@@ -159,6 +159,7 @@ class IndexDefinition:
         self.pattern_for_output_reduce_to_collection_references: Union[None, str] = None
         self.pattern_references_collection_name: Union[None, str] = None
         self.deployment_mode: Union[None, IndexDeploymentMode] = None
+        self.__dict__.update(kwargs)
 
     @staticmethod
     def from_json(json_dict: dict) -> IndexDefinition:
@@ -212,6 +213,17 @@ class IndexDefinition:
             "PatternReferencesCollectionName": self.pattern_references_collection_name,
             "DeploymentMode": self.deployment_mode,
         }
+
+    @property
+    def maps(self):
+        return self.__maps
+
+    @maps.setter
+    def maps(self, value: Union[str, Iterable[str]]):
+        if isinstance(value, str):
+            self.__maps = {value}
+        else:
+            self.__maps = set(value)
 
     @property
     def source_type(self) -> IndexSourceType:
