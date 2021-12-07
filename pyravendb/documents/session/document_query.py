@@ -1,6 +1,7 @@
-from typing import List, Set, Tuple, Iterable, Union, Callable, Dict
+from typing import List, Set, Tuple, Iterable, Union, Callable, Dict, TYPE_CHECKING
 
 from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.loaders.query_include_builder import QueryIncludeBuilder
 from pyravendb.raven_operations.query_operation import QueryOperation
 from pyravendb.custom_exceptions.exceptions import *
@@ -16,6 +17,9 @@ from pyravendb.tools.utils import Utils
 from datetime import timedelta, datetime
 import time
 import re
+
+if TYPE_CHECKING:
+    from pyravendb.documents import InMemoryDocumentSessionOperations
 
 
 class _Token:
@@ -46,7 +50,7 @@ class Query(object):
 
     rql_keyword = ("AS", "SELECT", "WHERE", "LOAD", "GROUP", "ORDER", "INCLUDE")
 
-    def __init__(self, session):
+    def __init__(self, session: "InMemoryDocumentSessionOperations"):
         """
         These argument will be initialized when class is called (see __call__)
         for be able to query with the same instance of the Query class
@@ -117,11 +121,11 @@ class Query(object):
         self.query_parameters = {}
         self.negate = False
         self.fields_to_fetch = None
-        self._select_tokens = []  # List[_Token]
+        self._select_tokens: List[_Token] = []
         self._from_token = None
-        self._group_by_tokens = []  # List[_Token]
-        self._order_by_tokens = []  # List[_Token]
-        self._where_tokens = []  # List[_Token]
+        self._group_by_tokens: List[_Token] = []
+        self._order_by_tokens: List[_Token] = []
+        self._where_tokens: List[_Token] = []
         self.document_includes = set()
         self._current_clause_depth = 0
         self.is_intersect = False
@@ -1101,8 +1105,12 @@ class Query(object):
                 index_name=self.index_name,
                 index_query=index_query,
                 metadata_only=self.metadata_only,
+                disable_entities_tracking=self._disable_entities_tracking,
             ).create_request()
-            response = self.session.requests_executor.execute(query_command)
+
+            self.session.request_executor.execute_command(query_command)
+            response = query_command.result
+
             if response is None:
                 return []
 
@@ -1116,27 +1124,18 @@ class Query(object):
         response_results = response.pop("Results")
         response_includes = response.pop("Includes", None)
         response_counter_includes = response.pop("CounterIncludes", None)
-        self.session.save_includes(response_includes)
+        if not self._disable_entities_tracking:
+            self.session.register_includes(response_includes)
         response_counter_includes_names = (
             response.pop("IncludedCounterNames") if "IncludedCounterNames" in response else None
         )
-        self.session.register_counters(response_counter_includes, response_counter_includes_names)
+        if not self._disable_entities_tracking:
+            self.session.register_counters(response_counter_includes, response_counter_includes_names)
         for result in response_results:
-            (entity, metadata, original_document,) = self.session.entity_to_json.convert_to_entity(
-                result,
-                self.object_type,
-                self.session.conventions,
-                self.session.readonly_events,
-                self.nested_object_types,
+            doc_info = DocumentInfo.get_new_document_info(result)
+            results.append(
+                self.session.track_entity(entity_type=self.object_type, document_info=doc_info, no_tracking=True)
             )
-            if self.object_type != dict and not self.fields_to_fetch:
-                self.session.save_entity(
-                    key=metadata.get("@id", None),
-                    entity=entity,
-                    metadata=metadata,
-                    original_document=original_document,
-                )
-            results.append(entity)
 
         if self._with_statistics:
             return results, response

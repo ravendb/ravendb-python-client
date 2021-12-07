@@ -1,10 +1,10 @@
 import datetime
 import unittest
 
+from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations import GetCollectionStatisticsOperation
 from pyravendb.documents.operations.indexes import PutIndexesOperation
-from pyravendb.raven_operations.maintenance_operations import GetCollectionStatisticsOperation
 from pyravendb.tests.test_base import TestBase, User, UserWithId, Address, Order
-from pyravendb.data.indexes import IndexDefinition
 from pyravendb.data.query import OrderingType, QueryOperator
 from pyravendb.tools.utils import Utils
 
@@ -25,7 +25,7 @@ class UserFull(UserWithId):
 
 class UsersByName(IndexDefinition):
     def __init__(self, name="region"):
-        maps = "from c in docs.Users select new " " {" "    c.name, " "    count = 1" "}"
+        maps = ["from c in docs.Users select new " " {" "    c.name, " "    count = 1" "}"]
 
         reduce = (
             "from result in results "
@@ -43,8 +43,9 @@ class UsersByName(IndexDefinition):
 
 class OrderTime(IndexDefinition):
     def __init__(self, name="OrderTime"):
-        maps = "from order in docs.Orders select new {delay = order.shipped_at - ((DateTime?)order.ordered_at)}"
-        super(OrderTime, self).__init__(maps=maps, name=name)
+        maps = ["from order in docs.Orders select new {delay = order.shipped_at - ((DateTime?)order.ordered_at)}"]
+        super(OrderTime, self).__init__(name=name)
+        self.maps = maps
 
 
 class OrderTimeResult:
@@ -53,8 +54,8 @@ class OrderTimeResult:
 
 
 class Dog:
-    def __init__(self, key, name="Reksio", breed="Shepherd", color="White", age=1, is_vaccinated=True):
-        self.Id = key
+    def __init__(self, Id, name="Reksio", breed="Shepherd", color="White", age=1, is_vaccinated=True):
+        self.Id = Id
         self.name = name
         self.breed = breed
         self.color = color
@@ -71,8 +72,9 @@ class DogsIndexResult:
 
 class DogsIndex(IndexDefinition):
     def __init__(self, name="doggos"):
-        maps = "from dog in docs.dogs select new { dog.name, dog.age, dog.is_vaccinated }"
-        super(DogsIndex, self).__init__(name, maps)
+        maps = ["from dog in docs.dogs select new { dog.name, dog.age, dog.is_vaccinated }"]
+        super(DogsIndex, self).__init__(name=name)
+        self.maps = maps
 
 
 class TestQuery(TestBase):
@@ -95,7 +97,7 @@ class TestQuery(TestBase):
             session.store(user3, "users/3")
             session.save_changes()
         self.store.maintenance.send(PutIndexesOperation(UsersByName()))
-        self.wait_for_indexing(self.store)
+        self.wait_for_indexing(self.store, self.default_database)
 
     def add_dogs(self, session):
         session.store(Dog("docs/1", "Snoopy", "Beagle", "White", 6, True))
@@ -116,8 +118,8 @@ class TestQuery(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetCollectionStatisticsOperation())
-        self.assertEqual(2, stats["CountOfDocuments"])
-        self.assertEqual(2, stats["Collections"]["UserWithIds"])
+        self.assertEqual(2, stats.count_of_documents)
+        self.assertEqual(2, stats.collections["UserWithIds"])
 
     def test_query_simple(self):
         with self.store.open_session() as session:
@@ -231,7 +233,6 @@ class TestQuery(TestBase):
             unique_names = list(session.query(UserWithId).search("name", "Tarzan John", QueryOperator.OR))
             self.assertEqual(3, len(unique_names))
 
-    @unittest.skip("RDBC-465")
     def test_query_no_tracking(self):
         self.add_users()
         with self.store.open_session() as session:
@@ -246,7 +247,7 @@ class TestQuery(TestBase):
             user = User(long_name)
             session.store(user, "users/1")
             session.save_changes()
-            result = list(session.query(User, None, "Users", False).where_equals("name", long_name))
+            result = list(session.query(User, "Users").where_equals("name", long_name))
             self.assertEqual(1, len(result))
 
     def test_query_where_exact(self):
@@ -346,7 +347,9 @@ class TestQuery(TestBase):
         self.add_users()
         with self.store.open_session() as session:
             users = list(
-                session.raw_query("FROM UserWithIds WHERE age == $p0", object_type=UserWithId).add_parameter("p0", 5)
+                session.advanced.raw_query("FROM UserWithIds WHERE age == $p0", object_type=UserWithId).add_parameter(
+                    "p0", 5
+                )
             )
             self.assertEqual(1, len(users))
             self.assertEqual("John", users[0].name)
@@ -395,7 +398,7 @@ class TestQuery(TestBase):
             session.store(order3)
             session.save_changes()
 
-        self.wait_for_indexing(self.store)
+        self.wait_for_indexing(self.store, self.default_database)
 
         with self.store.open_session() as session:
             delay1 = list(

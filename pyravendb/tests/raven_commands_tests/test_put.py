@@ -16,7 +16,7 @@ class TestPut(TestBase):
         response = command.result
         self.assertEqual(response.results[0]["@metadata"]["@id"], "testing/1")
 
-    # todo: request executor error handling
+    @unittest.skip("request executor error handling")
     def test_put_fail(self):
         request_executor = self.store.get_request_executor()
         with self.assertRaises(ValueError):

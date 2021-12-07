@@ -451,46 +451,6 @@ class PatchCommand(RavenCommand):
             return response.json()
 
 
-class QueryCommand(RavenCommand):
-    def __init__(self, conventions, index_query, metadata_only=False, index_entries_only=False):
-        """
-        @param IndexQuery index_query: A query definition containing all information required to query a specified index.
-        @param bool metadata_only: True if returned documents should include only metadata without a document body.
-        @param bool index_entries_only: True if query results should contain only index entries.
-        @return:json
-        :rtype:dict
-        """
-        super(QueryCommand, self).__init__(method="POST", is_read_request=True)
-        if index_query is None:
-            raise ValueError("Invalid index_query")
-        if conventions is None:
-            raise ValueError("Invalid convention")
-        self._conventions = conventions
-        self._index_query = index_query
-        self._metadata_only = metadata_only
-        self._index_entries_only = index_entries_only
-
-    def create_request(self, server_node):
-        self.url = "{0}/databases/{1}/queries?query-hash={2}".format(
-            server_node.url, server_node.database, self._index_query.get_query_hash()
-        )
-        if self._metadata_only:
-            self.url += "&metadataOnly=true"
-        if self._index_entries_only:
-            self.url += "&debug=entries"
-
-        self.data = self._index_query.to_json()
-
-    def set_response(self, response):
-        if response is None:
-            return
-
-        response = response.json()
-        if "Error" in response:
-            raise exceptions.ErrorResponseException(response["Error"])
-        return response
-
-
 class GetStatisticsCommand(RavenCommand):
     def __init__(self, debug_tag: str = None, node_tag: str = None):
         super(GetStatisticsCommand, self).__init__(method="GET", is_read_request=True)

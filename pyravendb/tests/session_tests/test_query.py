@@ -40,12 +40,7 @@ class TestQuery(TestBase):
         index_definition = IndexDefinition()
         index_definition.name = "Testing_Sort"
         index_definition.maps = index_map
-        index_definition.fields = (
-            {
-                # "key": IndexFieldOptions(),  sort options numeric
-                "doc_id": IndexFieldOptions(FieldStorage(True)),
-            },
-        )
+        # fields -> "key": IndexFieldOptions(),  sort options numeric
 
         maps = (
             "from order in docs.Orders "
@@ -56,7 +51,7 @@ class TestQuery(TestBase):
         second_index_definition = IndexDefinition()
         second_index_definition.name = "SelectTestingIndex"
         second_index_definition.maps = maps
-        second_index_definition.fields = {"order_and_id": IndexFieldOptions(FieldStorage(True))}
+        # fields -> "order_and_id": IndexFieldOptions(),  sort options numeric
 
         self.store.maintenance.send(PutIndexesOperation(index_definition, second_index_definition))
 

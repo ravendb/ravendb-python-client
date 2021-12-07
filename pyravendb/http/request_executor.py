@@ -777,7 +777,7 @@ class RequestExecutor:
             task_number = i
             self.number_of_server_requests += 1
 
-            async def __supply_async(
+            def __supply_async(
                 single_element_list_number_failed_tasks: List[int],
             ) -> (RequestExecutor.IndexAndResponse, int):
                 try:
@@ -917,7 +917,7 @@ class RequestExecutor:
 
             # todo: aggressive caching options
 
-            async def __run_async() -> None:
+            def __run_async() -> None:
                 # todo: aggressive caching options
                 try:
                     request = self.execute(state.node, None, state.command, False, session_info, True)

@@ -13,6 +13,7 @@ import pyravendb.documents
 from pyravendb.documents.indexes import AbstractCommonApiForIndexes
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
+from pyravendb.documents.session.document_query import Query
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
@@ -201,6 +202,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         key_or_keys: Union[List[str], str],
         object_type: Optional[type] = None,
         includes: Callable[[IncludeBuilder], None] = None,
+        nested_object_types: Dict[str, type] = None,
     ) -> Union[Dict[str, object], object]:
         if key_or_keys is None:
             return None  # todo: return default value of object_type, not always None
@@ -326,6 +328,17 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def counters_for(self):
         pass  # todo: implement
 
+    def query(
+        self,
+        object_type: type = None,
+        collection_name: Optional[str] = None,
+        index_name: Optional[str] = None,
+        **kwargs,
+    ) -> Query:
+        if collection_name is not None and index_name is not None:
+            raise ValueError("Pass either collection_name or index_name")
+        return self.__document_query_generator.document_query(object_type, index_name, collection_name, **kwargs)
+
     class _Advanced:
         def __init__(self, session: DocumentSession):
             self.__session = session
@@ -344,8 +357,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.request_executor.execute(command, self.__session._session_info)
             self.__session._refresh_internal(entity, command, document_info)
 
-        def raw_query(self, object_type: type, query: str):  # -> RawDocumentQuery:
-            pass
+        def raw_query(self, query: str, query_parameters: Optional[dict] = None, **kwargs):  # -> RawDocumentQuery:
+            self._query = Query(self.__session)(**kwargs)
+            return self._query.raw_query(query)
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
@@ -642,6 +656,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             index_class_or_name: Union[type, str] = None,
             collection_name: str = None,
             is_map_reduce: bool = False,
+            **kwargs,
         ):
             if isinstance(index_class_or_name, type):
                 if not issubclass(index_class_or_name, AbstractCommonApiForIndexes):
@@ -660,6 +675,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             index_name = index_name_and_collection[0]
             collection_name = index_name_and_collection[1]
 
-            return None  # DocumentQuery(object_type, self, index_name, collection_name, is_map_reduce)
+            q = Query(self.session)
+            q(object_type, index_name, collection_name, is_map_reduce, **kwargs)
+            return q
 
     # todo: stream, query and fors like timeseriesrollupfor, conditional load

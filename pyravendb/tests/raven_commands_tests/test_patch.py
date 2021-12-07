@@ -1,7 +1,7 @@
 import unittest
-from pyravendb.commands.raven_commands import PutDocumentCommand, PatchCommand
-from pyravendb.custom_exceptions.exceptions import DocumentDoesNotExistsException
-from pyravendb.data.patches import PatchRequest
+
+from pyravendb.documents.commands import PutDocumentCommand
+from pyravendb.documents.operations import PatchRequest
 from pyravendb.tests.test_base import TestBase
 
 
@@ -46,7 +46,7 @@ class TestPatch(TestBase):
             patch=PatchRequest("this.Name = 'testing'"),
             patch_if_missing=None,
         )
-        self.assertIsNone(self.requests_executor.execute(command))
+        self.assertIsNone(self.requests_executor.execute_command(command))
 
 
 if __name__ == "__main__":

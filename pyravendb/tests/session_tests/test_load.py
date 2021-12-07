@@ -1,4 +1,5 @@
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from pyravendb.documents.commands import PutDocumentCommand
 from pyravendb.tests.test_base import TestBase
 from dataclasses import dataclass
 import unittest
@@ -74,10 +75,11 @@ class TestLoad(TestBase):
     def tearDown(self):
         super(TestLoad, self).tearDown()
 
+    # todo: discuss nested object types - pass into track entity?
     def test_can_handle_nested_values(self):
         request_executor = self.store.get_request_executor()
-        put_command = PutDocumentCommand(key="testing/1", document={"items": [{"name": "oren"}]})
-        request_executor.execute(put_command)
+        put_command = PutDocumentCommand("testing/1", None, {"items": [{"name": "oren"}]})
+        request_executor.execute_command(put_command)
         with self.store.open_session() as session:
             i = session.load("testing/1", object_type=Box, nested_object_types={"items": Item})
             self.assertEqual("oren", i.items[0].name)

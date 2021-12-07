@@ -677,13 +677,15 @@ class InMemoryDocumentSessionOperations:
             key = document_info.key
             document = document_info.document
             metadata = document_info.metadata
-            no_tracking = self.no_tracking
+            no_tracking = (
+                self.no_tracking if no_tracking is None else no_tracking
+            )  # todo: remove if when rebuilding Query
         else:
             if not key or not document or not metadata or no_tracking:
                 raise ValueError(
                     "Pass either (entity_type, DocumentInfo) or (entity_type, key, document, metadata and no_tracking)"
                 )
-        no_tracking = self.no_tracking or no_tracking
+        no_tracking = no_tracking or self.no_tracking
         if not key:
             return self.__deserialize_from_transformer(entity_type, None, document, False)
         doc_info = self.documents_by_id.get(key)
@@ -719,8 +721,8 @@ class InMemoryDocumentSessionOperations:
             new_document_info = DocumentInfo(
                 key=key, document=document, metadata=metadata, entity=entity, change_vector=change_vector
             )
-            self.documents_by_id.update({new_document_info.key: new_document_info})
-            self.documents_by_entity.update({new_document_info.entity: new_document_info})
+            self.documents_by_id[new_document_info.key] = new_document_info
+            self.documents_by_entity[new_document_info.entity] = new_document_info
         return entity
 
     @staticmethod
@@ -1764,7 +1766,7 @@ class InMemoryDocumentSessionOperations:
                 collection_name if collection_name else constants.Documents.Metadata.ALL_DOCUMENTS_COLLECTION
             )
 
-            return index_name, collection_name
+        return index_name, collection_name
 
     class ReplicationWaitOptsBuilder:
         def __init__(self, session: InMemoryDocumentSessionOperations):
