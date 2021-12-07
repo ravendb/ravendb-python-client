@@ -59,7 +59,7 @@ class TestDelete(TestBase):
         with self.store.open_session() as session:
             product = session.load("products/107")
             product.name = "testing"
-            session.delete_by_entity(product)
+            session.delete(product)
             session.save_changes()
             self.assertIsNone(session.load("products/107"))
 

@@ -213,7 +213,7 @@ class GetDocumentsCommand(RavenCommand):
 
         if "starts_with" in self.__options.__dict__ and self.__options.starts_with:
             self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
-            path_builder.append(f"&start={self.__options.starts_with}")
+            path_builder.append(f"&startsWith={self.__options.starts_with}")
 
             if "matches" in self.__options.__dict__ and self.__options.matches:
                 path_builder.append(f"&matches={self.__options.matches}")

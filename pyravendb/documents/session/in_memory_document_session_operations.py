@@ -747,7 +747,9 @@ class InMemoryDocumentSessionOperations:
             if document_info is not None:
                 new_obj = self.entity_to_json.convert_entity_to_json(document_info.entity, document_info)
                 if document_info.entity is not None and self._entity_changed(new_obj, document_info, None):
-                    raise RuntimeError("Can't delete changed entity using identifier. Use delete(entity) instead.")
+                    raise InvalidOperationException(
+                        "Can't delete changed entity using identifier. Use delete(entity) instead."
+                    )
 
                 if document_info.entity is not None:
                     self.documents_by_entity.pop(document_info.entity, None)

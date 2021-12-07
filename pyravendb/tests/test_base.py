@@ -170,7 +170,7 @@ class TestBase(unittest.TestCase):
                 ]
             ):
                 return
-            if any([IndexState.error == index["State"] for index in indexes]):
+            if any([IndexState.ERROR == index["State"] for index in indexes]):
                 break
             try:
                 time.sleep(0.1)
