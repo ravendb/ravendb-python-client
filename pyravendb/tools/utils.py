@@ -51,7 +51,7 @@ class CaseInsensitiveDict(dict):
         super(CaseInsensitiveDict, self).update(self.__class__(**f))
 
     def _convert_keys(self):
-        for k in list(self.keys()):
+        for k in list(self):
             v = super(CaseInsensitiveDict, self).pop(k)
             self.__setitem__(k, v)
 
