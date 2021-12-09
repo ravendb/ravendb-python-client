@@ -1,6 +1,6 @@
+from pyravendb.documents.indexes import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.indexes import IndexDefinition
 from pyravendb.changes.observers import ActionObserver
 from datetime import datetime, timedelta
 import unittest
@@ -93,7 +93,9 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(indexes_change.append)
         observer.ensure_subscribe_now()
 
-        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+        index_definition_dogs = IndexDefinition()
+        index_definition_dogs.name = "Dogs"
+        index_definition_dogs.maps = ["from doc in docs.Dogs select new {doc.brand}"]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs))
 
@@ -108,8 +110,13 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(index_change.append)
         observer.ensure_subscribe_now()
 
-        index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
-        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+        index_definition_users = IndexDefinition()
+        index_definition_users.name = "Users"
+        index_definition_users.maps = ["from doc in docs.Users select new {doc.Name}"]
+
+        index_definition_dogs = IndexDefinition()
+        index_definition_dogs.name = "Dogs"
+        index_definition_dogs.maps = ["from doc in docs.Dogs select new {doc.brand}"]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
 
@@ -129,8 +136,13 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(indexes.append)
         observer.ensure_subscribe_now()
 
-        index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
-        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+        index_definition_users = IndexDefinition()
+        index_definition_users.name = "Users"
+        index_definition_users.maps = ["from doc in docs.Users select new {doc.Name}"]
+
+        index_definition_dogs = IndexDefinition()
+        index_definition_dogs.name = "Dogs"
+        index_definition_dogs.maps = ["from doc in docs.Dogs select new {doc.brand}"]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
 
@@ -159,7 +171,7 @@ class TestDatabaseChanges(TestBase):
         observer.ensure_subscribe_now()
         self.assertEqual(3, len(documents))
         for document in documents:
-            self.assertTrue(document["Id"].startswith("users"))
+            self.assertTrue(document["Id"].lower().startswith("users"))
 
     def test_for_all_time_series(self):
         event = Event()

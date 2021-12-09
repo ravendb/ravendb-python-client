@@ -6,6 +6,7 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any, Union, Optional, TypeVar, Generic, TYPE_CHECKING, List, Dict
 
+from pyravendb.changes.database_changes import DatabaseChanges
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session import SessionOptions
@@ -202,6 +203,8 @@ class DocumentStore(DocumentStoreBase):
         self.__operation_executor: Union[None, documents_operations.OperationExecutor] = None
         # todo: database smuggler
         self.__identifier: Union[None, str] = None
+        self.__add_change_lock = threading.Lock()
+        self.__database_changes = {}
 
     @property
     def thread_pool_executor(self):
@@ -289,6 +292,24 @@ class DocumentStore(DocumentStoreBase):
         self.__request_executors[database] = executor
 
         return executor.value()
+
+    def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges:
+        self.assert_initialized()
+        if not database:
+            database = self.database
+        with self.__add_change_lock:
+            if database not in self.__database_changes:
+                self.__database_changes[database] = DatabaseChanges(
+                    request_executor=self.get_request_executor(database),
+                    database_name=database,
+                    on_close=self.__on_close_change,
+                    on_error=on_error,
+                    executor=executor,
+                )
+            return self.__database_changes[database]
+
+    def __on_close_change(self, database):
+        del self.__database_changes[database]
 
     def set_request_timeout(self, timeout: datetime.timedelta, database: Optional[str] = None) -> Callable[[], None]:
         self.assert_initialized()

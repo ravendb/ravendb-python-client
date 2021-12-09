@@ -184,6 +184,11 @@ class RequestExecutor:
     def default_timeout(self, value: datetime.timedelta) -> None:
         self.__default_timeout = value
 
+    @property
+    def preferred_node(self) -> CurrentIndexAndNode:
+        self.__ensure_node_selector()
+        return self._node_selector.get_preferred_node()
+
     def __on_failed_request_invoke(self, url: str, e: BaseException):
         for event in self.__on_failed_request:
             event(self.__database_name, url, e)
@@ -1026,6 +1031,14 @@ class RequestExecutor:
     @client_configuration_etag.setter
     def client_configuration_etag(self, value):
         self._client_configuration_etag = value
+
+    def __ensure_node_selector(self) -> None:
+        if not self._disable_topology_updates:
+            self.__wait_for_topology_update(self._first_topology_update_task)
+
+        if self._node_selector is None:
+            topology = Topology(self.topology_etag, self.topology_nodes)
+            self._node_selector = NodeSelector(topology, self._thread_pool_executor)
 
 
 class ClusterRequestExecutor(RequestExecutor):
