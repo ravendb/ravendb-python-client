@@ -18,7 +18,13 @@ from pyravendb.documents.session.in_memory_document_session_operations import In
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
 from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
-from pyravendb.documents.session import SessionOptions, ResponseTimeInformation, JavaScriptArray, JavaScriptMap
+from pyravendb.documents.session import (
+    SessionOptions,
+    ResponseTimeInformation,
+    JavaScriptArray,
+    JavaScriptMap,
+    DocumentsChanges,
+)
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.loaders.include_builder import IncludeBuilder
 from pyravendb.raven_operations.load_operation import LoadOperation
@@ -349,9 +355,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.increment_requests_count()
 
             command = GetDocumentsCommand(
-                options=GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
+                GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
             )
-            self.__session.request_executor.execute(command, self.__session._session_info)
+            self.__session.request_executor.execute_command(command, self.__session._session_info)
             self.__session._refresh_internal(entity, command, document_info)
 
         def raw_query(self, query: str, query_parameters: Optional[dict] = None, **kwargs):  # -> RawDocumentQuery:
@@ -360,6 +366,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
+
+        def what_changed(self) -> Dict[str, List[DocumentsChanges]]:
+            return self.__session._what_changed()
 
         def exists(self, key: str) -> bool:
             if key is None:

@@ -10,6 +10,7 @@ from copy import deepcopy, Error
 from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set
 
 from pyravendb import constants
+from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.identity import GenerateEntityIdOnTheClient
 from pyravendb.documents.operations import OperationExecutor
@@ -27,7 +28,6 @@ from pyravendb.documents.commands.batches import (
     IndexBatchOptions,
     ReplicationBatchOptions,
 )
-from pyravendb.documents.commands.results import GetDocumentResult
 import pyravendb.documents
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
 from pyravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
@@ -1106,7 +1106,7 @@ class InMemoryDocumentSessionOperations:
             if self._entity_changed(document, entity.value, None):
                 return True
 
-        return not self.deleted_entities
+        return not len(self.deleted_entities) == 0
 
     def has_changed(self, entity: object) -> bool:
         document_info = self.documents_by_entity.get(entity)
@@ -1151,8 +1151,16 @@ class InMemoryDocumentSessionOperations:
 
         index_options.wait_for_indexes = True
 
+    def _what_changed(self) -> Dict[str, List[DocumentsChanges]]:
+        changes = {}
+
+        self.__get_all_entities_changes(changes)
+        self.__prepare_for_entities_deletion(None, changes)
+
+        return changes
+
     def __get_all_entities_changes(self, changes: Dict[str, List[DocumentsChanges]]) -> None:
-        for key, value in self.documents_by_id:
+        for key, value in self.documents_by_id.items():
             self.__update_metadata_modifications(value)
             new_obj = self.entity_to_json.convert_entity_to_json(value.entity, value)
             self._entity_changed(new_obj, value, changes)
@@ -1706,7 +1714,7 @@ class InMemoryDocumentSessionOperations:
         return True
 
     def _refresh_internal(self, entity: object, cmd: RavenCommand, document_info: DocumentInfo):
-        if not isinstance(cmd.result, GetDocumentResult):
+        if not isinstance(cmd.result, GetDocumentsResult):
             raise TypeError(f"Unexpected RavenCommand.result type '{type(cmd.result)}' - expected 'GetDocumentResult'")
         try:
             document = cmd.result.results[0]

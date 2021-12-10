@@ -59,6 +59,7 @@ class TestIndexActions(TestBase):
             command = DeleteIndexOperation(None).get_command(self.conventions)
             self.requests_executor.execute_command(command)
 
+    @unittest.skip("TimeSeries")
     def test_timeseries_index_creation(self):
         with self.store.open_session() as session:
             user = User("Idan")
@@ -87,6 +88,7 @@ class TestIndexActions(TestBase):
 
         self.assertEqual(index.source_type, IndexSourceType.time_series)
 
+    @unittest.skip("Counters")
     def test_counters_index_creation(self):
         with self.store.open_session() as session:
             user = User("Idan")
