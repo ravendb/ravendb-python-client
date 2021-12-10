@@ -4,8 +4,8 @@ import enum
 from typing import Union, TYPE_CHECKING
 
 from pyravendb.http import Topology
-from pyravendb.http.request_executor import ClusterRequestExecutor
 import pyravendb.serverwide.operations as serv_operations
+from pyravendb.http.request_executor import ClusterRequestExecutor
 from pyravendb.tools.utils import CaseInsensitiveDict
 
 if TYPE_CHECKING:

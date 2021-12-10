@@ -325,9 +325,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return command
 
-    def counters_for(self):
-        pass  # todo: implement
-
     def query(
         self,
         object_type: type = None,

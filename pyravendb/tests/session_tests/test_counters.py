@@ -8,6 +8,7 @@ class User:
         self.name = name
 
 
+@unittest.skip("Counters")
 class TestCounters(TestBase):
     def setUp(self):
         super().setUp()

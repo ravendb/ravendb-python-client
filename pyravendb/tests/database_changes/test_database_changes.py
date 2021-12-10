@@ -173,6 +173,7 @@ class TestDatabaseChanges(TestBase):
         for document in documents:
             self.assertTrue(document["Id"].lower().startswith("users"))
 
+    @unittest.skip("TimeSeries")
     def test_for_all_time_series(self):
         event = Event()
         changes = []
@@ -202,6 +203,7 @@ class TestDatabaseChanges(TestBase):
         event.wait(1)
         self.assertEqual(len(changes), 2)
 
+    @unittest.skip("TimeSeries")
     def test_for_time_series_of_document(self):
         changes = []
 
@@ -227,6 +229,7 @@ class TestDatabaseChanges(TestBase):
         self.assertTrue(len(changes) == 2)
         self.assertEqual("users/1-A", changes[0]["DocumentId"])
 
+    @unittest.skip("TimeSeries")
     def test_for_time_series_of_document_with_time_series_name(self):
         changes = []
 
@@ -251,6 +254,7 @@ class TestDatabaseChanges(TestBase):
         self.assertEqual("Put", changes[0]["Type"])
         self.assertEqual("Heartrate", changes[0]["Name"])
 
+    @unittest.skip("TimeSeries")
     def test_for_time_series(self):
         changes = []
 
@@ -275,6 +279,7 @@ class TestDatabaseChanges(TestBase):
         sleep(1)
         self.assertTrue(len(changes) == 2)
 
+    @unittest.skip("Counters")
     def test_for_all_counters(self):
         event = Event()
         changes = []
@@ -304,6 +309,7 @@ class TestDatabaseChanges(TestBase):
         event.wait(1)
         self.assertEqual(len(changes), 2)
 
+    @unittest.skip("Counters")
     def test_for_counters_of_document(self):
         changes = []
 
@@ -329,6 +335,7 @@ class TestDatabaseChanges(TestBase):
         self.assertTrue(len(changes) == 2)
         self.assertTrue(all("users/1-A" == change["DocumentId"] for change in changes))
 
+    @unittest.skip("Counters")
     def test_for_counter_of_document(self):
         changes = []
 
@@ -352,6 +359,7 @@ class TestDatabaseChanges(TestBase):
         self.assertEqual("Put", changes[0]["Type"])
         self.assertEqual("Shares", changes[0]["Name"])
 
+    @unittest.skip("Counters")
     def test_for_counter(self):
         changes = []
 

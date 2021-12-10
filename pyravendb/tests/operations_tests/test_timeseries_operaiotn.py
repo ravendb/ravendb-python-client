@@ -64,6 +64,7 @@ class TestTimeSeriesOperations(TestBase):
         time_series = self.store.operations.send(GetTimeSeriesOperation("users/1-A", ranges=self.timeseries_range))
         self.assertIsNone(time_series)
 
+    @unittest.skip("TimeSeries")
     def test_get_timeseries_with_range(self):
         self.add_timeseries()
         time_series_range = TimeSeriesRange(

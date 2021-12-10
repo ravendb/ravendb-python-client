@@ -3,6 +3,7 @@ from pyravendb.raven_operations.counters_operations import *
 import unittest
 
 
+@unittest.skip("Counters")
 class TestCountersOperations(TestBase):
     def setUp(self):
         super(TestCountersOperations, self).setUp()

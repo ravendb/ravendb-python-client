@@ -565,6 +565,12 @@ class InMemoryDocumentSessionOperations:
     def number_of_requests(self) -> int:
         return self.__number_of_requests
 
+    # def counters_for(self, entity_or_document_id):
+    #     """
+    #     Get A counters object associated with the document
+    #     """
+    #     return pyravendb.documents.DocumentCounters(self, entity_or_document_id)
+
     def get_metadata_for(self, entity: object) -> MetadataAsDictionary:
         if entity is None:
             raise ValueError("Entity cannot be None")
