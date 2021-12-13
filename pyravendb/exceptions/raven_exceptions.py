@@ -4,7 +4,7 @@ from typing import Optional
 
 class RavenException(RuntimeError):
     def __init__(self, message: str = None, cause: BaseException = None):
-        super(RavenException, self).__init__(*(message, cause) if cause else message)
+        super(RavenException, self).__init__((message, cause) or message)
         self.reached_leader = None
 
     @staticmethod

@@ -1,3 +1,5 @@
+from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 import unittest
@@ -24,12 +26,14 @@ class TestAdvanced(TestBase):
             user = User("U", 1)
             s.store(user, "test/")
             s.save_changes()
-            id = s.advanced.get_document_id(user)
+            id = s.get_document_id(user)
             self.assertFalse(id.endswith("/"))
 
     def test_stream_query(self):
         maps = "from user in docs.Users " "select new {" "name = user.name," "age = user.age}"
-        index_definition = IndexDefinition(name="UserByName", maps=maps)
+        index_definition = IndexDefinition()
+        index_definition.name = "UserByName"
+        index_definition.maps = [maps]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition))
 

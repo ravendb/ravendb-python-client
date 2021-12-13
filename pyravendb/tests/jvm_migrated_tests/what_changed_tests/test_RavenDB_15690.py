@@ -20,4 +20,4 @@ class TestRavenDB10641(TestBase):
 
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertTrue(session.advanced.has_changes())
+            self.assertTrue(session.has_changes())

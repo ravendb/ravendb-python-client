@@ -190,8 +190,9 @@ class TestQuery(TestBase):
         with self.store.open_session() as session:
             list(session.query(wait_for_non_stale_results=True).where(key=92).include("product_id"))
             session.load("products/108")
-        self.assertEqual(session.number_of_requests_in_session, 1)
+        self.assertEqual(session.number_of_requests, 1)
 
+    @unittest.skip("Nested object types")
     def test_query_with_nested_object(self):
         with self.store.open_session() as session:
             query_results = list(
@@ -201,6 +202,7 @@ class TestQuery(TestBase):
             )
             self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
+    @unittest.skip("Nested object types")
     def test_query_with_raw_query(self):
         with self.store.open_session() as session:
             query_results = list(
@@ -210,6 +212,7 @@ class TestQuery(TestBase):
             )
             self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
+    @unittest.skip("Nested object types")
     def test_raw_query_with_query_parameters(self):
         with self.store.open_session() as session:
             query_results = list(
@@ -220,6 +223,7 @@ class TestQuery(TestBase):
             )
             self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
 
+    @unittest.skip("Nested object types")
     def test_fail_after_raw_query_add(self):
         try:
             with self.store.open_session() as session:

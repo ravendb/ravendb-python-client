@@ -1,8 +1,10 @@
+import unittest
 from typing import Callable, Union, Dict
 
 from pyravendb.tests.test_base import TestBase, Order, Employee, Company, User
 
 
+@unittest.skip("Counters")
 class TestQueryOnCounters(TestBase):
     def setUp(self):
         super(TestQueryOnCounters, self).setUp()

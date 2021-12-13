@@ -10,6 +10,7 @@ from typing import Union, Optional, TYPE_CHECKING, Generic, TypeVar, Dict, List
 import requests
 
 from pyravendb import constants
+from pyravendb.data.query import IndexQuery
 from pyravendb.documents.operations.operation import Operation
 from pyravendb.documents.session import SessionInfo
 from pyravendb.documents.session.document_info import DocumentInfo
@@ -37,7 +38,7 @@ _Operation_T = TypeVar("_Operation_T")
 class OperationExecutor:
     def __init__(self, store: DocumentStore, database_name: str = None):
         self.__store = store
-        self.__database_name = database_name
+        self.__database_name = database_name if database_name else store.database
         if not self.__database_name.isspace():
             self.__request_executor = store.get_request_executor(self.__database_name)
         else:
@@ -167,8 +168,8 @@ class OperationIdResult:
 
 
 class OperationExceptionResult:
-    def __init__(self, ex_type: str, message: str, error: str, status_code: int):
-        self.type = ex_type
+    def __init__(self, type: str, message: str, error: str, status_code: int):
+        self.type = type
         self.message = message
         self.error = error
         self.status_code = status_code
@@ -625,3 +626,118 @@ class GetCollectionStatisticsOperation(MaintenanceOperation[CollectionStatistics
             if response is None:
                 self._throw_invalid_response()
             self.result = CollectionStatistics.from_json(json.loads(response))
+
+
+class QueryOperationOptions(object):
+    def __init__(
+        self,
+        allow_stale: bool = True,
+        stale_timeout: datetime.timedelta = None,
+        max_ops_per_sec: int = None,
+        retrieve_details: bool = False,
+    ):
+        self.allow_stale = allow_stale
+        self.stale_timeout = stale_timeout
+        self.retrieve_details = retrieve_details
+        self.max_ops_per_sec = max_ops_per_sec
+
+
+class DeleteByQueryOperation(IOperation[OperationIdResult]):
+    def __init__(self, query_to_delete: Union[str, IndexQuery], options: Optional[QueryOperationOptions] = None):
+        if not query_to_delete:
+            raise ValueError("Invalid query")
+        if isinstance(query_to_delete, str):
+            query_to_delete = IndexQuery(query=query_to_delete)
+        self.__query_to_delete = query_to_delete
+        self.__options = options if options is not None else QueryOperationOptions()
+
+    def get_command(
+        self, store: "DocumentStore", conventions: "DocumentConventions", cache: Optional[HttpCache] = None
+    ) -> RavenCommand[OperationIdResult]:
+        return self.__DeleteByIndexCommand(conventions, self.__query_to_delete, self.__options)
+
+    class __DeleteByIndexCommand(RavenCommand[OperationIdResult]):
+        def __init__(
+            self,
+            conventions: "DocumentConventions",
+            query_to_delete: IndexQuery,
+            options: Optional[QueryOperationOptions] = None,
+        ):
+            super().__init__(OperationIdResult)
+            self.__conventions = conventions
+            self.__query_to_delete = query_to_delete
+            self.__options = options if options is not None else QueryOperationOptions()
+
+        def create_request(self, server_node):
+            url = server_node.url + "/databases/" + server_node.database + "/queries"
+            path = (
+                f"?allowStale={self.__options.allow_stale}&maxOpsPerSec={self.__options.max_ops_per_sec or ''}"
+                f"&details={self.__options.retrieve_details}"
+            )
+            if self.__options.stale_timeout is not None:
+                path += "&staleTimeout=" + str(self.__options.stale_timeout)
+
+            url += path
+            data = self.__query_to_delete.to_json()
+            return requests.Request("DELETE", url, data=data)
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                self._throw_invalid_response()
+            response = json.loads(response)
+            self.result = OperationIdResult(response["OperationId"], response["OperationNodeTag"])
+
+        def is_read_request(self) -> bool:
+            return False
+
+
+class PatchByQueryOperation(IOperation[OperationIdResult]):
+    def __init__(self, query_to_update: Union[IndexQuery, str], options: Optional[QueryOperationOptions] = None):
+        if query_to_update is None:
+            raise ValueError("Invalid query")
+        super().__init__()
+        if isinstance(query_to_update, str):
+            query_to_update = IndexQuery(query=query_to_update)
+        self.__query_to_update = query_to_update
+        if options is None:
+            options = QueryOperationOptions()
+        self.__options = options
+
+    def get_command(
+        self, store: "DocumentStore", conventions: "DocumentConventions", cache: Optional[HttpCache] = None
+    ) -> RavenCommand[OperationIdResult]:
+        return self.__PatchByQueryCommand(conventions, self.__query_to_update, self.__options)
+
+    class __PatchByQueryCommand(RavenCommand[OperationIdResult]):
+        def __init__(
+            self, conventions: "DocumentConventions", query_to_update: IndexQuery, options: QueryOperationOptions
+        ):
+            super().__init__(OperationIdResult)
+            self.__conventions = conventions
+            self.__query_to_update = query_to_update
+            self.__options = options
+
+        def create_request(self, server_node) -> requests.Request:
+            if not isinstance(self.__query_to_update, IndexQuery):
+                raise ValueError("query must be IndexQuery Type")
+
+            url = server_node.url + "/databases/" + server_node.database + "/queries"
+            path = (
+                f"?allowStale={self.__options.allow_stale}&maxOpsPerSec={self.__options.max_ops_per_sec or ''}"
+                f"&details={self.__options.retrieve_details}"
+            )
+            if self.__options.stale_timeout is not None:
+                path += "&staleTimeout=" + str(self.__options.stale_timeout)
+
+            url += path
+            data = {"Query": self.__query_to_update.to_json()}
+            return requests.Request("PATCH", url, data=data)
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                self._throw_invalid_response()
+            response = json.loads(response)
+            self.result = OperationIdResult(response["OperationId"], response["OperationNodeTag"])
+
+        def is_read_request(self) -> bool:
+            return False

@@ -1,4 +1,6 @@
 from threading import Lock
+from typing import TYPE_CHECKING
+
 from pyravendb.changes.observers import Observable
 from pyravendb.subscriptions.data import IncrementalJsonParser
 import websocket
@@ -11,9 +13,12 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError, Future
 import logging
 import sys
 
+if TYPE_CHECKING:
+    from pyravendb.http.request_executor import RequestExecutor
+
 
 class DatabaseChanges:
-    def __init__(self, request_executor, database_name, on_close, on_error=None, executor=None):
+    def __init__(self, request_executor: "RequestExecutor", database_name, on_close, on_error=None, executor=None):
         self._request_executor = request_executor
         self._conventions = request_executor.conventions
         self._database_name = database_name
@@ -42,11 +47,10 @@ class DatabaseChanges:
         self._logger.setLevel(logging.DEBUG)
 
     def do_work(self):
-        preferred_node = self._request_executor.get_preferred_node()
+        preferred_node = self._request_executor.preferred_node.current_node  # todo: refactor, protected access
         url = (
-            "{0}/databases/{1}/changes".format(preferred_node.url, self._database_name)
+            f"{preferred_node.url}/databases/{self._database_name}/changes".replace("http://", "ws://")
             .lower()
-            .replace("http://", "ws://")
             .replace("https://", "wss://")
             .replace(".fiddler", "")
         )
@@ -54,14 +58,15 @@ class DatabaseChanges:
         while not self._closed:
             try:
                 if not self.client_websocket.connected:
-                    if self._request_executor.certificate:
-                        if isinstance(self._request_executor.certificate, tuple):
-                            (crt, key) = self._request_executor.certificate
-                            self.client_websocket.sock_opt.sslopt.update({"certfile": crt, "keyfile": key})
-                        else:
-                            self.client_websocket.sock_opt.sslopt.update(
-                                {"ca_certs": self._request_executor.certificate}
-                            )
+                    # todo: certificates
+                    # if self._request_executor.certificate:
+                    #    if isinstance(self._request_executor.certificate, tuple):
+                    #        (crt, key) = self._request_executor.certificate
+                    #        self.client_websocket.sock_opt.sslopt.update({"certfile": crt, "keyfile": key})
+                    #    else:
+                    #        self.client_websocket.sock_opt.sslopt.update(
+                    #            {"ca_certs": self._request_executor.certificate}
+                    #        )
                     self.client_websocket.connect(url)
                     for observables in self._observables.values():
                         for observer in observables.values():

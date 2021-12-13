@@ -18,7 +18,13 @@ from pyravendb.documents.session.in_memory_document_session_operations import In
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
 from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
-from pyravendb.documents.session import SessionOptions, ResponseTimeInformation, JavaScriptArray, JavaScriptMap
+from pyravendb.documents.session import (
+    SessionOptions,
+    ResponseTimeInformation,
+    JavaScriptArray,
+    JavaScriptMap,
+    DocumentsChanges,
+)
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.loaders.include_builder import IncludeBuilder
 from pyravendb.raven_operations.load_operation import LoadOperation
@@ -188,7 +194,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return pyravendb.documents.Lazy(__supplier)
 
-    def lazy_load_internal(
+    def __lazy_load_internal(
         self, object_type: type, keys: List[str], includes: List[str], on_eval: Callable[[Dict[str, object]], None]
     ) -> pyravendb.documents.Lazy:
         if self.check_if_id_already_included(keys, includes):
@@ -208,7 +214,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return None  # todo: return default value of object_type, not always None
         if includes is None:
             load_operation = LoadOperation(self)
-            self.load_internal_stream(
+            self.__load_internal_stream(
                 [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys, load_operation, None
             )
             result = load_operation.get_documents(object_type)
@@ -226,7 +232,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             else None
         )
 
-        result = self.load_internal(
+        result = self.__load_internal(
             object_type,
             [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys,
             include_builder.documents_to_include if include_builder.documents_to_include else None,
@@ -238,7 +244,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return result.popitem()[1] if len(result) == 1 else result
 
-    def load_internal(
+    def __load_internal(
         self,
         object_type: type,
         keys: List[str],
@@ -269,7 +275,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return load_operation.get_documents(object_type)
 
-    def load_internal_stream(self, keys: List[str], operation: LoadOperation, stream: bytes) -> None:
+    def __load_internal_stream(self, keys: List[str], operation: LoadOperation, stream: bytes) -> None:
         operation.by_keys(keys)
 
         command = operation.create_request()
@@ -325,9 +331,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return command
 
-    def counters_for(self):
-        pass  # todo: implement
-
     def query(
         self,
         object_type: type = None,
@@ -345,17 +348,18 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__vals_count = 0
             self.__custom_count = 0
 
-        def refresh(self, entity: object) -> None:
+        def refresh(self, entity: object) -> object:
             document_info = self.__session.documents_by_entity.get(entity)
             if document_info is None:
                 raise ValueError("Cannot refresh a transient instance")
             self.__session.increment_requests_count()
 
             command = GetDocumentsCommand(
-                options=GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
+                GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
             )
-            self.__session.request_executor.execute(command, self.__session._session_info)
-            self.__session._refresh_internal(entity, command, document_info)
+            self.__session.request_executor.execute_command(command, self.__session._session_info)
+            entity = self.__session._refresh_internal(entity, command, document_info)
+            return entity
 
         def raw_query(self, query: str, query_parameters: Optional[dict] = None, **kwargs):  # -> RawDocumentQuery:
             self._query = Query(self.__session)(**kwargs)
@@ -363,6 +367,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
+
+        def what_changed(self) -> Dict[str, List[DocumentsChanges]]:
+            return self.__session._what_changed()
 
         def exists(self, key: str) -> bool:
             if key is None:
@@ -447,7 +454,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if keys is None:
                 raise ValueError("Keys cannot be None")
 
-            self.__session.load_internal_stream(keys, LoadOperation(self.__session), output)
+            self.__session.__load_internal_stream(keys, LoadOperation(self.__session), output)
 
         def __try_merge_patches(self, key: str, patch_request: PatchRequest) -> bool:
             command = self.__session.deferred_commands_map.get(

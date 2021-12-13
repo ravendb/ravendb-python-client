@@ -9,6 +9,7 @@ class User:
         self.name = name
 
 
+@unittest.skip("TimeSeries")
 class TestTimeSeries(TestBase):
     def setUp(self):
         super().setUp()

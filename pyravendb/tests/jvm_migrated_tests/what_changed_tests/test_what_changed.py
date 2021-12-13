@@ -56,18 +56,19 @@ class TestWhatChanged(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            self.assertFalse(session.advanced.has_changes())
+            self.assertFalse(session.has_changes())
 
-            user1, user2 = session.load(["users/1", "users/2"], User)
-
-            self.assertFalse(session.advanced.has_changed(user1))
-            self.assertFalse(session.advanced.has_changed(user2))
+            users = session.load(["users/1", "users/2"], User)
+            user1 = users["users/1"]
+            user2 = users["users/2"]
+            self.assertFalse(session.has_changed(user1))
+            self.assertFalse(session.has_changed(user2))
 
             user1.name = "newName"
 
-            self.assertTrue(session.advanced.has_changed(user1))
-            self.assertFalse(session.advanced.has_changed(user2))
-            self.assertTrue(session.advanced.has_changes())
+            self.assertTrue(session.has_changed(user1))
+            self.assertFalse(session.has_changed(user2))
+            self.assertTrue(session.has_changes())
 
     def test_what_changed_new_field(self):
         with self.store.open_session() as session:
@@ -82,7 +83,7 @@ class TestWhatChanged(TestBase):
             user.age = 5
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertEqual("new_field", changes["users/1"][0]["change"])
+            self.assertEqual("new_field", str(changes["users/1"][0]["change"]))
             session.save_changes()
 
     def test_what_changed_remove_field(self):
@@ -97,7 +98,7 @@ class TestWhatChanged(TestBase):
             del u.name
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertEqual("removed_field", changes["users/1"][0]["change"])
+            self.assertEqual("removed_field", str(changes["users/1"][0]["change"]))
             session.save_changes()
 
     # its not the same yet its valid
@@ -113,7 +114,7 @@ class TestWhatChanged(TestBase):
             user.age = 6
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertEqual("field_changed", changes["users/1"][0]["change"])
+            self.assertEqual("field_changed", str(changes["users/1"][0]["change"]))
             session.save_changes()
 
     def test_what_changed_array_value_changed(self):
@@ -122,7 +123,7 @@ class TestWhatChanged(TestBase):
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
             self.assertEqual(1, len(changes["users/1"]))
-            self.assertEqual("document_added", changes["users/1"][0]["change"])
+            self.assertEqual("document_added", str(changes["users/1"][0]["change"]))
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -133,11 +134,11 @@ class TestWhatChanged(TestBase):
 
             self.assertEqual(2, len(changes["users/1"]))
 
-            self.assertEqual("array_value_changed", changes["users/1"][0]["change"])
+            self.assertEqual("array_value_changed", str(changes["users/1"][0]["change"]))
             self.assertEqual("1", str(changes["users/1"][0]["old_value"]))
             self.assertEqual(2, changes["users/1"][0]["new_value"])
 
-            self.assertEqual("array_value_changed", changes["users/1"][1]["change"])
+            self.assertEqual("array_value_changed", str(changes["users/1"][1]["change"]))
             self.assertEqual("b", str(changes["users/1"][1]["old_value"]))
             self.assertEqual("c", str(changes["users/1"][1]["new_value"]))
 
@@ -153,11 +154,11 @@ class TestWhatChanged(TestBase):
             self.assertEqual(1, len(changes))
             self.assertEqual(2, len(changes["arr/1"]))
 
-            self.assertEqual("array_value_added", changes["arr/1"][0]["change"])
+            self.assertEqual("array_value_added", str(changes["arr/1"][0]["change"]))
             self.assertEqual("c", str(changes["arr/1"][0]["new_value"]))
             self.assertEqual(None, changes["arr/1"][0]["old_value"])
 
-            self.assertEqual("array_value_added", changes["arr/1"][1]["change"])
+            self.assertEqual("array_value_added", str(changes["arr/1"][1]["change"]))
             self.assertEqual(2, changes["arr/1"][1]["new_value"])
             self.assertIsNone(changes["arr/1"][1]["old_value"])
 
@@ -173,7 +174,7 @@ class TestWhatChanged(TestBase):
             self.assertEqual(1, len(changes))
             self.assertEqual(2, len(changes["arr/1"]))
 
-            self.assertEqual("array_value_removed", changes["arr/1"][1]["change"])
+            self.assertEqual("array_value_removed", str(changes["arr/1"][1]["change"]))
             self.assertEqual("b", str(changes["arr/1"][1]["old_value"]))
             self.assertIsNone(changes["arr/1"][1]["new_value"])
 
@@ -214,33 +215,25 @@ class TestWhatChanged(TestBase):
             self.assertEqual(0, len(changes))
 
     def test_what_changed_unhashables(self):
-        data = TestData(data="classified", Id="")
+        data = TestData(data="classified", Id="data/1")
         with self.store.open_session() as session:
-            self.assertEqual("", data.Id)
             session.store(data)
-            self.assertEqual("TestDatas/1-A", data.Id)
-
-            changes = session.advanced.what_changed()
-
-            self.assertEqual(1, len(changes))
-            self.assertEqual(1, len(changes["TestDatas/1-A"]))
-            self.assertEqual("document_added", changes["TestDatas/1-A"][0]["change"])
             session.save_changes()
 
             data.data = "covert"
             changes = session.advanced.what_changed()
-            self.assertEqual(1, len(changes["TestDatas/1-A"]))
+            self.assertEqual(1, len(changes["data/1"]))
 
-            doc_changes = changes["TestDatas/1-A"][0]
-            self.assertEqual("field_changed", doc_changes["change"])
+            doc_changes = changes["data/1"][0]
+            self.assertEqual("field_changed", str(doc_changes["change"]))
             self.assertEqual("data", doc_changes["field_name"])
             self.assertEqual("classified", doc_changes["old_value"])
             self.assertEqual("covert", doc_changes["new_value"])
             session.save_changes()
 
         with self.store.open_session() as session:
-            data = session.load("TestDatas/1-A", TestData)
+            data = session.load("data/1", TestData)
             session.delete(data)
             changes = session.advanced.what_changed()
-            self.assertEqual(1, len(changes["TestDatas/1-A"]))
-            self.assertEqual("document_deleted", changes["TestDatas/1-A"][0]["change"])
+            self.assertEqual(1, len(changes["data/1"]))
+            self.assertEqual("document_deleted", str(changes["data/1"][0].change))

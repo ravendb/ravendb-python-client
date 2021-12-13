@@ -42,7 +42,7 @@ class Operation:
         while True:
             status = self.fetch_operations_status()
             # todo: check if it isn't a string at the begging - if there's a need to parse on string
-            operation_status = str(status.get("Status"))
+            operation_status = status.get("Status")
 
             if operation_status == "Completed":
                 return
@@ -54,7 +54,7 @@ class Operation:
                     result, doc_operations.OperationExceptionResult, True
                 )
                 schema = ExceptionDispatcher.ExceptionSchema(
-                    self.__request_executor.url, exception_result.error, exception_result.message, exception_result.type
+                    self.__request_executor.url, exception_result.type, exception_result.message, exception_result.error
                 )
                 raise ExceptionDispatcher.get(schema, exception_result.status_code)
 

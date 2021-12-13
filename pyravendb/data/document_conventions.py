@@ -437,7 +437,7 @@ class DocumentConventions(object):
 
     @staticmethod
     def default_transform_collection_name_to_document_id_prefix(collection_name: str) -> str:
-        upper_count = len(list(filter(lambda char: char.isupper, collection_name)))
+        upper_count = len(list(filter(str.isupper, collection_name)))
         if upper_count <= 1:
             return collection_name.lower()
 

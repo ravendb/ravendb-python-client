@@ -1,6 +1,6 @@
+from pyravendb.documents.indexes import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.indexes import IndexDefinition
 from pyravendb.changes.observers import ActionObserver
 from datetime import datetime, timedelta
 import unittest
@@ -93,7 +93,9 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(indexes_change.append)
         observer.ensure_subscribe_now()
 
-        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+        index_definition_dogs = IndexDefinition()
+        index_definition_dogs.name = "Dogs"
+        index_definition_dogs.maps = ["from doc in docs.Dogs select new {doc.brand}"]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs))
 
@@ -108,8 +110,13 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(index_change.append)
         observer.ensure_subscribe_now()
 
-        index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
-        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+        index_definition_users = IndexDefinition()
+        index_definition_users.name = "Users"
+        index_definition_users.maps = ["from doc in docs.Users select new {doc.Name}"]
+
+        index_definition_dogs = IndexDefinition()
+        index_definition_dogs.name = "Dogs"
+        index_definition_dogs.maps = ["from doc in docs.Dogs select new {doc.brand}"]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
 
@@ -129,8 +136,13 @@ class TestDatabaseChanges(TestBase):
         observer.subscribe(indexes.append)
         observer.ensure_subscribe_now()
 
-        index_definition_users = IndexDefinition("Users", "from doc in docs.Users select new {doc.Name}")
-        index_definition_dogs = IndexDefinition("Dogs", "from doc in docs.Dogs select new {doc.brand}")
+        index_definition_users = IndexDefinition()
+        index_definition_users.name = "Users"
+        index_definition_users.maps = ["from doc in docs.Users select new {doc.Name}"]
+
+        index_definition_dogs = IndexDefinition()
+        index_definition_dogs.name = "Dogs"
+        index_definition_dogs.maps = ["from doc in docs.Dogs select new {doc.brand}"]
 
         self.store.maintenance.send(PutIndexesOperation(index_definition_dogs, index_definition_users))
 
@@ -159,8 +171,9 @@ class TestDatabaseChanges(TestBase):
         observer.ensure_subscribe_now()
         self.assertEqual(3, len(documents))
         for document in documents:
-            self.assertTrue(document["Id"].startswith("users"))
+            self.assertTrue(document["Id"].lower().startswith("users"))
 
+    @unittest.skip("TimeSeries")
     def test_for_all_time_series(self):
         event = Event()
         changes = []
@@ -190,6 +203,7 @@ class TestDatabaseChanges(TestBase):
         event.wait(1)
         self.assertEqual(len(changes), 2)
 
+    @unittest.skip("TimeSeries")
     def test_for_time_series_of_document(self):
         changes = []
 
@@ -215,6 +229,7 @@ class TestDatabaseChanges(TestBase):
         self.assertTrue(len(changes) == 2)
         self.assertEqual("users/1-A", changes[0]["DocumentId"])
 
+    @unittest.skip("TimeSeries")
     def test_for_time_series_of_document_with_time_series_name(self):
         changes = []
 
@@ -239,6 +254,7 @@ class TestDatabaseChanges(TestBase):
         self.assertEqual("Put", changes[0]["Type"])
         self.assertEqual("Heartrate", changes[0]["Name"])
 
+    @unittest.skip("TimeSeries")
     def test_for_time_series(self):
         changes = []
 
@@ -263,6 +279,7 @@ class TestDatabaseChanges(TestBase):
         sleep(1)
         self.assertTrue(len(changes) == 2)
 
+    @unittest.skip("Counters")
     def test_for_all_counters(self):
         event = Event()
         changes = []
@@ -292,6 +309,7 @@ class TestDatabaseChanges(TestBase):
         event.wait(1)
         self.assertEqual(len(changes), 2)
 
+    @unittest.skip("Counters")
     def test_for_counters_of_document(self):
         changes = []
 
@@ -317,6 +335,7 @@ class TestDatabaseChanges(TestBase):
         self.assertTrue(len(changes) == 2)
         self.assertTrue(all("users/1-A" == change["DocumentId"] for change in changes))
 
+    @unittest.skip("Counters")
     def test_for_counter_of_document(self):
         changes = []
 
@@ -340,6 +359,7 @@ class TestDatabaseChanges(TestBase):
         self.assertEqual("Put", changes[0]["Type"])
         self.assertEqual("Shares", changes[0]["Name"])
 
+    @unittest.skip("Counters")
     def test_for_counter(self):
         changes = []
 
