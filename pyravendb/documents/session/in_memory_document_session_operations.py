@@ -1744,6 +1744,7 @@ class InMemoryDocumentSessionOperations:
         document_info_by_id = self.documents_by_id.get(document_info.key)
         if document_info_by_id is not None:
             document_info_by_id.entity = entity
+        return entity
 
     def _get_operation_result(self, object_type: type, result: object) -> object:
         if result is None:

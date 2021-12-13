@@ -1,7 +1,9 @@
 from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations import DeleteByQueryOperation, PatchByQueryOperation, QueryOperationOptions
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import *
 from pyravendb.raven_operations.operations import *
+from pyravendb.documents.operations.operation import Operation as NewOperation
 import unittest
 
 
@@ -58,9 +60,23 @@ class TestOperations(TestBase):
             query_to_update=IndexQuery(query="FROM INDEX 'Patches' Where patched=False UPDATE {{this.patched=true}}"),
             options=options,
         )
-        operation_id = self.store.operations.send(operation)
-        result = self.store.operations.wait_for_operation_complete(operation_id=operation_id["operation_id"])
-        self.assertTrue(len(result["Result"]["Details"]) == 2)
+        response = self.store.operations.send(operation)
+
+        operation = NewOperation(
+            self.store.get_request_executor(),
+            lambda: None,
+            self.store.conventions,
+            response.operation_id,
+            response.operation_node_tag,
+        )
+        operation.wait_for_completion()
+        with self.store.open_session() as session:
+            result = session.load_starting_with(Patch, "patches")
+            values = list(map(lambda patch: patch.patched, result))
+            self.assertEqual(3, len(result))
+            self.assertEqual(3, len(values))
+            for v in values:
+                self.assertTrue(v)
 
     def test_fail_patch_wrong_index_name(self):
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
@@ -72,16 +88,24 @@ class TestOperations(TestBase):
             options=options,
         )
         with self.assertRaises(exceptions.InvalidOperationException):
-            result = self.store.operations.send(operation)
-            if result:
-                self.store.operations.wait_for_operation_complete(result["operation_id"])
+            response = self.store.operations.send(operation)
+            if response:
+                operation = NewOperation(
+                    self.store.get_request_executor(),
+                    lambda: None,
+                    self.store.conventions,
+                    response.operation_id,
+                    response.operation_node_tag,
+                )
+                operation.wait_for_completion()
             else:
                 raise exceptions.ErrorResponseException("Got empty or None response from the server")
 
     def test_delete_by_index(self):
-        self.store.maintenance.send(
-            PutIndexesOperation(IndexDefinition("Users", maps="from doc in docs.Users select new {name=doc.name}"))
-        )
+
+        ind = IndexDefinition(name="Users")
+        ind.maps = ["from doc in docs.Users select new {name=doc.name}"]
+        self.store.maintenance.send(PutIndexesOperation(ind))
 
         with self.store.open_session() as session:
             session.store(User(name="delete", age=0), key="deletes/1-A")
@@ -91,9 +115,19 @@ class TestOperations(TestBase):
             assert query_result
 
         index_query = IndexQuery(query="FROM INDEX 'Users' WHERE name='delete'")
-        operation_id = self.store.operations.send(DeleteByQueryOperation(index_query))
-        result = self.store.operations.wait_for_operation_complete(operation_id=operation_id["operation_id"])
-        self.assertEqual(result["Result"]["Total"], 1)
+        response = self.store.operations.send(DeleteByQueryOperation(index_query))
+        operation = NewOperation(
+            self.store.get_request_executor(),
+            lambda: None,
+            self.store.conventions,
+            response.operation_id,
+            response.operation_node_tag,
+        )
+        operation.wait_for_completion()
+        with self.store.open_session() as session:
+            result = session.load_starting_with(User, "users")
+            self.assertEqual(1, len(result))
+            self.assertNotEqual("delete", result[0].name)
 
     def test_patch_by_collection(self):
         with self.store.open_session() as session:
@@ -104,15 +138,38 @@ class TestOperations(TestBase):
 
         index_query = IndexQuery("From Patches Update {{this.patched=true}}", wait_for_non_stale_results=True)
 
-        operation_id = self.store.operations.send(PatchByQueryOperation(query_to_update=index_query))
-        result = self.store.operations.wait_for_operation_complete(operation_id=operation_id["operation_id"])
-        self.assertTrue(result["Result"]["Total"] == 3)
+        response = self.store.operations.send(PatchByQueryOperation(query_to_update=index_query))
+        operation = NewOperation(
+            self.store.get_request_executor(),
+            lambda: None,
+            self.store.conventions,
+            response.operation_id,
+            response.operation_node_tag,
+        )
+        operation.wait_for_completion()
+        with self.store.open_session() as session:
+            result = session.load_starting_with(Patch, "patches")
+            values = map(lambda patch: patch.patched, result)
+
+            for v in values:
+                self.assertTrue(v)
 
     def test_delete_by_collection_(self):
+        with self.store.open_session() as session:
+            self.assertEqual(1, len(session.load_starting_with(User, "users")))
         index_query = IndexQuery("From Users")
-        operation_id = self.store.operations.send(DeleteByQueryOperation(query_to_delete=index_query))["operation_id"]
-        result = self.store.operations.wait_for_operation_complete(operation_id)
-        self.assertTrue(result["Result"]["Total"] == 1)
+        operation = DeleteByQueryOperation(query_to_delete=index_query)
+        result = self.store.operations.send(operation)
+        op = NewOperation(
+            self.store.get_request_executor(),
+            lambda: None,
+            self.store.conventions,
+            result.operation_id,
+            result.operation_node_tag,
+        )
+        op.wait_for_completion()
+        with self.store.open_session() as session:
+            self.assertEqual(0, len(session.load_starting_with(User, "users")))
 
 
 if __name__ == "__main__":

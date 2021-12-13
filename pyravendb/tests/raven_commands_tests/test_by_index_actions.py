@@ -1,9 +1,17 @@
 import unittest
 from pyravendb.data.document_conventions import DocumentConventions
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.data.query import IndexQuery
 from pyravendb.documents.commands import PutDocumentCommand
 from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations import (
+    DeleteByQueryOperation,
+    QueryOperationOptions,
+    Operation,
+    PatchByQueryOperation,
+)
 from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.raven_operations.query_operation import QueryCommand
 from pyravendb.tests.test_base import TestBase
 
 
@@ -41,16 +49,20 @@ class TestByIndexActions(TestBase):
             index_query=IndexQuery(query="From INDEX 'Testing_Sort'", wait_for_non_stale_results=True),
             conventions=DocumentConventions(),
         )
-        self.requests_executor.execute(query_command)
+        self.requests_executor.execute_command(query_command)
 
         patch_command = PatchByQueryOperation(
             "From INDEX 'Testing_Sort' Update {{{0}}}".format(self.patch),
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
-        result = self.requests_executor.execute(patch_command)
-        result = self.store.operations.wait_for_operation_complete(result["operation_id"])
-        self.assertIsNotNone(result)
-        self.assertTrue(result["Result"]["Total"] >= 50)
+        self.requests_executor.execute_command(patch_command)
+        Operation(
+            self.requests_executor,
+            lambda: None,
+            self.store.conventions,
+            patch_command.result.operation_id,
+            patch_command.result.operation_node_tag,
+        ).wait_for_completion()
 
     def test_update_by_index_fail(self):
         patch_command = PatchByQueryOperation(
@@ -58,17 +70,29 @@ class TestByIndexActions(TestBase):
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
         with self.assertRaises(exceptions.InvalidOperationException):
-            response = self.requests_executor.execute(patch_command)
-            self.store.operations.wait_for_operation_complete(response["operation_id"])
+            self.requests_executor.execute_command(patch_command)
+            Operation(
+                self.requests_executor,
+                lambda: None,
+                self.store.conventions,
+                patch_command.result.operation_id,
+                patch_command.result.operation_node_tag,
+            ).wait_for_completion()
 
     def test_delete_by_index_fail(self):
         delete_by_index_command = DeleteByQueryOperation("From Index 'region_2' WHERE Name = 'Western'").get_command(
             self.store, self.store.conventions
         )
         with self.assertRaises(exceptions.InvalidOperationException):
-            response = self.requests_executor.execute_command(delete_by_index_command)
-            self.assertIsNotNone(response)
-            self.store.operations.wait_for_operation_complete(response["operation_id"])
+            self.requests_executor.execute_command(delete_by_index_command)
+            self.assertIsNotNone(delete_by_index_command.result)
+            Operation(
+                self.requests_executor,
+                lambda: None,
+                self.store.conventions,
+                delete_by_index_command.result.operation_id,
+                delete_by_index_command.result.operation_node_tag,
+            ).wait_for_completion()
 
     def test_delete_by_index_success(self):
         query_command = QueryCommand(
@@ -78,14 +102,22 @@ class TestByIndexActions(TestBase):
                 wait_for_non_stale_results=True,
             ),
         )
-        self.requests_executor.execute(query_command)
+        self.requests_executor.execute_command(query_command)
         delete_by_index_command = DeleteByQueryOperation(
             "FROM INDEX 'Testing_Sort' WHERE DocNumber BETWEEN '0' AND '49'",
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
-        response = self.requests_executor.execute(delete_by_index_command)
-        result = self.store.operations.wait_for_operation_complete(response["operation_id"])
-        assert result["Status"] == "Completed"
+        self.requests_executor.execute_command(delete_by_index_command)
+        response = delete_by_index_command.result
+        x = Operation(
+            self.requests_executor,
+            lambda: None,
+            self.store.conventions,
+            response.operation_id,
+            response.operation_node_tag,
+        )
+        # wait_for_completion doesnt return anything (None) when operation state is 'Completed'
+        self.assertIsNone(x.wait_for_completion())
 
 
 if __name__ == "__main__":

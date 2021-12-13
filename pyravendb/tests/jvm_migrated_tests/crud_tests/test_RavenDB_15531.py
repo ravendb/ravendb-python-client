@@ -40,7 +40,7 @@ class TestRavenDB15531(TestBase):
             self.assertEqual(changes[0]["old_value"], "State2")
             self.assertEqual(changes[0]["new_value"], "State3")
 
-            session.advanced.refresh(doc)
+            doc = session.advanced.refresh(doc)
 
             doc.name = "State4"
             changes1 = session.advanced.what_changed()
@@ -48,7 +48,7 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(changes[0]["change"], "field_changed")
+            self.assertEqual(str(changes[0]["change"]), "field_changed")
             self.assertEqual(changes[0]["field_name"], "name")
             self.assertEqual(changes[0]["old_value"], "State2")
             self.assertEqual(changes[0]["new_value"], "State4")

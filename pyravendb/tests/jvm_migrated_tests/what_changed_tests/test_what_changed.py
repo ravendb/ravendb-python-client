@@ -215,33 +215,25 @@ class TestWhatChanged(TestBase):
             self.assertEqual(0, len(changes))
 
     def test_what_changed_unhashables(self):
-        data = TestData(data="classified", Id="")
+        data = TestData(data="classified", Id="data/1")
         with self.store.open_session() as session:
-            self.assertEqual("", data.Id)
             session.store(data)
-            self.assertEqual("TestDatas/1-A", data.Id)
-
-            changes = session.advanced.what_changed()
-
-            self.assertEqual(1, len(changes))
-            self.assertEqual(1, len(changes["TestDatas/1-A"]))
-            self.assertEqual("document_added", changes["TestDatas/1-A"][0]["change"])
             session.save_changes()
 
             data.data = "covert"
             changes = session.advanced.what_changed()
-            self.assertEqual(1, len(changes["TestDatas/1-A"]))
+            self.assertEqual(1, len(changes["data/1"]))
 
-            doc_changes = changes["TestDatas/1-A"][0]
-            self.assertEqual("field_changed", doc_changes["change"])
+            doc_changes = changes["data/1"][0]
+            self.assertEqual("field_changed", str(doc_changes["change"]))
             self.assertEqual("data", doc_changes["field_name"])
             self.assertEqual("classified", doc_changes["old_value"])
             self.assertEqual("covert", doc_changes["new_value"])
             session.save_changes()
 
         with self.store.open_session() as session:
-            data = session.load("TestDatas/1-A", TestData)
+            data = session.load("data/1", TestData)
             session.delete(data)
             changes = session.advanced.what_changed()
-            self.assertEqual(1, len(changes["TestDatas/1-A"]))
-            self.assertEqual("document_deleted", changes["TestDatas/1-A"][0]["change"])
+            self.assertEqual(1, len(changes["data/1"]))
+            self.assertEqual("document_deleted", str(changes["data/1"][0].change))
