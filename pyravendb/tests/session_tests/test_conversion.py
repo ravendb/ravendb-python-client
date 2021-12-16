@@ -1,3 +1,4 @@
+from pyravendb.documents.session.event_args import BeforeStoreEventArgs
 from pyravendb.tests.test_base import TestBase
 from datetime import datetime, timedelta
 from pyravendb.tools.utils import Utils
@@ -41,8 +42,8 @@ class TestConversion(TestBase):
         self.delete_all_topology_files()
 
     def test_before_store(self):
-        def update_item(session, doc_id, entity):
-            entity.val = 2
+        def update_item(args: BeforeStoreEventArgs):
+            args.entity.val = 2
 
         with self.store.open_session() as session:
             session.on_before_store = update_item

@@ -104,11 +104,19 @@ class SingleNodeBatchCommand(RavenCommand):
         self.__commands = commands
         self.__options = options
         self.__mode = mode
-        self.__attachment_streams: Set[bytes] = set()
+        self.__attachment_streams: List[bytes] = list()
 
         for command in commands:
-            # todo: attachments stuff
-            pass
+            if isinstance(command, PutAttachmentCommandData):
+                if self.__attachment_streams is None:
+                    self.__attachment_streams = []
+                stream = command.stream
+                if stream in self.__attachment_streams:
+                    raise RuntimeError(
+                        "It is forbidden to re-use the same stream for more than one attachment. "
+                        "Use a unique stream per put attachment command."
+                    )
+                self.__attachment_streams.append(stream)
 
     def __enter__(self):
         return self
@@ -122,14 +130,34 @@ class SingleNodeBatchCommand(RavenCommand):
 
     def create_request(self, node: ServerNode) -> requests.Request:
         request = requests.Request(method="POST")
-        request.data = {"Commands": [command.serialize(self.__conventions) for command in self.__commands]}
+        files = {"main": None}
+        for command in self.__commands:
+            if command.command_type == CommandType.ATTACHMENT_PUT:
+
+                command: PutAttachmentCommandData
+                files[command.name] = (
+                    command.name,
+                    command.stream,
+                    command.content_type,
+                    {"Command-Type": "AttachmentStream"},
+                )
+            if not request.data:
+                request.data = {"Commands": []}
+            request.data["Commands"].append(command.serialize(self.__conventions))
+
         if self.__mode == TransactionMode.CLUSTER_WIDE:
             request.data["TransactionMode"] = "ClusterWide"
-        # todo: attachments stuff
+            if files:
+                request.use_stream = True
+
+        if len(files) > 1:
+            files["main"] = json.dumps(request.data, default=self.__conventions.json_default_method)
+            request.files = files
+            request.data = None
+
         sb = [f"{node.url}/databases/{node.database}/bulk_docs"]
         self.__append_options(sb)
 
-        request.headers["Content-type"] = "application/json"
         request.url = sb[0]
 
         return request
@@ -475,6 +503,47 @@ class CountersBatchCommandData(CommandData):
         if self._from_etl:
             json_dict["FromEtl"] = self._from_etl
         return json_dict
+
+
+class PutAttachmentCommandData(CommandData):
+    def __init__(self, document_id: str, name: str, stream: bytes, content_type: str, change_vector: str):
+        if not document_id:
+            raise ValueError(document_id)
+        if not name:
+            raise ValueError(name)
+
+        super(PutAttachmentCommandData, self).__init__(document_id, name, change_vector, CommandType.ATTACHMENT_PUT)
+        self.__stream = stream
+        self.__content_type = content_type
+
+    @property
+    def stream(self):
+        return self.__stream
+
+    @property
+    def content_type(self):
+        return self.__content_type
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        return {
+            "Id": self._key,
+            "Name": self._name,
+            "ContentType": self.__content_type,
+            "ChangeVector": self._change_vector,
+            "Type": str(self._command_type),
+        }
+
+
+class DeleteAttachmentCommandData(CommandData):
+    def __init__(self, document_id: str, name: str, change_vector: str):
+        if not document_id:
+            raise ValueError(document_id)
+        if not name:
+            raise ValueError(name)
+        super().__init__(document_id, name, change_vector, CommandType.ATTACHMENT_DELETE)
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        return {"Id": self._key, "Name": self.name, "ChangeVector": self.change_vector, "Type": self.command_type}
 
 
 # ------------ OPTIONS ------------

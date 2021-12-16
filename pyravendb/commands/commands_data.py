@@ -100,65 +100,6 @@ class PatchCommandData(_CommandData):
         return data
 
 
-class PutAttachmentCommandData(_CommandData):
-    def __init__(self, document_id, name, stream, content_type, change_vector):
-        """
-        @param document_id: The id of the document
-        @param name: Name of the attachment
-        @param stream: The attachment as bytes (ex.open("file_path", "rb"))
-        @param content_type: The type of the attachment (ex.image/png)
-        @param change_vector: The change vector of the document
-        """
-
-        if not document_id:
-            raise ValueError(document_id)
-        if not name:
-            raise ValueError(name)
-
-        super(PutAttachmentCommandData, self).__init__(document_id, "AttachmentPUT", change_vector)
-        self.name = name
-        self.stream = stream
-        self.content_type = content_type
-
-    def to_json(self):
-        data = {
-            "Id": self.key,
-            "Name": self.name,
-            "ContentType": self.content_type,
-            "Type": self._type,
-        }
-
-        if self.change_vector:
-            data["ChangeVector"] = self.change_vector
-
-        return data
-
-
-class DeleteAttachmentCommandData(_CommandData):
-    def __init__(self, document_id, name, change_vector):
-        """
-        @param document_id: The id of the document
-        @param name: Name of the attachment
-        @param change_vector: The change vector of the document
-        """
-
-        if not document_id:
-            raise ValueError(document_id)
-        if not name:
-            raise ValueError(name)
-
-        super(DeleteAttachmentCommandData, self).__init__(document_id, "AttachmentDELETE", change_vector)
-        self.name = name
-
-    def to_json(self):
-        data = {"Id": self.key, "Name": self.name, "Type": self._type}
-
-        if self.change_vector:
-            data["ChangeVector"] = self.change_vector
-
-        return data
-
-
 class TimeSeriesBatchCommandData(_CommandData):
     def __init__(
         self,

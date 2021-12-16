@@ -21,7 +21,7 @@ from pyravendb.http.http_cache import HttpCache
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.result import BatchCommandResult
 from pyravendb.serverwide.server_operation_executor import ServerOperationExecutor
-from pyravendb.tools.utils import CaseInsensitiveDict
+from pyravendb.tools.utils import CaseInsensitiveDict, Utils
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
 
 if TYPE_CHECKING:
@@ -292,13 +292,13 @@ class BatchOperation:
             elif command_type == CommandType.PATCH:
                 self.__handle_patch(batch_result)
             elif command_type == CommandType.ATTACHMENT_PUT:
-                raise NotImplementedError()
+                self.__handle_attachment_put(batch_result)
             elif command_type == CommandType.ATTACHMENT_DELETE:
-                raise NotImplementedError()
+                self.__handle_attachment_delete(batch_result)
             elif command_type == CommandType.ATTACHMENT_MOVE:
-                raise NotImplementedError()
+                self.__handle_attachment_move(batch_result)
             elif command_type == CommandType.ATTACHMENT_COPY:
-                raise NotImplementedError()
+                self.__handle_attachment_copy(batch_result)
             elif (
                 command_type == CommandType.COMPARE_EXCHANGE_PUT
                 or CommandType.COMPARE_EXCHANGE_DELETE
@@ -507,6 +507,102 @@ class BatchOperation:
             if not name and not value:
                 cache[1][name] = value
 
+    def __handle_attachment_put(self, batch_result: dict) -> None:
+        self.__handle_attachment_put_internal(
+            batch_result, CommandType.ATTACHMENT_PUT, "Id", "Name", "DocumentChangeVector"
+        )
+
+    def __handle_attachment_copy(self, batch_result: dict) -> None:
+        self.__handle_attachment_put_internal(
+            batch_result, CommandType.ATTACHMENT_COPY, "Id", "Name", "DocumentChangeVector"
+        )
+
+    def __handle_attachment_move(self, batch_result: dict) -> None:
+        self.__handle_attachment_delete_internal(
+            batch_result, CommandType.ATTACHMENT_MOVE, "Id", "Name", "DocumentChangeVector"
+        )
+        self.__handle_attachment_put_internal(
+            batch_result, CommandType.ATTACHMENT_MOVE, "DestinationId", "DestinationName", "DocumentChangeVector"
+        )
+
+    def __handle_attachment_delete(self, batch_result: dict) -> None:
+        self.__handle_attachment_delete_internal(
+            batch_result, CommandType.ATTACHMENT_DELETE, constants.Documents.Metadata.ID, "Name", "DocumentChangeVector"
+        )
+
+    def __handle_attachment_delete_internal(
+        self,
+        batch_result: dict,
+        command_type: CommandType,
+        id_field_name: str,
+        attachment_name_field_name: str,
+        document_change_vector_field_name: str,
+    ) -> None:
+        key = self.__get_string_field(batch_result, command_type, id_field_name)
+
+        session_document_info = self.__session.documents_by_id.get_value(key)
+        if session_document_info is None:
+            return
+
+        document_info = self.__get_or_add_modifications(key, session_document_info, True)
+
+        document_change_vector = self.__get_string_field(
+            batch_result, command_type, document_change_vector_field_name, False
+        )
+        if document_change_vector:
+            document_info.change_vector = document_change_vector
+
+        attachments_json = document_info.metadata.get(constants.Documents.Metadata.ATTACHMENTS)
+        if not attachments_json:
+            return
+
+        name = self.__get_string_field(batch_result, command_type, attachment_name_field_name)
+
+        attachments = []
+        document_info.metadata[constants.Documents.Metadata.ATTACHMENTS] = attachments
+
+        for attachment in attachments_json:
+            attachment_name = self.__get_string_field(attachment, command_type, "Name")
+            if attachment_name == name:
+                continue
+
+            attachments.append(attachment)
+
+    def __handle_attachment_put_internal(
+        self,
+        batch_result: dict,
+        command_type: CommandType,
+        id_field_name: str,
+        attachment_name_field_name: str,
+        document_change_vector_field_name: str,
+    ) -> None:
+        key = self.__get_string_field(batch_result, command_type, id_field_name)
+
+        session_document_info = self.__session.documents_by_id.get_value(key)
+        if session_document_info is None:
+            return
+
+        document_info = self.__get_or_add_modifications(key, session_document_info, False)
+        document_change_vector = self.__get_string_field(
+            batch_result, command_type, document_change_vector_field_name, False
+        )
+        if document_change_vector:
+            document_info.change_vector = document_change_vector
+
+        attachments = document_info.metadata.get(constants.Documents.Metadata.ATTACHMENTS)
+        if attachments is None:
+            attachments = []
+            document_info.metadata[constants.Documents.Metadata.ATTACHMENTS] = attachments
+
+        dynamic_node = {
+            "ChangeVector": self.__get_string_field(batch_result, command_type, "ChangeVector"),
+            "ContentType": self.__get_string_field(batch_result, command_type, "ContentType"),
+            "Hash": self.__get_string_field(batch_result, command_type, "Hash"),
+            "Name": self.__get_string_field(batch_result, command_type, "Name"),
+            "Size": self.__get_string_field(batch_result, command_type, "Size"),
+        }
+        attachments.append(dynamic_node)
+
     def __get_string_field(
         self, json: dict, command_type: CommandType, field_name: str, throw_on_missing: Optional[bool] = True
     ) -> str:
@@ -537,9 +633,9 @@ class BatchOperation:
 
 
 class PatchRequest:
-    def __init__(self):
-        self.values: Dict[str, object] = {}
-        self.script = ""
+    def __init__(self, script: Optional[str] = "", values: Optional[Dict[str, object]] = None):
+        self.values: Dict[str, object] = values or {}
+        self.script = script
 
     @staticmethod
     def for_script(script: str) -> PatchRequest:
@@ -560,6 +656,164 @@ class PatchStatus(Enum):
 
     def __str__(self):
         return self.value
+
+
+class PatchResult:
+    def __init__(
+        self,
+        status: Optional[PatchStatus] = None,
+        modified_document: Optional[dict] = None,
+        original_document: Optional[dict] = None,
+        debug: Optional[dict] = None,
+        last_modified: Optional[datetime.datetime] = None,
+        change_vector: Optional[str] = None,
+        collection: Optional[str] = None,
+    ):
+        self.status = status
+        self.modified_document = modified_document
+        self.original_document = original_document
+        self.debug = debug
+        self.last_modified = last_modified
+        self.change_vector = change_vector
+        self.collection = collection
+
+    @staticmethod
+    def from_json(json_dict: dict) -> PatchResult:
+        return PatchResult(
+            PatchStatus(json_dict["Status"]),
+            json_dict.get("ModifiedDocument", None),
+            json_dict.get("OriginalDocument", None),
+            json_dict.get("Debug", None),
+            Utils.string_to_datetime(json_dict["LastModified"]),
+            json_dict["ChangeVector"],
+            json_dict["Collection"],
+        )
+
+
+class PatchOperation(IOperation[PatchResult]):
+    class Payload:
+        def __init__(self, patch: PatchRequest, patch_if_missing: PatchResult):
+            self.__patch = patch
+            self.__patch_if_missing = patch_if_missing
+
+        @property
+        def patch(self):
+            return self.__patch
+
+        @property
+        def patch_if_missing(self):
+            return self.__patch_if_missing
+
+    class Result(Generic[_Operation_T]):
+        def __init__(self, status: PatchStatus, document: _Operation_T):
+            self.status = status
+            self.document = document
+
+    def __init__(
+        self,
+        key: str,
+        change_vector: str,
+        patch: PatchRequest,
+        patch_if_missing: Optional[PatchRequest] = None,
+        skip_patch_if_change_vector_mismatch: Optional[bool] = None,
+    ):
+        if not patch:
+            raise ValueError("Patch cannot be None")
+
+        if patch.script.isspace():
+            raise ValueError("Patch script cannot be None or whitespace")
+
+        if patch_if_missing and patch_if_missing.script.isspace():
+            raise ValueError("PatchIfMissing script cannot be None or whitespace")
+
+        self.__key = key
+        self.__change_vector = change_vector
+        self.__patch = patch
+        self.__patch_if_missing = patch_if_missing
+        self.__skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
+
+    def get_command(
+        self,
+        store: DocumentStore,
+        conventions: DocumentConventions,
+        cache: HttpCache,
+        return_debug_information: Optional[bool] = False,
+        test: Optional[bool] = False,
+    ) -> RavenCommand[_Operation_T]:
+        return self.PatchCommand(
+            conventions,
+            self.__key,
+            self.__change_vector,
+            self.__patch,
+            self.__patch_if_missing,
+            self.__skip_patch_if_change_vector_mismatch,
+            return_debug_information,
+            test,
+        )
+
+    class PatchCommand(RavenCommand[PatchResult]):
+        def __init__(
+            self,
+            conventions: "DocumentConventions",
+            document_id: str,
+            change_vector: str,
+            patch: PatchRequest,
+            patch_if_missing: PatchRequest,
+            skip_patch_if_change_vector_mismatch: Optional[bool] = False,
+            return_debug_information: Optional[bool] = False,
+            test: Optional[bool] = False,
+        ):
+            if conventions is None:
+                raise ValueError("None conventions are invalid")
+            if document_id is None:
+                raise ValueError("None key is invalid")
+            if patch is None:
+                raise ValueError("None patch is invalid")
+            if patch_if_missing and not patch_if_missing.script:
+                raise ValueError("None or Empty script is invalid")
+            if patch and patch.script.isspace():
+                raise ValueError("None or empty patch_if_missing.script is invalid")
+            if not document_id:
+                raise ValueError("Document_id canoot be None")
+
+            super().__init__(PatchResult)
+            self.__conventions = conventions
+            self.__document_id = document_id
+            self.__change_vector = change_vector
+            self.__patch = patch
+            self.__patch_if_missing = patch_if_missing
+            self.__skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
+            self.__return_debug_information = return_debug_information
+            self.__test = test
+
+        def create_request(self, server_node: ServerNode) -> requests.Request:
+            path = f"docs?id={Utils.quote_key(self.__document_id)}"
+            if self.__skip_patch_if_change_vector_mismatch:
+                path += "&skipPatchIfChangeVectorMismatch=true"
+            if self.__return_debug_information:
+                path += "&debug=true"
+            if self.__test:
+                path += "&test=true"
+            url = f"{server_node.url}/databases/{server_node.database}/{path}"
+            request = requests.Request("PATCH", url)
+            if self.__change_vector is not None:
+                request.headers = {"If-Match": f'"{self.__change_vector}"'}
+
+            request.data = {
+                "Patch": self.__patch.serialize(),
+                "PatchIfMissing": self.__patch_if_missing.serialize() if self.__patch_if_missing else None,
+            }
+
+            return request
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                return
+
+            self.result = PatchResult.from_json(json.loads(response))
 
 
 class GetStatisticsOperation(MaintenanceOperation[dict]):

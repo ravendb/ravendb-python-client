@@ -1,3 +1,5 @@
+from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.query import Facet, FacetMode
 import unittest
@@ -12,7 +14,9 @@ class Product(object):
 class ProductsAndPricePerUnit:
     def __init__(self):
         self.maps = "from product in docs.Products " "select new {" "price_per_unit = product.price_per_unit}"
-        self.index_definition = IndexDefinition(name=ProductsAndPricePerUnit.__name__, maps=self.maps)
+        self.index_definition = IndexDefinition()
+        self.index_definition.name = ProductsAndPricePerUnit.__name__
+        self.index_definition.maps = self.maps
 
     def execute(self, store):
         store.maintenance.send(PutIndexesOperation(self.index_definition))
