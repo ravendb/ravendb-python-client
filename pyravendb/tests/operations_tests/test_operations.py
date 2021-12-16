@@ -1,5 +1,10 @@
 from pyravendb.documents.indexes import IndexDefinition
 from pyravendb.documents.operations import DeleteByQueryOperation, PatchByQueryOperation, QueryOperationOptions
+from pyravendb.documents.operations.attachments import (
+    PutAttachmentOperation,
+    GetAttachmentOperation,
+    DeleteAttachmentOperation,
+)
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import *
 from pyravendb.raven_operations.operations import *
@@ -26,8 +31,7 @@ class TestOperations(TestBase):
             PutAttachmentOperation("users/1-A", "my_picture", binary_list, content_type="image/png")
         )
         self.assertIsNotNone(put_result)
-        self.assertEqual(put_result["ContentType"], "image/png")
-        self.assertEqual(put_result["Name"], "my_picture")
+        self.assertEqual("users/1-A", put_result.document_id)
 
     def test_delete_attachment(self):
         self.test_put_attachment()

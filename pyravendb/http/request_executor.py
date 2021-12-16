@@ -823,8 +823,7 @@ class RequestExecutor:
 
     def __create_request(self, node: ServerNode, command: RavenCommand) -> requests.Request:
         request = command.create_request(node)
-
-        if request.data and not isinstance(request.data, io.BufferedIOBase):
+        if request.data and not isinstance(request.data, str):
             request.data = json.dumps(request.data, default=self.conventions.json_default_method)
 
         # todo: 1117 - 1133

@@ -8,9 +8,12 @@ import uuid
 from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List
 
 from pyravendb import constants
+from pyravendb.custom_exceptions import exceptions
+from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRange
 import pyravendb.documents
 from pyravendb.documents.indexes import AbstractCommonApiForIndexes
+from pyravendb.documents.operations.attachments import GetAttachmentOperation
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.document_query import Query
@@ -29,7 +32,13 @@ from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.loaders.include_builder import IncludeBuilder
 from pyravendb.raven_operations.load_operation import LoadOperation
 from pyravendb.tools.utils import Utils
-from pyravendb.documents.commands.batches import PatchCommandData, CommandType
+from pyravendb.documents.commands.batches import (
+    PatchCommandData,
+    CommandType,
+    DeleteCommandData,
+    PutAttachmentCommandData,
+    DeleteAttachmentCommandData,
+)
 from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand
 from pyravendb.documents.commands.multi_get import GetRequest
 from pyravendb.documents.operations import BatchOperation, PatchRequest
@@ -347,6 +356,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session = session
             self.__vals_count = 0
             self.__custom_count = 0
+            self.__attachment = None
+
+        @property
+        def attachment(self):
+            if not self.__attachment:
+                self.__attachment = self._Attachment(self.__session)
+            return self.__attachment
 
         def refresh(self, entity: object) -> object:
             document_info = self.__session.documents_by_entity.get(entity)
@@ -644,6 +660,117 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def conditional_load(self, object_type: type, key: str, change_vector: str):
             pass
 
+            # todo: stream, query and fors like timeseriesrollupfor, conditional load
+
+        class _Attachment:
+            def __init__(self, session: DocumentSession):
+                self.__session = session
+                self.__store = session._document_store
+                self.__defer_commands = session.deferred_commands
+
+            def _command_exists(self, document_id):
+                for command in self.__defer_commands:
+                    if not isinstance(
+                        command,
+                        (
+                            PutAttachmentCommandData,
+                            DeleteAttachmentCommandData,
+                            DeleteCommandData,
+                        ),
+                    ):
+                        continue
+
+                    if command.key == document_id:
+                        return command
+
+            def throw_not_in_session(self, entity):
+                raise ValueError(
+                    repr(entity) + " is not associated with the session, cannot add attachment to it. "
+                    "Use document Id instead or track the entity in the session."
+                )
+
+            def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
+                if not isinstance(entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(entity_or_document_id)
+                    entity_or_document_id = entity.metadata.get("@id")
+
+                if not entity_or_document_id:
+                    raise ValueError(entity_or_document_id)
+                if not name:
+                    raise ValueError(name)
+
+                defer_command = self._command_exists(entity_or_document_id)
+                if defer_command:
+                    message = "Can't store attachment {0} of document {1}".format(name, entity_or_document_id)
+                    if defer_command.type == "DELETE":
+                        message += ", there is a deferred command registered for this document to be deleted."
+                    elif defer_command.type == "AttachmentPUT":
+                        message += (
+                            ", there is a deferred command registered to create an attachment with the same name."
+                        )
+                    elif defer_command.type == "AttachmentDELETE":
+                        message += (
+                            ", there is a deferred command registered to delete an attachment with the same name."
+                        )
+                    raise exceptions.InvalidOperationException(message)
+
+                entity = self.__session.documents_by_id.get(entity_or_document_id, None)
+                if entity and entity in self.__session.deleted_entities:
+                    raise exceptions.InvalidOperationException(
+                        "Can't store attachment "
+                        + name
+                        + " of document"
+                        + entity_or_document_id
+                        + ", the document was already deleted in this session."
+                    )
+
+                self.__session.defer(
+                    PutAttachmentCommandData(entity_or_document_id, name, stream, content_type, change_vector)
+                )
+
+            def delete(self, entity_or_document_id, name):
+                if not isinstance(entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(entity_or_document_id)
+                    entity_or_document_id = entity["metadata"]["@id"]
+
+                if not entity_or_document_id:
+                    raise ValueError(entity_or_document_id)
+                if not name:
+                    raise ValueError(name)
+
+                defer_command = self._command_exists(entity_or_document_id)
+                if defer_command:
+                    if defer_command.command_type in (CommandType.DELETE, CommandType.ATTACHMENT_DELETE):
+                        return
+                    if defer_command.command_type == CommandType.ATTACHMENT_PUT:
+                        raise exceptions.InvalidOperationException(
+                            "Can't delete attachment "
+                            + name
+                            + " of document "
+                            + entity_or_document_id
+                            + ",there is a deferred command registered to create an attachment with the same name."
+                        )
+
+                entity = self.__session.documents_by_id.get(entity_or_document_id, None)
+                if entity and entity in self.__session.deleted_entities:
+                    return
+
+                self.__session.defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
+
+            def get(self, entity_or_document_id, name):
+                if not isinstance(entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(entity_or_document_id)
+                    entity_or_document_id = entity["metadata"]["@id"]
+
+                operation = GetAttachmentOperation(entity_or_document_id, name, AttachmentType.document, None)
+                return self.__store.operations.send(operation)
+
     class _DocumentQueryGenerator:
         def __init__(self, session: DocumentSession, conventions: DocumentConventions = None):
             self.__session = session
@@ -685,5 +812,3 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             q = Query(self.session)
             q(object_type, index_name, collection_name, is_map_reduce, **kwargs)
             return q
-
-    # todo: stream, query and fors like timeseriesrollupfor, conditional load

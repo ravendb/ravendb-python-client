@@ -1072,7 +1072,7 @@ class Query(object):
         )
 
         command = GetFacetsCommand(query=facet_query)
-        return self.session.requests_executor.execute(command)
+        return self.session.request_executor.execute_command(command)
 
     def get_index_query(self):
         return IndexQuery(

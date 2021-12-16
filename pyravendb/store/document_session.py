@@ -3,14 +3,7 @@ from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.generate_id import GenerateEntityIdOnTheClient
 from pyravendb.commands import commands_data
 from pyravendb.commands.raven_commands import *
-from pyravendb.raven_operations.operations import GetAttachmentOperation
-from pyravendb.commands.commands_data import (
-    PutAttachmentCommandData,
-    DeleteAttachmentCommandData,
-    DeleteCommandData,
-)
 from pyravendb.tools.utils import Utils, CaseInsensitiveDict
-from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
 from .session_counters import DocumentCounters
@@ -420,106 +413,6 @@ class DocumentSession(object):
             )
             self.save_entity(key, entity, metadata, original_document, is_new_document)
 
-    def _multi_load(self, keys, object_type, includes, nested_object_types):
-        if len(keys) == 0:
-            return []
-        keys = list(filter(lambda x: x is not None, keys))
-        ids_of_not_existing_object = set(keys)
-        if not includes:
-            ids_in_includes = [key for key in ids_of_not_existing_object if key in self._included_documents_by_id]
-            if len(ids_in_includes) > 0:
-                for include in ids_in_includes:
-                    self._convert_and_save_entity(
-                        include,
-                        self._included_documents_by_id[include],
-                        object_type,
-                        nested_object_types,
-                    )
-                    self._included_documents_by_id.pop(include)
-
-            ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._documents_by_id]
-
-        ids_of_not_existing_object = [key for key in ids_of_not_existing_object if key not in self._known_missing_ids]
-
-        if len(ids_of_not_existing_object) > 0:
-            self.increment_requests_count()
-            command = GetDocumentCommand(ids_of_not_existing_object, includes)
-            response = self._requests_executor.execute(command)
-            if response:
-                results = response["Results"]
-                includes = response["Includes"]
-                for i in range(0, len(results)):
-                    if results[i] is None:
-                        self._known_missing_ids.add(ids_of_not_existing_object[i])
-                        continue
-                    self._convert_and_save_entity(
-                        ids_of_not_existing_object[i],
-                        results[i],
-                        object_type,
-                        nested_object_types,
-                    )
-                self.save_includes(includes)
-        return [
-            None
-            if key in self._known_missing_ids
-            else self._documents_by_id[key]
-            if key in self._documents_by_id
-            else None
-            for key in keys
-        ]
-
-    def load(self, key_or_keys, object_type=None, includes=None, nested_object_types=None):
-        """
-        @param key_or_keys: Identifier of a document that will be loaded.
-        :type str or list
-        @param includes: The path to a reference inside the loaded documents can be list (property name)
-        :type list or str
-        @param object_type: The class we want to get
-        :type classObj:
-        @param nested_object_types: A dict of classes for nested object the key will be the name of the class and the
-         value will be the object we want to get for that attribute
-        :type str
-        @return: instance of object_type or None if document with given Id does not exist.
-        :rtype:object_type or None
-        """
-        if not key_or_keys:
-            return None
-
-        if includes and not isinstance(includes, list):
-            includes = [includes]
-
-        if isinstance(key_or_keys, list):
-            return self._multi_load(key_or_keys, object_type, includes, nested_object_types)
-
-        if key_or_keys in self._known_missing_ids:
-            return None
-        if key_or_keys in self._documents_by_id and not includes:
-            return self._documents_by_id[key_or_keys]
-
-        if key_or_keys in self._included_documents_by_id:
-            self._convert_and_save_entity(
-                key_or_keys,
-                self._included_documents_by_id[key_or_keys],
-                object_type,
-                nested_object_types,
-            )
-            self._included_documents_by_id.pop(key_or_keys)
-            if not includes:
-                return self._documents_by_id[key_or_keys]
-
-        self.increment_requests_count()
-        command = GetDocumentCommand(key_or_keys, includes=includes)
-        response = self._requests_executor.execute(command)
-        if response:
-            result = response["Results"]
-            includes = response["Includes"]
-            if len(result) == 0 or result[0] is None:
-                self._known_missing_ids.add(key_or_keys)
-                return None
-            self._convert_and_save_entity(key_or_keys, result[0], object_type, nested_object_types)
-            self.save_includes(includes)
-        return self._documents_by_id[key_or_keys] if key_or_keys in self._documents_by_id else None
-
     def is_loaded(self, key):
         return self.is_loaded_or_deleted(key)
 
@@ -664,34 +557,6 @@ class DocumentSession(object):
         Get A counters object associated with the document
         """
         return DocumentCounters(self, entity_or_document_id)
-
-    def save_changes(self):
-        # todo: create BatchOperation and use it here https://issues.hibernatingrhinos.com/issue/RDBC-474
-        data = _SaveChangesData([], len(self._defer_commands))
-        defer_commands = list(self._defer_commands)
-        self._defer_commands.clear()
-        self._prepare_for_delete_commands(data)
-        self._prepare_for_puts_commands(data)
-        data.commands.extend(defer_commands)
-        if len(data.commands) == 0:
-            return
-        self.increment_requests_count()
-        batch_command = BatchCommand(data.commands)
-        batch_result = self._requests_executor.execute(batch_command)
-        if batch_result is None:
-            raise exceptions.InvalidOperationException(
-                "Cannot call Save Changes after the document store was disposed."
-            )
-        self._update_batch_result(batch_result, data)
-
-    def refresh(self, entity):
-        document_info = self.advanced.get_document_info(entity)
-        if not document_info:
-            raise ValueError("Cannot refresh a transient instance")
-        self.increment_requests_count()
-        command = GetDocumentCommand([document_info["key"]])
-        response = self.requests_executor.execute(command)
-        self._refresh_internal(entity, response, document_info)
 
     def _refresh_internal(self, entity, response, document_info):
         document = response["Results"][0]
@@ -841,12 +706,6 @@ class Advanced(object):
         )
         self._attachment = None
 
-    @property
-    def attachment(self):
-        if not self._attachment:
-            self._attachment = _Attachment(self.session)
-        return self._attachment
-
     def has_changed(self, entity):
         return self.session._has_change(entity) or entity in self.session.deleted_entities
 
@@ -856,17 +715,6 @@ class Advanced(object):
             if self.entity_changed(doc, self.get_document_info(key), None):
                 return True
         return len(self.session.deleted_entities) != 0
-
-    def exists(self, key):
-        if key is None:
-            raise ValueError("Key cannot be None")
-        if key in self.session.known_missing_ids:
-            return False
-        if key in self.session.documents_by_id.values():
-            return True
-        command = HeadDocumentCommand(key, None)
-        response = self.session.requests_executor.execute(command)
-        return response is not None
 
     def what_changed(self):
         changes = {}
@@ -972,107 +820,3 @@ class Advanced(object):
         self.session.deleted_entities.clear()
         self.session.included_documents_by_id.clear()
         self.session.known_missing_ids.clear()
-
-
-class _Attachment:
-    def __init__(self, session):
-        self._session = session
-        self._store = session.advanced.document_store
-        self._defer_commands = session.defer_commands
-
-    def _command_exists(self, document_id):
-        for command in self._defer_commands:
-            if not isinstance(
-                command,
-                (
-                    PutAttachmentCommandData,
-                    DeleteAttachmentCommandData,
-                    DeleteCommandData,
-                ),
-            ):
-                continue
-
-            if command.key == document_id:
-                return command
-
-    def throw_not_in_session(self, entity):
-        raise ValueError(
-            repr(entity) + " is not associated with the session, cannot add attachment to it. "
-            "Use document Id instead or track the entity in the session."
-        )
-
-    def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
-        if not isinstance(entity_or_document_id, str):
-            entity = self._session.documents_by_entity.get(entity_or_document_id, None)
-            if not entity:
-                self.throw_not_in_session(entity_or_document_id)
-            entity_or_document_id = entity["metadata"]["@id"]
-
-        if not entity_or_document_id:
-            raise ValueError(entity_or_document_id)
-        if not name:
-            raise ValueError(name)
-
-        defer_command = self._command_exists(entity_or_document_id)
-        if defer_command:
-            message = "Can't store attachment {0} of document {1}".format(name, entity_or_document_id)
-            if defer_command.type == "DELETE":
-                message += ", there is a deferred command registered for this document to be deleted."
-            elif defer_command.type == "AttachmentPUT":
-                message += ", there is a deferred command registered to create an attachment with the same name."
-            elif defer_command.type == "AttachmentDELETE":
-                message += ", there is a deferred command registered to delete an attachment with the same name."
-            raise exceptions.InvalidOperationException(message)
-
-        entity = self._session.documents_by_id.get(entity_or_document_id, None)
-        if entity and entity in self._session.deleted_entities:
-            raise exceptions.InvalidOperationException(
-                "Can't store attachment "
-                + name
-                + " of document"
-                + entity_or_document_id
-                + ", the document was already deleted in this session."
-            )
-
-        self._session.defer(PutAttachmentCommandData(entity_or_document_id, name, stream, content_type, change_vector))
-
-    def delete(self, entity_or_document_id, name):
-        if not isinstance(entity_or_document_id, str):
-            entity = self._session.documents_by_entity.get(entity_or_document_id, None)
-            if not entity:
-                self.throw_not_in_session(entity_or_document_id)
-            entity_or_document_id = entity["metadata"]["@id"]
-
-        if not entity_or_document_id:
-            raise ValueError(entity_or_document_id)
-        if not name:
-            raise ValueError(name)
-
-        defer_command = self._command_exists(entity_or_document_id)
-        if defer_command:
-            if defer_command.type in ("Delete", "AttachmentDELETE"):
-                return
-            if defer_command.type == "AttachmentPUT":
-                raise exceptions.InvalidOperationException(
-                    "Can't delete attachment "
-                    + name
-                    + " of document "
-                    + entity_or_document_id
-                    + ",there is a deferred command registered to create an attachment with the same name."
-                )
-
-        entity = self._session.documents_by_id.get(entity_or_document_id, None)
-        if entity and entity in self._session.deleted_entities:
-            return
-
-        self._session.defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
-
-    def get(self, entity_or_document_id, name):
-        if not isinstance(entity_or_document_id, str):
-            entity = self._session.documents_by_entity.get(entity_or_document_id, None)
-            if not entity:
-                self.throw_not_in_session(entity_or_document_id)
-            entity_or_document_id = entity["metadata"]["@id"]
-
-        operation = GetAttachmentOperation(entity_or_document_id, name, AttachmentType.document, None)
-        return self._store.operations.send(operation)
