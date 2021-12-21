@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import http
 import json
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 
 import requests
 
 from pyravendb import constants
 from pyravendb.data.operation import AttachmentType
 from pyravendb.documents.operations import IOperation, VoidOperation
-from pyravendb.http import RavenCommand, ServerNode, ResponseDisposeHandling, VoidRavenCommand
+from pyravendb.http import RavenCommand, ServerNode, ResponseDisposeHandling, VoidRavenCommand, RavenCommandResponseType
 from pyravendb.http.http_cache import HttpCache
 from pyravendb.tools.utils import Utils
 
@@ -24,6 +24,10 @@ class AttachmentName:
         self.hash = hash
         self.content_type = content_type
         self.size = size
+
+    @staticmethod
+    def from_json(json_dict: dict) -> AttachmentName:
+        return AttachmentName(json_dict["Name"], json_dict["Hash"], json_dict["ContentType"], json_dict["Size"])
 
 
 class AttachmentDetails(AttachmentName):
@@ -67,6 +71,17 @@ class CloseableAttachmentResult:
 
     def close(self):
         self.__response.close()
+
+
+class AttachmentRequest:
+    def __init__(self, document_id: str, name: str):
+        if document_id.isspace():
+            raise ValueError("Document_id cannot be None or whitespace")
+        if name.isspace():
+            raise ValueError("Name cannot be None or whitespace")
+
+        self.document_id = document_id
+        self.name = name
 
 
 class PutAttachmentOperation(IOperation[AttachmentDetails]):
@@ -119,7 +134,11 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
             if not self.__content_type.isspace():
                 url += f"&contentType={Utils.escape(self.__content_type, True, False)}"
 
-            request = requests.Request("PUT", url, data=self.__stream)
+            request = requests.Request("PUT", url)
+            if isinstance(self.__stream, (bytes, bytearray)):
+                request.files = {self.__name: (self.__name, self.__stream, self.__content_type)}
+            else:
+                request.data = self.__stream
             self._add_change_vector_if_not_none(self.__change_vector, request)
             return request
 
@@ -190,6 +209,45 @@ class GetAttachmentOperation(IOperation):
             )
             self.result = CloseableAttachmentResult(response, attachment_details)
             return ResponseDisposeHandling.MANUALLY
+
+
+class GetAttachmentsOperation(IOperation[CloseableAttachmentResult]):  # unfinished
+    def __init__(self, attachments: List[AttachmentRequest], attachment_type: AttachmentType):
+        self.__attachment_type = attachment_type
+        self.__attachments = attachments
+
+    def get_command(
+        self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache
+    ) -> RavenCommand[CloseableAttachmentResult]:
+        return self.__GetAttachmentsCommand(self.__attachments, self.__attachment_type)
+
+    class __GetAttachmentsCommand(RavenCommand[CloseableAttachmentResult]):
+        def __init__(self, attachments: List[AttachmentRequest], attachment_type: AttachmentType):
+            super().__init__(CloseableAttachmentResult)
+            self.__attachment_type = attachment_type
+            self.__attachments = attachments
+            self._response_type = RavenCommandResponseType.EMPTY
+            self.__attachments_metadata = []
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "POST",
+                f"{node.url}/databases/{node.database}/attachments/bulk",
+                data={
+                    "AttachmentType": str(self.__attachment_type),
+                    "Attachments": [
+                        {"DocumentId": attachment.document_id, "Name": attachment.name}
+                        for attachment in self.__attachments
+                    ],
+                },
+            )
+
+        def is_read_request(self) -> bool:
+            return True
+
+        def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:
+            raise NotImplementedError("Fetching multiple attachments is yet to be implemented")
+            # todo: we can't decode it - maybe split bytes (part 1 is json, second part is binary attachments data) -
 
 
 class DeleteAttachmentOperation(VoidOperation):

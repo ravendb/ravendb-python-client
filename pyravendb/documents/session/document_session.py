@@ -9,11 +9,17 @@ from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List
 
 from pyravendb import constants
 from pyravendb.custom_exceptions import exceptions
+from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRange
 import pyravendb.documents
 from pyravendb.documents.indexes import AbstractCommonApiForIndexes
-from pyravendb.documents.operations.attachments import GetAttachmentOperation
+from pyravendb.documents.operations.attachments import (
+    GetAttachmentOperation,
+    AttachmentName,
+    AttachmentRequest,
+    GetAttachmentsOperation,
+)
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.document_query import Query
@@ -38,8 +44,10 @@ from pyravendb.documents.commands.batches import (
     DeleteCommandData,
     PutAttachmentCommandData,
     DeleteAttachmentCommandData,
+    CopyAttachmentCommandData,
+    MoveAttachmentCommandData,
 )
-from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand
+from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
 from pyravendb.documents.commands.multi_get import GetRequest
 from pyravendb.documents.operations import BatchOperation, PatchRequest
 
@@ -689,35 +697,49 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     "Use document Id instead or track the entity in the session."
                 )
 
+            def exists(self, document_id: str, name: str) -> bool:
+                command = HeadAttachmentCommand(document_id, name, None)
+                self.__session.increment_requests_count()
+                self.__session.request_executor.execute_command(command, self.__session._session_info)
+                return command.result is not None
+
             def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
                 if not isinstance(entity_or_document_id, str):
                     entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
-                    entity_or_document_id = entity.metadata.get("@id")
+                    entity_or_document_id = entity.key
 
                 if not entity_or_document_id:
                     raise ValueError(entity_or_document_id)
                 if not name:
                     raise ValueError(name)
 
-                defer_command = self._command_exists(entity_or_document_id)
-                if defer_command:
-                    message = "Can't store attachment {0} of document {1}".format(name, entity_or_document_id)
-                    if defer_command.type == "DELETE":
-                        message += ", there is a deferred command registered for this document to be deleted."
-                    elif defer_command.type == "AttachmentPUT":
-                        message += (
-                            ", there is a deferred command registered to create an attachment with the same name."
-                        )
-                    elif defer_command.type == "AttachmentDELETE":
-                        message += (
-                            ", there is a deferred command registered to delete an attachment with the same name."
-                        )
-                    raise exceptions.InvalidOperationException(message)
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
+                ) in self.__session.deferred_commands_map:
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "delete")
 
-                entity = self.__session.documents_by_id.get(entity_or_document_id, None)
-                if entity and entity in self.__session.deleted_entities:
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "create")
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "delete")
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "rename")
+
+                document_info = self.__session.documents_by_id.get_value(entity_or_document_id)
+                if document_info and document_info.entity in self.__session.deleted_entities:
                     raise exceptions.InvalidOperationException(
                         "Can't store attachment "
                         + name
@@ -735,41 +757,306 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
-                    entity_or_document_id = entity["metadata"]["@id"]
+                    entity_or_document_id = entity.metadata["@id"]
 
                 if not entity_or_document_id:
                     raise ValueError(entity_or_document_id)
                 if not name:
                     raise ValueError(name)
 
-                defer_command = self._command_exists(entity_or_document_id)
-                if defer_command:
-                    if defer_command.command_type in (CommandType.DELETE, CommandType.ATTACHMENT_DELETE):
-                        return
-                    if defer_command.command_type == CommandType.ATTACHMENT_PUT:
-                        raise exceptions.InvalidOperationException(
-                            "Can't delete attachment "
-                            + name
-                            + " of document "
-                            + entity_or_document_id
-                            + ",there is a deferred command registered to create an attachment with the same name."
-                        )
-
-                entity = self.__session.documents_by_id.get(entity_or_document_id, None)
-                if entity and entity in self.__session.deleted_entities:
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
+                    in self.__session.deferred_commands_map
+                    or pyravendb.documents.IdTypeAndName.create(
+                        entity_or_document_id, CommandType.ATTACHMENT_DELETE, name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
                     return
+
+                document_info = self.__session.documents_by_id.get_value(entity_or_document_id)
+                if document_info and document_info.entity in self.__session.deleted_entities:
+                    return
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "create")
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "rename")
 
                 self.__session.defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
 
-            def get(self, entity_or_document_id, name):
+            def get(
+                self,
+                entity_or_document_id: str = None,
+                name: str = None,
+                # att_requests: Optional[List[AttachmentRequest]] = None,
+                # todo: fetching multiple attachments with single command
+            ):
+                # if att_requests is not None:
+                #     if entity_or_document_id or name:
+                #         raise ValueError("Specify either <att_requests> or <entity/document_id, name>")
+                #     operation = GetAttachmentsOperation(att_requests, AttachmentType.document)
+                # else:
                 if not isinstance(entity_or_document_id, str):
                     entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
-                    entity_or_document_id = entity["metadata"]["@id"]
+                    entity_or_document_id = entity.metadata["@id"]
 
                 operation = GetAttachmentOperation(entity_or_document_id, name, AttachmentType.document, None)
                 return self.__store.operations.send(operation)
+
+            def copy(
+                self,
+                entity_or_document_id: Union[object, str],
+                source_name: str,
+                destination_entity_or_document_id: object,
+                destination_name: str,
+            ) -> None:
+                if not isinstance(entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(entity_or_document_id)
+                    entity_or_document_id = entity.key
+
+                if not isinstance(destination_entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(destination_entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(destination_entity_or_document_id)
+                    destination_entity_or_document_id = entity.key
+                if entity_or_document_id is None or entity_or_document_id.isspace():
+                    raise ValueError("Source entity id is required")
+
+                if source_name is None or source_name.isspace():
+                    raise ValueError("Source name is required")
+                if destination_entity_or_document_id is None or destination_entity_or_document_id.isspace():
+                    raise ValueError("Destination entity id is required")
+                if destination_name is None or destination_name.isspace():
+                    raise ValueError("Destination name is required")
+
+                if (
+                    entity_or_document_id.lower() == destination_entity_or_document_id.lower()
+                    and source_name == destination_name
+                ):
+                    return  # no-op
+
+                source_document = self.__session.documents_by_id.get_value(entity_or_document_id)
+                if entity_or_document_id and source_document.entity in self.__session.deleted_entities:
+                    self.__throw_document_already_deleted(
+                        entity_or_document_id,
+                        source_name,
+                        "copy",
+                        destination_entity_or_document_id,
+                        entity_or_document_id,
+                    )
+
+                destination_document = self.__session.documents_by_id.get_value(destination_entity_or_document_id)
+                if destination_document and destination_document.entity in self.__session.deleted_entities:
+                    self.__throw_document_already_deleted(
+                        entity_or_document_id,
+                        source_name,
+                        "copy",
+                        destination_entity_or_document_id,
+                        destination_entity_or_document_id,
+                    )
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "delete")
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "rename")
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        destination_entity_or_document_id, CommandType.ATTACHMENT_DELETE, destination_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "delete")
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        destination_entity_or_document_id, CommandType.ATTACHMENT_MOVE, destination_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "rename")
+
+                self.__session.defer(
+                    CopyAttachmentCommandData(
+                        entity_or_document_id, source_name, destination_entity_or_document_id, destination_name, None
+                    )
+                )
+
+            def rename(self, entity_or_document_id: Union[str, object], name: str, new_name: str) -> None:
+                self.move(entity_or_document_id, name, entity_or_document_id, new_name)
+
+            def move(
+                self,
+                source_entity_or_document_id: Union[str, object],
+                source_name: str,
+                destination_entity_or_document_id: Union[str, object],
+                destination_name: str,
+            ) -> None:
+                if not isinstance(source_entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(source_entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(source_entity_or_document_id)
+                    source_entity_or_document_id = entity.key
+
+                if not isinstance(destination_entity_or_document_id, str):
+                    entity = self.__session.documents_by_entity.get(destination_entity_or_document_id, None)
+                    if not entity:
+                        self.throw_not_in_session(destination_entity_or_document_id)
+                    destination_entity_or_document_id = entity.key
+
+                if source_entity_or_document_id is None or source_entity_or_document_id.isspace():
+                    raise ValueError("Source entity id is required")
+                if source_name is None or source_name.isspace():
+                    raise ValueError("Source name is required")
+                if destination_entity_or_document_id is None or destination_entity_or_document_id.isspace():
+                    raise ValueError("Destination entity id is required")
+                if destination_name is None or destination_name.isspace():
+                    raise ValueError("Destination name is required")
+
+                if (
+                    source_entity_or_document_id.lower() == destination_entity_or_document_id.lower()
+                    and source_name == destination_name
+                ):
+                    return  # no-op
+
+                source_document = self.__session.documents_by_id.get_value(source_entity_or_document_id)
+                if source_document is not None and source_document.entity in self.__session.deleted_entities:
+                    self.__throw_document_already_deleted(
+                        source_entity_or_document_id,
+                        source_name,
+                        "move",
+                        destination_entity_or_document_id,
+                        source_entity_or_document_id,
+                    )
+
+                destination_document = self.__session.documents_by_id.get_value(destination_entity_or_document_id)
+                if destination_document is not None and destination_document.entity in self.__session.deleted_entities:
+                    self.__throw_document_already_deleted(
+                        source_entity_or_document_id,
+                        source_name,
+                        "move",
+                        destination_entity_or_document_id,
+                        destination_entity_or_document_id,
+                    )
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        source_entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(
+                        source_entity_or_document_id, source_name, "rename", "delete"
+                    )
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        source_entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(
+                        source_entity_or_document_id, source_name, "rename", "rename"
+                    )
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        destination_entity_or_document_id, CommandType.ATTACHMENT_DELETE, destination_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(
+                        source_entity_or_document_id, destination_name, "rename", "delete"
+                    )
+
+                if (
+                    pyravendb.documents.IdTypeAndName.create(
+                        destination_entity_or_document_id, CommandType.ATTACHMENT_MOVE, destination_name
+                    )
+                    in self.__session.deferred_commands_map
+                ):
+                    self.__throw_other_deferred_command_exception(
+                        source_entity_or_document_id, destination_name, "rename", "rename"
+                    )
+
+                self.__session.defer(
+                    MoveAttachmentCommandData(
+                        source_entity_or_document_id,
+                        source_name,
+                        destination_entity_or_document_id,
+                        destination_name,
+                        None,
+                    )
+                )
+
+            def get_names(self, entity: object) -> List[AttachmentName]:
+                if not entity:
+                    return []
+
+                if isinstance(entity, str):
+                    raise TypeError(
+                        "get_names requires a tracked entity object, other types such as document id are not valid."
+                    )
+
+                document = self.__session.documents_by_entity.get(entity)
+                if document is None:
+                    self.throw_not_in_session(entity)
+
+                attachments = document.metadata.get(constants.Documents.Metadata.ATTACHMENTS)
+                if not attachments:
+                    return []
+
+                results = []
+
+                for attachment in attachments:
+                    results.append(AttachmentName.from_json(attachment))
+                return results
+
+            def __throw_document_already_deleted(
+                self,
+                document_id: str,
+                name: str,
+                operation: str,
+                destination_document_id: str,
+                deleted_document_id: str,
+            ):
+                raise InvalidOperationException(
+                    f"Can't {operation} attachment '{name}' of document '{document_id}' " + ""
+                    if not deleted_document_id
+                    else f"to '{destination_document_id}'"
+                    + f", the document '{deleted_document_id}' was already deleted in this session"
+                )
+
+            def __throw_other_deferred_command_exception(
+                self, document_id: str, name: str, operation: str, previous_operation: str
+            ):
+                raise InvalidOperationException(
+                    f"Can't {operation} attachment '{name}' of document '{document_id}', "
+                    f"there is deferred command registered to {previous_operation} an attachment with '{name}' name."
+                )
 
     class _DocumentQueryGenerator:
         def __init__(self, session: DocumentSession, conventions: DocumentConventions = None):

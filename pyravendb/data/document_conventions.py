@@ -212,7 +212,7 @@ class DocumentConventions(object):
             return o.__dict__
         elif isinstance(o, set):
             return list(o)
-        elif isinstance(o, int) or isinstance(o, float):
+        elif isinstance(o, (int, float)):
             return str(o)
         else:
             raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")

@@ -198,7 +198,7 @@ class GetDocumentsCommand(RavenCommand):
     def is_read_request(self) -> bool:
         return True
 
-    def create_request(self, node: ServerNode) -> (requests.Request):
+    def create_request(self, node: ServerNode) -> requests.Request:
         path_builder: List[str] = [node.url, f"/databases/{node.database}/docs?"]
         if "start" in self.__options.__dict__:
             self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
@@ -345,8 +345,56 @@ class HiLoReturnCommand(VoidRavenCommand):
         self.__last = last
         self.__end = end
 
-    def create_request(self, node: ServerNode) -> (requests.Request):
+    def create_request(self, node: ServerNode) -> requests.Request:
         return requests.Request(
             "PUT",
             url=f"{node.url}/databases/{node.database}/hilo/return?tag={self.__tag}&end={self.__end}&last={self.__last}",
         )
+
+
+class HeadAttachmentCommand(RavenCommand[str]):
+    def __init__(self, document_id: str, name: str, change_vector: str):
+        super().__init__(str)
+
+        if document_id.isspace():
+            raise ValueError("Document_id cannot be None or whitespace")
+
+        if name.isspace():
+            raise ValueError("Name cannot be None or whitespace")
+
+        self.__document_id = document_id
+        self.__name = name
+        self.__change_vector = change_vector
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        return requests.Request(
+            "HEAD",
+            f"{node.url}/databases/{node.database}"
+            f"/attachments?id={Utils.quote_key(self.__document_id)}"
+            f"&name={Utils.quote_key(self.__name)}",
+            {"If-None-Match": self.__change_vector} if self.__change_vector else None,
+        )
+
+    def process_response(self, cache: HttpCache, response: requests.Response, url) -> http.ResponseDisposeHandling:
+        if response.status_code == http.HTTPStatus.NOT_MODIFIED:
+            self.result = self.__change_vector
+            return ResponseDisposeHandling.AUTOMATIC
+
+        if response.status_code == http.HTTPStatus.NOT_FOUND:
+            self.result = None
+            return ResponseDisposeHandling.AUTOMATIC
+
+        chv = response.headers.get(constants.Headers.ETAG, None)
+        if not chv:
+            raise RuntimeError("Response didn't had an ETag header")
+        self.result = chv
+        return ResponseDisposeHandling.AUTOMATIC
+
+    def set_response(self, response: str, from_cache: bool) -> None:
+        if response is not None:
+            self._throw_invalid_response()
+
+        self.result = None
+
+    def is_read_request(self) -> bool:
+        return False
