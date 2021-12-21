@@ -312,6 +312,8 @@ class BatchOperation:
             else:
                 raise ValueError(f"Command {command_type} is not supported")
 
+        self.__finalize_result()
+
     def __finalize_result(self):
         if not self.__modifications:
             return
@@ -606,8 +608,8 @@ class BatchOperation:
     def __get_string_field(
         self, json: dict, command_type: CommandType, field_name: str, throw_on_missing: Optional[bool] = True
     ) -> str:
-        json_node = json.get(field_name)
-        if throw_on_missing and not json_node:
+        json_node = json.get(field_name, None)
+        if throw_on_missing and json_node is None:
             self.__throw_missing_field(command_type, field_name)
         return str(json_node)
 

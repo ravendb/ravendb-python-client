@@ -534,6 +534,70 @@ class PutAttachmentCommandData(CommandData):
         }
 
 
+class CopyAttachmentCommandData(CommandData):
+    def __init__(
+        self,
+        source_document_id: str,
+        source_name: str,
+        destination_document_id: str,
+        destination_name: str,
+        change_vector: str,
+    ):
+        if source_document_id.isspace():
+            raise ValueError("source_document_id is required")
+        if source_name.isspace():
+            raise ValueError("source_name is required")
+        if destination_document_id.isspace():
+            raise ValueError("destination_document_id is required")
+        if destination_name.isspace():
+            raise ValueError("destination_name is required")
+        super().__init__(source_document_id, source_name, change_vector, CommandType.ATTACHMENT_COPY)
+        self.destination_id = destination_document_id
+        self.destination_name = destination_name
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        return {
+            "Id": self.key,
+            "Name": self.name,
+            "DestinationId": self.destination_id,
+            "DestinationName": self.destination_name,
+            "ChangeVector": self.change_vector,
+            "Type": "AttachmentCOPY",
+        }
+
+
+class MoveAttachmentCommandData(CommandData):
+    def __init__(
+        self,
+        key: str,
+        name: str,
+        destination_id: str,
+        destination_name: str,
+        change_vector: str,
+    ):
+        if key.isspace():
+            raise ValueError("source_document_id is required")
+        if name.isspace():
+            raise ValueError("source_name is required")
+        if destination_id.isspace():
+            raise ValueError("destination_document_id is required")
+        if destination_name.isspace():
+            raise ValueError("destination_name is required")
+        super().__init__(key, name, change_vector, CommandType.ATTACHMENT_MOVE)
+        self.destination_id = destination_id
+        self.destination_name = destination_name
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        return {
+            "Id": self.key,
+            "Name": self.name,
+            "DestinationId": self.destination_id,
+            "DestinationName": self.destination_name,
+            "ChangeVector": self.change_vector,
+            "Type": "AttachmentMOVE",
+        }
+
+
 class DeleteAttachmentCommandData(CommandData):
     def __init__(self, document_id: str, name: str, change_vector: str):
         if not document_id:

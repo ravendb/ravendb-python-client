@@ -2,8 +2,8 @@ from enum import Enum
 
 
 class AttachmentType(Enum):
-    document = 1
-    revision = 2
+    document = "Document"
+    revision = "Revision"
 
     def __str__(self):
-        return self.name
+        return self.value
