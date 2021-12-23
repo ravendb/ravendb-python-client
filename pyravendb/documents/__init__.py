@@ -207,6 +207,8 @@ class DocumentStore(DocumentStoreBase):
         self.__identifier: Union[None, str] = None
         self.__add_change_lock = threading.Lock()
         self.__database_changes = {}
+        self.__after_close: List[Callable[[], None]] = []
+        self.__before_close: List[Callable[[], None]] = []
 
     @property
     def thread_pool_executor(self):
@@ -229,10 +231,27 @@ class DocumentStore(DocumentStoreBase):
     def identifier(self, value: str):
         self.__identifier = value
 
+    def add_after_close(self, event: Callable[[], None]):
+        self.__after_close.append(event)
+
+    def remove_after_close(self, event: Callable[[], None]):
+        self.__after_close.remove(event)
+
+    def add_before_close(self, event: Callable[[], None]):
+        self.__before_close.append(event)
+
+    def remove_before_close(self, event: Callable[[], None]):
+        self.__before_close.remove(event)
+
     def close(self):
-        # todo: event on before close
+        for event in self.__before_close:
+            event()
+
         # todo: evict items from cache based on changes
-        # todo: clear database changes
+
+        for item in self.__database_changes.values():
+            item.close()
+
         if self.__multi_db_hilo is not None:
             try:
                 self.__multi_db_hilo.return_unused_range()
@@ -240,8 +259,16 @@ class DocumentStore(DocumentStoreBase):
                 pass  # ignore
         # todo: clear subscriptions
         self._disposed = True
-        # todo: event after close
-        # todo: shutdown request executors
+        for event in self.__after_close:
+            event()
+
+        for key, lazy in self.__request_executors:
+            if not lazy.is_value_created:
+                continue
+
+            lazy.value().close()
+
+        self.__thread_pool_executor.shutdown()
 
     def open_session(
         self, database: Optional[str] = None, session_options: Optional[SessionOptions] = None
