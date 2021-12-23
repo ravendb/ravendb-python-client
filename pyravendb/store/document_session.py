@@ -10,7 +10,10 @@ from pyravendb.data.timeseries import TimeSeriesRangeResult
 from .session_timeseries import TimeSeries
 from .session_counters import DocumentCounters
 from typing import Dict, List
-from collections import MutableSet
+try:
+    from collections.abc import MutableSet
+except ImportError:
+    from collections import MutableSet
 from itertools import chain
 
 
