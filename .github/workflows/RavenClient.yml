@@ -16,11 +16,12 @@ jobs:
       env:
         RAVENDB_BUILD_TYPE: nightly
         RAVEN_License: ${{ secrets.RAVEN_LICENSE }}
+        RAVENDB_PYTHON_TEST_SERVER_PATH: ./RavenDB/Server/Raven.Server
 
       strategy:
         matrix:
-          python-version: [ '3.7', '3.8', '3.9']
-          serverVersion: [ "5.1", "5.2" ]
+          python-version: [ '3.7', '3.8', '3.9' , '3.10']
+          serverVersion: [ "5.1", "5.2", "5.3" ]
         fail-fast: false
 
       steps:
@@ -48,12 +49,6 @@ jobs:
 
       - name: Install black linter
         run: pip install git+git://github.com/psf/black
-
-      - name: Run RDB
-        run: ./RavenDB/Server/Raven.Server -c $(realpath ./settings.json) &
-
-      - name: Wait for server to run
-        run: while ! curl http://127.0.0.1:8080; do sleep 0.2; echo "Waiting for server to start..."; done
 
       - name: Check code format
         run: black --check .
