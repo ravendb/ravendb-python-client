@@ -4,7 +4,12 @@ import datetime
 import itertools
 import json
 from abc import abstractmethod
-from collections import MutableSet
+
+try:
+    from collections.abc import MutableSet
+except Exception:
+    from collections import MutableSet
+
 import uuid as uuid
 from copy import deepcopy, Error
 from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set

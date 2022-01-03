@@ -127,7 +127,7 @@ class RequestExecutor:
         self.__cache.close()
 
         if self.__update_topology_timer:
-            self.__update_topology_timer.close()
+            self.__update_topology_timer.cancel()
 
         self._dispose_all_failed_nodes_timers()
 

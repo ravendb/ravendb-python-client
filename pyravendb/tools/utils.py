@@ -3,7 +3,12 @@ from typing import Optional, Dict
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
-from collections import Iterable
+
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
+
 from pyravendb.tools.projection import create_entity_with_mapper
 from datetime import datetime, timedelta
 from enum import Enum

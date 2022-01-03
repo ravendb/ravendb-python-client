@@ -207,6 +207,8 @@ class DocumentStore(DocumentStoreBase):
         self.__identifier: Union[None, str] = None
         self.__add_change_lock = threading.Lock()
         self.__database_changes = {}
+        self.__after_close: List[Callable[[], None]] = []
+        self.__before_close: List[Callable[[], None]] = []
 
     @property
     def thread_pool_executor(self):
@@ -229,19 +231,44 @@ class DocumentStore(DocumentStoreBase):
     def identifier(self, value: str):
         self.__identifier = value
 
+    def add_after_close(self, event: Callable[[], None]):
+        self.__after_close.append(event)
+
+    def remove_after_close(self, event: Callable[[], None]):
+        self.__after_close.remove(event)
+
+    def add_before_close(self, event: Callable[[], None]):
+        self.__before_close.append(event)
+
+    def remove_before_close(self, event: Callable[[], None]):
+        self.__before_close.remove(event)
+
     def close(self):
-        # todo: event on before close
+        for event in self.__before_close:
+            event()
+
         # todo: evict items from cache based on changes
-        # todo: clear database changes
+
+        while len(self.__database_changes) > 0:
+            self.__database_changes.popitem()[1].close()
+
         if self.__multi_db_hilo is not None:
             try:
                 self.__multi_db_hilo.return_unused_range()
-            except:
+            except Exception:
                 pass  # ignore
         # todo: clear subscriptions
         self._disposed = True
-        # todo: event after close
-        # todo: shutdown request executors
+        for event in self.__after_close:
+            event()
+
+        for key, lazy in self.__request_executors.items():
+            if not lazy.is_value_created:
+                continue
+
+            lazy.value().close()
+
+        self.__thread_pool_executor.shutdown()
 
     def open_session(
         self, database: Optional[str] = None, session_options: Optional[SessionOptions] = None
@@ -311,7 +338,7 @@ class DocumentStore(DocumentStoreBase):
             return self.__database_changes[database]
 
     def __on_close_change(self, database):
-        del self.__database_changes[database]
+        self.__database_changes.pop(database, None)
 
     def set_request_timeout(self, timeout: datetime.timedelta, database: Optional[str] = None) -> Callable[[], None]:
         self.assert_initialized()

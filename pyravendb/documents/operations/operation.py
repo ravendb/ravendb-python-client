@@ -41,7 +41,6 @@ class Operation:
     def wait_for_completion(self) -> None:
         while True:
             status = self.fetch_operations_status()
-            # todo: check if it isn't a string at the begging - if there's a need to parse on string
             operation_status = status.get("Status")
 
             if operation_status == "Completed":
