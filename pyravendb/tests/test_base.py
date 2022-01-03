@@ -1,17 +1,24 @@
+import atexit
 import datetime
+import threading
 import time
 import unittest
 import sys
 import os
 from enum import Enum
-from typing import Iterable, List
+from subprocess import Popen
+from typing import Iterable, List, Union, Optional, Set
 from datetime import timedelta
 from pyravendb import constants
+from pyravendb.custom_exceptions.exceptions import DatabaseDoesNotExistException
 from pyravendb.documents import DocumentStore
 from pyravendb.documents.indexes import IndexState, IndexErrors
 from pyravendb.documents.operations import GetStatisticsOperation
+from pyravendb.exceptions.cluster import NoLoaderException
 from pyravendb.serverwide.database_record import DatabaseRecord
 from pyravendb.serverwide.operations import CreateDatabaseOperation, DeleteDatabaseOperation, GetDatabaseRecordOperation
+from pyravendb.tests.driver.raven_server_locator import RavenServerLocator
+from pyravendb.tests.driver.raven_test_driver import RavenTestDriver
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 
@@ -135,7 +142,130 @@ class Patch(object):
         self.patched = patched
 
 
-class TestBase(unittest.TestCase):
+class TestBase(unittest.TestCase, RavenTestDriver):
+
+    __global_server: Union[None, DocumentStore] = None
+    __global_server_process: Union[None, Popen] = None
+
+    __global_secured_server: Union[None, DocumentStore] = None
+    __global_secured_server_process: Union[None, Popen] = None
+
+    __run_server_lock = threading.Lock()
+
+    index = 0
+
+    class __TestServiceLocator(RavenServerLocator):
+        def get_server_path(self) -> str:
+            return super().get_server_path()
+
+        @property
+        def command_arguments(self) -> List[str]:
+            return [
+                "--ServerUrl=http://127.0.0.1:0",
+                "--ServerUrl.Tcp=tcp://127.0.0.1:38881",
+                "--Features.Availability=Experimental",
+            ]
+
+    def __get_locator(self, secured: bool):
+        return self.__secured_locator if secured else self.__locator
+
+    def __get_global_server(self, secured: bool):
+        return self.__global_secured_server if secured else self.__global_server
+
+    def __run_server(self, secured: bool):
+        def __configure_store(s: DocumentStore) -> None:
+            if secured:
+                raise NotImplementedError("Https isnt supported, yet..")
+
+        store, process = self._run_server_internal(self.__get_locator(secured), __configure_store)
+        self.__set_global_server_process(secured, process)
+
+        if secured:
+            TestBase.__global_secured_server = store
+        else:
+            TestBase.__global_server = store
+
+        atexit.register(threading.Thread(target=self.__kill_global_server_process, args=[secured]).run)
+        return store
+
+    def _customize_db_record(self, db_record: DatabaseRecord) -> None:
+        pass
+
+    def _customize_store(self, db_record: DocumentStore) -> None:
+        pass
+
+    def get_document_store(
+        self,
+        database: Optional[str] = "test_db",
+        secured: Optional[bool] = False,
+        wait_for_indexing_timeout: Optional[datetime.timedelta] = None,
+    ) -> DocumentStore:
+        TestBase.index += 1
+        name = f"{database}_{TestBase.index}"
+        TestBase._report_info(f"get_document_store for db {database}.")
+
+        if self.__get_global_server(secured) is None:
+            with self.__run_server_lock:
+                if self.__get_global_server(secured) is None:
+                    self.__run_server(secured)
+
+        document_store = self.__get_global_server(secured)
+        database_record = DatabaseRecord(name)
+
+        self._customize_db_record(database_record)
+
+        document_store.maintenance.server.send(CreateDatabaseOperation(database_record))
+
+        store = DocumentStore(document_store.urls, name)
+
+        if secured:
+            raise NotImplementedError("RemoteTestBase::L261-264")
+
+        self._customize_store(store)
+
+        # todo: hook_leaked_connection_check(store)
+        store.initialize()
+
+        def __after_close():
+            if store not in self.__document_stores:
+                return
+
+            try:
+                store.maintenance.server.send(DeleteDatabaseOperation(store.database, True))
+            except (DatabaseDoesNotExistException, NoLoaderException):
+                pass
+
+        store.add_after_close(__after_close)
+        self._setup_database(store)
+
+        if wait_for_indexing_timeout is not None:
+            self.wait_for_indexing(store, name, wait_for_indexing_timeout)
+
+        self.__document_stores.add(store)
+        return store
+
+    @staticmethod
+    def __kill_global_server_process(secured: bool) -> None:
+        if secured:
+            p = TestBase.__global_secured_server_process
+            TestBase.__global_secured_server_process = None
+            TestBase.__global_secured_server.close()
+            TestBase.__global_secured_server = None
+        else:
+            p = TestBase.__global_server_process
+            TestBase.__global_server_process = None
+            TestBase.__global_server.close()
+            TestBase.__global_server = None
+
+        RavenTestDriver._kill_process(p)
+
+    @staticmethod
+    def __set_global_server_process(secured: bool, process: Popen) -> None:
+        if secured:
+            TestBase.__global_secured_server_process = process
+        else:
+            TestBase.__global_server_process = process
+
     @staticmethod
     def delete_all_topology_files():
         import os
@@ -193,10 +323,15 @@ class TestBase(unittest.TestCase):
         self.conventions = conventions
 
     def setUp(self):
+        # todo: investigate if line below is replaceable by more sophisticated code, we don't want to call TestCase init
+        RavenTestDriver.__init__(self)
+        self.__locator = TestBase.__TestServiceLocator()
+        self.__secured_locator = None  # todo: implement
+        self.__document_stores: Set[DocumentStore] = set()
         conventions = getattr(self, "conventions", None)
         self.default_urls = ["http://127.0.0.1:8080"]
         self.default_database = "NorthWindTest"
-        self.store = DocumentStore(urls=self.default_urls, database=self.default_database)
+        self.store = self.get_document_store(self.default_database)
         if conventions:
             self.store.conventions = conventions
         self.store.initialize()
@@ -210,8 +345,22 @@ class TestBase(unittest.TestCase):
         self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
 
     def tearDown(self):
-        self.store.maintenance.server.send(DeleteDatabaseOperation(self.store.database, True))
-        self.store.close()
+        if self.disposed:
+            return
+
+        exceptions = []
+
+        for document_store in self.__document_stores:
+            try:
+                document_store.close()
+            except Exception as e:
+                exceptions.append(e)
+
+        self._disposed = True
+
+        if exceptions:
+            raise RuntimeError(", ".join(list(map(str, exceptions))))
+
         TestBase.delete_all_topology_files()
 
     def assertRaisesWithMessage(self, func, exception, msg, *args, **kwargs):

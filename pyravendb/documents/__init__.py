@@ -249,20 +249,20 @@ class DocumentStore(DocumentStoreBase):
 
         # todo: evict items from cache based on changes
 
-        for item in self.__database_changes.values():
-            item.close()
+        while len(self.__database_changes) > 0:
+            self.__database_changes.popitem()[1].close()
 
         if self.__multi_db_hilo is not None:
             try:
                 self.__multi_db_hilo.return_unused_range()
-            except:
+            except Exception:
                 pass  # ignore
         # todo: clear subscriptions
         self._disposed = True
         for event in self.__after_close:
             event()
 
-        for key, lazy in self.__request_executors:
+        for key, lazy in self.__request_executors.items():
             if not lazy.is_value_created:
                 continue
 
@@ -338,7 +338,7 @@ class DocumentStore(DocumentStoreBase):
             return self.__database_changes[database]
 
     def __on_close_change(self, database):
-        del self.__database_changes[database]
+        self.__database_changes.pop(database, None)
 
     def set_request_timeout(self, timeout: datetime.timedelta, database: Optional[str] = None) -> Callable[[], None]:
         self.assert_initialized()
