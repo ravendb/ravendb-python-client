@@ -53,8 +53,8 @@ class ExceptionDispatcher:
                 exception_name = ".".join(list(map(str.lower, exception_name.split("."))))
 
             try:
-                return __import__(f"pyravendb\exceptions\{exception_name}")
-            except:
+                return __import__(f"pyravendb.exceptions.{exception_name}")  # todo: fix, doesn't work
+            except Exception as e:
                 return None
         else:
             return None

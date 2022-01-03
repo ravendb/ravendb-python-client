@@ -82,6 +82,7 @@ class TestOperations(TestBase):
             for v in values:
                 self.assertTrue(v)
 
+    # todo: Exception Dispatcher
     def test_fail_patch_wrong_index_name(self):
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
         operation = PatchByQueryOperation(
