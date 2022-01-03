@@ -1,8 +1,7 @@
 from __future__ import annotations
 import datetime
-from collections import Callable
 from threading import Lock
-from typing import Any, Union, Optional, Iterable, Dict, Tuple
+from typing import Any, Union, Optional, Iterable, Dict, Tuple, Callable
 
 from typing import TYPE_CHECKING
 
