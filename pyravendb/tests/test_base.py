@@ -252,7 +252,8 @@ class TestBase(unittest.TestCase, RavenTestDriver):
     def _customize_store(self, db_record: DocumentStore) -> None:
         pass
 
-    def get_secured_document_store(self) -> DocumentStore:
+    @property
+    def secured_document_store(self) -> DocumentStore:
         return self.get_document_store("test_db", True)
 
     @property
