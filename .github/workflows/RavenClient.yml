@@ -17,6 +17,10 @@ jobs:
         RAVENDB_BUILD_TYPE: nightly
         RAVEN_License: ${{ secrets.RAVEN_LICENSE }}
         RAVENDB_PYTHON_TEST_SERVER_PATH: ./RavenDB/Server/Raven.Server
+        RAVENDB_PYTHON_TEST_SERVER_CERTIFICATE_PATH: certs/server.pfx
+        RAVENDB_PYTHON_TEST_CLIENT_CERTIFICATE_PATH: certs/python.pem
+        RAVENDB_PYTHON_TEST_CA_PATH: /usr/local/share/ca-certificates/ca.crt
+        RAVENDB_PYTHON_TEST_HTTPS_SERVER_URL: https://localhost:7326
 
       strategy:
         matrix:

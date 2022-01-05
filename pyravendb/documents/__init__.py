@@ -73,9 +73,13 @@ class IdTypeAndName:
 
 class DocumentStoreBase:
     def __init__(self):
-
         self.__conventions = None
         self._initialized: bool = False
+
+        self.__certificate_path: str = None
+        self.__certificate_private_key_password: str = ""  # todo: delete if not needed
+        self.__trust_store_path: str = None
+
         self._urls: List[str] = []
         self._database: Union[None, str] = None
         self._disposed: Union[None, bool] = None
@@ -131,6 +135,32 @@ class DocumentStoreBase:
     def database(self, value: str):
         self.__assert_not_initialized("database")
         self._database = value
+
+    @property
+    def certificate_path(self) -> str:
+        return self.__certificate_path
+
+    @certificate_path.setter
+    def certificate_path(self, value: str):
+        self.__assert_not_initialized("certificate_url")
+        self.__certificate_path = value
+
+    @property
+    def trust_store_path(self) -> str:
+        return self.__trust_store_path
+
+    @trust_store_path.setter
+    def trust_store_path(self, value: str):
+        self.__trust_store_path = value
+
+    @property
+    def certificate_private_key_password(self) -> str:
+        return self.__certificate_private_key_password
+
+    @certificate_private_key_password.setter
+    def certificate_private_key_password(self, value: str):
+        self.__assert_not_initialized("certificate_private_key_password")
+        self.__certificate_private_key_password = value
 
     @abstractmethod
     def close(self):
@@ -299,14 +329,27 @@ class DocumentStore(DocumentStoreBase):
         effective_database = database
 
         def __create_request_executor() -> RequestExecutor:
-            # todo : push certificate here
-            request_executor = RequestExecutor.create(self.urls, effective_database, self.conventions)
+            request_executor = RequestExecutor.create(
+                self.urls,
+                effective_database,
+                self.conventions,
+                self.certificate_path,
+                self.certificate_private_key_password,
+                self.trust_store_path,
+                self.thread_pool_executor,
+            )
             # todo: register events
             return request_executor
 
         def __create_request_executor_for_single_node() -> RequestExecutor:
             for_single_node = RequestExecutor.create_for_single_node_with_configuration_updates(
-                self.urls[0], effective_database, None, self.conventions
+                self.urls[0],
+                effective_database,
+                self.conventions,
+                self.certificate_path,
+                self.certificate_private_key_password,
+                self.trust_store_path,
+                self.thread_pool_executor,
             )
             # todo: register events
 

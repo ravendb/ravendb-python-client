@@ -104,10 +104,22 @@ class ServerOperationExecutor:
     @staticmethod
     def create_request_executor(store: DocumentStore) -> ClusterRequestExecutor:
         return (
-            ClusterRequestExecutor.create_for_single_node(store.urls[0], store.thread_pool_executor, store.conventions)
+            ClusterRequestExecutor.create_for_single_node(
+                store.urls[0],
+                store.thread_pool_executor,
+                store.conventions,
+                store.certificate_path,
+                store.certificate_private_key_password,
+                store.trust_store_path,
+            )
             if store.conventions.disable_topology_updates
             else ClusterRequestExecutor.create_without_database_name(
-                store.urls, store.thread_pool_executor, store.conventions
+                store.urls,
+                store.thread_pool_executor,
+                store.conventions,
+                store.certificate_path,
+                store.certificate_private_key_password,
+                store.trust_store_path,
             )
         )
 

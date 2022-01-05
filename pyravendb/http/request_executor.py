@@ -61,6 +61,9 @@ class RequestExecutor:
         self,
         database_name: str,
         conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
         initial_urls: Optional[List[str]] = None,
     ):
@@ -69,6 +72,10 @@ class RequestExecutor:
         self._node_selector: NodeSelector = None
         self.__default_timeout: datetime.timedelta = conventions.request_timeout
         self.__cache: HttpCache = HttpCache()
+
+        self.__certificate_path = certificate_path
+        self.__key_password = key_password
+        self.__trust_store_path = trust_store_path
 
         self.__topology_taken_from_node: Union[None, ServerNode] = None
         self.__update_client_configuration_semaphore = Semaphore(1)
@@ -162,7 +169,10 @@ class RequestExecutor:
 
     def __create_http_session(self) -> requests.Session:
         # todo: check if http client name is required
-        return requests.session()
+        session = requests.session()
+        session.cert = self.__certificate_path
+        session.verify = self.__trust_store_path
+        return session
 
     @property
     def cache(self) -> HttpCache:
@@ -198,8 +208,18 @@ class RequestExecutor:
             event(topology)
 
     @staticmethod
-    def create(initial_urls: List[str], database_name: str, conventions: DocumentConventions):
-        executor = RequestExecutor(database_name, conventions)
+    def create(
+        initial_urls: List[str],
+        database_name: str,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
+    ):
+        executor = RequestExecutor(
+            database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
+        )
         executor._first_topology_update_task = executor._first_topology_update(
             initial_urls, RequestExecutor.__GLOBAL_APPLICATION_IDENTIFIER
         )
@@ -207,21 +227,34 @@ class RequestExecutor:
 
     @staticmethod
     def create_for_single_node_with_configuration_updates(
-        url: str, database_name: str, certificate, conventions: DocumentConventions
+        url: str,
+        database_name: str,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
-        # todo: certificate from cryptography
         executor = RequestExecutor.create_for_single_node_without_configuration_updates(
-            url, database_name, certificate, conventions
+            url, database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
         )
         executor._disable_client_configuration_updates = False
         return executor
 
     @staticmethod
     def create_for_single_node_without_configuration_updates(
-        url: str, database_name: str, certificate, conventions: DocumentConventions
+        url: str,
+        database_name: str,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
         initial_urls = RequestExecutor.validate_urls([url])
-        executor = RequestExecutor(database_name, conventions)
+        executor = RequestExecutor(
+            database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
+        )
 
         topology = Topology(-1, [ServerNode(initial_urls[0], database_name)])
         executor._node_selector = NodeSelector(topology)
@@ -1049,20 +1082,38 @@ class ClusterRequestExecutor(RequestExecutor):
 
     # todo: security, cryptography, https
     def __init__(
-        self, conventions: DocumentConventions, thread_pool_executor: ThreadPoolExecutor, initial_urls: List[str]
+        self,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
+        initial_urls: Optional[List[str]] = None,
     ):
-        super(ClusterRequestExecutor, self).__init__(None, conventions, thread_pool_executor, initial_urls)
+        super(ClusterRequestExecutor, self).__init__(
+            None, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor, initial_urls
+        )
         self.__cluster_topology_semaphore = Semaphore(1)
 
     @staticmethod
     def create_for_single_node(
-        url: str, thread_pool_executor: ThreadPoolExecutor, conventions: Optional[DocumentConventions] = None
+        url: str,
+        thread_pool_executor: ThreadPoolExecutor,
+        conventions: Optional[DocumentConventions] = None,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
     ):
         initial_urls = [url]
         # todo: validate urls
         # todo: use default, static DocumentConventions
         executor = ClusterRequestExecutor(
-            (conventions if conventions else DocumentConventions()), thread_pool_executor, initial_urls
+            (conventions if conventions else DocumentConventions()),
+            certificate_path,
+            key_password,
+            trust_store_path,
+            thread_pool_executor,
+            initial_urls,
         )
 
         server_node = ServerNode(url)
@@ -1080,10 +1131,20 @@ class ClusterRequestExecutor(RequestExecutor):
 
     @staticmethod
     def create_without_database_name(
-        initial_urls: List[str], thread_pool_executor: ThreadPoolExecutor, conventions: DocumentConventions
+        initial_urls: List[str],
+        thread_pool_executor: ThreadPoolExecutor,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
     ):
         executor = ClusterRequestExecutor(
-            (conventions if conventions else DocumentConventions()), thread_pool_executor, initial_urls
+            (conventions if conventions else DocumentConventions()),
+            certificate_path,
+            key_password,
+            trust_store_path,
+            thread_pool_executor,
+            initial_urls,
         )
         executor._disable_client_configuration_updates = True
         executor._first_topology_update_task = executor._first_topology_update(initial_urls, None)
