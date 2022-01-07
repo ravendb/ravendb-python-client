@@ -46,7 +46,7 @@ class ServerOperationExecutor:
             command = operation.get_command(self.__request_executor.conventions)
             self.__request_executor.execute_command(command)
 
-        if isinstance(operation, serv_operations.ServerOperation):
+        elif isinstance(operation, serv_operations.ServerOperation):
             command = operation.get_command(self.__request_executor.conventions)
             self.__request_executor.execute_command(command)
 
