@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Generic, Tuple, TypeVar
 
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
@@ -21,7 +21,11 @@ import sys
 import re
 
 
-class CaseInsensitiveDict(dict):
+_TKey = TypeVar("_TKey")
+_TVal = TypeVar("_TVal")
+
+
+class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):
     @classmethod
     def _k(cls, key):
         return key.lower() if isinstance(key, str) else key
@@ -30,7 +34,7 @@ class CaseInsensitiveDict(dict):
         super(CaseInsensitiveDict, self).__init__(*args, **kwargs)
         self._convert_keys()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Tuple[_TKey, _TVal]:
         return super(CaseInsensitiveDict, self).__getitem__(self.__class__._k(key))
 
     def __setitem__(self, key, value):
@@ -42,10 +46,10 @@ class CaseInsensitiveDict(dict):
     def __contains__(self, key):
         return super(CaseInsensitiveDict, self).__contains__(self.__class__._k(key))
 
-    def pop(self, key, *args, **kwargs):
+    def pop(self, key, *args, **kwargs) -> Tuple[_TKey, _TVal]:
         return super(CaseInsensitiveDict, self).pop(self.__class__._k(key), *args, **kwargs)
 
-    def get(self, key, *args, **kwargs):
+    def get(self, key, *args, **kwargs) -> Tuple[_TKey, _TVal]:
         return super(CaseInsensitiveDict, self).get(self.__class__._k(key), *args, **kwargs)
 
     def setdefault(self, key, *args, **kwargs):
