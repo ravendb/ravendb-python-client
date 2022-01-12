@@ -41,7 +41,7 @@ from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetCluster
 from http import HTTPStatus
 
 
-from typing import TYPE_CHECKING, List, Dict
+from typing import TYPE_CHECKING, List, Dict, Tuple
 
 if TYPE_CHECKING:
     from pyravendb.documents.session import SessionInfo
@@ -179,7 +179,7 @@ class RequestExecutor:
 
     @property
     def topology_nodes(self) -> List[ServerNode]:
-        return self.topology.nodes
+        return self.topology.nodes if self.topology else None
 
     @property
     def client_configuration_etag(self) -> int:
@@ -355,7 +355,7 @@ class RequestExecutor:
 
     def _first_topology_update(self, input_urls: List[str], application_identifier: Union[None, uuid.UUID]) -> Future:
         initial_urls = self.validate_urls(input_urls)
-        errors: List[tuple[str, Exception]] = []
+        errors: List[Tuple[str, Exception]] = []
 
         def __run(errors: list):
             for url in initial_urls:
@@ -516,7 +516,6 @@ class RequestExecutor:
                         wait(*refresh_tasks, return_when=ALL_COMPLETED)
                     except:
                         raise
-                pass
 
     def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> List[Future]:
         refresh_topology = response.headers.get(constants.Headers.REFRESH_TOPOLOGY, False)
@@ -1066,6 +1065,12 @@ class RequestExecutor:
             )  # todo: Exception dispatcher
 
         return False
+
+    def __try_get_response_of_error(self, response: requests.Response) -> str:
+        try:
+            return response.content.decode("utf-8")
+        except Exception as e:
+            return f"Could not read request: {e.args[0]}"
 
     def __send_to_all_nodes(
         self, tasks: Dict[Future, BroadcastState], session_info: SessionInfo, command: Union[RavenCommand, Broadcast]

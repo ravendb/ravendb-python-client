@@ -405,13 +405,8 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         if conventions:
             self.store.conventions = conventions
         self.store.initialize()
-        created = False
-        database_record = DatabaseRecord("NorthWindTest")
-        while not created:
-            self.store.maintenance.server.send(CreateDatabaseOperation(database_record))
-            created = True
 
-        TestBase.wait_for_database_topology(self.store, self.default_database)
+        TestBase.wait_for_database_topology(self.store, self.store.database)
         self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
 
     def tearDown(self):
