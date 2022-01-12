@@ -35,12 +35,18 @@ class TestOperations(TestBase):
 
     def test_delete_attachment(self):
         self.test_put_attachment()
-        get_attachment_operation = GetAttachmentOperation("users/1-A", "my_picture", AttachmentType.document, None)
-        attachment = self.store.operations.send(get_attachment_operation)
-        self.assertIsNotNone(attachment)
+        with self.store.open_session() as session:
+            user = session.load("users/1-A")
+            metadata = session.get_metadata_for(user)
+            attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
+            self.assertTrue(attachments)  # not None, more than 0
+
         self.store.operations.send(DeleteAttachmentOperation("users/1-A", "my_picture"))
-        attachment = self.store.operations.send(get_attachment_operation)
-        self.assertIsNone(attachment)
+        with self.store.open_session() as session:
+            user = session.load("users/1-A")
+            metadata = session.get_metadata_for(user)
+            attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
+            self.assertFalse(attachments)  # 0 or None
 
     def test_patch_by_index(self):
         index = IndexDefinition()

@@ -1,3 +1,4 @@
+from pyravendb import constants
 from pyravendb.documents.indexes import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
@@ -94,12 +95,24 @@ class TestAdvanced(TestBase):
                 session.save_changes()
 
         with self.store.open_session() as session:
-            attachment = session.advanced.attachment.get("users/1-A", "my_text_file")
-            self.assertIsNotNone(attachment)
+            user = session.load("users/1-A")
+            metadata = session.get_metadata_for(user)
+            attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
+            attachment_names = []
+            if attachments:
+                attachment_names = list(map(lambda x: x.metadata["Name"], attachments))
+            self.assertIn("my_text_file", attachment_names)
+
             session.advanced.attachment.delete("users/1-A", "my_text_file")
             session.save_changes()
-            attachment = session.advanced.attachment.get("users/1-A", "my_text_file")
-            self.assertIsNone(attachment)
+
+            user = session.load("users/1-A")
+            metadata = session.get_metadata_for(user)
+            attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
+            attachment_names = []
+            if attachments:
+                attachment_names = list(map(lambda x: x.metadata["Name"], attachments))
+            self.assertNotIn("my_text_file", attachment_names)
 
     def test_try_delete_attachment_putted_in_the_same_session(self):
         with self.store.open_session() as session:
