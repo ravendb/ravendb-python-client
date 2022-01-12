@@ -1,7 +1,6 @@
 import os
 import subprocess
 import time
-import io
 from typing import Callable
 
 from pyravendb.documents import DocumentStore
@@ -46,7 +45,6 @@ class RavenTestDriver:
 
         if url is None:
             self._report_info("Url is None")
-
             try:
                 process.kill()
             except Exception as e:

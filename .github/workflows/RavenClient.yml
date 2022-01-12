@@ -65,6 +65,9 @@ jobs:
       - name: Run certifi script
         run: python ./.github/workflows/add_ca.py
 
+      - name: Deploy certificates
+        run: mkdir RavenDB/Server/certs && cp certs/server.pfx RavenDB/Server/certs/
+
       - name: Install black linter
         run: pip install git+git://github.com/psf/black
 
