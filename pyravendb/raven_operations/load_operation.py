@@ -6,7 +6,7 @@ from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.data.timeseries import TimeSeriesRange
 from pyravendb.documents.commands import GetDocumentsCommand
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict
+from pyravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict, Utils
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
@@ -129,10 +129,10 @@ class LoadOperation:
     def __get_document(self, object_type: type, key: str):
         if key is None:
             # todo: fix these ugly protected calls below
-            return self._session._get_default_value(object_type)
+            return Utils.get_default_value(object_type)
 
         if self._session.is_deleted(key):
-            return self._session._get_default_value(object_type)
+            return Utils.get_default_value(object_type)
 
         doc = self._session.documents_by_id.get(key)
         if doc is not None:
@@ -142,7 +142,7 @@ class LoadOperation:
         if doc is not None:
             return self._session.track_entity(object_type, document_info=doc)
 
-        return self._session._get_default_value(object_type)
+        return Utils.get_default_value(object_type)
 
     def get_documents(self, object_type: type):
         final_results = CaseInsensitiveDict()

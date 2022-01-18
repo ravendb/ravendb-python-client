@@ -573,6 +573,20 @@ class Utils(object):
             raise TypeError(repr(o) + " is not JSON serializable")
 
     @staticmethod
+    def get_default_value(object_type: type) -> object:
+        if object_type == bool:
+            return False
+        elif object_type == str:
+            return ""
+        elif object_type == bytes:
+            return bytes(0)
+        elif object_type == int:
+            return int(0)
+        elif object_type == float:
+            return float(0)
+        return None
+
+    @staticmethod
     def entity_to_dict(entity, default_method):
         return json.loads(json.dumps(entity, default=default_method))
 

@@ -736,20 +736,6 @@ class InMemoryDocumentSessionOperations:
             self.documents_by_entity[new_document_info.entity] = new_document_info
         return entity
 
-    @staticmethod
-    def _get_default_value(object_type: type) -> object:
-        if object_type == bool:
-            return False
-        elif object_type == str:
-            return ""
-        elif object_type == bytes:
-            return bytes(0)
-        elif object_type == int:
-            return int(0)
-        elif object_type == float:
-            return float(0)
-        return None
-
     def delete(self, key_or_entity: Union[str, object], expected_change_vector: Optional[str] = None) -> None:
         if isinstance(key_or_entity, str):
             key = key_or_entity
@@ -1753,7 +1739,7 @@ class InMemoryDocumentSessionOperations:
 
     def _get_operation_result(self, object_type: type, result: object) -> object:
         if result is None:
-            return self._get_default_value(object_type)
+            return Utils.get_default_value(object_type)
 
         if issubclass(type(result), object_type) or type(result) == object_type:
             return result
