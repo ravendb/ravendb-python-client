@@ -21,6 +21,7 @@ class TestServerOperations(TestBase):
             except Exception as exception:
                 raise exception
 
+    @unittest.skip("Exception Dispatcher")
     def test_cannot_create_database_with_the_same_name(self):
         name = "Duplicate"
         try:

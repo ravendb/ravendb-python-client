@@ -30,6 +30,7 @@ class TestAdvanced(TestBase):
             id = s.get_document_id(user)
             self.assertFalse(id.endswith("/"))
 
+    @unittest.skip("Query streaming")
     def test_stream_query(self):
         maps = "from user in docs.Users " "select new {" "name = user.name," "age = user.age}"
         index_definition = IndexDefinition()

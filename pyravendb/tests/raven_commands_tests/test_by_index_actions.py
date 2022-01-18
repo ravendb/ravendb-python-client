@@ -64,7 +64,7 @@ class TestByIndexActions(TestBase):
             patch_command.result.operation_node_tag,
         ).wait_for_completion()
 
-    # todo: Exception Dispatcher
+    @unittest.skip("Exception Dispatcher")
     def test_update_by_index_fail(self):
         patch_command = PatchByQueryOperation(
             IndexQuery("From INDEX 'TeSort' Update {{{0}}}".format(self.patch)),
@@ -80,7 +80,7 @@ class TestByIndexActions(TestBase):
                 patch_command.result.operation_node_tag,
             ).wait_for_completion()
 
-    # todo: Exception Dispatcher
+    @unittest.skip("Exception Dispatcher")
     def test_delete_by_index_fail(self):
         delete_by_index_command = DeleteByQueryOperation("From Index 'region_2' WHERE Name = 'Western'").get_command(
             self.store, self.store.conventions

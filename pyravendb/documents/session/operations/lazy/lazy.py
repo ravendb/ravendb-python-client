@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Union, List
+from typing import Union, List, Generic, TypeVar
 from pyravendb.tools.utils import Utils
 from pyravendb.data.query import IndexQuery
 from pyravendb.store.entity_to_json import EntityToJson
@@ -14,6 +14,8 @@ from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
 from pyravendb.documents.commands.multi_get import Content, GetRequest, GetResponse
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
+_T = TypeVar("T")
+
 
 class IndexQueryContent(Content):
     def __init__(self, conventions: DocumentConventions, query: IndexQuery):
@@ -25,14 +27,14 @@ class IndexQueryContent(Content):
 
 
 # ------- OPERATIONS --------
-class LazyLoadOperation(LazyOperation):
+class LazyLoadOperation(LazyOperation, Generic[_T]):
     def __init__(self, object_type: type, session: InMemoryDocumentSessionOperations, load_operation: LoadOperation):
         self.__object_type = object_type
         self.__session = session
         self.__load_operation = load_operation
         self.__keys: Union[None, List[str]] = None
         self.__includes: Union[None, List[str]] = None
-        self.__already_in_session: Union[None, List[str]] = None
+        self.__already_in_session: List[str] = []
 
         self.__result: Union[None, object] = None
         self.__query_result: Union[None, QueryResult] = None
@@ -86,11 +88,20 @@ class LazyLoadOperation(LazyOperation):
         get_request.query = "".join(query_builder)
         return get_request
 
-    def by_keys(self, *keys: str) -> LazyLoadOperation:
+    def by_key(self, key: str) -> LazyLoadOperation[_T]:
+        if key.isspace():
+            return self
+
+        if self.__keys is None:
+            self.__keys = [key]
+
+        return self
+
+    def by_keys(self, *keys: str) -> LazyLoadOperation[_T]:
         self.__keys = list(set(filter(lambda key: key, keys)))
         return self
 
-    def with_includes(self, *includes: str) -> LazyLoadOperation:
+    def with_includes(self, *includes: str) -> LazyLoadOperation[_T]:
         self.__includes = includes
         return self
 
@@ -100,14 +111,8 @@ class LazyLoadOperation(LazyOperation):
             self.__requires_retry = True
             return
 
-        # todo: make sure it's working
-        multi_load_result = (
-            EntityToJson.convert_to_entity_static(
-                json.loads(response.result), GetDocumentsResult, self.__session.conventions, None, None
-            )
-            if response.result
-            else None
-        )
+        multi_load_result = GetDocumentsResult.from_json(response.result if response.result else None)
+        self.__handle_response(multi_load_result)
 
     def __handle_response(self, load_result: GetDocumentsResult) -> None:
         if self.__already_in_session:

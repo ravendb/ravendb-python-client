@@ -5,7 +5,7 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List
+from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Any
 
 from pyravendb import constants
 from pyravendb.custom_exceptions import exceptions
@@ -24,7 +24,8 @@ from pyravendb.documents.session.cluster_transaction_operation import ClusterTra
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.document_query import Query
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
+from pyravendb.documents.session.loaders import MultiLoaderWithInclude, LoaderWithInclude
+from pyravendb.documents.session.operations.lazy import LazySessionOperations
 from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
 from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
 from pyravendb.documents.session import (
@@ -78,8 +79,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return self.__advanced
 
     @property
-    def lazily(self):
-        raise NotImplementedError()
+    def _lazily(self):
+        return LazySessionOperations(self)
 
     @property
     def cluster_session(self) -> ClusterTransactionOperationsBase:
@@ -115,44 +116,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def _generate_id(self, entity: object) -> str:
         return self.conventions.generate_document_id(self.database_name, entity)
 
-    # todo: lazy - WIP
-    def execute_all_pending_lazy_operations(self) -> ResponseTimeInformation:
-        requests = []
-        for i in range(len(self._pending_lazy_operations)):
-            # todo: pending lazy operation create request - WIP
-            req = self._pending_lazy_operations[i].create_request()
-            if req is None:
-                self._pending_lazy_operations.remove(i)
-                i -= 1
-                continue
-            requests.append(req)
-        if not requests:
-            return ResponseTimeInformation()
-
-        sw = datetime.datetime.now()
-        response_time_duration = ResponseTimeInformation()
-        while self.__execute_lazy_operations_single_step(response_time_duration, requests, sw):
-            time.sleep(0.1)
-        response_time_duration.compute_server_total()
-
-        for pending_lazy_operation in self._pending_lazy_operations:
-            value = self._on_evaluate_lazy.get(pending_lazy_operation)
-            if value is not None:
-                value(pending_lazy_operation.result)
-
-        elapsed = datetime.datetime.now() - sw
-        response_time_duration.total_client_duration = elapsed
-
-        self._pending_lazy_operations.clear()
-
-        return response_time_duration
-
-    def __execute_lazy_operations_single_step(
+    def _execute_lazy_operations_single_step(
         self, response_time_information: ResponseTimeInformation, get_requests: List[GetRequest], sw: datetime.datetime
     ) -> bool:
         multi_get_operation = MultiGetOperation(self)
         with multi_get_operation.create_request(get_requests) as multi_get_command:
-            self.request_executor.execute(multi_get_command, self._session_info)
+            self.request_executor.execute_command(multi_get_command, self._session_info)
 
             responses = multi_get_command.result
 
@@ -176,7 +145,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 self._pending_lazy_operations[i].handle_response(response)
-                if self._pending_lazy_operations[i].requires_retry:
+                if self._pending_lazy_operations[i].is_requires_retry:
                     return True
 
             return False
@@ -185,12 +154,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return MultiLoaderWithInclude(self).include(path)
 
     def add_lazy_operation(
-        self, object_type, operation: LazyOperation, on_eval: Callable[[object], None]
+        self, object_type, operation: LazyOperation, on_eval: Union[None, Callable[[Any], None]]
     ) -> pyravendb.documents.Lazy:
         self._pending_lazy_operations.append(operation)
 
         def __supplier():
-            self.execute_all_pending_lazy_operations()
+            self.advanced.eagerly.execute_all_pending_lazy_operations()
             return self._get_operation_result(object_type, operation.result)
 
         lazy_value = pyravendb.documents.Lazy(__supplier)
@@ -206,19 +175,20 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         self._pending_lazy_operations.append(operation)
 
         def __supplier():
-            self.execute_all_pending_lazy_operations()
+            self.advanced.eagerly.execute_all_pending_lazy_operations()
             return operation.query_result.total_results
 
         return pyravendb.documents.Lazy(__supplier)
 
-    def __lazy_load_internal(
+    def lazy_load_internal(
         self, object_type: type, keys: List[str], includes: List[str], on_eval: Callable[[Dict[str, object]], None]
     ) -> pyravendb.documents.Lazy:
         if self.check_if_id_already_included(keys, includes):
-            return pyravendb.documents.Lazy(lambda: self.load(object_type, *keys))
+            return pyravendb.documents.Lazy(lambda: self.load(keys, object_type))
 
         load_operation = LoadOperation(self).by_keys(keys).with_includes(includes)
         lazy_op = LazyLoadOperation(object_type, self, load_operation).by_keys(*keys).with_includes(*includes)
+        return self.add_lazy_operation(dict, lazy_op, on_eval)
 
     def load(
         self,
@@ -249,7 +219,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             else None
         )
 
-        result = self.__load_internal(
+        result = self._load_internal(
             object_type,
             [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys,
             include_builder.documents_to_include if include_builder.documents_to_include else None,
@@ -261,7 +231,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return result.popitem()[1] if len(result) == 1 else result
 
-    def __load_internal(
+    def _load_internal(
         self,
         object_type: type,
         keys: List[str],
@@ -359,12 +329,54 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             raise ValueError("Pass either collection_name or index_name")
         return self.__document_query_generator.document_query(object_type, index_name, collection_name, **kwargs)
 
+    class _EagerSessionOperations:
+        def __init__(self, session: DocumentSession):
+            self.__session = session
+
+        def execute_all_pending_lazy_operations(self) -> ResponseTimeInformation:
+            operations_to_remove = []
+
+            requests = []
+
+            for lazy_operation in self.__session._pending_lazy_operations:
+                req = lazy_operation.create_request()
+                if req is None:
+                    operations_to_remove.append(lazy_operation)
+                    continue
+                requests.append(req)
+
+            for op in operations_to_remove:
+                self.__session._pending_lazy_operations.remove(op)
+
+            if not requests:
+                return ResponseTimeInformation()
+
+            sw = datetime.datetime.now()
+            response_time_duration = ResponseTimeInformation()
+            while self.__session._execute_lazy_operations_single_step(response_time_duration, requests, sw):
+                time.sleep(0.1)
+            response_time_duration.compute_server_total()
+
+            for pending_lazy_operation in self.__session._pending_lazy_operations:
+                value = self.__session._on_evaluate_lazy.get(pending_lazy_operation)
+                if value is not None:
+                    value(pending_lazy_operation.result)
+
+            elapsed = datetime.datetime.now() - sw
+            response_time_duration.total_client_duration = elapsed
+
+            self.__session._pending_lazy_operations.clear()
+
+            return response_time_duration
+
     class _Advanced:
         def __init__(self, session: DocumentSession):
             self.__session = session
             self.__vals_count = 0
             self.__custom_count = 0
             self.__attachment = None
+
+            self.eagerly = DocumentSession._EagerSessionOperations(session)
 
         @property
         def attachment(self):
@@ -388,6 +400,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def raw_query(self, query: str, query_parameters: Optional[dict] = None, **kwargs):  # -> RawDocumentQuery:
             self._query = Query(self.__session)(**kwargs)
             return self._query.raw_query(query)
+
+        @property
+        def lazily(self) -> LazySessionOperations:
+            return self.__session._lazily
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass

@@ -9,6 +9,7 @@ from typing import Callable, Any, Union, Optional, TypeVar, Generic, TYPE_CHECKI
 from pyravendb import constants, exceptions
 from pyravendb.changes.database_changes import DatabaseChanges
 from pyravendb.data.counters import CounterOperationType
+from pyravendb.documents.lazy import Lazy
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from pyravendb.documents.session import SessionOptions
@@ -16,35 +17,12 @@ from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.raven_operations.counters_operations import GetCountersOperation, CounterOperation
 from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.data.document_conventions import DocumentConventions
-
-import pyravendb.documents.operations as documents_operations
-
-T = TypeVar("T")
-
-import pyravendb.identity
-
 from pyravendb.documents.commands.batches import CommandType, CountersBatchCommandData
 
+import pyravendb.documents.operations as documents_operations
+import pyravendb.identity
 
-class Lazy(Generic[T]):
-    def __init__(self, value_factory: Callable[[], Any]):
-        self.__value_created = False  # todo: check if it isn't cached - volatile in java
-        self.__value_factory = value_factory
-        self.__value: Union[None, T] = None
-        self.__value_lock = threading.Lock()
-
-    @property
-    def is_value_created(self) -> bool:
-        return self.__value_created
-
-    def value(self) -> T:  # double check locking
-        if self.__value_created:
-            return self.__value
-        with self.__value_lock:
-            if not self.__value_created:
-                self.__value = self.__value_factory()
-                self.__value_created = True
-        return self.__value
+T = TypeVar("T")
 
 
 class IdTypeAndName:
@@ -296,7 +274,7 @@ class DocumentStore(DocumentStoreBase):
             if not lazy.is_value_created:
                 continue
 
-            lazy.value().close()
+            lazy.value.close()
 
         self.__thread_pool_executor.shutdown()
 
@@ -325,7 +303,7 @@ class DocumentStore(DocumentStoreBase):
 
         executor = self.__request_executors.get(database, None)
         if executor:
-            return executor.value()
+            return executor.value
         effective_database = database
 
         def __create_request_executor() -> RequestExecutor:
@@ -363,7 +341,7 @@ class DocumentStore(DocumentStoreBase):
 
         self.__request_executors[database] = executor
 
-        return executor.value()
+        return executor.value
 
     def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges:
         self.assert_initialized()

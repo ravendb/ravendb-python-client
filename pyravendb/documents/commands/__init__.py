@@ -398,3 +398,48 @@ class HeadAttachmentCommand(RavenCommand[str]):
 
     def is_read_request(self) -> bool:
         return False
+
+
+class _ConditionalGetResult:
+    def __init__(self, results: List = None, change_vector: str = None):
+        self.results = results
+        self.change_vector = change_vector
+
+    @staticmethod
+    def from_json(json_dict: dict) -> _ConditionalGetResult:
+        return _ConditionalGetResult(json_dict["Results"], json_dict["ChangeVector"])
+
+
+class ConditionalGetDocumentsCommand(RavenCommand[_ConditionalGetResult]):
+    ConditionalGetResult = _ConditionalGetResult
+
+    def __init__(self, key: str, change_vector: str):
+        super().__init__(self.ConditionalGetResult)
+
+        self.__change_vector = change_vector
+        self.__key = key
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        url = f"{node.url}/databases/{node.database}/docs?id={Utils.quote_key(self.__key)}"
+        request = requests.Request("GET", url)
+        request.headers["If-None-Match"] = f'"{self.__change_vector}"'
+
+        return request
+
+    def set_response(self, response: str, from_cache: bool) -> None:
+        if response is None:
+            self.result = None
+            return
+
+        self.result = self.ConditionalGetResult.from_json(json.loads(response))
+
+    def is_read_request(self) -> bool:
+        return False
+
+    def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:
+        if response.status_code == http.HTTPStatus.NOT_MODIFIED.value:
+            return ResponseDisposeHandling.AUTOMATIC
+
+        result = super().process_response(cache, response, url)
+        self.result.change_vector = response.headers["ETag"]
+        return result

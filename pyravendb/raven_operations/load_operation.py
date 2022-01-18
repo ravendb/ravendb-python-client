@@ -27,7 +27,7 @@ class LoadOperation:
         time_series_to_include: Optional[List[TimeSeriesRange]] = None,
     ):
         self._session = session
-        self._keys = keys
+        self.__keys = keys
         self._includes = includes if includes is not None else []
         self._counters_to_include = counters_to_include if counters_to_include is not None else []
         self._compare_exchange_values_to_include = (
@@ -41,18 +41,18 @@ class LoadOperation:
 
     def create_request(self) -> GetDocumentsCommand:
         if self._session.check_if_id_already_included(
-            self._keys, list(self._includes) if self._includes is not None else None
+            self.__keys, list(self._includes) if self._includes is not None else None
         ):
             return None
 
         self._session.increment_requests_count()
 
-        self.logger.info(f"Requesting the following ids {','.join(self._keys)} from {self._session.store_identifier}")
+        self.logger.info(f"Requesting the following ids {','.join(self.__keys)} from {self._session.store_identifier}")
 
         if self._include_all_counters:
             return GetDocumentsCommand(
                 GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
-                    self._keys,
+                    self.__keys,
                     self._includes,
                     False,
                     self._time_series_to_include,
@@ -65,7 +65,7 @@ class LoadOperation:
 
         return GetDocumentsCommand(
             GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
-                self._keys,
+                self.__keys,
                 self._includes,
                 False,
                 self._time_series_to_include,
@@ -79,8 +79,8 @@ class LoadOperation:
     def by_key(self, key: str):
         if not key:
             return self
-        if self._keys is None:
-            self._keys = [key]
+        if self.__keys is None:
+            self.__keys = [key]
         return self
 
     def with_includes(self, includes: List[str]):
@@ -107,12 +107,12 @@ class LoadOperation:
 
     def by_keys(self, keys: List[str]):
         distinct = CaseInsensitiveSet(filter(lambda key: key and key.strip(), keys))
-        self._keys = list(distinct)
+        self.__keys = list(distinct)
         return self
 
     def get_document(self, object_type: type):
         if self._session.no_tracking:
-            if not self._results_set and len(self._keys) > 0:
+            if not self._results_set and len(self.__keys) > 0:
                 raise RuntimeError("Cannot execute get_document before operation execution.")
 
             if (not self._results) or not self._results["Results"]:
@@ -124,7 +124,7 @@ class LoadOperation:
 
             document_info = DocumentInfo.get_new_document_info(document)
             return self._session.track_entity(object_type, document_info=document_info)
-        return self.__get_document(object_type, self._keys[0])
+        return self.__get_document(object_type, self.__keys[0])
 
     def __get_document(self, object_type: type, key: str):
         if key is None:
@@ -147,10 +147,10 @@ class LoadOperation:
     def get_documents(self, object_type: type):
         final_results = CaseInsensitiveDict()
         if self._session.no_tracking:
-            if (not self._results_set) and len(self._keys) > 0:
+            if (not self._results_set) and len(self.__keys) > 0:
                 raise ValueError("Cannot execute 'get_documents before operation execution.")
 
-            for key in self._keys:
+            for key in self.__keys:
                 if not key:
                     continue
                 final_results[key] = None
@@ -168,7 +168,7 @@ class LoadOperation:
 
             return final_results
 
-        for key in self._keys:
+        for key in self.__keys:
             if not key:
                 continue
             final_results[key] = self.__get_document(object_type, key)
@@ -182,14 +182,14 @@ class LoadOperation:
             return
 
         if not result:
-            self._session.register_missing(*self._keys)
+            self._session.register_missing(*self.__keys)
             return
 
         self._session.register_includes(result.includes)
 
         if self._include_all_counters or self._counters_to_include:
             self._session.register_counters(
-                result.counter_includes, self._keys, self._counters_to_include, self._include_all_counters
+                result.counter_includes, self.__keys, self._counters_to_include, self._include_all_counters
             )
 
         if self._time_series_to_include:
@@ -205,7 +205,7 @@ class LoadOperation:
             new_document_info = DocumentInfo.get_new_document_info(document)
             self._session.documents_by_id.add(new_document_info)
 
-        for key in self._keys:
+        for key in self.__keys:
             value = self._session.documents_by_id.get(key, None)
             if value is None:
                 self._session.register_missing(key)
