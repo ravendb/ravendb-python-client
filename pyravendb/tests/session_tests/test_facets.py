@@ -44,6 +44,7 @@ class TestFacets(TestBase):
         super(TestFacets, self).tearDown()
         self.delete_all_topology_files()
 
+    @unittest.skip("Facets")
     def test_facets_with_documents(self):
         with self.store.open_session() as session:
             query_results = (

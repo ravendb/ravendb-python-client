@@ -76,6 +76,7 @@ class TestLoad(TestBase):
         super(TestLoad, self).tearDown()
 
     # todo: discuss nested object types - pass into track entity?
+    @unittest.skip("Nested object types")
     def test_can_handle_nested_values(self):
         request_executor = self.store.get_request_executor()
         put_command = PutDocumentCommand("testing/1", None, {"items": [{"name": "oren"}]})
@@ -117,6 +118,7 @@ class TestLoad(TestBase):
             product = session.load("products/101", object_type=Product)
             self.assertTrue(isinstance(product, Product))
 
+    @unittest.skip("Nested object types")
     def test_load_track_entity_with_object_type_and_nested_object(self):
         with self.store.open_session() as session:
             company = session.load(

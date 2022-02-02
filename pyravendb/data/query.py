@@ -1,11 +1,13 @@
-from typing import Union
+from typing import Union, TYPE_CHECKING
 
-from pyravendb.documents.queries.query import ProjectionBehavior
 from pyravendb.tools.utils import Utils
 from abc import ABCMeta
 from enum import Enum
 import json
 import sys
+
+if TYPE_CHECKING:
+    from pyravendb.documents.queries.query import ProjectionBehavior
 
 
 class EscapeQueryOptions(Enum):
@@ -45,7 +47,7 @@ class IndexQueryBase(object):
         wait_for_non_stale_results=False,
         wait_for_non_stale_results_timeout=None,
         cutoff_etag=None,
-        projection_behavior: ProjectionBehavior = None,
+        projection_behavior: "ProjectionBehavior" = None,
     ):
         """
         @param str query: Actual query that will be performed.

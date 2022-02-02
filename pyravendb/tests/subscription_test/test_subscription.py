@@ -45,6 +45,7 @@ class TestSubscription(TestBase):
         self.event.clear()
         self.ack.clear()
 
+    @unittest.skip("Subscriptions")
     def test_create_and_run_subscription_with_object(self):
         self.expected_items_count = 2
         with self.store.open_session() as session:
@@ -72,6 +73,7 @@ class TestSubscription(TestBase):
         for item in self.results:
             self.assertTrue(isinstance(item, User))
 
+    @unittest.skip("Subscriptions")
     def test_subscription_continue_to_take_documents(self):
         self.expected_items_count = 3
         with self.store.open_session() as session:
@@ -102,6 +104,7 @@ class TestSubscription(TestBase):
             self.event.wait(timeout=5)
             self.assertEqual(len(self.results), 3)
 
+    @unittest.skip("Subscriptions")
     def test_drop_subscription(self):
         self.expected_items_count = 2
         with self.store.open_session() as session:

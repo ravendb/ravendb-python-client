@@ -83,4 +83,4 @@ class QueryCommand(RavenCommand[Dict]):
         return True
 
     def set_response(self, response: str, from_cache: bool) -> None:
-        self.result = json.loads(response)
+        self.result = json.loads(response) if response else None
