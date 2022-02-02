@@ -13,7 +13,7 @@ from pyravendb import constants
 from pyravendb.custom_exceptions.exceptions import DatabaseDoesNotExistException
 from pyravendb.documents import DocumentStore
 from pyravendb.documents.indexes import IndexState, IndexErrors
-from pyravendb.documents.operations import GetStatisticsOperation
+from pyravendb.documents.operations.statistics import GetStatisticsOperation
 from pyravendb.exceptions.cluster import NoLoaderException
 from pyravendb.serverwide.database_record import DatabaseRecord
 from pyravendb.serverwide.operations import CreateDatabaseOperation, DeleteDatabaseOperation, GetDatabaseRecordOperation
@@ -38,9 +38,9 @@ class User(object):
 
 
 class UserWithId(User):
-    def __init__(self, name=None, age=None, identifier=None):
+    def __init__(self, name=None, age=None, Id=None):
         super(UserWithId, self).__init__(name, age)
-        self.Id = identifier
+        self.Id = Id
 
 
 class Dog(object):

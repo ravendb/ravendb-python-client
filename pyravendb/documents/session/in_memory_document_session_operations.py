@@ -38,9 +38,14 @@ from pyravendb.documents.session.cluster_transaction_operation import ClusterTra
 from pyravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.event_args import BeforeStoreEventArgs
-from pyravendb.documents.session import SessionInfo, SessionOptions, DocumentsChanges, ForceRevisionStrategy
+from pyravendb.documents.session import (
+    SessionInfo,
+    SessionOptions,
+    DocumentsChanges,
+    ForceRevisionStrategy,
+    TransactionMode,
+)
 from pyravendb.documents.session.time_series.time_series import TimeSeriesEntry
-from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.documents.session.utils.includes_util import IncludesUtil
 from pyravendb.extensions.json_extensions import JsonExtensions
 from pyravendb.http.raven_command import RavenCommand
@@ -477,7 +482,7 @@ class InMemoryDocumentSessionOperations:
         self._request_executor = (
             options.request_executor if options.request_executor else store.get_request_executor(self.__database_name)
         )
-        self.__operation_executor: OperationExecutor = None
+        self._operation_executor: OperationExecutor = None
 
         self._pending_lazy_operations: List[LazyOperation] = []
         self._on_evaluate_lazy = {}
@@ -542,7 +547,7 @@ class InMemoryDocumentSessionOperations:
 
     @property
     def operation_executor(self) -> OperationExecutor:
-        return self.__operation_executor
+        return self._operation_executor
 
     @property
     def conventions(self) -> DocumentConventions:
@@ -915,7 +920,7 @@ class InMemoryDocumentSessionOperations:
         if not self._has_cluster_session():
             return
 
-        cluster_transaction_operations = self.get_cluster_session()
+        cluster_transaction_operations = self.cluster_session
         if cluster_transaction_operations.number_of_tracked_compare_exchange_values == 0:
             return
 
@@ -924,7 +929,7 @@ class InMemoryDocumentSessionOperations:
                 "Performing cluster transaction operation require the TransactionMode to be set to CLUSTER_WIDE"
             )
 
-        self.get_cluster_session().prepare_compare_exchange_entities(result)
+        self.cluster_session.prepare_compare_exchange_entities(result)
 
     # --- CLUSTER ---
     @abstractmethod
@@ -935,9 +940,10 @@ class InMemoryDocumentSessionOperations:
     def _clear_cluster_session(self) -> None:
         pass
 
+    @property
     @abstractmethod
-    def get_cluster_session(self) -> ClusterTransactionOperationsBase:
-        pass
+    def cluster_session(self) -> ClusterTransactionOperationsBase:
+        raise RuntimeError(f"{self.__class__.__name__} must override the cluster_session property method")
 
     @staticmethod
     def __update_metadata_modifications(document_info: DocumentInfo) -> bool:

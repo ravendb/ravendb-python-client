@@ -19,6 +19,9 @@ class MetadataAsDictionary:
         self._is_dirty = True
         del self._metadata[key]
 
+    def __contains__(self, item):
+        return item in self._metadata
+
     def __getitem__(self, item):
         return self._metadata[item]
 

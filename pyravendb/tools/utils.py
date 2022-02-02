@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional, Dict, Generic, Tuple, TypeVar
 
 from pyravendb.custom_exceptions import exceptions
@@ -23,6 +24,16 @@ import re
 
 _TKey = TypeVar("_TKey")
 _TVal = TypeVar("_TVal")
+
+
+class Size:
+    def __init__(self, size_in_bytes: int = None, human_size: str = None):
+        self.size_in_bytes = size_in_bytes
+        self.human_size = human_size
+
+    @staticmethod
+    def from_json(json_dict: Dict) -> Size:
+        return Size(json_dict["SizeInBytes"], json_dict["HumaneSize"])
 
 
 class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):
@@ -105,6 +116,8 @@ class _DynamicStructure(object):
 
 
 class Utils(object):
+    primitives = (int, float, bool, str, list, set)
+
     @staticmethod
     def quote_key(key, reserved_slash=False):
         reserved = "%:=&?~#+!$,;'*[]"
@@ -310,7 +323,9 @@ class Utils(object):
                 converted_document = {}
                 for key in document:
                     converted_key = convert_to_snake_case.get(key, key)
-                    converted_document[Utils.convert_to_snake_case(converted_key)] = document[key]
+                    converted_document[
+                        converted_key if key == "Id" else Utils.convert_to_snake_case(converted_key)
+                    ] = document[key]
                 document = converted_document
             except:
                 pass

@@ -1111,7 +1111,9 @@ class RequestExecutor:
         if command.failed_nodes is None:
             command.failed_nodes = {}
 
-        command.failed_nodes[chosen_node] = self.__read_exception_from_server(request, response, e)
+        return (
+            False  # todo: command.failed_nodes[chosen_node] = self.__read_exception_from_server(request, response, e)
+        )
 
         if node_index is None:
             # We executed request over a node not in the topology. This means no failover...

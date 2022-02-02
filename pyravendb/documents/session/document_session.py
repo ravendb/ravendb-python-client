@@ -47,7 +47,7 @@ from pyravendb.documents.commands.batches import (
 )
 from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
 from pyravendb.documents.commands.multi_get import GetRequest
-from pyravendb.documents.operations import BatchOperation, PatchRequest
+from pyravendb.documents.operations import BatchOperation, PatchRequest, OperationExecutor, SessionOperationExecutor
 
 if TYPE_CHECKING:
     from pyravendb.data.document_conventions import DocumentConventions
@@ -89,6 +89,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def has_cluster_session(self) -> bool:
         return self.__cluster_transaction is not None
 
+    @property
+    def operations(self) -> OperationExecutor:
+        if self._operation_executor is None:
+            self._operation_executor = SessionOperationExecutor(self)
+        return self._operation_executor
+
     def save_changes(self) -> None:
         save_changes_operation = BatchOperation(self)
         command = save_changes_operation.create_request()
@@ -104,6 +110,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 self.request_executor.execute_command(command, self._session_info)
                 self.update_session_after_save_changes(command.result)
                 save_changes_operation.set_result(command.result)
+
+    def _has_cluster_session(self) -> bool:
+        return self.__cluster_transaction is not None
 
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():
@@ -369,6 +378,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if not self.__attachment:
                 self.__attachment = self._Attachment(self.__session)
             return self.__attachment
+
+        @property
+        def cluster_transaction(self) -> ClusterTransactionOperations:
+            return self.__session.cluster_session
 
         def refresh(self, entity: object) -> object:
             document_info = self.__session.documents_by_entity.get(entity)

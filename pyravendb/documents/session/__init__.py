@@ -9,11 +9,18 @@ from pyravendb.http import LoadBalanceBehavior
 
 if TYPE_CHECKING:
     from pyravendb.http.request_executor import RequestExecutor
-    from pyravendb.store.session_query import Query
-    from pyravendb.documents.session.transaction_mode import TransactionMode
+    from pyravendb.documents.session.document_query import Query
     from pyravendb.raven_operations.query_operation import QueryOperation
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from pyravendb.documents import DocumentStore
+
+
+class TransactionMode(Enum):
+    SINGLE_NODE = "single_node"
+    CLUSTER_WIDE = "cluster_wide"
+
+    def __str__(self):
+        return self.value
 
 
 class ForceRevisionStrategy(Enum):

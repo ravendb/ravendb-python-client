@@ -30,7 +30,7 @@ class RavenTestDriver:
         read_lines = []
         while True:
             line = stdout.readline().decode("utf-8")
-            read_lines.append(line)  # check if utf-8 works fine
+            read_lines.append(line)
 
             if line is None:
                 raise RuntimeError(str.join(os.linesep, read_lines) + process.stdin.read().decode("utf-8"))

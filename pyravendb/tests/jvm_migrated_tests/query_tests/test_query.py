@@ -2,9 +2,9 @@ import datetime
 import unittest
 
 from pyravendb.documents.indexes import IndexDefinition
-from pyravendb.documents.operations import GetCollectionStatisticsOperation
 from pyravendb.documents.operations.indexes import PutIndexesOperation
-from pyravendb.tests.test_base import TestBase, User, UserWithId, Address, Order
+from pyravendb.documents.operations.statistics import GetCollectionStatisticsOperation
+from pyravendb.tests.test_base import TestBase, User, UserWithId, Order
 from pyravendb.data.query import OrderingType, QueryOperator
 from pyravendb.tools.utils import Utils
 

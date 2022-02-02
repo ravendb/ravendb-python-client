@@ -12,9 +12,8 @@ import requests
 from pyravendb import constants
 from pyravendb.data.query import IndexQuery
 from pyravendb.documents.operations.operation import Operation
-from pyravendb.documents.session import SessionInfo
+from pyravendb.documents.session import SessionInfo, TransactionMode
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 from pyravendb.http import ServerNode, VoidRavenCommand
 from pyravendb.http.http_cache import HttpCache
@@ -74,6 +73,15 @@ class OperationExecutor:
     #  or
     #  refactor 'send' methods above to act different while taking different sets of args
     #  (see jvmravendb OperationExecutor.java line 83-EOF)
+
+
+class SessionOperationExecutor(OperationExecutor):
+    def __init__(self, session: InMemoryDocumentSessionOperations):
+        super().__init__(session._document_store, session.database_name)
+        self.__session = session
+
+    def for_database(self, database_name: str) -> OperationExecutor:
+        raise RuntimeError("The method is not supported")
 
 
 class MaintenanceOperationExecutor:
@@ -360,7 +368,7 @@ class BatchOperation:
         if not index:
             self.__throw_missing_field(command_type, "Index")
 
-        cluster_session = self.__session.get_cluster_session()
+        cluster_session = self.__session.cluster_session
         cluster_session.update_state(key, index)
 
     # todo: handle attachment stuff
@@ -816,72 +824,6 @@ class PatchOperation(IOperation[PatchResult]):
                 return
 
             self.result = PatchResult.from_json(json.loads(response))
-
-
-class GetStatisticsOperation(MaintenanceOperation[dict]):
-    def __init__(self, debug_tag: str = None, node_tag: str = None):
-        self.debug_tag = debug_tag
-        self.node_tag = node_tag
-
-    def get_command(self, conventions: DocumentConventions) -> RavenCommand[dict]:
-        return self.__GetStatisticsCommand(self.debug_tag, self.node_tag)
-
-    class __GetStatisticsCommand(RavenCommand[dict]):
-        def __init__(self, debug_tag: str, node_tag: str):
-            super().__init__(dict)
-            self.debug_tag = debug_tag
-            self.node_tag = node_tag
-
-        def create_request(self, node: ServerNode) -> requests.Request:
-            return requests.Request(
-                "GET",
-                f"{node.url}/databases/{node.database}"
-                f"/stats{f'?{self.debug_tag}' if self.debug_tag is not None else ''}",
-            )
-
-        def set_response(self, response: str, from_cache: bool) -> None:
-            self.result = json.loads(response)
-
-        def is_read_request(self) -> bool:
-            return True
-
-
-class CollectionStatistics:
-    def __init__(
-        self,
-        count_of_documents: Optional[int] = None,
-        count_of_conflicts: Optional[int] = None,
-        collections: Optional[Dict[str, int]] = None,
-    ):
-        self.count_of_documents = count_of_documents
-        self.count_of_conflicts = count_of_conflicts
-        self.collections = collections
-
-    @staticmethod
-    def from_json(json_dict: dict) -> CollectionStatistics:
-        return CollectionStatistics(
-            json_dict["CountOfDocuments"], json_dict["CountOfConflicts"], json_dict["Collections"]
-        )
-
-
-class GetCollectionStatisticsOperation(MaintenanceOperation[CollectionStatistics]):
-    def get_command(self, conventions) -> RavenCommand[CollectionStatistics]:
-        return self.__GetCollectionStatisticsCommand()
-
-    class __GetCollectionStatisticsCommand(RavenCommand[CollectionStatistics]):
-        def __init__(self):
-            super().__init__(CollectionStatistics)
-
-        def create_request(self, server_node: ServerNode) -> requests.Request:
-            return requests.Request("GET", f"{server_node.url}/databases/{server_node.database}/collections/stats")
-
-        def is_read_request(self) -> bool:
-            return True
-
-        def set_response(self, response: str, from_cache: bool) -> None:
-            if response is None:
-                self._throw_invalid_response()
-            self.result = CollectionStatistics.from_json(json.loads(response))
 
 
 class QueryOperationOptions(object):
