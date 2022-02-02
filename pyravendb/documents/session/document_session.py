@@ -17,8 +17,6 @@ from pyravendb.documents.indexes import AbstractCommonApiForIndexes
 from pyravendb.documents.operations.attachments import (
     GetAttachmentOperation,
     AttachmentName,
-    AttachmentRequest,
-    GetAttachmentsOperation,
 )
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo

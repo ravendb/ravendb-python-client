@@ -155,7 +155,8 @@ class TestBase(unittest.TestCase, RavenTestDriver):
     index = 0
 
     class __TestServiceLocator(RavenServerLocator):
-        def get_server_path(self) -> str:
+        @property
+        def server_path(self) -> str:
             return super().get_server_path()
 
         @property
@@ -166,6 +167,62 @@ class TestBase(unittest.TestCase, RavenTestDriver):
                 "--Features.Availability=Experimental",
             ]
 
+    class __TestSecuredServiceLocator(RavenServerLocator):
+        ENV_CLIENT_CERTIFICATE_PATH = "RAVENDB_PYTHON_TEST_CLIENT_CERTIFICATE_PATH"
+        ENV_SERVER_CERTIFICATE_PATH = "RAVENDB_PYTHON_TEST_SERVER_CERTIFICATE_PATH"
+        ENV_TEST_CA_PATH = "RAVENDB_PYTHON_TEST_CA_PATH"
+        ENV_HTTPS_SERVER_URL = "RAVENDB_PYTHON_TEST_HTTPS_SERVER_URL"
+
+        def get_server_path(self) -> str:
+            return super().get_server_path()
+
+        @property
+        def command_arguments(self) -> List[str]:
+            https_server_url = self.__https_server_url
+            tcp_server_url = https_server_url.replace("https", "tcp", 1).rsplit(":", 1)[0] + ":38882"
+            return [
+                f"--Security.Certificate.Path={self.server_certificate_path}",
+                f"--ServerUrl={https_server_url}",
+                f"--ServerUrl.Tcp={tcp_server_url}",
+            ]
+
+        @property
+        def __https_server_url(self) -> str:
+            https_server_url = os.environ[self.ENV_HTTPS_SERVER_URL]
+            if https_server_url.isspace():
+                raise ValueError(
+                    "Unable to find RavenDB https server url. "
+                    f"Please make sure {self.ENV_HTTPS_SERVER_URL} environment variable is set and is valid "
+                    f"(current value = {https_server_url})"
+                )
+            return https_server_url
+
+        @property
+        def client_certificate_path(self) -> str:
+            certificate_path = os.getenv(self.ENV_CLIENT_CERTIFICATE_PATH)
+            if certificate_path.isspace():
+                raise ValueError(
+                    "Unable to find RavenDB server certificate path. "
+                    f"Please make sure {self.ENV_CLIENT_CERTIFICATE_PATH} environment variable is set and is valid "
+                    + f"(current value = {certificate_path})"
+                )
+            return certificate_path
+
+        @property
+        def server_certificate_path(self) -> str:
+            certificate_path = os.getenv(self.ENV_SERVER_CERTIFICATE_PATH)
+            if certificate_path.isspace():
+                raise ValueError(
+                    "Unable to find RavenDB server certificate path. "
+                    f"Please make sure {self.ENV_SERVER_CERTIFICATE_PATH} environment variable is set and is valid "
+                    + f"(current value = {certificate_path})"
+                )
+            return certificate_path
+
+        @property
+        def server_ca_path(self) -> str:
+            return os.getenv(self.ENV_TEST_CA_PATH)
+
     def __get_locator(self, secured: bool):
         return self.__secured_locator if secured else self.__locator
 
@@ -175,7 +232,8 @@ class TestBase(unittest.TestCase, RavenTestDriver):
     def __run_server(self, secured: bool):
         def __configure_store(s: DocumentStore) -> None:
             if secured:
-                raise NotImplementedError("Https isnt supported, yet..")
+                s.certificate_path = self.test_client_certificate_url
+                s.trust_store_path = self.test_ca_certificate_url
 
         store, process = self._run_server_internal(self.__get_locator(secured), __configure_store)
         self.__set_global_server_process(secured, process)
@@ -193,6 +251,18 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
     def _customize_store(self, db_record: DocumentStore) -> None:
         pass
+
+    @property
+    def secured_document_store(self) -> DocumentStore:
+        return self.get_document_store("test_db", True)
+
+    @property
+    def test_client_certificate_url(self) -> str:
+        return self.__secured_locator.client_certificate_path
+
+    @property
+    def test_ca_certificate_url(self) -> str:
+        return self.__secured_locator.server_ca_path
 
     def get_document_store(
         self,
@@ -215,11 +285,11 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         self._customize_db_record(database_record)
 
         document_store.maintenance.server.send(CreateDatabaseOperation(database_record))
-
         store = DocumentStore(document_store.urls, name)
 
         if secured:
-            raise NotImplementedError("RemoteTestBase::L261-264")
+            store.certificate_path = self.test_client_certificate_url
+            store.trust_store_path = self.test_ca_certificate_url
 
         self._customize_store(store)
 
@@ -326,7 +396,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         # todo: investigate if line below is replaceable by more sophisticated code, we don't want to call TestCase init
         RavenTestDriver.__init__(self)
         self.__locator = TestBase.__TestServiceLocator()
-        self.__secured_locator = None  # todo: implement
+        self.__secured_locator = TestBase.__TestSecuredServiceLocator()
         self.__document_stores: Set[DocumentStore] = set()
         conventions = getattr(self, "conventions", None)
         self.default_urls = ["http://127.0.0.1:8080"]
@@ -335,13 +405,8 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         if conventions:
             self.store.conventions = conventions
         self.store.initialize()
-        created = False
-        database_record = DatabaseRecord("NorthWindTest")
-        while not created:
-            self.store.maintenance.server.send(CreateDatabaseOperation(database_record))
-            created = True
 
-        TestBase.wait_for_database_topology(self.store, self.default_database)
+        TestBase.wait_for_database_topology(self.store, self.store.database)
         self.index_map = 'from doc in docs select new{Tag = doc["@metadata"]["@collection"]}'
 
     def tearDown(self):

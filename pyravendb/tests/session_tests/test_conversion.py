@@ -54,6 +54,7 @@ class TestConversion(TestBase):
             time = session.load("item/1", object_type=Item)
             self.assertEqual(2, time.val)
 
+    @unittest.skip("Nested object types")
     def test_load_timedelta_and_datetime(self):
         with self.store.open_session() as session:
             times = session.load(
@@ -63,6 +64,7 @@ class TestConversion(TestBase):
             )
             self.assertTrue(isinstance(times.td, timedelta) and isinstance(times.dt, datetime))
 
+    @unittest.skip("Nested object types")
     def test_store_conversion(self):
         with self.store.open_session() as session:
             times = Time(timedelta(days=1, hours=1), datetime.now())
@@ -78,6 +80,7 @@ class TestConversion(TestBase):
             )
             self.assertTrue(isinstance(times.td, timedelta) and isinstance(times.dt, datetime))
 
+    @unittest.skip("Nested object types")
     def test_query_conversion(self):
         with self.store.open_session() as session:
             query = list(

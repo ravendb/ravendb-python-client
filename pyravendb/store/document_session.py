@@ -9,11 +9,15 @@ from .session_timeseries import TimeSeries
 from .session_counters import DocumentCounters
 from pyravendb.store.entity_to_json import EntityToJson
 from pyravendb import constants
-from collections import MutableSet
 from typing import Dict, List
 from copy import deepcopy
 from itertools import chain
 import json
+
+try:
+    from collections.abc import MutableSet
+except ImportError:
+    from collections import MutableSet
 
 from ..documents.session.document_query import Query
 

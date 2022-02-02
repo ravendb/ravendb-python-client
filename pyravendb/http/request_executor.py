@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime
-import io
 import json
 import logging
 import os
@@ -42,7 +41,7 @@ from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetCluster
 from http import HTTPStatus
 
 
-from typing import TYPE_CHECKING, List, Dict
+from typing import TYPE_CHECKING, List, Dict, Tuple
 
 if TYPE_CHECKING:
     from pyravendb.documents.session import SessionInfo
@@ -61,6 +60,9 @@ class RequestExecutor:
         self,
         database_name: str,
         conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
         initial_urls: Optional[List[str]] = None,
     ):
@@ -69,6 +71,10 @@ class RequestExecutor:
         self._node_selector: NodeSelector = None
         self.__default_timeout: datetime.timedelta = conventions.request_timeout
         self.__cache: HttpCache = HttpCache()
+
+        self.__certificate_path = certificate_path
+        self.__key_password = key_password
+        self.__trust_store_path = trust_store_path
 
         self.__topology_taken_from_node: Union[None, ServerNode] = None
         self.__update_client_configuration_semaphore = Semaphore(1)
@@ -162,7 +168,10 @@ class RequestExecutor:
 
     def __create_http_session(self) -> requests.Session:
         # todo: check if http client name is required
-        return requests.session()
+        session = requests.session()
+        session.cert = self.__certificate_path
+        session.verify = self.__trust_store_path
+        return session
 
     @property
     def cache(self) -> HttpCache:
@@ -170,7 +179,7 @@ class RequestExecutor:
 
     @property
     def topology_nodes(self) -> List[ServerNode]:
-        return self.topology.nodes
+        return self.topology.nodes if self.topology else None
 
     @property
     def client_configuration_etag(self) -> int:
@@ -198,8 +207,18 @@ class RequestExecutor:
             event(topology)
 
     @staticmethod
-    def create(initial_urls: List[str], database_name: str, conventions: DocumentConventions):
-        executor = RequestExecutor(database_name, conventions)
+    def create(
+        initial_urls: List[str],
+        database_name: str,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
+    ):
+        executor = RequestExecutor(
+            database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
+        )
         executor._first_topology_update_task = executor._first_topology_update(
             initial_urls, RequestExecutor.__GLOBAL_APPLICATION_IDENTIFIER
         )
@@ -207,21 +226,34 @@ class RequestExecutor:
 
     @staticmethod
     def create_for_single_node_with_configuration_updates(
-        url: str, database_name: str, certificate, conventions: DocumentConventions
+        url: str,
+        database_name: str,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
-        # todo: certificate from cryptography
         executor = RequestExecutor.create_for_single_node_without_configuration_updates(
-            url, database_name, certificate, conventions
+            url, database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
         )
         executor._disable_client_configuration_updates = False
         return executor
 
     @staticmethod
     def create_for_single_node_without_configuration_updates(
-        url: str, database_name: str, certificate, conventions: DocumentConventions
+        url: str,
+        database_name: str,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
         initial_urls = RequestExecutor.validate_urls([url])
-        executor = RequestExecutor(database_name, conventions)
+        executor = RequestExecutor(
+            database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
+        )
 
         topology = Topology(-1, [ServerNode(initial_urls[0], database_name)])
         executor._node_selector = NodeSelector(topology)
@@ -323,7 +355,7 @@ class RequestExecutor:
 
     def _first_topology_update(self, input_urls: List[str], application_identifier: Union[None, uuid.UUID]) -> Future:
         initial_urls = self.validate_urls(input_urls)
-        errors: List[tuple[str, Exception]] = []
+        errors: List[Tuple[str, Exception]] = []
 
         def __run(errors: list):
             for url in initial_urls:
@@ -446,7 +478,7 @@ class RequestExecutor:
                 chosen_node, node_index, command, should_retry, session_info, request, url
             )
 
-            if not response:
+            if response is None:
                 return
 
             refresh_tasks = self.__refresh_if_needed(chosen_node, response)
@@ -458,9 +490,21 @@ class RequestExecutor:
                 if response.status_code == HTTPStatus.NOT_MODIFIED:
                     pass
                 if response.status_code >= 400:
-                    # todo: if not
-                    #  self.__handle_unsuccessful_response(chosen_node,node_index,command,request,url,session_info,should_retry):
-                    pass
+                    if not self.__handle_unsuccessful_response(
+                        chosen_node,
+                        node_index,
+                        command,
+                        request,
+                        response,
+                        url,
+                        session_info,
+                        should_retry,
+                    ):
+                        db_missing_header = response.headers.get("Database-Missing", None)
+                        if db_missing_header is not None:
+                            raise DatabaseDoesNotExistException(db_missing_header)
+                        self.__throw_failed_to_contact_all_nodes(command, request)
+                    return  # we either handled this already in the unsuccessful response or we are throwing
                 # todo: on_succeed_request
                 response_dispose = command.process_response(self.__cache, response, url)
                 self.__last_returned_response = datetime.datetime.utcnow()
@@ -472,7 +516,6 @@ class RequestExecutor:
                         wait(*refresh_tasks, return_when=ALL_COMPLETED)
                     except:
                         raise
-                pass
 
     def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> List[Future]:
         refresh_topology = response.headers.get(constants.Headers.REFRESH_TOPOLOGY, False)
@@ -909,6 +952,126 @@ class RequestExecutor:
 
         raise AllTopologyNodesDownException(f"Broadcasting {command.__class__.__name__} failed: {exceptions}")
 
+    def __handle_unsuccessful_response(
+        self,
+        chosen_node: ServerNode,
+        node_index: int,
+        command: RavenCommand,
+        request: requests.Request,
+        response: requests.Response,
+        url: str,
+        session_info: SessionInfo,
+        should_retry: bool,
+    ) -> bool:
+        if response.status_code == HTTPStatus.NOT_FOUND.value:
+            self.__cache.set_not_found(url, False)  # todo : check if aggressively cached, don't just pass False
+            if command.response_type == RavenCommandResponseType.EMPTY:
+                return True
+            elif command.response_type == RavenCommandResponseType.OBJECT:
+                command.set_response(None, False)
+            else:
+                command.set_response_raw(response, None)
+            return True
+
+        elif response.status_code == HTTPStatus.FORBIDDEN.value:
+            msg = self.__try_get_response_of_error(response)
+            builder = ["Forbidden access to ", chosen_node.database, "@", chosen_node.url, ", "]
+            if self.__certificate_path is None:
+                builder.append("a certificate is required. ")
+            else:
+                builder.append("certificate does not have permission to access it or is unknown. ")
+
+            builder.append(" Method: ")
+            builder.append(request.method)
+            builder.append(", Request: ")
+            builder.append(request.url)
+            builder.append(os.linesep)
+            builder.append(msg)
+
+            raise AuthorizationException("".join(builder))
+
+        elif (
+            response.status_code == HTTPStatus.GONE.value
+        ):  # request not relevant for the chosen node - the database has been moved to a different one
+            if not should_retry:
+                return False
+
+            if node_index is not None:
+                self._node_selector.on_failed_request(node_index)
+
+            if not command.failed_nodes is None:
+                command.failed_nodes = {}
+
+            if command.is_failed_with_node(chosen_node):
+                command.failed_nodes[chosen_node] = UnsuccessfulRequestException(
+                    f"Request to {request.url} ({request.method}) is not relevant for this node anymore."
+                )
+
+            index_and_node = self.choose_node_for_request(command, session_info)
+
+            if index_and_node.current_node in command.failed_nodes:
+                update_parameters = UpdateTopologyParameters(chosen_node)
+                update_parameters.timeout_in_ms = 60000
+                update_parameters.force_update = True
+                update_parameters.debug_tag = "handle-unsuccessful-response"
+                success = self.update_topology_async(update_parameters).result()
+                if not success:
+                    return False
+
+                command.failed_nodes.clear()
+                index_and_node = self.choose_node_for_request(command, session_info)
+                self.execute(index_and_node.current_node, index_and_node.current_index, command, False, session_info)
+                return True
+
+        elif response.status_code in [
+            HTTPStatus.GATEWAY_TIMEOUT.value,
+            HTTPStatus.REQUEST_TIMEOUT.value,
+            HTTPStatus.BAD_GATEWAY.value,
+            HTTPStatus.SERVICE_UNAVAILABLE.value,
+        ]:
+            return self.__handle_server_down(
+                url, chosen_node, node_index, command, request, response, None, session_info, should_retry
+            )
+
+        elif response.status_code == HTTPStatus.CONFLICT.value:
+            raise NotImplementedError("Handle conflict")  # todo: handle conflict (exception dispatcher involved)
+
+        elif response.status_code == 425:  # too early
+            if not should_retry:
+                return False
+
+            if node_index is not None:
+                self._node_selector.on_failed_request(node_index)
+
+            if command.failed_nodes is None:
+                command.failed_nodes = {}
+
+            if not command.is_failed_with_node(chosen_node):
+                command.failed_nodes[chosen_node] = UnsuccessfulRequestException(
+                    f"Request to '{request.url}' ({request.method}) is processing and not yed available on that node."
+                )
+
+            next_node = self.choose_node_for_request(command, session_info)
+            self.execute(next_node.current_node, next_node.current_index, command, True, session_info)
+
+            if node_index is not None:
+                self._node_selector.restore_node_index(node_index)
+
+            return True
+        else:
+            command.on_response_failure(response)
+            raise RuntimeError(
+                json.loads(response.text).get("Message", "Missing message")
+            )  # todo: Exception dispatcher
+
+        return False
+
+    def __try_get_response_of_error(self, response: requests.Response) -> str:
+        try:
+            return response.content.decode("utf-8")
+        except Exception as e:
+            return f"Could not read request: {e.args[0]}"
+
     def __send_to_all_nodes(
         self, tasks: Dict[Future, BroadcastState], session_info: SessionInfo, command: Union[RavenCommand, Broadcast]
     ):
@@ -1049,20 +1212,38 @@ class ClusterRequestExecutor(RequestExecutor):
 
     # todo: security, cryptography, https
     def __init__(
-        self, conventions: DocumentConventions, thread_pool_executor: ThreadPoolExecutor, initial_urls: List[str]
+        self,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
+        thread_pool_executor: Optional[ThreadPoolExecutor] = None,
+        initial_urls: Optional[List[str]] = None,
     ):
-        super(ClusterRequestExecutor, self).__init__(None, conventions, thread_pool_executor, initial_urls)
+        super(ClusterRequestExecutor, self).__init__(
+            None, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor, initial_urls
+        )
         self.__cluster_topology_semaphore = Semaphore(1)
 
     @staticmethod
     def create_for_single_node(
-        url: str, thread_pool_executor: ThreadPoolExecutor, conventions: Optional[DocumentConventions] = None
+        url: str,
+        thread_pool_executor: ThreadPoolExecutor,
+        conventions: Optional[DocumentConventions] = None,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
     ):
         initial_urls = [url]
         # todo: validate urls
         # todo: use default, static DocumentConventions
         executor = ClusterRequestExecutor(
-            (conventions if conventions else DocumentConventions()), thread_pool_executor, initial_urls
+            (conventions if conventions else DocumentConventions()),
+            certificate_path,
+            key_password,
+            trust_store_path,
+            thread_pool_executor,
+            initial_urls,
         )
 
         server_node = ServerNode(url)
@@ -1080,10 +1261,20 @@ class ClusterRequestExecutor(RequestExecutor):
 
     @staticmethod
     def create_without_database_name(
-        initial_urls: List[str], thread_pool_executor: ThreadPoolExecutor, conventions: DocumentConventions
+        initial_urls: List[str],
+        thread_pool_executor: ThreadPoolExecutor,
+        conventions: DocumentConventions,
+        certificate_path: Optional[str] = None,
+        key_password: Optional[str] = None,
+        trust_store_path: Optional[str] = None,
     ):
         executor = ClusterRequestExecutor(
-            (conventions if conventions else DocumentConventions()), thread_pool_executor, initial_urls
+            (conventions if conventions else DocumentConventions()),
+            certificate_path,
+            key_password,
+            trust_store_path,
+            thread_pool_executor,
+            initial_urls,
         )
         executor._disable_client_configuration_updates = True
         executor._first_topology_update_task = executor._first_topology_update(initial_urls, None)

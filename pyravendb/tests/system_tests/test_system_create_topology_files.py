@@ -27,6 +27,7 @@ class TestSystemTopologyCreation(TestBase):
             except OSError as ex:
                 pass
 
+    @unittest.skip("Topology creation")
     def test_topology_creation(self):
         created = False
         while not created:

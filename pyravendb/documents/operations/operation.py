@@ -1,5 +1,6 @@
 # todo: DatabaseChanges class
 import time
+import unittest
 from typing import Callable, TYPE_CHECKING
 
 import pyravendb.documents.operations as doc_operations
@@ -38,6 +39,7 @@ class Operation:
     ) -> RavenCommand[dict]:
         return doc_operations.GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
 
+    @unittest.skip("Exception dispatcher")
     def wait_for_completion(self) -> None:
         while True:
             status = self.fetch_operations_status()

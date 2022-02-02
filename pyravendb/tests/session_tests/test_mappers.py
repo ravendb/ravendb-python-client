@@ -72,12 +72,14 @@ class TestMappers(TestBase):
         super(TestMappers, self).tearDown()
         self.delete_all_topology_files()
 
+    @unittest.skip("Mappers")
     def test_load_with_mappers(self):
         with self.store.open_session() as session:
             dog = session.load("Dogs/3-A", object_type=Dog)
             self.assertIsNotNone(dog)
             self._check_dog_type(dog)
 
+    @unittest.skip("Mappers")
     def test_query_with_mappers(self):
         with self.store.open_session() as session:
             results = list(session.query(object_type=Dog))
@@ -85,6 +87,7 @@ class TestMappers(TestBase):
             for result in results:
                 self._check_dog_type(result)
 
+    @unittest.skip("Mappers")
     def test_multi_load_with_mappers(self):
         with self.store.open_session() as session:
             dogs = session.load(["Dogs/1-A", "Dogs/2-A", "Dogs/3-A"], object_type=Dog)
@@ -92,6 +95,7 @@ class TestMappers(TestBase):
             for dog in dogs:
                 self._check_dog_type(dog)
 
+    @unittest.skip("Mappers")
     def test_date_time_convert(self):
         with self.store.open_session() as session:
             dog = session.load("Dogs/1-A", object_type=Dog)
