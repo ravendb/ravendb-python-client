@@ -1,7 +1,7 @@
 from __future__ import annotations
 import datetime
 from enum import Enum
-from abc import abstractmethod
+from abc import ABC
 from typing import Union, Optional, List, Dict, Set, Iterable
 from pyravendb.documents.indexes.spatial import SpatialOptions, AutoSpatialOptions
 from pyravendb.tools.utils import Utils
@@ -200,7 +200,9 @@ class IndexDefinition:
             "State": self.state,
             "LockMode": self.lock_mode,
             "AdditionalSources": self.additional_sources,
-            "AdditionalAssemblies": set(map(lambda x: x.to_json(), self.additional_assemblies)),
+            "AdditionalAssemblies": set(map(lambda x: x.to_json(), self.additional_assemblies))
+            if self.additional_assemblies
+            else None,
             "Maps": self.maps,
             "Fields": self.fields,
             "Reduce": self.reduce,
@@ -216,6 +218,8 @@ class IndexDefinition:
 
     @property
     def maps(self):
+        if self.__maps is None:
+            self.__maps = set()
         return self.__maps
 
     @maps.setter
@@ -375,8 +379,7 @@ class AdditionalAssembly:
         )
 
 
-class AbstractCommonApiForIndexes:
-    @abstractmethod
+class AbstractCommonApiForIndexes(ABC):
     def __init__(self):
         self.__additional_sources: Union[None, Dict[str, str]] = None
         self.__additional_assemblies: Union[None, Set[AdditionalAssembly]] = None

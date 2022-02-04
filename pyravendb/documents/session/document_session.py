@@ -117,7 +117,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():
             return
-        self.get_cluster_session().clear()
+        self.cluster_session.clear()
 
     def _generate_id(self, entity: object) -> str:
         return self.conventions.generate_document_id(self.database_name, entity)
