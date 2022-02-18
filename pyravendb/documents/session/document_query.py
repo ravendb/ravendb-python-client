@@ -1,18 +1,20 @@
 from typing import List, Set, Tuple, Iterable, Union, Callable, Dict, TYPE_CHECKING
 
 from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.documents.queries.query import QueryOperator
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.loaders.query_include_builder import QueryIncludeBuilder
-from pyravendb.raven_operations.query_operation import QueryOperation
-from pyravendb.custom_exceptions.exceptions import *
-from pyravendb.commands.raven_commands import GetFacetsCommand
-from pyravendb.data.query import IndexQuery, QueryOperator, OrderingType, FacetQuery
-from pyravendb.documents.session.tokens.query_token import (
-    CompareExchangeValueIncludesToken,
+from pyravendb.documents.session.loaders.include import QueryIncludeBuilder
+from pyravendb.documents.session.tokens.query_token import QueryToken
+from pyravendb.documents.session.tokens.tokens import (
     TimeSeriesIncludesToken,
     CounterIncludesToken,
-    QueryToken,
+    CompareExchangeValueIncludesToken,
 )
+from pyravendb.raven_operations.query_operation import OldQueryOperation
+from pyravendb.custom_exceptions.exceptions import *
+from pyravendb.commands.raven_commands import GetFacetsCommand
+from pyravendb.data.query import OldIndexQuery, FacetQuery
+from pyravendb.documents.session.misc import OrderingType
 from pyravendb.tools.utils import Utils
 from datetime import timedelta, datetime
 import time
@@ -31,7 +33,7 @@ class _Token:
         self.__dict__.update(kwargs)
 
 
-class Query(object):
+class OldQuery(object):
     where_operators = {
         "equals": "equals",
         "greater_than": "greater_than",
@@ -217,7 +219,7 @@ class Query(object):
                 self.query_builder.append("intersect(")
 
             for token in self._where_tokens:
-                Query._add_space_if_needed(query_builder)
+                OldQuery._add_space_if_needed(query_builder)
                 query_builder.append(token.write)
 
             if self.is_intersect:
@@ -232,7 +234,7 @@ class Query(object):
                     query_builder.append(", ")
                 first = False
                 query_builder.append(token.write)
-                if token.ordering != OrderingType.str:
+                if token.ordering != OrderingType.STRING:
                     query_builder.append(token.ordering)
                 if token.descending:
                     query_builder.append(" DESC")
@@ -254,7 +256,7 @@ class Query(object):
             for token in select_tokens:
                 if index > 0:
                     query_builder.append(",")
-                Query._add_space_if_needed(query_builder)
+                OldQuery._add_space_if_needed(query_builder)
                 query_builder.append(token.write)
                 index += 1
 
@@ -345,7 +347,7 @@ class Query(object):
             for value in token.value:
                 if len(write_builder) > 0:
                     write_builder.append(", ")
-                    if value.upper() in Query.rql_keyword:
+                    if value.upper() in OldQuery.rql_keyword:
                         value = "'{0}'".format(value)
                 write_builder.append(value)
             write = "".join(write_builder)
@@ -373,7 +375,7 @@ class Query(object):
         if token.token in ["search", "lucene", "regex", "startsWith", "endsWith", "exists"]:
             where_rql += token.token + "("
 
-        where_rql += token.field_name + Query._get_rql_write_case(token)
+        where_rql += token.field_name + OldQuery._get_rql_write_case(token)
 
         if exact:
             where_rql += ")"
@@ -390,45 +392,6 @@ class Query(object):
         if len(query_builder) > 0:
             if not query_builder[-1].endswith(("(", ")", ",", " ")):
                 query_builder.append(" ")
-
-    @staticmethod
-    def escape_if_needed(name, is_path=False):
-        if name:
-            escape = False
-            inside_escaped = False
-            first = True
-            for c in name:
-                if c == "'" or c == '"':
-                    inside_escaped = not inside_escaped
-                    continue
-
-                if first:
-                    if not c.isalpha() and c != "_" and c != "@" and not inside_escaped:
-                        escape = True
-                        break
-                    first = False
-                else:
-                    if (
-                        (not c.isalpha() and not c.isdigit())
-                        and c != "_"
-                        and c != "@"
-                        and c != "["
-                        and c != "]"
-                        and c != "("
-                        and c != ")"
-                        and not inside_escaped
-                    ):
-                        escape = True
-                        break
-
-                    if is_path and c == "." and not inside_escaped:
-                        escape = True
-                        break
-            escape |= inside_escaped
-            if escape or name.upper() in Query.rql_keyword:
-                return "'{0}'".format(name)
-
-        return name
 
     def ensure_valid_field_name(self, field_name, is_nested_path):
         if not self.session or self.session.conventions is None or is_nested_path or self.is_group_by:
@@ -458,7 +421,6 @@ class Query(object):
         return self
 
     def add_query_parameter(self, value):
-
         if isinstance(value, timedelta):
             value = Utils.timedelta_tick(value)
         elif isinstance(value, datetime):
@@ -473,7 +435,7 @@ class Query(object):
         if len(self._where_tokens) > 0:
             query_operator = None
             last_token = self._where_tokens[-1]
-            if last_token is not None and last_token.token in Query.where_operators:
+            if last_token is not None and last_token.token in OldQuery.where_operators:
                 query_operator = QueryOperator.AND if self.default_operator == QueryOperator.AND else QueryOperator.OR
             search_operator = getattr(last_token, "search_operator", None)
             if search_operator and search_operator != QueryOperator.OR:
@@ -486,7 +448,7 @@ class Query(object):
     def intersect(self):
         if len(self._where_tokens) > 0:
             last = self._where_tokens[-1]
-            if last.token in Query.where_operators:
+            if last.token in OldQuery.where_operators:
                 self.is_intersect = True
                 self._where_tokens.append(_Token(value=None, token="intersect", write=","))
                 return self
@@ -529,7 +491,7 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
 
         token = "equals"
@@ -558,7 +520,7 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
@@ -608,7 +570,7 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -633,7 +595,7 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -658,7 +620,7 @@ class Query(object):
         if field_name is None:
             raise ValueError("None field_name is invalid")
 
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -681,7 +643,7 @@ class Query(object):
         @param str values: The values we wish to query
         @param bool exact: Getting the exact query (ex. case sensitive)
         """
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -698,7 +660,7 @@ class Query(object):
 
     # todo: https://issues.hibernatingrhinos.com/issue/RDBC-467 + ensure escape_if_needed ok (ensureValidFieldName jvm)
     def contains_any(self, field_name, values):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -714,7 +676,7 @@ class Query(object):
         return self
 
     def contains_all(self, field_name, values):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
         if len(values) == 0:
@@ -732,7 +694,7 @@ class Query(object):
         return self
 
     def where_lucene(self, field_name, where_clause, exact=False):
-        field_name = Query.escape_if_needed(field_name, False)
+        field_name = OldQuery.escape_if_needed(field_name, False)
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
@@ -744,7 +706,7 @@ class Query(object):
         return self
 
     def where_between(self, field_name, start, end, exact=False):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
 
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
@@ -764,7 +726,7 @@ class Query(object):
         return self
 
     def where_greater_than(self, field_name, value):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -782,7 +744,7 @@ class Query(object):
         return self
 
     def where_greater_than_or_equal(self, field_name, value):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -800,7 +762,7 @@ class Query(object):
         return self
 
     def where_less_than(self, field_name, value):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -818,7 +780,7 @@ class Query(object):
         return self
 
     def where_less_than_or_equal(self, field_name, value):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
 
@@ -840,7 +802,7 @@ class Query(object):
         return self
 
     def where_regex(self, field_name, pattern):
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._add_operator_if_needed()
         self.negate_if_needed(field_name)
         token = _Token(
@@ -859,11 +821,11 @@ class Query(object):
         @param OrderingType ordering: The field_name type (str, long, float or alpha_numeric)
         :return:
         """
-        return self.order_by(field_name, ordering.str, descending=descending)
+        return self.order_by(field_name, ordering.STRING, descending=descending)
 
-    def order_by(self, field_name, ordering=OrderingType.str, descending=False):
+    def order_by(self, field_name, ordering=OrderingType.STRING, descending=False):
         self.assert_no_raw_query()
-        field_name = Query.escape_if_needed(field_name)
+        field_name = OldQuery.escape_if_needed(field_name)
         self._order_by_tokens.append(
             _Token(
                 field_name=field_name,
@@ -876,7 +838,7 @@ class Query(object):
 
         return self
 
-    def order_by_descending(self, field_name, ordering=OrderingType.str):
+    def order_by_descending(self, field_name, ordering=OrderingType.STRING):
         return self.order_by(field_name, ordering, descending=True)
 
     def order_by_score(self):
@@ -1075,7 +1037,7 @@ class Query(object):
         return self.session.request_executor.execute_command(command)
 
     def get_index_query(self):
-        return IndexQuery(
+        return OldIndexQuery(
             query=self.__str__(),
             query_parameters=self.query_parameters,
             start=self.start,
@@ -1090,7 +1052,7 @@ class Query(object):
         end_time = time.time() + self.timeout.seconds
         query = self._build_query()
         while True:
-            index_query = IndexQuery(
+            index_query = OldIndexQuery(
                 query=query,
                 query_parameters=self.query_parameters,
                 start=self.start,
@@ -1100,7 +1062,7 @@ class Query(object):
                 wait_for_non_stale_results_timeout=self.timeout,
             )
 
-            query_command = QueryOperation(
+            query_command = OldQueryOperation(
                 session=self.session,
                 index_name=self.index_name,
                 index_query=index_query,
@@ -1134,7 +1096,7 @@ class Query(object):
         for result in response_results:
             doc_info = DocumentInfo.get_new_document_info(result)
             results.append(
-                self.session.track_entity(entity_type=self.object_type, document_info=doc_info, no_tracking=True)
+                self.session.track_entity(entity_type=self.object_type, document_found=doc_info, no_tracking=True)
             )
 
         if self._with_statistics:

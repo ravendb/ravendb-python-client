@@ -13,4 +13,4 @@ class IncludesUtil:
         for ch in include:
             if not ch.isalnum() and ch != "_" and ch != ".":
                 return True, include.replace("'", "\\'")
-        return False, None
+        return False, include

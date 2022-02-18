@@ -6,7 +6,7 @@ from typing import Optional, Dict, List
 
 import requests
 
-from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.indexes import IndexPriority, IndexLockMode, IndexType, IndexSourceType
 from pyravendb.documents.operations import MaintenanceOperation
 from pyravendb.http import RavenCommand, ServerNode

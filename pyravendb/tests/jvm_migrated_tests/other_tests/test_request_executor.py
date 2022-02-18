@@ -3,7 +3,7 @@ from pyravendb.http import ServerNode, UpdateTopologyParameters
 from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.serverwide.operations import GetDatabaseNamesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.custom_exceptions.exceptions import DatabaseDoesNotExistException
 
 

@@ -17,24 +17,6 @@ class EscapeQueryOptions(Enum):
     RawQuery = 3
 
 
-class QueryOperator(Enum):
-    OR = "OR"
-    AND = "AND"
-
-    def __str__(self):
-        return self.value
-
-
-class OrderingType(Enum):
-    str = 0
-    long = " AS long"
-    float = " AS double"
-    alpha_numeric = " AS alphaNumeric"
-
-    def __str__(self):
-        return self.value
-
-
 class IndexQueryBase(object):
     __metaclass__ = ABCMeta
 
@@ -86,7 +68,7 @@ class IndexQueryBase(object):
         return self._page_size_set
 
 
-class IndexQuery(IndexQueryBase):
+class OldIndexQuery(IndexQueryBase):
     def __init__(
         self,
         query="",
@@ -97,7 +79,7 @@ class IndexQuery(IndexQueryBase):
         skip_duplicate_checking=False,
         **kwargs,
     ):
-        super(IndexQuery, self).__init__(query=query, query_parameters=query_parameters, start=start, **kwargs)
+        super(OldIndexQuery, self).__init__(query=query, query_parameters=query_parameters, start=start, **kwargs)
         self.allow_multiple_index_entries_for_same_document_to_result_transformer = kwargs.get(
             "allow_multiple_index_entries_for_same_document_to_result_transformer",
             False,
@@ -203,7 +185,7 @@ class FacetMode(Enum):
         return self.value
 
 
-class FacetAggregation(Enum):
+class OldFacetAggregation(Enum):
     none = "None"
     count = "Count"
     max = "Max"
@@ -225,14 +207,14 @@ class FacetTermSortMode(Enum):
         return self.value
 
 
-class Facet(object):
+class OldFacet(object):
     def __init__(
         self,
         name=None,
         display_name=None,
         ranges=None,
         mode=FacetMode.default,
-        aggregation=FacetAggregation.none,
+        aggregation=OldFacetAggregation.none,
         aggregation_field=None,
         aggregation_type=None,
         max_result=None,

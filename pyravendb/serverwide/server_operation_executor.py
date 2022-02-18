@@ -109,7 +109,6 @@ class ServerOperationExecutor:
                 store.thread_pool_executor,
                 store.conventions,
                 store.certificate_path,
-                store.certificate_private_key_password,
                 store.trust_store_path,
             )
             if store.conventions.disable_topology_updates
@@ -118,7 +117,6 @@ class ServerOperationExecutor:
                 store.thread_pool_executor,
                 store.conventions,
                 store.certificate_path,
-                store.certificate_private_key_password,
                 store.trust_store_path,
             )
         )

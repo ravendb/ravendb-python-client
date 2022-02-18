@@ -4,25 +4,32 @@ from typing import Optional, Union, List
 
 
 class SpatialFieldType(Enum):
-    GEOGRAPHY = "GEOGRAPHY"
-    CARTESIAN = "CARTESIAN"
+    GEOGRAPHY = "Geography"
+    CARTESIAN = "Cartesian"
 
     def __str__(self):
         return self.value
 
 
+class SpatialRelation(Enum):
+    WITHIN = "Within"
+    CONTAINS = "Contains"
+    DISJOINT = "Disjoint"
+    INTERSECTS = "Intersects"
+
+
 class SpatialSearchStrategy(Enum):
-    GEOHASH_PREFIX_TREE = "GEOHASH_PREFIX_TREE"
-    QUAD_PREFIX_TREE = "QUAD_PREFIX_TREE"
-    BOUNDING_BOX = "BOUNDING_BOX"
+    GEOHASH_PREFIX_TREE = "GeohashPrefixTree"
+    QUAD_PREFIX_TREE = "QuadPrefixtree"
+    BOUNDING_BOX = "BoundingBox"
 
     def __str__(self):
         return self.value
 
 
 class SpatialUnits:
-    KILOMETERS = "KILOMETERS"
-    MILES = "MILES"
+    KILOMETERS = "Kilometers"
+    MILES = "Miles"
 
 
 class SpatialOptions:
@@ -78,8 +85,8 @@ class SpatialOptions:
 
 
 class AutoSpatialMethodType(Enum):
-    POINT = "POINT"
-    WKT = "WKT"
+    POINT = "Point"
+    WKT = "Wkt"
 
     def __str__(self):
         return self.value

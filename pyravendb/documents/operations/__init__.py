@@ -10,8 +10,8 @@ from typing import Union, Optional, TYPE_CHECKING, Generic, TypeVar, Dict, List
 import requests
 
 from pyravendb import constants
-from pyravendb.data.query import IndexQuery
 from pyravendb.documents.operations.operation import Operation
+from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.documents.session import SessionInfo, TransactionMode
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
@@ -25,7 +25,7 @@ from pyravendb.documents.commands.batches import SingleNodeBatchCommand, Cluster
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.http.request_executor import RequestExecutor
     from pyravendb.documents import DocumentStore
 
@@ -87,7 +87,7 @@ class SessionOperationExecutor(OperationExecutor):
 class MaintenanceOperationExecutor:
     def __init__(self, store: DocumentStore, database_name: Optional[str] = None):
         self.__store = store
-        self.__database_name = database_name if database_name is not None else store.database
+        self.__database_name = database_name or store.database
         self.__request_executor: Union[None, RequestExecutor] = None
         self.__server_operation_executor: Union[ServerOperationExecutor, None] = None
 
@@ -108,7 +108,7 @@ class MaintenanceOperationExecutor:
         return self.__server_operation_executor
 
     def for_database(self, database_name: str) -> MaintenanceOperationExecutor:
-        if self.__database_name.lower() == database_name.lower():
+        if database_name is not None and self.__database_name.lower() == database_name.lower():
             return self
 
         return MaintenanceOperationExecutor(self.__store, database_name)

@@ -129,7 +129,7 @@ class DocumentCounters:
                 cache[1][counter_detail["CounterName"]] = counter_detail["TotalValue"]
 
         cache[0] = True
-        if not self._session.no_tracking:
+        if not self._session._no_tracking:
             self._session.counters_by_document_id[self._document_id] = cache
         return cache[1]
 
@@ -163,7 +163,7 @@ class DocumentCounters:
                 value = counter_detail["TotalValue"] if counter_detail else None
 
             cache[1].update({counter: value})
-            if self._session.no_tracking:
+            if self._session._no_tracking:
                 self._session.counters_by_document_id.update({self._document_id: cache})
             return value
 
@@ -205,7 +205,7 @@ class DocumentCounters:
                 result[counter_detail["CounterName"]] = counter_detail["TotalValue"]
             break
 
-        if not self._session.no_tracking:
+        if not self._session._no_tracking:
             self._session.counters_by_document_id[self._document_id] = cache
 
         return result if len(counter_names) > 1 else result[counter_names[0]]

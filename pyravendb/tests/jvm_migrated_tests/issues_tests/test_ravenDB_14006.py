@@ -1,51 +1,18 @@
+import unittest
+from typing import Union
+
 from pyravendb.data.compare_exchange import StartingWithOptions
-from pyravendb.documents import SessionOptions
-from pyravendb.documents.session import TransactionMode
+from pyravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from pyravendb.documents.session import TransactionMode, SessionOptions
+from pyravendb.documents.session.query import QueryStatistics
+from pyravendb.infrastructure.orders import Company, Address, Employee
 from pyravendb.tests.test_base import TestBase
 
 
-class Contact:
-    def __init__(self, name: str = None, title: str = None):
-        self.name = name
-        self.title = title
-
-
-class Address:
-    def __init__(
-        self,
-        line1: str = None,
-        line2: str = None,
-        city: str = None,
-        region: str = None,
-        postal_code: str = None,
-        country: str = None,
-    ):
-        self.line1 = line1
-        self.line2 = line2
-        self.city = city
-        self.region = region
-        self.postal_code = postal_code
-        self.country = country
-
-
-class Company:
-    def __init__(
-        self,
-        Id: str = None,
-        external_id: str = None,
-        name: str = None,
-        contact: Contact = None,
-        address: Address = None,
-        phone: str = None,
-        fax: str = None,
-    ):
-        self.Id = Id
-        self.external_id = external_id
-        self.name = name
-        self.contact = contact
-        self.address = address
-        self.phone = phone
-        self.fax = fax
+class Companies_ByName(AbstractIndexCreationTask):
+    def __init__(self):
+        super().__init__()
+        self.map = "from c in docs.Companies select new { name = c.name }"
 
 
 class TestRavenDB14006(TestBase):
@@ -81,3 +48,189 @@ class TestRavenDB14006(TestBase):
                 result = session.advanced.cluster_transaction.get_compare_exchange_value(Company, company_id)
                 self.assertIsNotNone(result.value)
                 self.assertEqual(1, session.number_of_requests)
+
+    def test_compare_exchange_value_tracking_in_session(self):
+        session_options = SessionOptions(transaction_mode=TransactionMode.CLUSTER_WIDE)
+
+        with self.store.open_session(session_options=session_options) as session:
+            company = Company("companies/1", "companies/cf", "CF")
+            session.store(company)
+
+            number_of_requests = session.number_of_requests
+
+            address = Address(city="Torun")
+            session.advanced.cluster_transaction.create_compare_exchange_value(company.external_id, address)
+
+            self.assertEqual(number_of_requests, session.number_of_requests)
+
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, company.external_id)
+
+            self.assertEqual(number_of_requests, session.number_of_requests)
+
+            self.assertEqual(address, value1.value)
+            self.assertEqual(company.external_id, value1.key)
+            self.assertEqual(0, value1.index)
+
+            session.save_changes()
+
+            self.assertEqual(number_of_requests + 1, session.number_of_requests)
+
+            self.assertEqual(address, value1.value)
+            self.assertEqual(value1.key, company.external_id)
+            self.assertGreater(value1.index, 0)
+
+            value2 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, company.external_id)
+            self.assertEqual(number_of_requests + 1, session.number_of_requests)
+
+            self.assertEqual(value1, value2)
+
+            session.save_changes()
+
+            self.assertEqual(number_of_requests + 1, session.number_of_requests)
+
+            session.clear()
+
+            value3 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, company.external_id)
+            self.assertNotEqual(value2, value3)
+
+        with self.store.open_session(session_options=session_options) as session:
+            address = Address(city="Hadera")
+            session.advanced.cluster_transaction.create_compare_exchange_value("companies/hr", address)
+
+            session.save_changes()
+
+        with self.store.open_session(session_options=session_options) as session:
+            number_of_requests = session.number_of_requests
+
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, "companies/cf")
+
+            self.assertEqual(number_of_requests + 1, session.number_of_requests)
+
+            value2 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, "companies/hr")
+
+            self.assertEqual(number_of_requests + 2, session.number_of_requests)
+
+            values = session.advanced.cluster_transaction.get_compare_exchange_values(
+                Address, ["companies/cf", "companies/hr"]
+            )
+
+            self.assertEqual(number_of_requests + 2, session.number_of_requests)
+
+            self.assertEqual(2, len(values))
+            self.assertEqual(value1, values.get(value1.key))
+            self.assertEqual(value2, values.get(value2.key))
+
+            values = session.advanced.cluster_transaction.get_compare_exchange_values(
+                Address, ["companies/cf", "companies/hr", "companies/hx"]
+            )
+
+            self.assertEqual(number_of_requests + 3, session.number_of_requests)
+
+            self.assertEqual(3, len(values))
+            self.assertEqual(value1, values.get(value1.key))
+            self.assertEqual(value2, values.get(value2.key))
+
+            value3 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, "companies/hx")
+            self.assertEqual(number_of_requests + 3, session.number_of_requests)
+
+            self.assertIsNone(value3)
+            self.assertIsNone(values.get("companies/hx", None))
+
+            session.save_changes()
+
+            self.assertEqual(number_of_requests + 3, session.number_of_requests)
+
+            address = Address(city="Bydgoszcz")
+
+            session.advanced.cluster_transaction.create_compare_exchange_value("companies/hx", address)
+
+            session.save_changes()
+
+            self.assertEqual(number_of_requests + 4, session.number_of_requests)
+
+    # todo: finish this test
+    @unittest.skip("unfinished")
+    def test_can_use_compare_exchange_value_includes_in_queries_static_javascript(self):
+        Companies_ByName().execute(self.store)
+        session_options = SessionOptions(transaction_mode=TransactionMode.CLUSTER_WIDE)
+
+        with self.store.open_session(session_options=session_options) as session:
+            employee = Employee("employees/1", notes=["companies/cf", "companies/hr"])
+            session.store(employee)
+
+            company = Company("companies/1", "companies/cf", "CF")
+            session.store(company)
+
+            address1 = Address(city="Torun")
+            session.advanced.cluster_transaction.create_compare_exchange_value("companies/cf", address1)
+
+            address2 = Address(city="Hadera")
+            session.advanced.cluster_transaction.create_compare_exchange_value("companies/hr", address2)
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session(session_options=session_options) as session:
+
+            def __statistics_callback(stats: QueryStatistics):
+                self.statistics = stats
+
+            companies = list(
+                session.advanced.raw_query(
+                    "declare function incl(c) {\n"
+                    + "    includes.cmpxchg(c.externalId);\n"
+                    + "    return c;\n"
+                    + "}\n"
+                    + "from index 'Companies/ByName' as c\n"
+                    + "select incl(c)",
+                ).statistics(__statistics_callback)
+            )
+            self.assertEqual(1, len(companies))
+            self.assertGreater(self.statistics.duration_in_ms, 0)
+            result_etag = self.statistics.result_etag
+
+            number_of_requests = session.number_of_requests
+
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, companies[0].external_id)
+            self.assertEqual("Torun", value1.value.city)
+
+            self.assertEqual(number_of_requests, session.number_of_requests)
+
+            companies, statistics = list(
+                session.advanced.raw_query(
+                    "declare function incl(c) {\n"
+                    + "    includes.cmpxchg(c.externalId);\n"
+                    + "    return c;\n"
+                    + "}\n"
+                    + "from index 'Companies/ByName' as c\n"
+                    + "select incl(c)",
+                ).statistics(__statistics_callback)
+            )
+
+            self.assertEqual(1, len(companies))
+            self.assertEqual(-1, self.statistics["DurationInMs"])
+            self.assertEqual(result_etag, self.statistics["ResultEtag"])
+
+            with self.store.open_session(session_options=session_options) as inner_session:
+                value = inner_session.advanced.cluster_transaction.get_compare_exchange_value(
+                    Address, companies[0].external_id
+                )
+                value.value.city = "Bydgoszcz"
+                inner_session.save_changes()
+                self.wait_for_indexing(self.store)
+
+            companies, statistics = list(
+                session.advanced.raw_query(
+                    "declare function incl(c) {\n"
+                    + "    includes.cmpxchg(c.externalId);\n"
+                    + "    return c;\n"
+                    + "}\n"
+                    + "from index 'Companies/ByName' as c\n"
+                    + "select incl(c)",
+                    with_statistics=True,
+                )
+            )
+
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, companies[0].external_id)
+            self.assertEqual("Bydgoszcz", value1.value.city)

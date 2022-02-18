@@ -6,7 +6,7 @@ import requests
 
 from pyravendb import constants
 from pyravendb.data.compare_exchange import StartingWithOptions
-from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.operations import IOperation
 from pyravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeValue,
@@ -25,7 +25,7 @@ from pyravendb.util.util import RaftIdGenerator
 _T = TypeVar("_T")
 
 if TYPE_CHECKING:
-    from pyravendb.documents import DocumentStore
+    from pyravendb.documents.store import DocumentStore
 
 
 class CompareExchangeResult(Generic[_T]):

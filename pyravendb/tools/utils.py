@@ -1,14 +1,16 @@
 from __future__ import annotations
-from typing import Optional, Dict, Generic, Tuple, TypeVar
+
+import time
+from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type
 
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
 
 try:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 except ImportError:
-    from collections import Iterable
+    from collections import Iterable, Sequence
 
 from pyravendb.tools.projection import create_entity_with_mapper
 from datetime import datetime, timedelta
@@ -21,9 +23,105 @@ import json
 import sys
 import re
 
-
+_T = TypeVar("_T")
 _TKey = TypeVar("_TKey")
 _TVal = TypeVar("_TVal")
+
+
+class TimeUnit(Enum):
+    NANOSECONDS = 1
+    MICROSECONDS = 1000 * NANOSECONDS
+    MILLISECONDS = 1000 * MICROSECONDS
+    SECONDS = 1000 * MILLISECONDS
+    MINUTES = 60 * SECONDS
+    HOURS = 60 * MINUTES
+    DAYS = 24 * HOURS
+
+    def convert(self, source_duration: int, source_unit: TimeUnit):
+        if self == TimeUnit.NANOSECONDS:
+            return source_unit.to_nanos(source_duration)
+        elif self == TimeUnit.MICROSECONDS:
+            return source_unit.to_micros(source_duration)
+        elif self == TimeUnit.MILLISECONDS:
+            return source_unit.to_millis(source_duration)
+        elif self == TimeUnit.SECONDS:
+            return source_unit.to_seconds(source_duration)
+        raise NotImplementedError("Unsupported TimeUnit")
+
+    def to_nanos(self, duration: int) -> int:
+        return duration * self.value
+
+    def to_micros(self, duration: int) -> int:
+        return duration * self.value / 1000
+
+    def to_millis(self, duration: int) -> int:
+        return duration * self.value / (1000 * 1000)
+
+    def to_seconds(self, duration: int) -> int:
+        return duration * self.value / (1000 * 1000 * 1000)
+
+    def to_minutes(self, duration: int) -> int:
+        return duration * self.value / (1000 * 1000 * 1000 * 60)
+
+    def to_hours(self, duration: int) -> int:
+        return duration * self.value / (1000 * 1000 * 1000 * 60 * 60)
+
+    def to_days(self, duration: int) -> int:
+        return duration * self.value / (1000 * 1000 * 1000 * 60 * 60 * 24)
+
+
+class Stopwatch:
+    def __init__(self):
+        self.__is_running = False
+        self.__elapsed_nanos = None
+        self.__start_tick = None
+
+    @staticmethod
+    def create_started() -> Stopwatch:
+        return Stopwatch().start()
+
+    @property
+    def is_running(self) -> bool:
+        return self.__is_running
+
+    def start(self) -> Stopwatch:
+        if self.__is_running:
+            raise RuntimeError("This stopwatch is already running.")
+        self.__is_running = True
+        self.__start_tick = time.perf_counter_ns()
+        return self
+
+    def stop(self) -> Stopwatch:
+        tick = time.perf_counter_ns()
+        if not self.__is_running:
+            raise RuntimeError("This stopwatch is already stopped.")
+        self.__is_running = False
+        self.__elapsed_nanos = (
+            (tick - self.__start_tick)
+            if self.__elapsed_nanos is None
+            else self.__elapsed_nanos + (tick - self.__start_tick)
+        )
+        return self
+
+    def reset(self) -> Stopwatch:
+        self.__elapsed_nanos = 0
+        self.__is_running = False
+        return self
+
+    def __take_elapsed_nanos(self) -> float:
+        return (
+            time.perf_counter_ns() - self.__start_tick + self.__elapsed_nanos
+            if self.__is_running
+            else self.__elapsed_nanos
+        )
+
+    def elapsed_micros(self) -> float:
+        return self.__take_elapsed_nanos() / 1000
+
+    def elapsed(self, desired_unit: Optional[TimeUnit] = None) -> Union[timedelta, int]:
+        if desired_unit is not None:
+            return desired_unit.convert(self.__elapsed_nanos(), TimeUnit.NANOSECONDS)
+        return timedelta(microseconds=self.elapsed_micros())
 
 
 class Size:
@@ -60,7 +158,7 @@ class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):
     def pop(self, key, *args, **kwargs) -> Tuple[_TKey, _TVal]:
         return super(CaseInsensitiveDict, self).pop(self.__class__._k(key), *args, **kwargs)
 
-    def get(self, key, *args, **kwargs) -> Tuple[_TKey, _TVal]:
+    def get(self, key, *args, **kwargs) -> _TVal:
         return super(CaseInsensitiveDict, self).get(self.__class__._k(key), *args, **kwargs)
 
     def setdefault(self, key, *args, **kwargs):
@@ -119,10 +217,28 @@ class Utils(object):
     primitives = (int, float, bool, str, list, set)
 
     @staticmethod
-    def quote_key(key, reserved_slash=False):
+    def check_if_collection_but_not_str(instance) -> bool:
+        return isinstance(instance, (Sequence, set)) and not isinstance(instance, (str, bytes, bytearray))
+
+    @staticmethod
+    def unpack_collection(items: Collection) -> List:
+        results = []
+
+        for item in items:
+            if Utils.check_if_collection_but_not_str(item):
+                results.extend(Utils.__unpack_collection(item))
+                continue
+            results.append(item)
+
+        return results
+
+    @staticmethod
+    def quote_key(key, reserved_slash=False, reserved_at=False) -> str:
         reserved = "%:=&?~#+!$,;'*[]"
         if reserved_slash:
             reserved += "/"
+        if reserved_at:
+            reserved += "@"
         if key:
             return urllib.parse.quote(key, safe=reserved)
         else:
@@ -212,7 +328,7 @@ class Utils(object):
         return entity
 
     @staticmethod
-    def initialize_object(obj, object_type, convert_to_snake_case=None):
+    def initialize_object(obj: dict, object_type: Type[_T], convert_to_snake_case: bool = None) -> _T:
         initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
         o = object_type(**initialize_dict)
         if set_needed:
@@ -221,9 +337,21 @@ class Utils(object):
         return o
 
     @staticmethod
+    def get_field_names(object_type: Type[_T]) -> List[str]:
+        obj = Utils.initialize_object({}, object_type)
+        return list(obj.__dict__.keys())
+
+    @staticmethod
+    def try_get_new_instance(object_type: Type[_T]) -> _T:
+        try:
+            return Utils.initialize_object({}, object_type)
+        except Exception as e:
+            raise RuntimeError(f"Couldn't initialize an object of the {object_type.__name__} class. {e.args[0]}", e)
+
+    @staticmethod
     def convert_json_dict_to_object(
-        json_dict: dict, object_type: Optional[type] = None, nested_object_types: Optional[Dict[str, type]] = None
-    ) -> object:
+        json_dict: dict, object_type: Optional[Type[_T]] = None, nested_object_types: Optional[Dict[str, type]] = None
+    ) -> Union[_DynamicStructure, _T]:
         if object_type == dict:
             return json_dict
 
@@ -388,6 +516,8 @@ class Utils(object):
 
     @staticmethod
     def string_to_datetime(datetime_str):
+        if datetime_str is None:
+            return None
         try:
             if datetime_str.endswith("Z"):
                 datetime_str = datetime_str[:-1]
@@ -588,7 +718,7 @@ class Utils(object):
             raise TypeError(repr(o) + " is not JSON serializable")
 
     @staticmethod
-    def get_default_value(object_type: type) -> object:
+    def get_default_value(object_type: Type[_T]) -> _T:
         if object_type == bool:
             return False
         elif object_type == str:

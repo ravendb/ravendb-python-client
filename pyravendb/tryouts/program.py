@@ -1,25 +1,3 @@
-from pyravendb.store.document_store import DocumentStore
-from pyravendb.raven_operations.timeseries_operations import (
-    GetTimeSeriesOperation,
-    TimeSeriesRange,
-    TimeSeriesBatchOperation,
-    TimeSeriesOperation,
-)
-from pyravendb.raven_operations.counters_operations import *
-from pyravendb.raven_operations.maintenance_operations import (
-    PutIndexesOperation,
-    IndexDefinition,
-    PutConnectionStringOperation,
-    ConnectionString,
-    UpdateExternalReplicationOperation,
-    ExternalReplication,
-    PutPullReplicationAsHubOperation,
-    PullReplicationDefinition,
-    UpdatePullReplicationAsSinkOperation,
-    PullReplicationAsSink,
-)
-from datetime import datetime, timedelta, timezone
-from time import sleep
 import OpenSSL
 
 
@@ -61,14 +39,3 @@ if __name__ == "__main__":
     with open(pfx, "rb") as pkcs12_file:
         pkcs12_data = pkcs12_file.read()
         # c = pkcs12_to_pem(pkcs12_data, "E9302BBF95723A2EC0E44FEF48DD22")
-
-    with DocumentStore(
-        urls=["https://a.free.roll.ravendb.cloud"],
-        database="demo",
-        certificate={"pfx": pkcs12_data, "password": "E9302BBF95723A2EC0E44FEF48DD22"},
-    ) as store:
-        store.initialize()
-
-        with store.open_session() as s:
-            s.store(User("Oren", "Binyamina"))
-            s.save_changes()

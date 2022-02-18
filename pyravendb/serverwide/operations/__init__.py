@@ -19,7 +19,7 @@ import pyravendb.serverwide
 if TYPE_CHECKING:
     from pyravendb.http import VoidRavenCommand, ServerNode
     from pyravendb.http.request_executor import RequestExecutor
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 T = TypeVar("T")
 

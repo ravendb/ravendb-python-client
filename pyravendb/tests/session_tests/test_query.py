@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pyravendb.documents.indexes import IndexDefinition, IndexFieldOptions, FieldStorage
 from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.queries.misc import Query
 from pyravendb.tests.test_base import TestBase
 from pyravendb.custom_exceptions import exceptions
 import unittest
@@ -75,30 +76,30 @@ class TestQuery(TestBase):
 
     def test_where_equal_dynamic_index(self):
         with self.store.open_session() as session:
-            query_results = list(session.query(collection_name="Products").where_equals("name", "test101"))
+            query_results = list(session.query_collection("Products").where_equals("name", "test101"))
             self.assertEqual(query_results[0].name, "test101")
 
     def test_can_use_exists_field(self):
         with self.store.open_session() as session:
-            list(session.query(collection_name="Products").where_exists("name"))
+            list(session.query_collection("Products").where_exists("name"))
 
     def test_can_query_on_date_time(self):
         with self.store.open_session() as session:
-            list(session.query(collection_name="Products").where_equals("at", datetime.now()))
+            list(session.query_collection("Products").where_equals("at", datetime.now()))
 
     def test_can_query_on_date_time_range(self):
         with self.store.open_session() as session:
-            list(session.query(collection_name="Products").where_between("at", datetime.now(), datetime.now()))
+            list(session.query_collection("Products").where_between("at", datetime.now(), datetime.now()))
 
     def test_where_not_equal(self):
         with self.store.open_session() as session:
-            query_results = list(session.query(collection_name="Products").where_not_equals("name", "test101"))
+            query_results = list(session.query_collection("Products").where_not_equals("name", "test101"))
             for result in query_results:
                 assert result.name != "test101"
 
     def test_where_equal_double(self):
         with self.store.open_session() as session:
-            query_results = list(session.query().where_equals("name", "test101").where_equals("key", 4))
+            query_results = list(session.query().where_equals("name", "test101").or_else().where_equals("key", 4))
             self.assertEqual(len(query_results), 2)
 
     def test_where_equal_double_and_operator(self):
@@ -118,29 +119,25 @@ class TestQuery(TestBase):
 
     def test_where_starts_with(self):
         with self.store.open_session() as session:
-            query_result = list(session.query(Product).where_starts_with("name", "n"))
+            query_result = list(session.query(object_type=Product).where_starts_with("name", "n"))
             self.assertEqual(query_result[0].name, "new_testing")
 
     def test_where_ends_with(self):
         with self.store.open_session() as session:
-            query_result = list(session.query(Product).where_ends_with("name", "7"))
+            query_result = list(session.query(object_type=Product).where_ends_with("name", "7"))
             self.assertEqual(query_result[0].name, "test107")
-
-    def test_query_return_empty_query_with_not_exist_index(self):
-        with self.store.open_session() as session:
-            self.assertEqual(len(list(session.query(index_name="s").where(Tag="Products"))), 0)
 
     def test_query_success_with_where(self):
         with self.store.open_session() as session:
             query_results = list(session.query().where(name="test101", key=[4, 6, 90]))
             self.assertGreater(len(query_results), 0)
 
+    # todo : solve race condition
+    @unittest.skip("race")
     def test_query_success_with_index(self):
         with self.store.open_session() as session:
             keys = [4, 6, 90]
-            query_results = list(
-                session.query(index_name="Testing_Sort", wait_for_non_stale_results=True).where(key=keys)
-            )
+            query_results = list(session.query_index("Testing_Sort").wait_for_non_stale_results().where_in("key", keys))
             self.assertEqual(len(query_results), 3)
             for result in query_results:
                 assert result.key in keys
@@ -148,7 +145,7 @@ class TestQuery(TestBase):
     def test_where_between(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(index_name="Testing_Sort", wait_for_non_stale_results=True).where_between("key", 2, 4)
+                session.query_index("Testing_Sort").wait_for_non_stale_results().where_between("key", 2, 4)
             )
             for result in query_results:
                 self.assertGreaterEqual(result.key, 2)
@@ -157,8 +154,9 @@ class TestQuery(TestBase):
     def test_query_with_order_by(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(wait_for_non_stale_results=True, collection_name="products")
-                .where_not_none("order")
+                session.query_collection("products")
+                .wait_for_non_stale_results()
+                .where_not_equals("order", None)
                 .order_by("order")
             )
             self.assertEqual(query_results[0].order, "a")
@@ -166,10 +164,9 @@ class TestQuery(TestBase):
     def test_query_with_order_by_descending(self):
         with self.store.open_session() as session:
             query_results = list(
-                session.query(
-                    wait_for_non_stale_results=True,
-                )
-                .where_not_none("order")
+                session.query(object_type=Product)
+                .wait_for_non_stale_results()
+                .where_not_equals("order", None)
                 .order_by_descending("order")
             )
             self.assertEqual(query_results[0].order, "d")
@@ -178,7 +175,7 @@ class TestQuery(TestBase):
         found_none = False
         with self.store.open_session() as session:
             query_results = list(
-                session.query(wait_for_non_stale_results=True, collection_name="products").where_not_none("order")
+                session.query_collection("products").wait_for_non_stale_results().where_not_none("order")
             )
             for result in query_results:
                 if result.order is None:
@@ -188,7 +185,7 @@ class TestQuery(TestBase):
 
     def test_where_with_include(self):
         with self.store.open_session() as session:
-            list(session.query(wait_for_non_stale_results=True).where(key=92).include("product_id"))
+            list(session.query().wait_for_non_stale_results().where(key=92).include("product_id"))
             session.load("products/108")
         self.assertEqual(session.number_of_requests, 1)
 
@@ -235,21 +232,6 @@ class TestQuery(TestBase):
                 self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
         except exceptions.InvalidOperationException as e:
             self.assertTrue("raw_query was called" in str(e))
-
-    def test_query_with_select(self):
-        with self.store.open_session() as session:
-            query_results = list(
-                session.query(
-                    object_type=dict,
-                    wait_for_non_stale_results=True,
-                    index_name="SelectTestingIndex",
-                )
-                .where(key=92)
-                .select("order_and_id")
-            )
-            for result in query_results:
-                self.assertEqual(len(result), 1)
-                self.assertTrue("order_and_id" in result)
 
 
 if __name__ == "__main__":

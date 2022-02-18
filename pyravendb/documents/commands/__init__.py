@@ -8,8 +8,8 @@ import requests
 
 from pyravendb import constants
 from pyravendb.commands.commands_results import GetDocumentsResult
-from pyravendb.documents.queries import HashCalculator
 from pyravendb.data.timeseries import TimeSeriesRange
+from pyravendb.documents.queries.utils import HashCalculator
 from pyravendb.identity import HiLoResult
 from pyravendb.extensions.http_extensions import HttpExtensions
 from pyravendb.http import ResponseDisposeHandling, VoidRavenCommand
@@ -20,7 +20,7 @@ from pyravendb.tools.utils import Utils
 
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class PutResult:

@@ -130,7 +130,7 @@ class QueryStreamCommand(RavenCommand):
         if not index_query:
             raise ValueError("index_query cannot be None")
 
-        if index_query.wait_for_non_stale_results:
+        if index_query._wait_for_non_stale_results:
             raise exceptions.NotSupportedException(
                 "Since stream() does not wait for indexing (by design), "
                 "streaming query with wait_for_non_stale_results is not supported."

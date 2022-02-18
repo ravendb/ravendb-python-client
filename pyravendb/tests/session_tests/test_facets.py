@@ -1,7 +1,7 @@
 from pyravendb.documents.indexes import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.query import Facet, FacetMode
+from pyravendb.data.query import OldFacet, FacetMode
 import unittest
 
 
@@ -32,8 +32,8 @@ class TestFacets(TestBase):
 
         ProductsAndPricePerUnit().execute(self.store)
         self.facets = [
-            Facet("Products", mode=FacetMode.ranges),
-            Facet(
+            OldFacet("Products", mode=FacetMode.ranges),
+            OldFacet(
                 "price_per_unit_L_Range",
                 ranges=["{100 TO 3000]", "[402 TO 2000]"],
                 mode=FacetMode.ranges,

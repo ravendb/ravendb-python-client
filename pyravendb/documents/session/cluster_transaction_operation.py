@@ -75,7 +75,7 @@ class ClusterTransactionOperationsBase:
     def clear(self) -> None:
         self._state.clear()
 
-    def _get_compare_exchange_value_internal(self, object_type: type, key: str):
+    def _get_compare_exchange_value_internal(self, object_type: type, key: str) -> Union[None, CompareExchangeValue]:
         v, not_tracked = self.get_compare_exchange_value_from_session_internal(object_type, key)
         if not not_tracked:
             return v
@@ -83,7 +83,7 @@ class ClusterTransactionOperationsBase:
         self.session.increment_requests_count()
 
         value = self.session.operations.send(
-            GetCompareExchangeValueOperation(dict, key, False), self.session._session_info
+            GetCompareExchangeValueOperation(dict, key, False), self.session.session_info
         )
         if value is None:
             self.register_missing_compare_exchange_value(key)
@@ -104,7 +104,7 @@ class ClusterTransactionOperationsBase:
         if start_with:
             self._session.increment_requests_count()
             values = self._session.operations.send(
-                GetCompareExchangeValuesOperation(dict, keys_or_start_with_options), self.session._session_info
+                GetCompareExchangeValuesOperation(dict, keys_or_start_with_options), self.session.session_info
             )
 
             results = {}
@@ -130,7 +130,7 @@ class ClusterTransactionOperationsBase:
         self.session.increment_requests_count()
         keys_array = not_tracked_keys
         values: Dict[str, CompareExchangeValue[dict]] = self.session.operations.send(
-            GetCompareExchangeValuesOperation(dict, keys_array), self.session._session_info
+            GetCompareExchangeValuesOperation(dict, keys_array), self.session.session_info
         )
 
         for key in keys_array:
@@ -235,7 +235,7 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase):
     def lazily(self):
         raise NotImplementedError()
 
-    def get_compare_exchange_value(self, object_type: type, key: str) -> CompareExchangeValue:
+    def get_compare_exchange_value(self, object_type: type, key: str) -> Union[None, CompareExchangeValue]:
         return self._get_compare_exchange_value_internal(object_type, key)
 
     def get_compare_exchange_values(

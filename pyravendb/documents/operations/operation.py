@@ -10,7 +10,7 @@ from pyravendb.primitives import OperationCancelledException
 from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.http.request_executor import RequestExecutor
 
 

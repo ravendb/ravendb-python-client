@@ -1,6 +1,6 @@
 from typing import Dict
 
-from pyravendb.documents import SessionOptions
+from pyravendb.documents.store.document_store import SessionOptions
 from pyravendb.documents.operations.compare_exchange.operations import (
     PutCompareExchangeValueOperation,
     CompareExchangeResult,

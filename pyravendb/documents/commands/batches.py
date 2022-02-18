@@ -17,7 +17,7 @@ from pyravendb.util.util import RaftIdGenerator
 from pyravendb.documents.session import ForceRevisionStrategy, TransactionMode
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.documents.operations import PatchRequest
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
@@ -376,7 +376,11 @@ class BatchPatchCommandData(CommandData):
 
 class PatchCommandData(CommandData):
     def __init__(
-        self, key: str, change_vector: str, patch: PatchRequest, patch_if_missing: Optional[PatchRequest] = None
+        self,
+        key: str,
+        change_vector: Union[None, str],
+        patch: PatchRequest,
+        patch_if_missing: Optional[PatchRequest] = None,
     ):
         super().__init__(key, None, change_vector, CommandType.PATCH)
         if not key:

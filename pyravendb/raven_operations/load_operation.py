@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING, Type, TypeVar
 
 from pyravendb.commands.commands_results import GetDocumentsResult
 from pyravendb.data.timeseries import TimeSeriesRange
@@ -10,6 +10,8 @@ from pyravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict, Utils
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+
+_T = TypeVar("_T")
 
 
 class LoadOperation:
@@ -110,7 +112,7 @@ class LoadOperation:
         self._keys = list(distinct)
         return self
 
-    def get_document(self, object_type: type):
+    def get_document(self, object_type: Type[_T]) -> _T:
         if self._session.no_tracking:
             if not self._results_set and len(self._keys) > 0:
                 raise RuntimeError("Cannot execute get_document before operation execution.")
@@ -123,10 +125,10 @@ class LoadOperation:
                 return None
 
             document_info = DocumentInfo.get_new_document_info(document)
-            return self._session.track_entity(object_type, document_info=document_info)
+            return self._session.track_entity(object_type, document_found=document_info)
         return self.__get_document(object_type, self._keys[0])
 
-    def __get_document(self, object_type: type, key: str):
+    def __get_document(self, object_type: Type[_T], key: str) -> _T:
         if key is None:
             # todo: fix these ugly protected calls below
             return Utils.get_default_value(object_type)
@@ -136,15 +138,15 @@ class LoadOperation:
 
         doc = self._session.documents_by_id.get(key)
         if doc is not None:
-            return self._session.track_entity(object_type, document_info=doc)
+            return self._session.track_entity(object_type, document_found=doc)
 
         doc = self._session.included_documents_by_id.get(key)
         if doc is not None:
-            return self._session.track_entity(object_type, document_info=doc)
+            return self._session.track_entity(object_type, document_found=doc)
 
         return Utils.get_default_value(object_type)
 
-    def get_documents(self, object_type: type):
+    def get_documents(self, object_type: Type[_T]) -> CaseInsensitiveDict[str, _T]:
         final_results = CaseInsensitiveDict()
         if self._session.no_tracking:
             if (not self._results_set) and len(self._keys) > 0:
@@ -163,7 +165,7 @@ class LoadOperation:
                     continue
                 new_document_info = DocumentInfo.get_new_document_info(document)
                 final_results[new_document_info.key] = self._session.track_entity(
-                    entity_type=object_type, document_info=new_document_info
+                    entity_type=object_type, document_found=new_document_info
                 )
 
             return final_results

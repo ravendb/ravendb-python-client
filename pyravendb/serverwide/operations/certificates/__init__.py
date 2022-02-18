@@ -14,7 +14,7 @@ from pyravendb.util.util import RaftIdGenerator
 from pyravendb.serverwide.operations import VoidServerOperation, ServerOperation
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class SecurityClearance(enum.Enum):

@@ -2,10 +2,10 @@ from pyravendb.documents.indexes import IndexDefinition
 from pyravendb.documents.operations import DeleteByQueryOperation, PatchByQueryOperation, QueryOperationOptions
 from pyravendb.documents.operations.attachments import (
     PutAttachmentOperation,
-    GetAttachmentOperation,
     DeleteAttachmentOperation,
 )
 from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.tests.test_base import *
 from pyravendb.raven_operations.operations import *
 from pyravendb.documents.operations.operation import Operation as NewOperation
@@ -61,9 +61,9 @@ class TestOperations(TestBase):
             session.save_changes()
             # doing the query here to make sure the query won't be stale
             query_result = list(
-                session.query(wait_for_non_stale_results=True).raw_query("FROM INDEX 'Patches' Where patched=False")
+                session.advanced.raw_query("FROM INDEX 'Patches' where patched=False").wait_for_non_stale_results()
             )
-            assert query_result
+            assert query_result is not None
 
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
         operation = PatchByQueryOperation(
@@ -91,11 +91,10 @@ class TestOperations(TestBase):
     @unittest.skip("Exception dispatcher")
     def test_fail_patch_wrong_index_name(self):
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
+        query = IndexQuery("from index 'None' update {{this.name='NotExist'}}")
+        query.wait_for_non_stale_results = True
         operation = PatchByQueryOperation(
-            query_to_update=IndexQuery(
-                query="FROM INDEX 'None' UPDATE {{this.name='NotExist'}}",
-                wait_for_non_stale_results=True,
-            ),
+            query_to_update=query,
             options=options,
         )
         with self.assertRaises(exceptions.InvalidOperationException):
@@ -122,7 +121,7 @@ class TestOperations(TestBase):
             session.store(User(name="delete", age=0), key="deletes/1-A")
             session.save_changes()
             # doing the query here to make sure the query won't be stale
-            query_result = list(session.query(wait_for_non_stale_results=True).raw_query("FROM INDEX 'Users'"))
+            query_result = list(session.advanced.raw_query("FROM INDEX 'Users'").wait_for_non_stale_results())
             assert query_result
 
         index_query = IndexQuery(query="FROM INDEX 'Users' WHERE name='delete'")
@@ -147,7 +146,8 @@ class TestOperations(TestBase):
             session.store(Patch(patched=False))
             session.save_changes()
 
-        index_query = IndexQuery("From Patches Update {{this.patched=true}}", wait_for_non_stale_results=True)
+        index_query = IndexQuery("From Patches Update {{this.patched=true}}")
+        index_query.wait_for_non_stale_results = True
 
         response = self.store.operations.send(PatchByQueryOperation(query_to_update=index_query))
         operation = NewOperation(
@@ -168,7 +168,7 @@ class TestOperations(TestBase):
     def test_delete_by_collection_(self):
         with self.store.open_session() as session:
             self.assertEqual(1, len(session.load_starting_with(User, "users")))
-        index_query = IndexQuery("From Users")
+        index_query = OldIndexQuery("From Users")
         operation = DeleteByQueryOperation(query_to_delete=index_query)
         result = self.store.operations.send(operation)
         op = NewOperation(

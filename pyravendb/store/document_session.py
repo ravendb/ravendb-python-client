@@ -19,7 +19,7 @@ try:
 except ImportError:
     from collections import MutableSet
 
-from ..documents.session.document_query import Query
+from ..documents.session.document_query import OldQuery
 
 
 class _SaveChangesData(object):
@@ -161,7 +161,7 @@ class _DeletedEntitiesHolder(MutableSet):
         return self.items.discard(_RefEq(element))
 
 
-class DocumentSession(object):
+class OldDocumentSession(object):
     def __init__(self, database, document_store, requests_executor, session_id, **kwargs):
         """
         Implements Unit of Work for accessing the RavenDB server
@@ -278,11 +278,11 @@ class DocumentSession(object):
     @property
     def query(self):
         if self._query is None:
-            self._query = Query(self)
+            self._query = OldQuery(self)
         return self._query
 
     def raw_query(self, raw_query_string: str, query_parameters: dict = None, **kwargs):
-        self._query = Query(self)(**kwargs)
+        self._query = OldQuery(self)(**kwargs)
         return self._query.raw_query(raw_query_string, query_parameters)
 
     def save_includes(self, includes=None):
@@ -771,7 +771,7 @@ class Advanced(object):
         import ijson
 
         index_query = query.get_index_query()
-        if index_query.wait_for_non_stale_results:
+        if index_query._wait_for_non_stale_results:
             raise exceptions.NotSupportedException(
                 "Since stream() does not wait for indexing (by design), "
                 "streaming query with wait_for_non_stale_results is not supported."

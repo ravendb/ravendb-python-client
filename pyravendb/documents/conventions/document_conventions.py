@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import threading
-from typing import Union, Callable, TYPE_CHECKING, Dict
+from typing import Union, Callable, TYPE_CHECKING, Dict, Tuple, List
 
 import pyravendb.json.metadata_as_dictionary
 from pyravendb.data.indexes import SortOptions
 from pyravendb.custom_exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
 
+from pyravendb.documents.conventions.misc import ValueForQueryConverter
 from pyravendb.documents.operations.configuration import ClientConfiguration
 from pyravendb.http import ReadBalanceBehavior, LoadBalanceBehavior
 from pyravendb.tools.utils import Utils
@@ -44,7 +45,8 @@ class DocumentConventions(object):
         # the mappers will be used in json.decode
         self._mappers = kwargs.get("mappers", {})
 
-        self.__list_of_registered_id_conventions: list[tuple[type, Callable[[str, object], str]]] = []
+        self.__list_of_query_value_to_object_converters: List[Tuple[type, ValueForQueryConverter[object]]] = []
+        self.__list_of_registered_id_conventions: List[tuple[type, Callable[[str, object], str]]] = []
 
         self._frozen = False
         self.__original_configuration: Union[None, ClientConfiguration] = None
@@ -443,3 +445,14 @@ class DocumentConventions(object):
 
         # multiple capital letters, so probably something that we want to preserve caps on.
         return collection_name
+
+    def try_convert_value_to_object_for_query(
+        self, field_name: str, value: object, for_range: bool
+    ) -> Tuple[bool, object]:
+        for query_value_converter in self.__list_of_query_value_to_object_converters:
+            if not isinstance(value, query_value_converter[0]):
+                continue
+
+            return query_value_converter[1].try_to_convert_value_for_query(field_name, value, for_range)
+
+        return False, None

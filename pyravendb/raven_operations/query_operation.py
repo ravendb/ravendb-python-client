@@ -9,7 +9,7 @@ from pyravendb.http import RavenCommand, ServerNode
 logging.basicConfig(filename="query.log", level=logging.DEBUG)
 
 
-class QueryOperation:
+class OldQueryOperation:
     def __init__(
         self,
         session,
@@ -42,7 +42,7 @@ class QueryOperation:
         self._session.increment_requests_count()
         logging.debug("Executing query '{0}' on index '{1}'".format(self._index_query.query, self._index_name))
 
-        return QueryCommand(
+        return OldQueryCommand(
             self._session.conventions,
             self._index_query,
             self._metadata_only,
@@ -50,7 +50,7 @@ class QueryOperation:
         )
 
 
-class QueryCommand(RavenCommand[Dict]):
+class OldQueryCommand(RavenCommand[Dict]):
     def __init__(self, conventions, index_query, metadata_only=False, index_entries_only=False):
         """
         @param IndexQuery index_query: A query definition containing all information required to query a specified index.
@@ -59,7 +59,7 @@ class QueryCommand(RavenCommand[Dict]):
         @return:json
         :rtype:dict
         """
-        super(QueryCommand, self).__init__(dict)
+        super(OldQueryCommand, self).__init__(dict)
         if index_query is None:
             raise ValueError("Invalid index_query")
         if conventions is None:

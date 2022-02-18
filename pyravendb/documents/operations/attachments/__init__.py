@@ -15,7 +15,7 @@ from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
     from pyravendb.documents import DocumentStore
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class AttachmentName:

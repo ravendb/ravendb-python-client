@@ -95,7 +95,7 @@ class TestSessionStore(TestBase):
         self._save_documents(documents)
 
         with self.store.open_session() as session:
-            results = list(session.query().raw_query("From Foos"))
+            results = list(session.advanced.raw_query("From Foos"))
             self.assertEqual(len(results), 40)
 
     def test_store_dataclass(self):

@@ -2,7 +2,7 @@ import json
 from typing import Dict
 
 from pyravendb import constants
-from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.operations.compare_exchange.compare_exchange import CompareExchangeValue
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.utils import CaseInsensitiveDict, Utils

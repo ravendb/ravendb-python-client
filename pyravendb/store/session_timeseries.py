@@ -175,7 +175,7 @@ class TimeSeries:
 
                 time_series_range_result = TimeSeriesRangeResult.create_time_series_range_entity(details)
 
-                if not self._session.no_tracking:
+                if not self._session._no_tracking:
                     index = 0 if ranges_result[0].from_date > to_date else len(ranges_result)
                     ranges_result.insert(index, time_series_range_result)
                     pass
@@ -183,7 +183,7 @@ class TimeSeries:
                 return time_series_range_result.entries
 
             entries_to_return, cache_ranges = self._add_to_cache(ranges_result, from_date, to_date, start, page_size)
-            if not self._session.no_tracking:
+            if not self._session._no_tracking:
                 cache[self._name] = cache_ranges
             return entries_to_return
 
@@ -197,7 +197,7 @@ class TimeSeries:
         if time_series_range_result is None:
             return []
         entries = time_series_range_result.entries
-        if not self._session.no_tracking and entries:
+        if not self._session._no_tracking and entries:
             if cache:
                 cache.update({self._name: [time_series_range_result]})
             else:

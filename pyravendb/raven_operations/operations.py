@@ -4,7 +4,7 @@ from abc import abstractmethod
 from pyravendb.tools.utils import Utils
 from pyravendb.data.operation import AttachmentType
 from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.query import IndexQuery
+from pyravendb.data.query import OldIndexQuery
 
 
 class Operation(object):

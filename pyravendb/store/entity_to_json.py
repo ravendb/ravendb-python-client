@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Union
 
 from pyravendb import constants
 from pyravendb.custom_exceptions import exceptions
@@ -9,7 +9,7 @@ from pyravendb.tools.utils import Utils, _DynamicStructure
 from copy import deepcopy
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
@@ -34,7 +34,7 @@ class EntityToJson:
     def convert_entity_to_json_internal_static(
         entity,
         conventions: "DocumentConventions",
-        document_info: DocumentInfo,
+        document_info: Union[None, DocumentInfo],
         remove_identity_property: Optional[bool] = True,
     ) -> dict:
         json_node = Utils.entity_to_dict(entity, conventions.json_default_method)
@@ -44,7 +44,9 @@ class EntityToJson:
         return json_node
 
     @staticmethod
-    def convert_entity_to_json_static(entity, conventions: "DocumentConventions", document_info: DocumentInfo):
+    def convert_entity_to_json_static(
+        entity, conventions: "DocumentConventions", document_info: Union[None, DocumentInfo]
+    ):
         return EntityToJson.convert_entity_to_json_internal_static(entity, conventions, document_info)
 
     def _convert_entity_to_json_internal(

@@ -1,19 +1,18 @@
-from abc import abstractmethod
-from typing import TYPE_CHECKING
+from abc import abstractmethod, ABC
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 if TYPE_CHECKING:
     from pyravendb.documents.commands.multi_get import GetRequest, GetResponse
     from pyravendb.documents.queries.query import QueryResult
 
+_T = TypeVar("_T")
 
-class LazyOperation:
-    @abstractmethod
-    def query_result(self) -> "QueryResult":
-        pass
 
+class LazyOperation(Generic[_T], ABC):
     @abstractmethod
-    def result(self) -> object:
-        pass
+    def __init__(self):
+        self.query_result: "QueryResult" = None
+        self.result: _T = None
 
     @abstractmethod
     def is_requires_retry(self) -> bool:

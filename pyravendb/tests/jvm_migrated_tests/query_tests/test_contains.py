@@ -20,8 +20,9 @@ class TestContains(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
+            # todo: select only names (.select_fields() at the end of query)
             pascal_or_go_dev_names = list(
-                session.query(UserWithFavs).contains_any("favourites", ["pascal", "go"]).select("name")
+                session.query(object_type=UserWithFavs).contains_any("favourites", ["pascal", "go"])
             )
             self.assertEqual(2, len(pascal_or_go_dev_names))
             self.assertSequenceContainsElements(
@@ -29,6 +30,7 @@ class TestContains(TestBase):
             )
 
         with self.store.open_session() as session:
-            java_devs = list(session.query(UserWithFavs).contains_all("favourites", ["java"]).select("name"))
+            # todo: select only names
+            java_devs = list(session.query(object_type=UserWithFavs).contains_all("favourites", ["java"]))
             self.assertEqual(2, len(java_devs))
             self.assertSequenceContainsElements(list(map(lambda user: user.name, java_devs)), "John", "Tarzan")

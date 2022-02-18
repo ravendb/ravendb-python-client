@@ -21,7 +21,7 @@ from pyravendb.http.server_node import ServerNode
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class VoidRavenCommand(RavenCommand[None]):

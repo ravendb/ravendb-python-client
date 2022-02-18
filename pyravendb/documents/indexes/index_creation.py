@@ -2,8 +2,8 @@ from abc import abstractmethod, ABC
 from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional
 
 from pyravendb import constants
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents import DocumentStore, DocumentStoreBase
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
+from pyravendb.documents.store.document_store import DocumentStore, DocumentStoreBase
 from pyravendb.documents.indexes import (
     IndexDefinition,
     AbstractCommonApiForIndexes,

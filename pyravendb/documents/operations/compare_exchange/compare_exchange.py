@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Union, Optional, Generic, TypeVar
 
 from pyravendb import constants
-from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.commands.batches import PutCompareExchangeCommandData, DeleteCompareExchangeCommandData
 from pyravendb.exceptions.raven_exceptions import RavenException
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary

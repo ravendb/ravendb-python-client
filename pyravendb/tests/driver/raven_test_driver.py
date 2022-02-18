@@ -3,7 +3,7 @@ import subprocess
 import time
 from typing import Callable
 
-from pyravendb.documents import DocumentStore
+from pyravendb.documents.store.document_store import DocumentStore
 from pyravendb.tests.driver.raven_server_locator import RavenServerLocator
 from pyravendb.tests.driver.raven_server_runner import RavenServerRunner
 

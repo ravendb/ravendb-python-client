@@ -8,14 +8,14 @@ import requests
 from pyravendb.custom_exceptions import exceptions
 from pyravendb.custom_exceptions.exceptions import ErrorResponseException
 from pyravendb.data.indexes import IndexPriority
-from pyravendb.documents.indexes import IndexDefinition, IndexingError, IndexErrors, IndexLockMode
+from pyravendb.documents.indexes import IndexDefinition, IndexErrors, IndexLockMode
 from pyravendb.documents.operations import MaintenanceOperation, VoidMaintenanceOperation
 from pyravendb.http import RavenCommand, ServerNode, RaftCommand, VoidRavenCommand
 from pyravendb.tools.utils import Utils
 from pyravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class PutIndexesOperation(MaintenanceOperation):

@@ -9,8 +9,8 @@ from pyravendb.http import LoadBalanceBehavior
 
 if TYPE_CHECKING:
     from pyravendb.http.request_executor import RequestExecutor
-    from pyravendb.documents.session.document_query import Query
-    from pyravendb.raven_operations.query_operation import QueryOperation
+    from pyravendb.documents.session.query import Query
+    from pyravendb.documents.session.operations.query import QueryOperation
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from pyravendb.documents import DocumentStore
 
