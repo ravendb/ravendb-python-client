@@ -8,21 +8,20 @@ from typing import Callable, Union, Optional, TypeVar, List, Dict
 
 from pyravendb import constants, exceptions
 from pyravendb.changes.database_changes import DatabaseChanges
-from pyravendb.data.counters import CounterOperationType
+from pyravendb.documents.operations.counters.operation import CounterOperationType
+from pyravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
 from pyravendb.documents.store.misc import Lazy, IdTypeAndName
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session import SessionOptions
+from pyravendb.documents.session.misc import SessionOptions
 from pyravendb.http.request_executor import RequestExecutor
-from pyravendb.raven_operations.counters_operations import GetCountersOperation, CounterOperation
+from pyravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
+from pyravendb.legacy.raven_operations.counters_operations import GetCountersOperation, CounterOperation
 from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
-import pyravendb.documents.operations as documents_operations
-
 T = TypeVar("T")
 
-import pyravendb.identity
 
 from pyravendb.documents.commands.batches import CommandType, CountersBatchCommandData
 
@@ -112,11 +111,11 @@ class DocumentStoreBase:
         pass
 
     @abstractmethod
-    def maintenance(self) -> documents_operations.MaintenanceOperationExecutor:
+    def maintenance(self) -> MaintenanceOperationExecutor:
         pass
 
     @abstractmethod
-    def operations(self) -> documents_operations.OperationExecutor:
+    def operations(self) -> OperationExecutor:
         pass
 
     # todo: changes
@@ -135,17 +134,17 @@ class DocumentStoreBase:
 
     def _ensure_not_closed(self) -> None:
         if self.disposed:
-            raise ValueError("The document store has already been disposed and cannot be used")
+            raise ValueError("The document legacy has already been disposed and cannot be used")
 
     def __assert_not_initialized(self, property: str) -> None:
         if self._initialized:
-            raise RuntimeError(f"You cannot set '{property}' after the document store has been initialized.")
+            raise RuntimeError(f"You cannot set '{property}' after the document legacy has been initialized.")
 
     def assert_initialized(self) -> None:
         if not self._initialized:
             raise RuntimeError(
                 f"You cannot open a session or access the database commands before initializing the "
-                f"document store. Did you forget calling initialize()?"
+                f"document legacy. Did you forget calling initialize()?"
             )
 
     def get_effective_database(self, database: str) -> str:
@@ -176,8 +175,8 @@ class DocumentStore(DocumentStoreBase):
         self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
         # todo: database changes
         # todo: aggressive cache
-        self.__maintenance_operation_executor: Union[None, documents_operations.MaintenanceOperationExecutor] = None
-        self.__operation_executor: Union[None, documents_operations.OperationExecutor] = None
+        self.__maintenance_operation_executor: Union[None, MaintenanceOperationExecutor] = None
+        self.__operation_executor: Union[None, OperationExecutor] = None
         # todo: database smuggler
         self.__identifier: Union[None, str] = None
         self.__add_change_lock = threading.Lock()
@@ -349,7 +348,7 @@ class DocumentStore(DocumentStoreBase):
         RequestExecutor.validate_urls(self.urls)  # todo: pass also certificate
 
         if self.conventions.document_id_generator is None:  # don't overwrite what the user is doing
-            generator = pyravendb.identity.MultiDatabaseHiLoGenerator(self)
+            generator = MultiDatabaseHiLoGenerator(self)
             self.__multi_db_hilo = generator
 
             self.conventions.document_id_generator = generator.generate_document_id
@@ -364,21 +363,21 @@ class DocumentStore(DocumentStoreBase):
 
     def _assert_valid_configuration(self) -> None:
         if not self.urls:
-            raise ValueError("Document store URLs cannot be empty.")
+            raise ValueError("Document legacy URLs cannot be empty.")
 
     @property
-    def maintenance(self) -> documents_operations.MaintenanceOperationExecutor:
+    def maintenance(self) -> MaintenanceOperationExecutor:
         self.assert_initialized()
 
         if self.__maintenance_operation_executor is None:
-            self.__maintenance_operation_executor = documents_operations.MaintenanceOperationExecutor(self)
+            self.__maintenance_operation_executor = MaintenanceOperationExecutor(self)
 
         return self.__maintenance_operation_executor
 
     @property
-    def operations(self) -> documents_operations.OperationExecutor:
+    def operations(self) -> OperationExecutor:
         if self.__operation_executor is None:
-            self.__operation_executor = documents_operations.OperationExecutor(self)
+            self.__operation_executor = OperationExecutor(self)
 
         return self.__operation_executor
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type
 
-from pyravendb.custom_exceptions import exceptions
+from pyravendb.exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
 

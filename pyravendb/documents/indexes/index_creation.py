@@ -4,7 +4,7 @@ from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional
 from pyravendb import constants
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.store.document_store import DocumentStore, DocumentStoreBase
-from pyravendb.documents.indexes import (
+from pyravendb.documents.indexes.definitions import (
     IndexDefinition,
     AbstractCommonApiForIndexes,
     IndexPriority,

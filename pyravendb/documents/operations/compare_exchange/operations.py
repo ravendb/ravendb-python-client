@@ -5,9 +5,7 @@ from typing import Union, Optional, Generic, TypeVar, Dict, List, TYPE_CHECKING
 import requests
 
 from pyravendb import constants
-from pyravendb.data.compare_exchange import StartingWithOptions
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
-from pyravendb.documents.operations import IOperation
 from pyravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeValue,
     CompareExchangeSessionValue,
@@ -15,12 +13,15 @@ from pyravendb.documents.operations.compare_exchange.compare_exchange import (
 from pyravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
     CompareExchangeValueResultParser,
 )
-from pyravendb.http import RavenCommand, RaftCommand, ServerNode
+from pyravendb.documents.operations.definitions import IOperation
 from pyravendb.http.http_cache import HttpCache
+from pyravendb.http.raven_command import RavenCommand
+from pyravendb.http.server_node import ServerNode
+from pyravendb.http.topology import RaftCommand
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
-from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb.documents.session.entity_to_json import EntityToJson
 from pyravendb.tools.utils import Utils
-from pyravendb.util.util import RaftIdGenerator
+from pyravendb.util.util import RaftIdGenerator, StartingWithOptions
 
 _T = TypeVar("_T")
 

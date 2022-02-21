@@ -5,7 +5,7 @@ from typing import Callable, TYPE_CHECKING
 
 import pyravendb.documents.operations as doc_operations
 from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
-from pyravendb.http import RavenCommand
+from pyravendb.http.raven_command import RavenCommand
 from pyravendb.primitives import OperationCancelledException
 from pyravendb.tools.utils import Utils
 

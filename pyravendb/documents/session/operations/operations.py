@@ -1,7 +1,6 @@
 import logging
 from typing import Union, List, Type, TypeVar
-from pyravendb.commands.commands_results import GetDocumentsResult
-from pyravendb.documents.commands import GetDocumentsCommand
+from pyravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
 from pyravendb.documents.commands.multi_get import GetRequest, MultiGetCommand
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations

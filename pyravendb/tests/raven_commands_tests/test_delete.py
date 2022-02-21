@@ -1,6 +1,5 @@
 import unittest
-from pyravendb.custom_exceptions import exceptions
-from pyravendb.documents.commands import PutDocumentCommand, DeleteDocumentCommand
+from pyravendb.documents.commands.crud import PutDocumentCommand, DeleteDocumentCommand
 from pyravendb.tests.test_base import TestBase
 
 

@@ -1,4 +1,4 @@
-from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
+from pyravendb.exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from pyravendb.tests.test_base import UserWithId, TestBase
 
 

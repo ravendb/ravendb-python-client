@@ -2,7 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional, Type, TypeVar
 
-from pyravendb.documents.indexes import AbstractCommonApiForIndexes
+from pyravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 
 
 class SearchOperator(Enum):

@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, TYPE_CHECKING
 
 import requests
 
-from pyravendb.documents.conventions.document_conventions import DocumentConventions
-from pyravendb.documents.indexes import IndexPriority, IndexLockMode, IndexType, IndexSourceType
-from pyravendb.documents.operations import MaintenanceOperation
-from pyravendb.http import RavenCommand, ServerNode
+from pyravendb.documents.indexes.definitions import IndexPriority, IndexLockMode, IndexType, IndexSourceType
+from pyravendb.documents.operations.definitions import MaintenanceOperation
+from pyravendb.http.raven_command import RavenCommand
+from pyravendb.http.server_node import ServerNode
 from pyravendb.tools.utils import Size, Utils
+
+if TYPE_CHECKING:
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class GetStatisticsOperation(MaintenanceOperation[dict]):
@@ -18,7 +21,7 @@ class GetStatisticsOperation(MaintenanceOperation[dict]):
         self.debug_tag = debug_tag
         self.node_tag = node_tag
 
-    def get_command(self, conventions: DocumentConventions) -> RavenCommand[dict]:
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[dict]:
         return self.__GetStatisticsCommand(self.debug_tag, self.node_tag)
 
     class __GetStatisticsCommand(RavenCommand[dict]):
@@ -262,7 +265,7 @@ class GetDetailedStatisticsOperation(MaintenanceOperation[DetailedDatabaseStatis
     def __init__(self, debug_tag: str = None):
         self.__debug_tag = debug_tag
 
-    def get_command(self, conventions: DocumentConventions) -> RavenCommand[DetailedDatabaseStatistics]:
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DetailedDatabaseStatistics]:
         return self.DetailedDatabaseStatisticsCommand(self.__debug_tag)
 
     class DetailedDatabaseStatisticsCommand(RavenCommand[DetailedDatabaseStatistics]):

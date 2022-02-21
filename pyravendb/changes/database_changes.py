@@ -2,10 +2,10 @@ from threading import Lock
 from typing import TYPE_CHECKING
 
 from pyravendb.changes.observers import Observable
-from pyravendb.subscriptions.data import IncrementalJsonParser
+from pyravendb.legacy.subscriptions.data import IncrementalJsonParser
 import websocket
-from pyravendb.custom_exceptions.exceptions import NotSupportedException
-from pyravendb.custom_exceptions.exceptions import ChangeProcessingException
+from pyravendb.exceptions.exceptions import NotSupportedException
+from pyravendb.exceptions.exceptions import ChangeProcessingException
 from pyravendb.tools.utils import Utils
 import copy
 from time import sleep

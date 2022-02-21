@@ -5,10 +5,11 @@ import requests
 
 from pyravendb.documents.queries.query import QueryResult
 from pyravendb.extensions.json_extensions import JsonExtensions
-from pyravendb.http import RavenCommand, ServerNode
+from pyravendb.http.raven_command import RavenCommand
+from pyravendb.http.server_node import ServerNode
 
 if TYPE_CHECKING:
-    from pyravendb.documents.session import InMemoryDocumentSessionOperations
+    from pyravendb.documents.session.document_session import InMemoryDocumentSessionOperations
     from pyravendb.documents.queries.index_query import IndexQuery
 
 

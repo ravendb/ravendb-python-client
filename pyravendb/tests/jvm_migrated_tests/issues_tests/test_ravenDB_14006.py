@@ -1,12 +1,11 @@
 import unittest
-from typing import Union
 
-from pyravendb.data.compare_exchange import StartingWithOptions
 from pyravendb.documents.indexes.index_creation import AbstractIndexCreationTask
-from pyravendb.documents.session import TransactionMode, SessionOptions
+from pyravendb.documents.session.misc import TransactionMode, SessionOptions
 from pyravendb.documents.session.query import QueryStatistics
 from pyravendb.infrastructure.orders import Company, Address, Employee
 from pyravendb.tests.test_base import TestBase
+from pyravendb.util.util import StartingWithOptions
 
 
 class Companies_ByName(AbstractIndexCreationTask):

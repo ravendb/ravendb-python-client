@@ -1,6 +1,6 @@
 import unittest
 
-from pyravendb.documents.indexes import IndexDefinition, IndexSourceType
+from pyravendb.documents.indexes.definitions import IndexDefinition, IndexSourceType
 from pyravendb.documents.operations.indexes import PutIndexesOperation, GetIndexOperation, DeleteIndexOperation
 from pyravendb.tests.test_base import TestBase
 from datetime import datetime

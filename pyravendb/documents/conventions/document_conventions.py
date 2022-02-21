@@ -4,13 +4,13 @@ import threading
 from typing import Union, Callable, TYPE_CHECKING, Dict, Tuple, List
 
 import pyravendb.json.metadata_as_dictionary
-from pyravendb.data.indexes import SortOptions
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from pyravendb.exceptions.exceptions import InvalidOperationException
 from datetime import datetime, timedelta
 
 from pyravendb.documents.conventions.misc import ValueForQueryConverter
+from pyravendb.documents.indexes.definitions import SortOptions
 from pyravendb.documents.operations.configuration import ClientConfiguration
-from pyravendb.http import ReadBalanceBehavior, LoadBalanceBehavior
+from pyravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
 from pyravendb.tools.utils import Utils
 from enum import Enum
 import inflect
@@ -193,7 +193,7 @@ class DocumentConventions(object):
     def update_mappers(self, mapper):
         if self._frozen:
             raise InvalidOperationException(
-                "Conventions has frozen after store.initialize() and no changes can be applied to them"
+                "Conventions has frozen after legacy.initialize() and no changes can be applied to them"
             )
         self._mappers.update(mapper)
 
@@ -217,7 +217,7 @@ class DocumentConventions(object):
         elif isinstance(o, (int, float)):
             return str(o)
         else:
-            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to store convention)")
+            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to legacy convention)")
 
     @staticmethod
     def default_transform_plural(name):

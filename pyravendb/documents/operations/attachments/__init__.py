@@ -8,9 +8,11 @@ import requests
 
 from pyravendb import constants
 from pyravendb.data.operation import AttachmentType
-from pyravendb.documents.operations import IOperation, VoidOperation
-from pyravendb.http import RavenCommand, ServerNode, ResponseDisposeHandling, VoidRavenCommand, RavenCommandResponseType
+from pyravendb.documents.operations.definitions import IOperation, VoidOperation
 from pyravendb.http.http_cache import HttpCache
+from pyravendb.http.misc import ResponseDisposeHandling
+from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType, VoidRavenCommand
+from pyravendb.http.server_node import ServerNode
 from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:

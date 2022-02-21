@@ -9,10 +9,10 @@ from pyravendb.documents.operations.compare_exchange.operations import (
     DeleteCompareExchangeValueOperation,
     GetCompareExchangeValuesOperation,
 )
-from pyravendb.data.compare_exchange import StartingWithOptions
 from pyravendb.documents.operations.statistics import GetDetailedStatisticsOperation, DetailedDatabaseStatistics
-from pyravendb.documents.session import TransactionMode
+from pyravendb.documents.session.misc import TransactionMode
 from pyravendb.tests.test_base import TestBase, User
+from pyravendb.util.util import StartingWithOptions
 
 
 class TestUniqueValues(TestBase):

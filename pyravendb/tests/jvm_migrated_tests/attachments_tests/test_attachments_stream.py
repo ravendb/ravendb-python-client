@@ -26,14 +26,14 @@ class TestAttachmentsStream(TestBase):
     #     key = "users/1-A"
     #     attachment_name = "Typical attachment name"
 
-    #     with self.store.open_session() as session:
+    #     with self.legacy.open_session() as session:
     #         user = User("su")
-    #         session.store(user)
+    #         session.legacy(user)
     #         session.save_changes()
 
-    #     self.store.operations.send(PutAttachmentOperation(key, attachment_name, stream, "application/zip"))
+    #     self.legacy.operations.send(PutAttachmentOperation(key, attachment_name, stream, "application/zip"))
 
-    #     with self.store.open_session() as session:
+    #     with self.legacy.open_session() as session:
     #         user = session.load(key, User)
     #         attachment_names = list(
     #             map(lambda x: AttachmentRequest(key, x.name), session.advanced.attachment.get_names(user))

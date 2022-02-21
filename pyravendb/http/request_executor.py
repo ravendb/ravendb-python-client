@@ -12,7 +12,7 @@ import requests
 from copy import copy
 
 from pyravendb import constants
-from pyravendb.custom_exceptions.exceptions import (
+from pyravendb.exceptions.exceptions import (
     AllTopologyNodesDownException,
     UnsuccessfulRequestException,
     DatabaseDoesNotExistException,
@@ -22,20 +22,12 @@ from pyravendb.documents.operations.configuration import GetClientConfigurationO
 from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 
-from pyravendb.http import (
-    CurrentIndexAndNode,
-    NodeSelector,
-    Broadcast,
-    Topology,
-    ReadBalanceBehavior,
-    UpdateTopologyParameters,
-    ResponseDisposeHandling,
-    LoadBalanceBehavior,
-    NodeStatus,
-)
+
 from pyravendb.http.http_cache import HttpCache
+from pyravendb.http.misc import ReadBalanceBehavior, ResponseDisposeHandling, LoadBalanceBehavior, Broadcast
 from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from pyravendb.http.server_node import ServerNode
+from pyravendb.http.topology import Topology, NodeStatus, NodeSelector, CurrentIndexAndNode, UpdateTopologyParameters
 from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetClusterTopologyCommand
 
 from http import HTTPStatus

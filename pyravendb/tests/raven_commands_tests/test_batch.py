@@ -1,13 +1,13 @@
 import unittest
 
-from pyravendb.documents.commands import GetDocumentsCommand
+from pyravendb.documents.commands.crud import GetDocumentsCommand
 from pyravendb.documents.commands.batches import (
     DeleteCommandData,
     PatchCommandData,
     PutCommandDataBase,
     SingleNodeBatchCommand,
 )
-from pyravendb.documents.operations import PatchRequest
+from pyravendb.documents.operations.patch import PatchRequest
 from pyravendb.tests.test_base import TestBase
 
 

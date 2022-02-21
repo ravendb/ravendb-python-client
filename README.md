@@ -37,14 +37,14 @@ There are three ways to install pyravendb.
 ## Working with secured servers
 
 You can use either PEM files (cert / key) or PFX/P12 files to authenticate against a remote RavenDB cluster.
-Here is how to setup the Python RavenDB client to support it. 
+Here is how to setup the Python RavenDB client to support it.
 
  ```python
-from pyravendb.store import document_store
+from pyravendb.legacy import document_store
 
 urls = ["https://a.prod.roll.ravendb.cloud",
-        "https://b.prod.roll.ravendb.cloud",
-        "https://c.prod.roll.ravendb.cloud"]
+		"https://b.prod.roll.ravendb.cloud",
+		"https://c.prod.roll.ravendb.cloud"]
 
 # use PFX file
 cert = {"pfx": "/path/to/cert.pfx", "password": "optional password"}
@@ -55,22 +55,23 @@ cert = {"pfx": "/path/to/cert.pfx", "password": "optional password"}
 # use cert / key files
 # cert = ("/path/to/cert.crt", "/path/to/cert.key")
 
-store =  document_store.DocumentStore(urls=urls, database="PyRavenDB", certificate=cert)
-store.initialize() 
+store = document_store.DocumentStore(urls=urls, database="PyRavenDB", certificate=cert)
+store.initialize()
 with store.open_session() as session:
-    foo = session.load("foos/1")
+	foo = session.load("foos/1")
 ```
 
 
 ## Usage
 ##### Load a single or several document\s from the store:
+
  ```python
-from pyravendb.store import document_store
-    
-store =  document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB")
-store.initialize() 
+from pyravendb.legacy import document_store
+
+store = document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB")
+store.initialize()
 with store.open_session() as session:
-    foo = session.load("foos/1")
+	foo = session.load("foos/1")
 ```
 
 load method have the option to track entity for you the only thing you need to do is add ```object_type```  when you call to load 

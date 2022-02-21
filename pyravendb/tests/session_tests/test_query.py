@@ -1,10 +1,9 @@
 from datetime import datetime
 
-from pyravendb.documents.indexes import IndexDefinition, IndexFieldOptions, FieldStorage
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
-from pyravendb.documents.queries.misc import Query
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions import exceptions
+from pyravendb.exceptions import exceptions
 import unittest
 
 

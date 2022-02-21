@@ -1,16 +1,13 @@
 import unittest
 
 from pyravendb.documents.commands.query import QueryCommand
-from pyravendb.custom_exceptions import exceptions
-from pyravendb.documents.commands import PutDocumentCommand
-from pyravendb.documents.indexes import IndexDefinition
-from pyravendb.documents.operations import (
-    DeleteByQueryOperation,
-    QueryOperationOptions,
-    Operation,
-    PatchByQueryOperation,
-)
+from pyravendb.exceptions import exceptions
+from pyravendb.documents.commands.crud import PutDocumentCommand
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.operations.misc import QueryOperationOptions, DeleteByQueryOperation
+from pyravendb.documents.operations.operation import Operation
+from pyravendb.documents.operations.patch import PatchByQueryOperation
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.tests.test_base import TestBase
 

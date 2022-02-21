@@ -5,7 +5,7 @@ import unittest
 from typing import Tuple
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from pyravendb.custom_exceptions.exceptions import AuthorizationException
+from pyravendb.exceptions.exceptions import AuthorizationException
 from pyravendb.documents.store.document_store import DocumentStore
 from pyravendb.serverwide.operations.certificates import (
     ReplaceClusterCertificateOperation,

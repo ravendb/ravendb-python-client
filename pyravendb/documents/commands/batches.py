@@ -8,13 +8,17 @@ from typing import Callable, Union, Optional, TYPE_CHECKING, List, Set, Dict
 
 import requests
 
-from pyravendb.documents.operations.counters import CounterOperation, CounterOperationType, DocumentCountersOperation
+from pyravendb.documents.operations.counters.operation import (
+    CounterOperation,
+    DocumentCountersOperation,
+    CounterOperationType,
+)
+from pyravendb.documents.session.misc import TransactionMode, ForceRevisionStrategy
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.json.result import BatchCommandResult
 from pyravendb.tools.utils import CaseInsensitiveSet, Utils
 from pyravendb.util.util import RaftIdGenerator
-from pyravendb.documents.session import ForceRevisionStrategy, TransactionMode
 
 if TYPE_CHECKING:
     from pyravendb.documents.conventions.document_conventions import DocumentConventions

@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.documents.operations.statistics import GetCollectionStatisticsOperation
 from pyravendb.documents.queries.misc import SearchOperator

@@ -5,6 +5,14 @@ import itertools
 import json
 from abc import abstractmethod
 
+from pyravendb.documents.operations.executor import OperationExecutor
+from pyravendb.documents.session.misc import (
+    SessionOptions,
+    TransactionMode,
+    SessionInfo,
+    ForceRevisionStrategy,
+    DocumentsChanges,
+)
 
 try:
     from collections.abc import MutableSet
@@ -16,12 +24,11 @@ from copy import deepcopy, Error
 from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set, Type, TypeVar, Any, Tuple
 
 from pyravendb import constants
-from pyravendb.commands.commands_results import GetDocumentsResult
+from pyravendb.documents.commands.crud import GetDocumentsResult
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
-from pyravendb.identity import GenerateEntityIdOnTheClient
-from pyravendb.documents.operations import OperationExecutor
+from pyravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
 from pyravendb.http.request_executor import RequestExecutor
-from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
+from pyravendb.exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from pyravendb.documents.commands.batches import (
     CommandData,
@@ -38,13 +45,7 @@ from pyravendb.documents.session.cluster_transaction_operation import ClusterTra
 from pyravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.event_args import BeforeStoreEventArgs
-from pyravendb.documents.session import (
-    SessionInfo,
-    SessionOptions,
-    DocumentsChanges,
-    ForceRevisionStrategy,
-    TransactionMode,
-)
+
 from pyravendb.documents.session.time_series.time_series import TimeSeriesEntry
 from pyravendb.documents.session.utils.includes_util import IncludesUtil
 from pyravendb.extensions.json_extensions import JsonExtensions
@@ -52,9 +53,9 @@ from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.json_operation import JsonOperation
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb.documents.session.entity_to_json import EntityToJson
 from pyravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
-from pyravendb.documents.store.misc import IdTypeAndName, Lazy
+from pyravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
     from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
@@ -809,7 +810,7 @@ class InMemoryDocumentSessionOperations:
         self, entity: object, change_vector: str, key: str, force_concurrency_check: ConcurrencyCheckMode
     ):
         if self.no_tracking:
-            raise RuntimeError("Cannot store entity. Entity tracking is disabled in this session.")
+            raise RuntimeError("Cannot legacy entity. Entity tracking is disabled in this session.")
         if entity is None:
             raise ValueError("Entity cannot be None")
 
@@ -829,12 +830,12 @@ class InMemoryDocumentSessionOperations:
 
         if IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None) in self.deferred_commands_map.keys():
             raise InvalidOperationException(
-                f"Can't store document, there is a deferred command registered for this document in the session. "
+                f"Can't legacy document, there is a deferred command registered for this document in the session. "
                 f"Document id:{key}"
             )
 
         if entity in self.deleted_entities:
-            raise RuntimeError(f"Can't store object, it was already deleted in this session. Document id {key}")
+            raise RuntimeError(f"Can't legacy object, it was already deleted in this session. Document id {key}")
 
         self._assert_no_non_unique_instance(entity, key)
 
@@ -1093,7 +1094,7 @@ class InMemoryDocumentSessionOperations:
         raise RuntimeError(
             "Cannot open a Session without specyifing a name of a database to operate on. "
             "Database name can be passed as an argument when Session is being opened "
-            "or default database can be defined using store.database property"
+            "or default database can be defined using legacy.database property"
         )
 
     def _entity_changed(

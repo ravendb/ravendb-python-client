@@ -1,4 +1,4 @@
-from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
 from pyravendb.data.query import OldFacet, FacetMode

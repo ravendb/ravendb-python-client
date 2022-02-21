@@ -1,6 +1,5 @@
 from typing import Union, Tuple, TYPE_CHECKING, List, Dict
 
-from pyravendb.data.compare_exchange import StartingWithOptions
 from pyravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeSessionValue,
     CompareExchangeValue,
@@ -10,13 +9,13 @@ from pyravendb.documents.operations.compare_exchange.operations import (
     GetCompareExchangeValuesOperation,
     GetCompareExchangeValueOperation,
 )
+from pyravendb.documents.session.misc import TransactionMode
 
 from pyravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 from pyravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
     CompareExchangeValueResultParser,
 )
-
-from pyravendb.documents.session import TransactionMode
+from pyravendb.util.util import StartingWithOptions
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations

@@ -8,16 +8,19 @@ import uuid
 from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar
 
 from pyravendb import constants
-from pyravendb.custom_exceptions import exceptions
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from pyravendb.exceptions import exceptions
+from pyravendb.exceptions.exceptions import InvalidOperationException
 from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRange
 import pyravendb.documents
-from pyravendb.documents.indexes import AbstractCommonApiForIndexes
+from pyravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 from pyravendb.documents.operations.attachments import (
     GetAttachmentOperation,
     AttachmentName,
 )
+from pyravendb.documents.operations.batch import BatchOperation
+from pyravendb.documents.operations.executor import OperationExecutor, SessionOperationExecutor
+from pyravendb.documents.operations.patch import PatchRequest
 from pyravendb.documents.queries.misc import Query
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
@@ -26,7 +29,7 @@ from pyravendb.documents.session.loaders.include import IncludeBuilder
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from pyravendb.documents.session.operations.lazy import LazyLoadOperation
 from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
-from pyravendb.documents.session import (
+from pyravendb.documents.session.misc import (
     SessionOptions,
     ResponseTimeInformation,
     JavaScriptArray,
@@ -35,7 +38,7 @@ from pyravendb.documents.session import (
 )
 from pyravendb.documents.session.query import DocumentQuery, RawDocumentQuery
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
-from pyravendb.raven_operations.load_operation import LoadOperation
+from pyravendb.documents.session.operations.load_operation import LoadOperation
 from pyravendb.tools.utils import Utils
 from pyravendb.documents.commands.batches import (
     PatchCommandData,
@@ -46,9 +49,8 @@ from pyravendb.documents.commands.batches import (
     CopyAttachmentCommandData,
     MoveAttachmentCommandData,
 )
-from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
+from pyravendb.documents.commands.crud import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
 from pyravendb.documents.commands.multi_get import GetRequest
-from pyravendb.documents.operations import BatchOperation, PatchRequest, OperationExecutor, SessionOperationExecutor
 
 from pyravendb.documents.store.misc import IdTypeAndName
 
@@ -772,30 +774,30 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
                 ) in self.__session.deferred_commands_map:
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "delete")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "delete")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
                     in self.__session.deferred_commands_map
                 ):
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "create")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "create")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
                     in self.__session.deferred_commands_map
                 ):
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "delete")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "delete")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
                     in self.__session.deferred_commands_map
                 ):
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "rename")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "rename")
 
                 document_info = self.__session.documents_by_id.get_value(entity_or_document_id)
                 if document_info and document_info.entity in self.__session.deleted_entities:
                     raise exceptions.InvalidOperationException(
-                        "Can't store attachment "
+                        "Can't legacy attachment "
                         + name
                         + " of document"
                         + entity_or_document_id

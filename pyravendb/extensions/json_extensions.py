@@ -2,7 +2,7 @@ from pyravendb import constants
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.documents.queries.query import ProjectionBehavior
-from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb.documents.session.entity_to_json import EntityToJson
 
 
 class JsonExtensions:

@@ -1,5 +1,5 @@
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
-from pyravendb.documents.commands import PutDocumentCommand
+from pyravendb.exceptions.exceptions import InvalidOperationException
+from pyravendb.documents.commands.crud import PutDocumentCommand
 from pyravendb.tests.test_base import TestBase
 from dataclasses import dataclass
 import unittest

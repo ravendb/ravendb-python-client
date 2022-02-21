@@ -8,7 +8,7 @@ from pyravendb.documents.conventions.document_conventions import DocumentConvent
 from pyravendb.documents.commands.batches import PutCompareExchangeCommandData, DeleteCompareExchangeCommandData
 from pyravendb.exceptions.raven_exceptions import RavenException
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
-from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb.documents.session.entity_to_json import EntityToJson
 from pyravendb.tools.projection import create_entity_with_mapper
 from pyravendb.tools.utils import Utils
 

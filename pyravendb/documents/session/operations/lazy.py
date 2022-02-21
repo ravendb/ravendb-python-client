@@ -7,11 +7,11 @@ from typing import Union, List, Generic, TypeVar, Type, Callable, Dict, TYPE_CHE
 from pyravendb.documents.queries.facets.misc import FacetResult
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.tools.utils import Utils
-from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb.documents.session.entity_to_json import EntityToJson
 from pyravendb.documents.queries.query import QueryResult
 from pyravendb.extensions.json_extensions import JsonExtensions
-from pyravendb.commands.commands_results import GetDocumentsResult
-from pyravendb.raven_operations.load_operation import LoadOperation
+from pyravendb.documents.commands.crud import GetDocumentsResult
+from pyravendb.documents.session.operations.load_operation import LoadOperation
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
 from pyravendb.documents.commands.multi_get import Content, GetRequest, GetResponse

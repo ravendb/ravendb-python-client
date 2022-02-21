@@ -1,13 +1,14 @@
-from pyravendb.documents.indexes import IndexDefinition
-from pyravendb.documents.operations import DeleteByQueryOperation, PatchByQueryOperation, QueryOperationOptions
+from pyravendb.exceptions.exceptions import InvalidOperationException, ErrorResponseException
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.attachments import (
     PutAttachmentOperation,
     DeleteAttachmentOperation,
 )
 from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.operations.misc import QueryOperationOptions, DeleteByQueryOperation
+from pyravendb.documents.operations.patch import PatchByQueryOperation
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.tests.test_base import *
-from pyravendb.raven_operations.operations import *
 from pyravendb.documents.operations.operation import Operation as NewOperation
 import unittest
 
@@ -97,7 +98,7 @@ class TestOperations(TestBase):
             query_to_update=query,
             options=options,
         )
-        with self.assertRaises(exceptions.InvalidOperationException):
+        with self.assertRaises(InvalidOperationException):
             response = self.store.operations.send(operation)
             if response:
                 operation = NewOperation(
@@ -109,7 +110,7 @@ class TestOperations(TestBase):
                 )
                 operation.wait_for_completion()
             else:
-                raise exceptions.ErrorResponseException("Got empty or None response from the server")
+                raise ErrorResponseException("Got empty or None response from the server")
 
     def test_delete_by_index(self):
 
@@ -168,7 +169,7 @@ class TestOperations(TestBase):
     def test_delete_by_collection_(self):
         with self.store.open_session() as session:
             self.assertEqual(1, len(session.load_starting_with(User, "users")))
-        index_query = OldIndexQuery("From Users")
+        index_query = IndexQuery("From Users")
         operation = DeleteByQueryOperation(query_to_delete=index_query)
         result = self.store.operations.send(operation)
         op = NewOperation(

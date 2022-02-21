@@ -1,6 +1,6 @@
 import unittest
 
-from pyravendb.documents.indexes import IndexDefinition, IndexFieldOptions, FieldIndexing
+from pyravendb.documents.indexes.definitions import IndexDefinition, IndexFieldOptions, FieldIndexing
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.documents.queries.misc import SearchOperator
 from pyravendb.tests.test_base import TestBase

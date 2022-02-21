@@ -1,5 +1,5 @@
 from pyravendb import constants
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from pyravendb.exceptions.exceptions import InvalidOperationException
 from pyravendb.documents.commands.batches import DeleteCommandData
 from pyravendb.documents.operations.attachments import DeleteAttachmentOperation
 from pyravendb.tests.test_base import TestBase, User

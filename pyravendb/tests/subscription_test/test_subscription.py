@@ -1,9 +1,14 @@
 import threading
 from functools import partial
-from pyravendb.subscriptions.data import *
-from pyravendb.commands.raven_commands import GetSubscriptionsCommand
+
+from pyravendb.legacy.commands.raven_commands import GetSubscriptionsCommandOld
+from pyravendb.legacy.subscriptions.data import (
+    SubscriptionCreationOptions,
+    SubscriptionWorkerOptions,
+    SubscriptionOpeningStrategy,
+)
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions.exceptions import (
+from pyravendb.exceptions.exceptions import (
     SubscriptionInUseException,
     SubscriptionClosedException,
 )
@@ -60,7 +65,7 @@ class TestSubscription(TestBase):
         )
 
         request_executor = self.store.get_request_executor()
-        subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
+        subscriptions = request_executor.execute(GetSubscriptionsCommandOld(0, 1))
         self.assertGreaterEqual(len(subscriptions), 1)
 
         connection_options = SubscriptionWorkerOptions(subscriptions[0].subscription_name)
@@ -87,7 +92,7 @@ class TestSubscription(TestBase):
         )
 
         request_executor = self.store.get_request_executor()
-        subscriptions = request_executor.execute(GetSubscriptionsCommand(0, 1))
+        subscriptions = request_executor.execute(GetSubscriptionsCommandOld(0, 1))
         self.assertGreaterEqual(len(subscriptions), 1)
 
         connection_options = SubscriptionWorkerOptions(subscriptions[0].subscription_name)
