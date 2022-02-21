@@ -12,7 +12,7 @@ import requests
 from copy import copy
 
 from pyravendb import constants
-from pyravendb.custom_exceptions.exceptions import (
+from pyravendb.exceptions.exceptions import (
     AllTopologyNodesDownException,
     UnsuccessfulRequestException,
     DatabaseDoesNotExistException,
@@ -22,20 +22,12 @@ from pyravendb.documents.operations.configuration import GetClientConfigurationO
 from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 
-from pyravendb.http import (
-    CurrentIndexAndNode,
-    NodeSelector,
-    Broadcast,
-    Topology,
-    ReadBalanceBehavior,
-    UpdateTopologyParameters,
-    ResponseDisposeHandling,
-    LoadBalanceBehavior,
-    NodeStatus,
-)
+
 from pyravendb.http.http_cache import HttpCache
+from pyravendb.http.misc import ReadBalanceBehavior, ResponseDisposeHandling, LoadBalanceBehavior, Broadcast
 from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from pyravendb.http.server_node import ServerNode
+from pyravendb.http.topology import Topology, NodeStatus, NodeSelector, CurrentIndexAndNode, UpdateTopologyParameters
 from pyravendb.serverwide.commands import GetDatabaseTopologyCommand, GetClusterTopologyCommand
 
 from http import HTTPStatus
@@ -45,7 +37,7 @@ from typing import TYPE_CHECKING, List, Dict, Tuple
 
 if TYPE_CHECKING:
     from pyravendb.documents.session import SessionInfo
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from typing import Union, Callable, Any, Optional
 
 
@@ -61,7 +53,6 @@ class RequestExecutor:
         database_name: str,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
         initial_urls: Optional[List[str]] = None,
@@ -73,7 +64,6 @@ class RequestExecutor:
         self.__cache: HttpCache = HttpCache()
 
         self.__certificate_path = certificate_path
-        self.__key_password = key_password
         self.__trust_store_path = trust_store_path
 
         self.__topology_taken_from_node: Union[None, ServerNode] = None
@@ -212,13 +202,10 @@ class RequestExecutor:
         database_name: str,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ):
-        executor = RequestExecutor(
-            database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
-        )
+        executor = RequestExecutor(database_name, conventions, certificate_path, trust_store_path, thread_pool_executor)
         executor._first_topology_update_task = executor._first_topology_update(
             initial_urls, RequestExecutor.__GLOBAL_APPLICATION_IDENTIFIER
         )
@@ -230,12 +217,11 @@ class RequestExecutor:
         database_name: str,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
         executor = RequestExecutor.create_for_single_node_without_configuration_updates(
-            url, database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
+            url, database_name, conventions, certificate_path, trust_store_path, thread_pool_executor
         )
         executor._disable_client_configuration_updates = False
         return executor
@@ -246,14 +232,11 @@ class RequestExecutor:
         database_name: str,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
         initial_urls = RequestExecutor.validate_urls([url])
-        executor = RequestExecutor(
-            database_name, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor
-        )
+        executor = RequestExecutor(database_name, conventions, certificate_path, trust_store_path, thread_pool_executor)
 
         topology = Topology(-1, [ServerNode(initial_urls[0], database_name)])
         executor._node_selector = NodeSelector(topology)
@@ -1111,7 +1094,9 @@ class RequestExecutor:
         if command.failed_nodes is None:
             command.failed_nodes = {}
 
-        command.failed_nodes[chosen_node] = self.__read_exception_from_server(request, response, e)
+        return (
+            False  # todo: command.failed_nodes[chosen_node] = self.__read_exception_from_server(request, response, e)
+        )
 
         if node_index is None:
             # We executed request over a node not in the topology. This means no failover...
@@ -1215,13 +1200,12 @@ class ClusterRequestExecutor(RequestExecutor):
         self,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
         initial_urls: Optional[List[str]] = None,
     ):
         super(ClusterRequestExecutor, self).__init__(
-            None, conventions, certificate_path, key_password, trust_store_path, thread_pool_executor, initial_urls
+            None, conventions, certificate_path, trust_store_path, thread_pool_executor, initial_urls
         )
         self.__cluster_topology_semaphore = Semaphore(1)
 
@@ -1231,7 +1215,6 @@ class ClusterRequestExecutor(RequestExecutor):
         thread_pool_executor: ThreadPoolExecutor,
         conventions: Optional[DocumentConventions] = None,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
     ):
         initial_urls = [url]
@@ -1240,7 +1223,6 @@ class ClusterRequestExecutor(RequestExecutor):
         executor = ClusterRequestExecutor(
             (conventions if conventions else DocumentConventions()),
             certificate_path,
-            key_password,
             trust_store_path,
             thread_pool_executor,
             initial_urls,
@@ -1265,13 +1247,11 @@ class ClusterRequestExecutor(RequestExecutor):
         thread_pool_executor: ThreadPoolExecutor,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
-        key_password: Optional[str] = None,
         trust_store_path: Optional[str] = None,
     ):
         executor = ClusterRequestExecutor(
             (conventions if conventions else DocumentConventions()),
             certificate_path,
-            key_password,
             trust_store_path,
             thread_pool_executor,
             initial_urls,

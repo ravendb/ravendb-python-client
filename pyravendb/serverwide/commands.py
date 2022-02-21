@@ -4,9 +4,10 @@ from typing import Optional
 
 import requests
 
-from pyravendb.http import Topology, ClusterTopologyResponse
+from pyravendb.http.misc import ClusterTopologyResponse
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
+from pyravendb.http.topology import Topology
 from pyravendb.tools.utils import Utils
 
 

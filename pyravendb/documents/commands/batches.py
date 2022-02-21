@@ -8,17 +8,20 @@ from typing import Callable, Union, Optional, TYPE_CHECKING, List, Set, Dict
 
 import requests
 
-from pyravendb.documents.operations.counters import CounterOperation, CounterOperationType, DocumentCountersOperation
-from pyravendb.documents.session.transaction_mode import TransactionMode
+from pyravendb.documents.operations.counters.operation import (
+    CounterOperation,
+    DocumentCountersOperation,
+    CounterOperationType,
+)
+from pyravendb.documents.session.misc import TransactionMode, ForceRevisionStrategy
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.json.result import BatchCommandResult
 from pyravendb.tools.utils import CaseInsensitiveSet, Utils
 from pyravendb.util.util import RaftIdGenerator
-from pyravendb.documents.session import ForceRevisionStrategy
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.documents.operations import PatchRequest
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
@@ -377,7 +380,11 @@ class BatchPatchCommandData(CommandData):
 
 class PatchCommandData(CommandData):
     def __init__(
-        self, key: str, change_vector: str, patch: PatchRequest, patch_if_missing: Optional[PatchRequest] = None
+        self,
+        key: str,
+        change_vector: Union[None, str],
+        patch: PatchRequest,
+        patch_if_missing: Optional[PatchRequest] = None,
     ):
         super().__init__(key, None, change_vector, CommandType.PATCH)
         if not key:

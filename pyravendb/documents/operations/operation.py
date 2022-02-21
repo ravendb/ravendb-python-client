@@ -5,12 +5,12 @@ from typing import Callable, TYPE_CHECKING
 
 import pyravendb.documents.operations as doc_operations
 from pyravendb.exceptions.exception_dispatcher import ExceptionDispatcher
-from pyravendb.http import RavenCommand
+from pyravendb.http.raven_command import RavenCommand
 from pyravendb.primitives import OperationCancelledException
 from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.http.request_executor import RequestExecutor
 
 

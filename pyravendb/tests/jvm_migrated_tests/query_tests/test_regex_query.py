@@ -21,9 +21,9 @@ class TestRegexQuery(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(RegexMe).where_regex("text", "^[a-z ]{2,4}love")
-            iq = query.get_index_query()
-            self.assertEqual("FROM RegexMes WHERE regex(text, $p0)", iq.query)
+            query = session.query(object_type=RegexMe).where_regex("text", "^[a-z ]{2,4}love")
+            iq = query.index_query
+            self.assertEqual("from 'RegexMes' where regex(text, $p0)", iq.query)
             self.assertEqual("^[a-z ]{2,4}love", iq.query_parameters.get("p0"))
             result = list(query)
             self.assertEqual(4, len(result))

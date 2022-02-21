@@ -1,8 +1,8 @@
 from pyravendb import constants
-from pyravendb.documents.indexes import IndexDefinition
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from pyravendb.exceptions.exceptions import InvalidOperationException
 import unittest
 import pathlib
 import os

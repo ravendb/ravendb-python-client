@@ -3,7 +3,7 @@ import subprocess
 import time
 from typing import Callable
 
-from pyravendb.documents import DocumentStore
+from pyravendb.documents.store.document_store import DocumentStore
 from pyravendb.tests.driver.raven_server_locator import RavenServerLocator
 from pyravendb.tests.driver.raven_server_runner import RavenServerRunner
 
@@ -30,7 +30,7 @@ class RavenTestDriver:
         read_lines = []
         while True:
             line = stdout.readline().decode("utf-8")
-            read_lines.append(line)  # check if utf-8 works fine
+            read_lines.append(line)
 
             if line is None:
                 raise RuntimeError(str.join(os.linesep, read_lines) + process.stdin.read().decode("utf-8"))

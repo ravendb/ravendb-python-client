@@ -1,4 +1,4 @@
-from pyravendb.documents.indexes import IndexDefinition, IndexLockMode, IndexPriority
+from pyravendb.documents.indexes.definitions import IndexDefinition, IndexLockMode, IndexPriority
 from pyravendb.documents.operations.indexes import (
     PutIndexesOperation,
     GetIndexNamesOperation,

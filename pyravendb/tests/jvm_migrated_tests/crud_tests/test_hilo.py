@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from pyravendb.documents import DocumentStore
-from pyravendb.identity import HiLoIdGenerator, MultiDatabaseHiLoGenerator
+from pyravendb.documents.store.document_store import DocumentStore
+from pyravendb.documents.identity.hilo import HiLoIdGenerator, MultiDatabaseHiLoGenerator
 from pyravendb.tests.test_base import TestBase, User, UserWithId
 
 

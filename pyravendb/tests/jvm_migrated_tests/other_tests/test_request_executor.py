@@ -1,10 +1,10 @@
 import unittest
-from pyravendb.http import ServerNode, UpdateTopologyParameters
+from pyravendb.http.topology import ServerNode, UpdateTopologyParameters
 from pyravendb.http.request_executor import RequestExecutor
-from pyravendb.serverwide.operations import GetDatabaseNamesOperation
+from pyravendb.serverwide.operations.common import GetDatabaseNamesOperation
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.custom_exceptions.exceptions import DatabaseDoesNotExistException
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
+from pyravendb.exceptions.exceptions import DatabaseDoesNotExistException
 
 
 class TestGetTopology(TestBase):

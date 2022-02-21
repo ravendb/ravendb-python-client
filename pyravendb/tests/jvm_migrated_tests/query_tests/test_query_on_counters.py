@@ -391,7 +391,7 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            list(session.raw_query("from @all_docs include counters($p0)").add_parameter("p0", ["downloads"]))
+            list(session.raw_query("from @all_docs include counters($p0)")._add_parameter("p0", ["downloads"]))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(100, counter_value)
             session.counters_for("orders/1-A").increment("downloads", 200)
@@ -403,7 +403,7 @@ class TestQueryOnCounters(TestBase):
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.raw_query("from @all_docs include counters($p0)").add_parameter("p0", ["downloads"]))
+            list(session.raw_query("from @all_docs include counters($p0)")._add_parameter("p0", ["downloads"]))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(500, counter_value)
 

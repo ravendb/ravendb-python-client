@@ -1,3 +1,6 @@
+int_max = 0x7FFFFFF
+
+
 class Documents:
     class Metadata:
         COLLECTION = "@collection"
@@ -29,9 +32,9 @@ class Documents:
             SOURCE_DOCUMENT_ID_FIELD_NAME = "sourceDocId()"
             REDUCE_KEY_HASH_FIELD_NAME = "hash(key())"
             REDUCE_KEY_KEY_VALUE_FIELD_NAME = "key()"
-            VALUE_FIELD_NAMe = "value()"
+            VALUE_FIELD_NAME = "value()"
             ALL_FIELDS = "__all_fields"
-            SPATIAL_SHAPE_FIELD_NAMe = "spatial(shape)"
+            SPATIAL_SHAPE_FIELD_NAME = "spatial(shape)"
 
         class Spatial:
             DEFAULT_DISTANCE_ERROR_PCT = 0.025

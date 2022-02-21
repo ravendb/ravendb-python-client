@@ -6,9 +6,9 @@ from typing import Union, List
 import requests
 
 from pyravendb import constants
+from pyravendb.http.misc import AggressiveCacheOptions, AggressiveCacheMode
 from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.extensions.http_extensions import HttpExtensions
-from pyravendb.http import AggressiveCacheMode, AggressiveCacheOptions
 from pyravendb.http.http_cache import HttpCache, ReleaseCacheItem
 from pyravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from pyravendb.http.server_node import ServerNode

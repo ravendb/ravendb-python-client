@@ -5,7 +5,7 @@ sys.path.append(os.path.abspath(__file__ + "/../"))
 
 from dataclasses import dataclass
 from pyravendb.tests.test_base import TestBase
-from pyravendb.custom_exceptions import exceptions
+from pyravendb.exceptions import exceptions
 import unittest
 
 

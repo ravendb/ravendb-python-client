@@ -1,4 +1,4 @@
-from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
+from pyravendb.exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from pyravendb.tests.test_base import UserWithId, TestBase
 
 
@@ -8,11 +8,11 @@ class TestTrackEntity(TestBase):
 
     def test_storing_document_with_the_same_id_in_the_same_session_should_throw(self):
         with self.store.open_session() as session:
-            user = UserWithId("User1", None, identifier="users/1")
+            user = UserWithId("User1", None, "users/1")
             session.store(user)
             session.save_changes()
 
-            new_user = UserWithId("User2", None, identifier="users/1")
+            new_user = UserWithId("User2", None, "users/1")
             ex_message = "Attempted to associate a different object with id 'users/1'."
             self.assertRaisesWithMessage(session.store, NonUniqueObjectException, ex_message, new_user)
 

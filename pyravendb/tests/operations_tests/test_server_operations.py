@@ -1,4 +1,4 @@
-from pyravendb.serverwide.operations import GetDatabaseNamesOperation
+from pyravendb.serverwide.operations.common import GetDatabaseNamesOperation
 from pyravendb.tests.test_base import *
 import unittest
 

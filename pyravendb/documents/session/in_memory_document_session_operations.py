@@ -5,6 +5,15 @@ import itertools
 import json
 from abc import abstractmethod
 
+from pyravendb.documents.operations.executor import OperationExecutor
+from pyravendb.documents.session.misc import (
+    SessionOptions,
+    TransactionMode,
+    SessionInfo,
+    ForceRevisionStrategy,
+    DocumentsChanges,
+)
+
 try:
     from collections.abc import MutableSet
 except Exception:
@@ -12,15 +21,14 @@ except Exception:
 
 import uuid as uuid
 from copy import deepcopy, Error
-from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set
+from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set, Type, TypeVar, Any, Tuple
 
 from pyravendb import constants
-from pyravendb.commands.commands_results import GetDocumentsResult
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.identity import GenerateEntityIdOnTheClient
-from pyravendb.documents.operations import OperationExecutor
+from pyravendb.documents.commands.crud import GetDocumentsResult
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
+from pyravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
 from pyravendb.http.request_executor import RequestExecutor
-from pyravendb.custom_exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
+from pyravendb.exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from pyravendb.data.timeseries import TimeSeriesRangeResult
 from pyravendb.documents.commands.batches import (
     CommandData,
@@ -33,25 +41,25 @@ from pyravendb.documents.commands.batches import (
     IndexBatchOptions,
     ReplicationBatchOptions,
 )
-import pyravendb.documents
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
 from pyravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.event_args import BeforeStoreEventArgs
-from pyravendb.documents.session import SessionInfo, SessionOptions, DocumentsChanges, ForceRevisionStrategy
+
 from pyravendb.documents.session.time_series.time_series import TimeSeriesEntry
-from pyravendb.documents.session.transaction_mode import TransactionMode
 from pyravendb.documents.session.utils.includes_util import IncludesUtil
 from pyravendb.extensions.json_extensions import JsonExtensions
 from pyravendb.http.raven_command import RavenCommand
 from pyravendb.json.json_operation import JsonOperation
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.json.result import BatchCommandResult
-from pyravendb.store.entity_to_json import EntityToJson
+from pyravendb.documents.session.entity_to_json import EntityToJson
 from pyravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
+from pyravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
     from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
+    from pyravendb.documents.store.document_store import DocumentStore
 
 
 class RefEq:
@@ -403,15 +411,16 @@ class DeletedEntitiesHolder(MutableSet):
             return self.__execute_on_before_delete
 
 
+_T = TypeVar("_T")
+
+
 class InMemoryDocumentSessionOperations:
     __instances_counter: int = 0
 
     class SaveChangesData:
         def __init__(self, session: InMemoryDocumentSessionOperations):
             self.deferred_commands: List[CommandData] = session.deferred_commands
-            self.deferred_commands_map: Dict[
-                pyravendb.documents.IdTypeAndName, CommandData
-            ] = session.deferred_commands_map
+            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session.deferred_commands_map
             self.session_commands: List[CommandData] = []
             self.entities: List = []
             self.options = session._save_changes_options
@@ -422,7 +431,7 @@ class InMemoryDocumentSessionOperations:
                 self.__session = session
                 self.__documents_by_id_to_remove: List[str] = []
                 self.__documents_by_entity_to_remove: List = []
-                self.__document_infos_to_update: List[tuple[DocumentInfo, dict]] = []
+                self.__document_infos_to_update: List[Tuple[DocumentInfo, dict]] = []
                 self.__clear_deleted_entities: bool = False
 
             def remove_document_by_id(self, key: str):
@@ -467,7 +476,7 @@ class InMemoryDocumentSessionOperations:
     def _generate_id(self, entity: object) -> str:
         pass
 
-    def __init__(self, store: pyravendb.documents.DocumentStore, key: uuid.UUID, options: SessionOptions):
+    def __init__(self, store: "DocumentStore", key: uuid.UUID, options: SessionOptions):
         self.__id = key
         self.__database_name = options.database if options.database else store.database if store.database else None
         if not self.__database_name:
@@ -477,7 +486,7 @@ class InMemoryDocumentSessionOperations:
         self._request_executor = (
             options.request_executor if options.request_executor else store.get_request_executor(self.__database_name)
         )
-        self.__operation_executor: OperationExecutor = None
+        self._operation_executor: Union[None, OperationExecutor] = None
 
         self._pending_lazy_operations: List[LazyOperation] = []
         self._on_evaluate_lazy = {}
@@ -490,12 +499,12 @@ class InMemoryDocumentSessionOperations:
             self.request_executor.conventions, self._generate_id
         )
         self.entity_to_json = EntityToJson(self)
-        self._session_info = SessionInfo(self, options, self._document_store)
+        self.session_info = SessionInfo(self, options, self._document_store)
         self.__save_changes_options = BatchOptions()
 
         self.transaction_mode = options.transaction_mode
 
-        self._document_store: pyravendb.documents.DocumentStore = store
+        self._document_store: store.DocumentStore = store
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
@@ -508,14 +517,14 @@ class InMemoryDocumentSessionOperations:
             Set[DeletedEntitiesHolder.DeletedEntitiesEnumeratorResult], DeletedEntitiesHolder
         ] = DeletedEntitiesHolder()
         self.deferred_commands: List[CommandData] = []
-        self.deferred_commands_map: Dict[pyravendb.documents.IdTypeAndName, CommandData] = {}
+        self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = {}
         self.no_tracking: bool = False
         self.ids_for_creating_forced_revisions: Dict[str, ForceRevisionStrategy] = CaseInsensitiveDict()
         # todo: pendingLazyOperations, onEvaluateLazy
         self._generate_document_keys_on_store: bool = True
-        self._save_changes_options: BatchOptions = None
+        self._save_changes_options: Union[None, BatchOptions] = None
         self.__hash: int = self.__instances_counter.__add__(1)
-        self.__is_disposed: bool = None
+        self.__is_disposed: Union[None, bool] = None
 
         self.__number_of_requests: int = 0
         self.__max_number_of_requests_per_session: int = (
@@ -532,8 +541,15 @@ class InMemoryDocumentSessionOperations:
         self.on_before_query = lambda session, query_customization: None
         self.on_before_conversion_to_document = lambda key, entity, session: None
         self.on_after_conversion_to_document = lambda key, entity, document, session: None
-        self.on_before_conversion_to_entity = lambda key, type, document, session: None
-        self.on_after_conversion_to_entity = lambda key, document, entity, session: None
+
+        self.on_before_conversion_to_entity: Callable[
+            [str, type, dict, InMemoryDocumentSessionOperations], Union[None, dict]
+        ] = lambda key, type, document, session: None
+
+        self.on_after_conversion_to_entity: Callable[
+            [str, dict, Any[_T], InMemoryDocumentSessionOperations], Union[None, _T]
+        ] = lambda key, document, entity, session: None
+
         self.on_session_closing = lambda session: None
 
     @property
@@ -542,7 +558,7 @@ class InMemoryDocumentSessionOperations:
 
     @property
     def operation_executor(self) -> OperationExecutor:
-        return self.__operation_executor
+        return self._operation_executor
 
     @property
     def conventions(self) -> DocumentConventions:
@@ -643,7 +659,7 @@ class InMemoryDocumentSessionOperations:
     def is_deleted(self, key: str) -> bool:
         return key in self._known_missing_ids
 
-    def get_document_id(self, entity: object) -> str:
+    def get_document_id(self, entity: object) -> Union[None, str]:
         if entity is None:
             return None
 
@@ -677,22 +693,22 @@ class InMemoryDocumentSessionOperations:
 
     def track_entity(
         self,
-        entity_type: type = None,
+        entity_type: Type[_T],
         key: str = None,
         document: dict = None,
         metadata: dict = None,
-        no_tracking: bool = None,
-        document_info: Optional[DocumentInfo] = None,
-    ):
-        if document_info:
-            key = document_info.key
-            document = document_info.document
-            metadata = document_info.metadata
+        no_tracking: bool = False,
+        document_found: Optional[DocumentInfo] = None,
+    ) -> _T:
+        if document_found:
+            key = document_found.key
+            document = document_found.document
+            metadata = document_found.metadata
             no_tracking = (
                 self.no_tracking if no_tracking is None else no_tracking
             )  # todo: remove if when rebuilding Query
         else:
-            if not key or not document or not metadata or no_tracking:
+            if key is None or document is None or metadata is None:
                 raise ValueError(
                     "Pass either (entity_type, DocumentInfo) or (entity_type, key, document, metadata and no_tracking)"
                 )
@@ -706,7 +722,7 @@ class InMemoryDocumentSessionOperations:
             if not no_tracking:
                 if key in self.included_documents_by_id:
                     self.included_documents_by_id.pop(key)
-                self.documents_by_entity[doc_info.entity] = document_info
+                self.documents_by_entity[doc_info.entity] = document_found
             return doc_info.entity
 
         doc_info = self.included_documents_by_id.get(key)
@@ -735,20 +751,6 @@ class InMemoryDocumentSessionOperations:
             self.documents_by_id[new_document_info.key] = new_document_info
             self.documents_by_entity[new_document_info.entity] = new_document_info
         return entity
-
-    @staticmethod
-    def _get_default_value(object_type: type) -> object:
-        if object_type == bool:
-            return False
-        elif object_type == str:
-            return ""
-        elif object_type == bytes:
-            return bytes(0)
-        elif object_type == int:
-            return int(0)
-        elif object_type == float:
-            return float(0)
-        return None
 
     def delete(self, key_or_entity: Union[str, object], expected_change_vector: Optional[str] = None) -> None:
         if isinstance(key_or_entity, str):
@@ -808,7 +810,7 @@ class InMemoryDocumentSessionOperations:
         self, entity: object, change_vector: str, key: str, force_concurrency_check: ConcurrencyCheckMode
     ):
         if self.no_tracking:
-            raise RuntimeError("Cannot store entity. Entity tracking is disabled in this session.")
+            raise RuntimeError("Cannot legacy entity. Entity tracking is disabled in this session.")
         if entity is None:
             raise ValueError("Entity cannot be None")
 
@@ -826,17 +828,14 @@ class InMemoryDocumentSessionOperations:
         else:
             self.__generate_entity_id_on_client.try_set_identity(entity, key)
 
-        if (
-            pyravendb.documents.IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None)
-            in self.deferred_commands_map.keys()
-        ):
+        if IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None) in self.deferred_commands_map.keys():
             raise InvalidOperationException(
-                f"Can't store document, there is a deferred command registered for this document in the session. "
+                f"Can't legacy document, there is a deferred command registered for this document in the session. "
                 f"Document id:{key}"
             )
 
         if entity in self.deleted_entities:
-            raise RuntimeError(f"Can't store object, it was already deleted in this session. Document id {key}")
+            raise RuntimeError(f"Can't legacy object, it was already deleted in this session. Document id {key}")
 
         self._assert_no_non_unique_instance(entity, key)
 
@@ -929,7 +928,7 @@ class InMemoryDocumentSessionOperations:
         if not self._has_cluster_session():
             return
 
-        cluster_transaction_operations = self.get_cluster_session()
+        cluster_transaction_operations = self.cluster_session
         if cluster_transaction_operations.number_of_tracked_compare_exchange_values == 0:
             return
 
@@ -938,7 +937,7 @@ class InMemoryDocumentSessionOperations:
                 "Performing cluster transaction operation require the TransactionMode to be set to CLUSTER_WIDE"
             )
 
-        self.get_cluster_session().prepare_compare_exchange_entities(result)
+        self.cluster_session.prepare_compare_exchange_entities(result)
 
     # --- CLUSTER ---
     @abstractmethod
@@ -949,9 +948,10 @@ class InMemoryDocumentSessionOperations:
     def _clear_cluster_session(self) -> None:
         pass
 
+    @property
     @abstractmethod
-    def get_cluster_session(self) -> ClusterTransactionOperationsBase:
-        pass
+    def cluster_session(self) -> ClusterTransactionOperationsBase:
+        raise RuntimeError(f"{self.__class__.__name__} must override the cluster_session property method")
 
     @staticmethod
     def __update_metadata_modifications(document_info: DocumentInfo) -> bool:
@@ -972,7 +972,7 @@ class InMemoryDocumentSessionOperations:
         self.ids_for_creating_forced_revisions.clear()
 
     def __prepare_for_entities_deletion(
-        self, result: SaveChangesData, changes: Union[None, Dict[str, List[DocumentsChanges]]]
+        self, result: Union[None, SaveChangesData], changes: Union[None, Dict[str, List[DocumentsChanges]]]
     ) -> None:
         for deleted_entity in self.deleted_entities:
             document_info = self.documents_by_entity.get(deleted_entity.entity)
@@ -985,7 +985,7 @@ class InMemoryDocumentSessionOperations:
                 changes[document_info.key] = doc_changes
             else:
                 command = result.deferred_commands_map.get(
-                    pyravendb.documents.IdTypeAndName.create(document_info.key, CommandType.CLIENT_ANY_COMMAND, None)
+                    IdTypeAndName.create(document_info.key, CommandType.CLIENT_ANY_COMMAND, None)
                 )
                 if command:
                     self.__throw_invalid_deleted_document_with_deferred_command(command)
@@ -1030,9 +1030,7 @@ class InMemoryDocumentSessionOperations:
                 continue
 
             command = result.deferred_commands_map.get(
-                pyravendb.documents.IdTypeAndName.create(
-                    entity.value.key, CommandType.CLIENT_MODIFY_DOCUMENT_COMMAND, None
-                ),
+                IdTypeAndName.create(entity.value.key, CommandType.CLIENT_MODIFY_DOCUMENT_COMMAND, None),
                 None,
             )
             if command:
@@ -1096,7 +1094,7 @@ class InMemoryDocumentSessionOperations:
         raise RuntimeError(
             "Cannot open a Session without specyifing a name of a database to operate on. "
             "Database name can be passed as an argument when Session is being opened "
-            "or default database can be defined using document_store.database property"
+            "or default database can be defined using legacy.database property"
         )
 
     def _entity_changed(
@@ -1214,12 +1212,8 @@ class InMemoryDocumentSessionOperations:
         self.__add_command(command, command.key, command.command_type, command.name)
 
     def __add_command(self, command: CommandData, key: str, command_type: CommandType, command_name: str) -> None:
-        self.deferred_commands_map.update(
-            {pyravendb.documents.IdTypeAndName.create(key, command_type, command_name): command}
-        )
-        self.deferred_commands_map.update(
-            {pyravendb.documents.IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None): command}
-        )
+        self.deferred_commands_map.update({IdTypeAndName.create(key, command_type, command_name): command})
+        self.deferred_commands_map.update({IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None): command})
 
         if not any(
             [
@@ -1233,11 +1227,7 @@ class InMemoryDocumentSessionOperations:
             ]
         ):
             self.deferred_commands_map.update(
-                {
-                    pyravendb.documents.IdTypeAndName.create(
-                        key, CommandType.CLIENT_MODIFY_DOCUMENT_COMMAND, None
-                    ): command
-                }
+                {IdTypeAndName.create(key, CommandType.CLIENT_MODIFY_DOCUMENT_COMMAND, None): command}
             )
 
     def __close(self, is_disposing: bool) -> None:
@@ -1410,7 +1400,7 @@ class InMemoryDocumentSessionOperations:
                     continue
                 cache[1][counter] = None
 
-    def __register_missing_counters_for_keys(self, keys: List[str], counters_to_include: list[str]):
+    def __register_missing_counters_for_keys(self, keys: List[str], counters_to_include: List[str]):
         if not counters_to_include:
             return
 
@@ -1687,7 +1677,9 @@ class InMemoryDocumentSessionOperations:
     def hash_code(self) -> int:
         return self.__hash
 
-    def __deserialize_from_transformer(self, object_type: type, key: str, document: dict, track_entity: bool) -> object:
+    def __deserialize_from_transformer(
+        self, object_type: Type[_T], key: Union[None, str], document: dict, track_entity: bool
+    ) -> _T:
         return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity, None)
 
     def check_if_id_already_included(self, ids: List[str], includes: Union[List[List], List[str]]) -> bool:
@@ -1751,9 +1743,9 @@ class InMemoryDocumentSessionOperations:
             document_info_by_id.entity = entity
         return entity
 
-    def _get_operation_result(self, object_type: type, result: object) -> object:
+    def _get_operation_result(self, object_type: Type[_T], result: _T) -> _T:
         if result is None:
-            return self._get_default_value(object_type)
+            return Utils.get_default_value(object_type)
 
         if issubclass(type(result), object_type) or type(result) == object_type:
             return result

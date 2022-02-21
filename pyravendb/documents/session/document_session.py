@@ -5,36 +5,40 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List
+from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar
 
 from pyravendb import constants
-from pyravendb.custom_exceptions import exceptions
-from pyravendb.custom_exceptions.exceptions import InvalidOperationException
+from pyravendb.exceptions import exceptions
+from pyravendb.exceptions.exceptions import InvalidOperationException
 from pyravendb.data.operation import AttachmentType
 from pyravendb.data.timeseries import TimeSeriesRange
 import pyravendb.documents
-from pyravendb.documents.indexes import AbstractCommonApiForIndexes
+from pyravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 from pyravendb.documents.operations.attachments import (
     GetAttachmentOperation,
     AttachmentName,
 )
+from pyravendb.documents.operations.batch import BatchOperation
+from pyravendb.documents.operations.executor import OperationExecutor, SessionOperationExecutor
+from pyravendb.documents.operations.patch import PatchRequest
+from pyravendb.documents.queries.misc import Query
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.document_query import Query
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from pyravendb.documents.session.loaders.include import IncludeBuilder
 from pyravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
-from pyravendb.documents.session.operations.lazy.lazy import LazyLoadOperation
+from pyravendb.documents.session.operations.lazy import LazyLoadOperation
 from pyravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
-from pyravendb.documents.session import (
+from pyravendb.documents.session.misc import (
     SessionOptions,
     ResponseTimeInformation,
     JavaScriptArray,
     JavaScriptMap,
     DocumentsChanges,
 )
+from pyravendb.documents.session.query import DocumentQuery, RawDocumentQuery
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
-from pyravendb.loaders.include_builder import IncludeBuilder
-from pyravendb.raven_operations.load_operation import LoadOperation
+from pyravendb.documents.session.operations.load_operation import LoadOperation
 from pyravendb.tools.utils import Utils
 from pyravendb.documents.commands.batches import (
     PatchCommandData,
@@ -45,14 +49,19 @@ from pyravendb.documents.commands.batches import (
     CopyAttachmentCommandData,
     MoveAttachmentCommandData,
 )
-from pyravendb.documents.commands import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
+from pyravendb.documents.commands.crud import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
 from pyravendb.documents.commands.multi_get import GetRequest
-from pyravendb.documents.operations import BatchOperation, PatchRequest
+
+from pyravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
-    from pyravendb.data.document_conventions import DocumentConventions
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.documents.operations.lazy.lazy_operation import LazyOperation
     from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
+    from pyravendb.documents.store import Lazy
+
+_T = TypeVar("_T")
+_TIndex = TypeVar("_TIndex", bound=AbstractCommonApiForIndexes)
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):
@@ -89,6 +98,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def has_cluster_session(self) -> bool:
         return self.__cluster_transaction is not None
 
+    @property
+    def operations(self) -> OperationExecutor:
+        if self._operation_executor is None:
+            self._operation_executor = SessionOperationExecutor(self)
+        return self._operation_executor
+
     def save_changes(self) -> None:
         save_changes_operation = BatchOperation(self)
         command = save_changes_operation.create_request()
@@ -101,14 +116,17 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     raise RuntimeError("Cannot execute save_changes when entity tracking is disabled.")
 
                 # todo: rebuild request executor - WIP
-                self.request_executor.execute_command(command, self._session_info)
+                self.request_executor.execute_command(command, self.session_info)
                 self.update_session_after_save_changes(command.result)
                 save_changes_operation.set_result(command.result)
+
+    def _has_cluster_session(self) -> bool:
+        return self.__cluster_transaction is not None
 
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():
             return
-        self.get_cluster_session().clear()
+        self.cluster_session.clear()
 
     def _generate_id(self, entity: object) -> str:
         return self.conventions.generate_document_id(self.database_name, entity)
@@ -120,7 +138,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             # todo: pending lazy operation create request - WIP
             req = self._pending_lazy_operations[i].create_request()
             if req is None:
-                self._pending_lazy_operations.remove(i)
+                self._pending_lazy_operations.pop(i)
                 i -= 1
                 continue
             requests.append(req)
@@ -150,7 +168,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     ) -> bool:
         multi_get_operation = MultiGetOperation(self)
         with multi_get_operation.create_request(get_requests) as multi_get_command:
-            self.request_executor.execute(multi_get_command, self._session_info)
+            self.request_executor.execute(multi_get_command, self.session_info)
 
             responses = multi_get_command.result
 
@@ -183,15 +201,15 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return MultiLoaderWithInclude(self).include(path)
 
     def add_lazy_operation(
-        self, object_type, operation: LazyOperation, on_eval: Callable[[object], None]
-    ) -> pyravendb.documents.Lazy:
+        self, object_type: Type[_T], operation: LazyOperation, on_eval: Union[Callable[[_T], None], None]
+    ) -> Lazy[_T]:
         self._pending_lazy_operations.append(operation)
 
         def __supplier():
             self.execute_all_pending_lazy_operations()
             return self._get_operation_result(object_type, operation.result)
 
-        lazy_value = pyravendb.documents.Lazy(__supplier)
+        lazy_value = Lazy(__supplier)
 
         if on_eval is not None:
             self._on_evaluate_lazy[operation] = lambda the_result: on_eval(
@@ -200,20 +218,20 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return lazy_value
 
-    def add_lazy_count_operation(self, operation: LazyOperation) -> pyravendb.documents.Lazy:
+    def add_lazy_count_operation(self, operation: LazyOperation[_T]) -> Lazy[_T]:
         self._pending_lazy_operations.append(operation)
 
         def __supplier():
             self.execute_all_pending_lazy_operations()
             return operation.query_result.total_results
 
-        return pyravendb.documents.Lazy(__supplier)
+        return Lazy(__supplier)
 
     def __lazy_load_internal(
-        self, object_type: type, keys: List[str], includes: List[str], on_eval: Callable[[Dict[str, object]], None]
-    ) -> pyravendb.documents.Lazy:
+        self, object_type: Type[_T], keys: List[str], includes: List[str], on_eval: Callable[[Dict[str, _T]], None]
+    ) -> Lazy[_T]:
         if self.check_if_id_already_included(keys, includes):
-            return pyravendb.documents.Lazy(lambda: self.load(object_type, *keys))
+            return Lazy(lambda: self.load(object_type, *keys))
 
         load_operation = LoadOperation(self).by_keys(keys).with_includes(includes)
         lazy_op = LazyLoadOperation(object_type, self, load_operation).by_keys(*keys).with_includes(*includes)
@@ -221,10 +239,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def load(
         self,
         key_or_keys: Union[List[str], str],
-        object_type: Optional[type] = None,
+        object_type: Optional[Type[_T]] = None,
         includes: Callable[[IncludeBuilder], None] = None,
         nested_object_types: Dict[str, type] = None,
-    ) -> Union[Dict[str, object], object]:
+    ) -> Union[Dict[str, _T], _T]:
         if key_or_keys is None:
             return None  # todo: return default value of object_type, not always None
         if includes is None:
@@ -237,9 +255,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         include_builder = IncludeBuilder(self.conventions)
         includes(include_builder)
 
-        time_series_includes = (
-            [include_builder.time_series_to_include] if include_builder.time_series_to_include is not None else None
-        )
+        # todo: time series
+        # time_series_includes = (
+        #    [include_builder.time_series_to_include] if include_builder.time_series_to_include is not None else None
+        # )
+
+        time_series_includes = []
 
         compare_exchange_values_to_include = (
             include_builder.compare_exchange_values_to_include
@@ -261,14 +282,14 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     def __load_internal(
         self,
-        object_type: type,
+        object_type: Type[_T],
         keys: List[str],
         includes: List[str],
         counter_includes: List[str] = None,
         include_all_counters: bool = False,
         time_series_includes: List[TimeSeriesRange] = None,
         compare_exchange_value_includes: List[str] = None,
-    ) -> Dict[str, object]:
+    ) -> Dict[str, _T]:
         if not keys:
             raise ValueError("Keys cannot be None")
         load_operation = LoadOperation(self)
@@ -285,7 +306,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         command = load_operation.create_request()
         if command is not None:
-            self.request_executor.execute_command(command, self._session_info)
+            self.request_executor.execute_command(command, self.session_info)
             load_operation.set_result(command.result)
 
         return load_operation.get_documents(object_type)
@@ -296,7 +317,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         command = operation.create_request()
 
         if command:
-            self._request_executor.execute_command(command, self._session_info)
+            self._request_executor.execute_command(command, self.session_info)
 
             if stream:
                 try:
@@ -310,14 +331,14 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     def load_starting_with(
         self,
-        object_type: type,
+        object_type: Type[_T],
         id_prefix: str,
         matches: Optional[str] = None,
         start: Optional[int] = None,
         page_size: Optional[int] = None,
         exclude: Optional[str] = None,
         start_after: Optional[str] = None,
-    ):
+    ) -> List[_T]:
         load_starting_with_operation = LoadStartingWithOperation(self)
         self.__load_starting_with_internal(
             id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
@@ -334,28 +355,64 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         page_size: int,
         exclude: str,
         start_after: str,
-    ):
+    ) -> GetDocumentsCommand:
         operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
         command = operation.create_request()
         if command:
-            self._request_executor.execute_command(command, self._session_info)
+            self._request_executor.execute_command(command, self.session_info)
             if stream:
                 pass  # todo: stream
             else:
                 operation.set_result(command.result)
-
         return command
 
-    def query(
+    def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
+        try:
+            index = Utils.try_get_new_instance(index_type)
+            return self.document_query(object_type, index.index_name, index.is_map_reduce)
+        except Exception as e:
+            raise RuntimeError(f"unable to query index: {index_type.__name__} {e.args[0]}", e)
+
+    def document_query(
         self,
-        object_type: type = None,
-        collection_name: Optional[str] = None,
         index_name: Optional[str] = None,
-        **kwargs,
-    ) -> Query:
-        if collection_name is not None and index_name is not None:
-            raise ValueError("Pass either collection_name or index_name")
-        return self.__document_query_generator.document_query(object_type, index_name, collection_name, **kwargs)
+        collection_name: Optional[str] = None,
+        object_type: Optional[Type[_T]] = None,
+        is_map_reduce: bool = False,
+    ) -> DocumentQuery[_T]:
+        index_name_and_collection = self._process_query_parameters(
+            object_type, index_name, collection_name, self.conventions
+        )
+        index_name = index_name_and_collection[0]
+        collection_name = index_name_and_collection[1]
+
+        return DocumentQuery(object_type, self, index_name, collection_name, is_map_reduce)
+
+    def query(self, source: Optional[Query] = None, object_type: Optional[Type[_T]] = None) -> DocumentQuery[_T]:
+        if source is not None:
+            if source.collection and not source.collection.isspace():
+                return self.document_query(None, source.collection, object_type, False)
+
+            if source.index_name and not source.index_name.isspace():
+                return self.document_query(source.index_name, None, object_type, False)
+
+            return self.document_query_from_index_type(source.index_type, object_type)
+
+        return self.document_query(None, None, object_type, False)
+
+    def query_collection(self, collection_name: str, object_type: Optional[Type[_T]] = None) -> DocumentQuery[_T]:
+        if not collection_name.isspace():
+            return self.query(Query.from_collection_name(collection_name), object_type)
+        raise ValueError("collection_name cannot be None or whitespace")
+
+    def query_index(self, index_name: str, object_type: Optional[Type[_T]] = None) -> DocumentQuery[_T]:
+        if not index_name.isspace():
+            return self.query(Query.from_index_name(index_name), object_type)
+        raise ValueError("index_name cannot be None or whitespace")
+
+    def query_index_type(self, index_type: Type[_TIndex], object_type: Optional[Type[_T]] = None):
+        if index_type is None or not isinstance(index_type, AbstractCommonApiForIndexes):
+            return self.query(Query.from_index_type(index_type), object_type)
 
     class _Advanced:
         def __init__(self, session: DocumentSession):
@@ -370,6 +427,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 self.__attachment = self._Attachment(self.__session)
             return self.__attachment
 
+        @property
+        def cluster_transaction(self) -> ClusterTransactionOperations:
+            return self.__session.cluster_session
+
         def refresh(self, entity: object) -> object:
             document_info = self.__session.documents_by_entity.get(entity)
             if document_info is None:
@@ -379,13 +440,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             command = GetDocumentsCommand(
                 GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
             )
-            self.__session.request_executor.execute_command(command, self.__session._session_info)
+            self.__session.request_executor.execute_command(command, self.__session.session_info)
             entity = self.__session._refresh_internal(entity, command, document_info)
             return entity
 
-        def raw_query(self, query: str, query_parameters: Optional[dict] = None, **kwargs):  # -> RawDocumentQuery:
-            self._query = Query(self.__session)(**kwargs)
-            return self._query.raw_query(query)
+        def raw_query(self, query: str, object_type: Optional[Type[_T]] = None) -> RawDocumentQuery[_T]:
+            return RawDocumentQuery(object_type, self.__session, query)
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
@@ -403,7 +463,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 return True
 
             command = HeadDocumentCommand(key, None)
-            self.__session.request_executor.execute_command(command, self.__session._session_info)
+            self.__session.request_executor.execute_command(command, self.__session.session_info)
             return command.result is not None
 
         def __load_starting_with_internal(
@@ -420,7 +480,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
             command = operation.create_request()
             if command is not None:
-                self.__session.request_executor.execute(command, self.__session._session_info)
+                self.__session.request_executor.execute(command, self.__session.session_info)
                 if stream:
                     try:
                         result = command.result
@@ -479,9 +539,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.__load_internal_stream(keys, LoadOperation(self.__session), output)
 
         def __try_merge_patches(self, key: str, patch_request: PatchRequest) -> bool:
-            command = self.__session.deferred_commands_map.get(
-                pyravendb.documents.IdTypeAndName.create(key, CommandType.PATCH, None)
-            )
+            command = self.__session.deferred_commands_map.get(IdTypeAndName.create(key, CommandType.PATCH, None))
             if command is None:
                 return False
 
@@ -698,7 +756,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             def exists(self, document_id: str, name: str) -> bool:
                 command = HeadAttachmentCommand(document_id, name, None)
                 self.__session.increment_requests_count()
-                self.__session.request_executor.execute_command(command, self.__session._session_info)
+                self.__session.request_executor.execute_command(command, self.__session.session_info)
                 return command.result is not None
 
             def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
@@ -714,32 +772,32 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     raise ValueError(name)
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
                 ) in self.__session.deferred_commands_map:
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "delete")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "delete")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
                     in self.__session.deferred_commands_map
                 ):
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "create")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "create")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
                     in self.__session.deferred_commands_map
                 ):
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "delete")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "delete")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
                     in self.__session.deferred_commands_map
                 ):
-                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "store", "rename")
+                    self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "rename")
 
                 document_info = self.__session.documents_by_id.get_value(entity_or_document_id)
                 if document_info and document_info.entity in self.__session.deleted_entities:
                     raise exceptions.InvalidOperationException(
-                        "Can't store attachment "
+                        "Can't legacy attachment "
                         + name
                         + " of document"
                         + entity_or_document_id
@@ -763,11 +821,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     raise ValueError(name)
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
                     in self.__session.deferred_commands_map
-                    or pyravendb.documents.IdTypeAndName.create(
-                        entity_or_document_id, CommandType.ATTACHMENT_DELETE, name
-                    )
+                    or IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
                     in self.__session.deferred_commands_map
                 ):
                     return
@@ -777,13 +833,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     return
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
                     in self.__session.deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "create")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
                     in self.__session.deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "rename")
@@ -866,23 +922,19 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
-                        entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name
-                    )
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name)
                     in self.__session.deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "delete")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
-                        entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name
-                    )
+                    IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name)
                     in self.__session.deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "rename")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
+                    IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_DELETE, destination_name
                     )
                     in self.__session.deferred_commands_map
@@ -890,7 +942,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "delete")
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
+                    IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_MOVE, destination_name
                     )
                     in self.__session.deferred_commands_map
@@ -961,9 +1013,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
-                        source_entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name
-                    )
+                    IdTypeAndName.create(source_entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name)
                     in self.__session.deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(
@@ -971,9 +1021,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
-                        source_entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name
-                    )
+                    IdTypeAndName.create(source_entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name)
                     in self.__session.deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(
@@ -981,7 +1029,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
+                    IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_DELETE, destination_name
                     )
                     in self.__session.deferred_commands_map
@@ -991,7 +1039,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 if (
-                    pyravendb.documents.IdTypeAndName.create(
+                    IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_MOVE, destination_name
                     )
                     in self.__session.deferred_commands_map
@@ -1075,8 +1123,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             index_class_or_name: Union[type, str] = None,
             collection_name: str = None,
             is_map_reduce: bool = False,
-            **kwargs,
-        ):
+        ) -> DocumentQuery:
             if isinstance(index_class_or_name, type):
                 if not issubclass(index_class_or_name, AbstractCommonApiForIndexes):
                     raise TypeError(
@@ -1093,7 +1140,3 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             )
             index_name = index_name_and_collection[0]
             collection_name = index_name_and_collection[1]
-
-            q = Query(self.session)
-            q(object_type, index_name, collection_name, is_map_reduce, **kwargs)
-            return q

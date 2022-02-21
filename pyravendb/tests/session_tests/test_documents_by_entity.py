@@ -1,5 +1,5 @@
+from pyravendb.documents.session.in_memory_document_session_operations import RefEq
 from pyravendb.tests.test_base import TestBase
-from pyravendb.store.document_session import _RefEq
 from dataclasses import dataclass
 
 
@@ -20,8 +20,8 @@ class TestDocumentsByEntity(TestBase):
     def test_ref_eq(self):
         data = TestData(data="classified")
 
-        wrapped_data_1 = _RefEq(data)
-        wrapped_data_2 = _RefEq(wrapped_data_1)
+        wrapped_data_1 = RefEq(data)
+        wrapped_data_2 = RefEq(wrapped_data_1)
 
         self.assertTrue(wrapped_data_2 == wrapped_data_1)
         with self.assertRaises(TypeError):
@@ -29,7 +29,7 @@ class TestDocumentsByEntity(TestBase):
 
     def test_documents_by_entity_holder(self):
         with self.store.open_session() as session:
-            # store, save_changes and load
+            # legacy, save_changes and load
             test_data_store = TestData("top secret")
             session.store(test_data_store, "data/1")
             session.save_changes()

@@ -1,17 +1,14 @@
 import unittest
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.custom_exceptions import exceptions
-from pyravendb.data.query import IndexQuery
-from pyravendb.documents.commands import PutDocumentCommand
-from pyravendb.documents.indexes import IndexDefinition
-from pyravendb.documents.operations import (
-    DeleteByQueryOperation,
-    QueryOperationOptions,
-    Operation,
-    PatchByQueryOperation,
-)
+
+from pyravendb.documents.commands.query import QueryCommand
+from pyravendb.exceptions import exceptions
+from pyravendb.documents.commands.crud import PutDocumentCommand
+from pyravendb.documents.indexes.definitions import IndexDefinition
 from pyravendb.documents.operations.indexes import PutIndexesOperation
-from pyravendb.raven_operations.query_operation import QueryCommand
+from pyravendb.documents.operations.misc import QueryOperationOptions, DeleteByQueryOperation
+from pyravendb.documents.operations.operation import Operation
+from pyravendb.documents.operations.patch import PatchByQueryOperation
+from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.tests.test_base import TestBase
 
 
@@ -45,11 +42,11 @@ class TestByIndexActions(TestBase):
         self.delete_all_topology_files()
 
     def test_update_by_index_success(self):
-        query_command = QueryCommand(
-            index_query=IndexQuery(query="From INDEX 'Testing_Sort'", wait_for_non_stale_results=True),
-            conventions=DocumentConventions(),
-        )
-        self.requests_executor.execute_command(query_command)
+        index_query = IndexQuery("from index 'Testing_Sort'")
+        index_query.wait_for_non_stale_results = True
+        with self.store.open_session() as session:
+            query_command = QueryCommand(session, index_query, False, False)
+            self.requests_executor.execute_command(query_command)
 
         patch_command = PatchByQueryOperation(
             "From INDEX 'Testing_Sort' Update {{{0}}}".format(self.patch),
@@ -66,8 +63,9 @@ class TestByIndexActions(TestBase):
 
     @unittest.skip("Exception dispatcher")
     def test_update_by_index_fail(self):
+        index_query = IndexQuery("from index 'TeSort' update {{{0}}}".format(self.patch))
         patch_command = PatchByQueryOperation(
-            IndexQuery("From INDEX 'TeSort' Update {{{0}}}".format(self.patch)),
+            index_query,
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
         with self.assertRaises(exceptions.InvalidOperationException):
@@ -97,29 +95,26 @@ class TestByIndexActions(TestBase):
             ).wait_for_completion()
 
     def test_delete_by_index_success(self):
-        query_command = QueryCommand(
-            self.store.conventions,
-            IndexQuery(
-                query="FROM INDEX 'Testing_Sort' WHERE DocNumber BETWEEN '0' AND '49'",
-                wait_for_non_stale_results=True,
-            ),
-        )
-        self.requests_executor.execute_command(query_command)
-        delete_by_index_command = DeleteByQueryOperation(
-            "FROM INDEX 'Testing_Sort' WHERE DocNumber BETWEEN '0' AND '49'",
-            options=QueryOperationOptions(allow_stale=False),
-        ).get_command(self.store, self.store.conventions)
-        self.requests_executor.execute_command(delete_by_index_command)
-        response = delete_by_index_command.result
-        x = Operation(
-            self.requests_executor,
-            lambda: None,
-            self.store.conventions,
-            response.operation_id,
-            response.operation_node_tag,
-        )
-        # wait_for_completion doesnt return anything (None) when operation state is 'Completed'
-        self.assertIsNone(x.wait_for_completion())
+        with self.store.open_session() as session:
+            index_query = IndexQuery("from index 'Testing_Sort' where DocNumber between '0' and '49'")
+            index_query.wait_for_non_stale_results = True
+            query_command = QueryCommand(session, index_query, False, False)
+            self.requests_executor.execute_command(query_command)
+            delete_by_index_command = DeleteByQueryOperation(
+                "FROM INDEX 'Testing_Sort' WHERE DocNumber BETWEEN '0' AND '49'",
+                options=QueryOperationOptions(allow_stale=False),
+            ).get_command(self.store, self.store.conventions)
+            self.requests_executor.execute_command(delete_by_index_command)
+            response = delete_by_index_command.result
+            x = Operation(
+                self.requests_executor,
+                lambda: None,
+                self.store.conventions,
+                response.operation_id,
+                response.operation_node_tag,
+            )
+            # wait_for_completion doesnt return anything (None) when operation state is 'Completed'
+            self.assertIsNone(x.wait_for_completion())
 
 
 if __name__ == "__main__":

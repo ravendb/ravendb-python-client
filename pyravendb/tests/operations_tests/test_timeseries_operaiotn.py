@@ -1,5 +1,4 @@
 from pyravendb.tests.test_base import *
-from pyravendb.raven_operations.timeseries_operations import *
 import unittest
 
 

@@ -2,11 +2,10 @@ import json
 from typing import Dict
 
 from pyravendb import constants
-from pyravendb.data.document_conventions import DocumentConventions
-from pyravendb.documents.operations.compare_exchange import CompareExchangeValue
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
+from pyravendb.documents.operations.compare_exchange.compare_exchange import CompareExchangeValue
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
-from pyravendb.tools.projection import create_entity_with_mapper
-from pyravendb.tools.utils import CaseInsensitiveDict
+from pyravendb.tools.utils import CaseInsensitiveDict, Utils
 
 
 class CompareExchangeValueResultParser:
@@ -64,11 +63,15 @@ class CompareExchangeValueResultParser:
                 if not materialize_metadata
                 else MetadataAsDictionary.materialize_from_json(bjro)
             )
-        if object_type in [int, float, bool, str]:
+        if object_type in Utils.primitives:
             value = None
             if raw:
                 raw_value = raw.get("Object")
-                value = create_entity_with_mapper(raw_value, conventions.mappers.get(object_type), object_type, True)
+                value = (
+                    Utils.convert_json_dict_to_object(raw_value, object_type)
+                    if not isinstance(raw_value, Utils.primitives)
+                    else raw_value
+                )
 
             return CompareExchangeValue(key, index, value, metadata)
         elif object_type == dict:
@@ -85,5 +88,9 @@ class CompareExchangeValueResultParser:
             if not obj:
                 return CompareExchangeValue(key, index, None, metadata)
             else:
-                converted = create_entity_with_mapper(obj, conventions.mappers.get(object_type), object_type, True)
+                converted = (
+                    Utils.convert_json_dict_to_object(obj, object_type)
+                    if not isinstance(obj, Utils.primitives)
+                    else obj
+                )
                 return CompareExchangeValue(key, index, converted, metadata)

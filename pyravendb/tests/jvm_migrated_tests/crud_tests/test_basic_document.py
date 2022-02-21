@@ -1,4 +1,4 @@
-from pyravendb.documents.commands import GetDocumentsCommand
+from pyravendb.documents.commands.crud import GetDocumentsCommand
 from pyravendb.tests.test_base import TestBase, User
 
 

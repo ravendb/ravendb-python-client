@@ -8,9 +8,9 @@ from typing import Union, Optional, Callable, Generic, TypeVar, Dict
 from enum import Enum
 
 import requests
-from pyravendb import http
 from pyravendb.extensions.http_extensions import HttpExtensions
 from pyravendb.http.http_cache import HttpCache
+from pyravendb.http.misc import ResponseDisposeHandling
 from pyravendb.http.server_node import ServerNode
 
 
@@ -124,33 +124,33 @@ class RavenCommand(Generic[ResultClass]):
     def is_failed_with_node(self, node: ServerNode) -> bool:
         return self.failed_nodes and node in self.failed_nodes
 
-    def process_response(self, cache: HttpCache, response: requests.Response, url) -> http.ResponseDisposeHandling:
+    def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:
         # todo: check if response is a dict here from beginning
         if not response:
-            return http.ResponseDisposeHandling.AUTOMATIC
+            return ResponseDisposeHandling.AUTOMATIC
 
         if self.response_type == RavenCommandResponseType.EMPTY or response.status_code == HTTPStatus.NO_CONTENT:
-            return http.ResponseDisposeHandling.AUTOMATIC
+            return ResponseDisposeHandling.AUTOMATIC
 
         try:
             if self.response_type == RavenCommandResponseType.OBJECT:
                 content_length = len(response.content)
                 if content_length == 0:
                     response.close()
-                    return http.ResponseDisposeHandling.AUTOMATIC
+                    return ResponseDisposeHandling.AUTOMATIC
 
                 json_content = response.content.decode("utf-8")
                 if cache:
                     self._cache_response(cache, url, response, json_content)
                 self.set_response(json_content, False)
-                return http.ResponseDisposeHandling.AUTOMATIC
+                return ResponseDisposeHandling.AUTOMATIC
             else:
                 self.set_response_raw(response, response.content)
         except IOError as e:
             raise RuntimeError(e)
         finally:
             response.close()
-        return http.ResponseDisposeHandling.AUTOMATIC
+        return ResponseDisposeHandling.AUTOMATIC
 
     def _cache_response(self, cache: HttpCache, url: str, response: requests.Response, response_json: str) -> None:
         if not self.can_cache:
@@ -171,3 +171,19 @@ class RavenCommand(Generic[ResultClass]):
                 request.headers["If-Match"] = f'"{change_vector}"'
             else:
                 request.headers = {"If-Match": f'"{change_vector}'}
+
+
+class VoidRavenCommand(RavenCommand[None]):
+    def __init__(self):
+        super().__init__(void_command=True)
+        self._response_type = RavenCommandResponseType.EMPTY
+
+    @abstractmethod
+    def create_request(self, node: ServerNode) -> requests.Request:
+        pass
+
+    def is_read_request(self) -> bool:
+        return False
+
+    def set_response(self, response: str, from_cache: bool) -> None:
+        pass

@@ -3,9 +3,14 @@ from __future__ import annotations
 import enum
 from typing import Union, TYPE_CHECKING
 
-from pyravendb.http import Topology
-import pyravendb.serverwide.operations as serv_operations
 from pyravendb.http.request_executor import ClusterRequestExecutor
+from pyravendb.http.topology import Topology
+from pyravendb.serverwide.operations.common import (
+    GetBuildNumberOperation,
+    ServerOperation,
+    VoidServerOperation,
+    ServerWideOperation,
+)
 from pyravendb.tools.utils import CaseInsensitiveDict
 
 if TYPE_CHECKING:
@@ -34,29 +39,29 @@ class ServerOperationExecutor:
         self.__node_tag = None
         self.__cache = CaseInsensitiveDict()
 
-        # todo: store.register events
+        # todo: register events
 
         # todo: if node tag is null add after_close_listener
 
     def send(
         self,
-        operation: Union[serv_operations.VoidServerOperation, serv_operations.ServerOperation],
+        operation: Union[VoidServerOperation, ServerOperation],
     ):
-        if isinstance(operation, serv_operations.VoidServerOperation):
+        if isinstance(operation, VoidServerOperation):
             command = operation.get_command(self.__request_executor.conventions)
             self.__request_executor.execute_command(command)
 
-        elif isinstance(operation, serv_operations.ServerOperation):
+        elif isinstance(operation, ServerOperation):
             command = operation.get_command(self.__request_executor.conventions)
             self.__request_executor.execute_command(command)
 
             return command.result
 
-    def send_async(self, operation: serv_operations.ServerOperation[OperationIdResult]) -> Operation:
+    def send_async(self, operation: ServerOperation[OperationIdResult]) -> Operation:
         command = operation.get_command(self.__request_executor.conventions)
 
         self.__request_executor.execute_command(command)
-        return serv_operations.ServerWideOperation(
+        return ServerWideOperation(
             self.__request_executor,
             self.__request_executor.conventions,
             command.result.operation_id,
@@ -87,7 +92,7 @@ class ServerOperationExecutor:
                 # a bit rude way to make sure that topology was refreshed
                 # but it handles a case when first topology update failed
 
-                operation = serv_operations.GetBuildNumberOperation()
+                operation = GetBuildNumberOperation()
                 command = operation.get_command(request_executor.conventions)
                 request_executor.execute_command(command)
 
@@ -109,7 +114,6 @@ class ServerOperationExecutor:
                 store.thread_pool_executor,
                 store.conventions,
                 store.certificate_path,
-                store.certificate_private_key_password,
                 store.trust_store_path,
             )
             if store.conventions.disable_topology_updates
@@ -118,7 +122,6 @@ class ServerOperationExecutor:
                 store.thread_pool_executor,
                 store.conventions,
                 store.certificate_path,
-                store.certificate_private_key_password,
                 store.trust_store_path,
             )
         )

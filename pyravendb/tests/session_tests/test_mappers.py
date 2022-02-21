@@ -1,5 +1,5 @@
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.document_conventions import DocumentConventions
+from pyravendb.documents.conventions.document_conventions import DocumentConventions
 from datetime import datetime
 from pyravendb.tools.utils import Utils
 import unittest

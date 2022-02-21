@@ -1,10 +1,11 @@
 import logging
-from typing import Union, List
-from pyravendb.commands.commands_results import GetDocumentsResult
-from pyravendb.documents.commands import GetDocumentsCommand
+from typing import Union, List, Type, TypeVar
+from pyravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
 from pyravendb.documents.commands.multi_get import GetRequest, MultiGetCommand
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+
+_T = TypeVar("_T")
 
 
 class MultiGetOperation:
@@ -78,7 +79,7 @@ class LoadStartingWithOperation:
             self.__session.documents_by_id.add(new_document_info)
             self.__returned_ids.append(new_document_info.key)
 
-    def get_documents(self, object_type: type) -> List[object]:
+    def get_documents(self, object_type: Type[_T]) -> List[_T]:
         i = 0
         final_results = []
 
@@ -98,7 +99,7 @@ class LoadStartingWithOperation:
 
         return final_results
 
-    def __get_document(self, object_type: type, key: str) -> object:
+    def __get_document(self, object_type: Type[_T], key: str) -> _T:
         if not key:
             return None
 
@@ -107,6 +108,6 @@ class LoadStartingWithOperation:
 
         doc = self.__session.documents_by_id.get(key)
         if doc:
-            return self.__session.track_entity(object_type, document_info=doc)
+            return self.__session.track_entity(object_type, document_found=doc)
 
         return None

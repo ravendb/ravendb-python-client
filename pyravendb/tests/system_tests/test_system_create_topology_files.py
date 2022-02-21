@@ -1,6 +1,6 @@
-from pyravendb.documents import DocumentStore
+from pyravendb.documents.store.document_store import DocumentStore
 from pyravendb.serverwide.database_record import DatabaseRecord
-from pyravendb.serverwide.operations import DeleteDatabaseOperation, CreateDatabaseOperation
+from pyravendb.serverwide.operations.common import DeleteDatabaseOperation, CreateDatabaseOperation
 from pyravendb.tests.test_base import TestBase
 import hashlib
 from shutil import rmtree

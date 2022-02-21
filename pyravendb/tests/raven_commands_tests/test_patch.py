@@ -1,7 +1,7 @@
 import unittest
 
-from pyravendb.documents.commands import PutDocumentCommand
-from pyravendb.documents.operations import PatchRequest, PatchOperation
+from pyravendb.documents.commands.crud import PutDocumentCommand
+from pyravendb.documents.operations.patch import PatchOperation, PatchRequest
 from pyravendb.tests.test_base import TestBase
 
 

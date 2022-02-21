@@ -1,5 +1,4 @@
-from pyravendb.documents.operations import GetStatisticsOperation
-from pyravendb.exceptions.raven_exceptions import ConcurrencyException
+from pyravendb.documents.operations.statistics import GetStatisticsOperation
 from pyravendb.tests.test_base import TestBase, Company
 
 

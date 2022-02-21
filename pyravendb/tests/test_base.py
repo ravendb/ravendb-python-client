@@ -10,13 +10,17 @@ from subprocess import Popen
 from typing import Iterable, List, Union, Optional, Set
 from datetime import timedelta
 from pyravendb import constants
-from pyravendb.custom_exceptions.exceptions import DatabaseDoesNotExistException
-from pyravendb.documents import DocumentStore
-from pyravendb.documents.indexes import IndexState, IndexErrors
-from pyravendb.documents.operations import GetStatisticsOperation
+from pyravendb.exceptions.exceptions import DatabaseDoesNotExistException
+from pyravendb.documents.indexes.definitions import IndexState, IndexErrors
+from pyravendb.documents.operations.statistics import GetStatisticsOperation
+from pyravendb.documents.store.document_store import DocumentStore
 from pyravendb.exceptions.cluster import NoLoaderException
 from pyravendb.serverwide.database_record import DatabaseRecord
-from pyravendb.serverwide.operations import CreateDatabaseOperation, DeleteDatabaseOperation, GetDatabaseRecordOperation
+from pyravendb.serverwide.operations.common import (
+    CreateDatabaseOperation,
+    DeleteDatabaseOperation,
+    GetDatabaseRecordOperation,
+)
 from pyravendb.tests.driver.raven_server_locator import RavenServerLocator
 from pyravendb.tests.driver.raven_test_driver import RavenTestDriver
 
@@ -38,9 +42,9 @@ class User(object):
 
 
 class UserWithId(User):
-    def __init__(self, name=None, age=None, identifier=None):
+    def __init__(self, name=None, age=None, Id=None):
         super(UserWithId, self).__init__(name, age)
-        self.Id = identifier
+        self.Id = Id
 
 
 class Dog(object):
@@ -293,7 +297,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
         self._customize_store(store)
 
-        # todo: hook_leaked_connection_check(store)
+        # todo: hook_leaked_connection_check
         store.initialize()
 
         def __after_close():

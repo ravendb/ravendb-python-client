@@ -1,9 +1,9 @@
 import unittest
 
-from pyravendb.documents.indexes import IndexDefinition, IndexFieldOptions, FieldIndexing
+from pyravendb.documents.indexes.definitions import IndexDefinition, IndexFieldOptions, FieldIndexing
 from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.queries.misc import SearchOperator
 from pyravendb.tests.test_base import TestBase
-from pyravendb.data.query import QueryOperator
 from datetime import datetime
 
 
@@ -138,7 +138,7 @@ class FullTextSearchTest(TestBase):
                     object_type=LastFm,
                     wait_for_non_stale_results=True,
                     index_name=LastFmAnalyzed.__name__,
-                ).search("query", search_terms="Me Come", operator=QueryOperator.AND)
+                ).search("query", search_terms="Me Come", operator=SearchOperator.AND)
             )
             assert len(query) == 1
             self.assertEqual(query[0].title, "Come With Me")

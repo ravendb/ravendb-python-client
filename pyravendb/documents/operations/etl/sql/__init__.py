@@ -1,8 +1,8 @@
 from typing import Optional
 
 from pyravendb.documents.operations.connection_strings import ConnectionString
-from pyravendb.documents.operations.etl import EtlConfiguration
 import pyravendb.serverwide
+from pyravendb.documents.operations.etl.configuration import EtlConfiguration
 
 
 class SqlConnectionString(ConnectionString):

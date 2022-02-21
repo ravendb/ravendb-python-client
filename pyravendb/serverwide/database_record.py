@@ -3,22 +3,31 @@ import datetime
 import enum
 from typing import Optional, Dict, Union, List, Set, TYPE_CHECKING
 
-from pyravendb.documents.indexes import IndexDefinition, RollingIndexDeployment, RollingIndex, AutoIndexDefinition
-from pyravendb.documents.indexes.analysis import AnalyzerDefinition
-from pyravendb.documents.operations.backups import PeriodicBackupConfiguration
+from pyravendb.documents.indexes.analysis.definitions import AnalyzerDefinition
+from pyravendb.documents.indexes.definitions import (
+    IndexDefinition,
+    RollingIndexDeployment,
+    RollingIndex,
+    AutoIndexDefinition,
+)
+from pyravendb.documents.operations.backups.settings import PeriodicBackupConfiguration
 from pyravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
-from pyravendb.documents.operations.etl import RavenConnectionString, RavenEtlConfiguration
+from pyravendb.documents.operations.etl.configuration import RavenConnectionString, RavenEtlConfiguration
 from pyravendb.documents.operations.etl.olap import OlapConnectionString, OlapEtlConfiguration
 from pyravendb.documents.operations.etl.sql import SqlConnectionString, SqlEtlConfiguration
-from pyravendb.documents.operations.expiration import ExpirationConfiguration
-from pyravendb.documents.operations.refresh import RefreshConfiguration
-from pyravendb.documents.operations.replication import (
+from pyravendb.documents.operations.expiration.configuration import ExpirationConfiguration
+from pyravendb.documents.operations.refresh.configuration import RefreshConfiguration
+from pyravendb.documents.operations.replication.definitions import (
     ExternalReplication,
-    PullReplicationAsSink,
     PullReplicationDefinition,
+    PullReplicationAsSink,
 )
-from pyravendb.documents.operations.revisions import RevisionsConfiguration, RevisionsCollectionConfiguration
-from pyravendb.documents.operations.time_series import TimeSeriesConfiguration
+from pyravendb.documents.operations.revisions.configuration import (
+    RevisionsConfiguration,
+    RevisionsCollectionConfiguration,
+)
+from pyravendb.documents.operations.time_series.configuration import TimeSeriesConfiguration
+
 from pyravendb.documents.queries.sorting import SorterDefinition
 
 if TYPE_CHECKING:
