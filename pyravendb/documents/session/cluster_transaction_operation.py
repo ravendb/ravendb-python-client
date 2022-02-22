@@ -1,4 +1,4 @@
-from typing import Union, Tuple, TYPE_CHECKING, List, Dict
+from typing import Union, Tuple, TYPE_CHECKING, List, Dict, TypeVar, Type
 
 from pyravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeSessionValue,
@@ -20,6 +20,8 @@ from pyravendb.util.util import StartingWithOptions
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from pyravendb.documents import DocumentSession
+
+_T = TypeVar("_T")
 
 
 class ClusterTransactionOperationsBase:
@@ -43,7 +45,7 @@ class ClusterTransactionOperationsBase:
     def is_tracked(self, key: str) -> bool:
         return self.try_get_compare_exchange_value_from_session(key)[0]
 
-    def create_compare_exchange_value(self, key: str, item) -> CompareExchangeValue:
+    def create_compare_exchange_value(self, key: str, item: _T) -> CompareExchangeValue[_T]:
         if key is None:
             raise ValueError("Key cannot be None")
 
@@ -188,12 +190,12 @@ class ClusterTransactionOperationsBase:
             return
 
         if values:
-            for key, value in values:
-                self.register_compare_exchange_values(
+            for key, value in values.items():
+                self.register_compare_exchange_value(
                     CompareExchangeValueResultParser.get_single_value(dict, value, False, self.session.conventions)
                 )
 
-    def register_compare_exchange_value(self, value: CompareExchangeValue) -> CompareExchangeSessionValue:
+    def register_compare_exchange_value(self, value: CompareExchangeValue[_T]) -> CompareExchangeSessionValue[_T]:
         if self.session.no_tracking:
             return CompareExchangeSessionValue(value=value)
         session_value: CompareExchangeSessionValue = self._state.get(value.key)
@@ -234,10 +236,10 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase):
     def lazily(self):
         raise NotImplementedError()
 
-    def get_compare_exchange_value(self, object_type: type, key: str) -> Union[None, CompareExchangeValue]:
+    def get_compare_exchange_value(self, object_type: Type[_T], key: str) -> Union[None, CompareExchangeValue[_T]]:
         return self._get_compare_exchange_value_internal(object_type, key)
 
     def get_compare_exchange_values(
-        self, object_type: type, keys_or_starting_with_options: Union[List[str], StartingWithOptions]
-    ) -> Dict[str, CompareExchangeValue]:  # todo: typehint if possible
+        self, object_type: Type[_T], keys_or_starting_with_options: Union[List[str], StartingWithOptions]
+    ) -> Dict[str, CompareExchangeValue[_T]]:
         return super()._get_compare_exchange_values_internal(object_type, keys_or_starting_with_options)

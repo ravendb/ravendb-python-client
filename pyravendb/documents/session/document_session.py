@@ -369,7 +369,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
         try:
             index = Utils.try_get_new_instance(index_type)
-            return self.document_query(object_type, index.index_name, index.is_map_reduce)
+            return self.document_query(index.index_name, None, object_type, index.is_map_reduce)
         except Exception as e:
             raise RuntimeError(f"unable to query index: {index_type.__name__} {e.args[0]}", e)
 

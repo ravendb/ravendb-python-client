@@ -2,6 +2,7 @@ import hashlib
 from typing import Iterable, TYPE_CHECKING, List
 
 from pyravendb import constants
+from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
     from pyravendb.documents.queries.index_query import Parameters
@@ -15,73 +16,42 @@ class HashCalculator:
     def hash(self) -> str:
         return self.flush_md5()
 
-    def write_str(self, s: str):
-        if s is None:
-            self.write_str("null-string")
-        self.__buffer.append(s)
+    @staticmethod
+    def __convert_to_hashable(list_):
+        for item in list_:
+            if isinstance(item, list):
+                HashCalculator.__convert_to_hashable(item)
+        return tuple(list_)
 
-    def write_float(self, f: float):
-        if f is None:
-            self.write_str("null-float")
-        else:
-            self.__buffer.append(str(f))
-
-    def write_int(self, i: int):
-        if i is None:
-            self.write_str("null-int")
-        else:
-            self.__buffer.append(str(i))
-
-    def write_bool(self, b: bool):
-        if b is None:
-            self.write_str("null-bool")
-        else:
-            self.__buffer.append(str(b))
-
-    def write_list(self, ls: List):
-        if not ls:
-            self.write_str("null-list")
-        for item in ls:
-            self.write_object(item)
-
-    def write_object(self, obj: object):  # todo: rewrite from Java/dicuss about implementation in Python
+    def write(self, obj: object):
         if obj is None:
             self.__buffer.append("null-object")
-        elif isinstance(obj, str):
-            self.write_str(obj)
-        elif isinstance(obj, int):
-            self.write_int(obj)
-        elif isinstance(obj, bool):
-            self.write_bool(obj)
-        elif isinstance(obj, float):
-            self.write_float(obj)
+        elif isinstance(obj, (bool, int, float, str, bytes, bytearray)):
+            self.__buffer.append(str(obj))
         elif isinstance(obj, list):
-            self.write_list(obj)
+            self.__buffer.append(str(self.__convert_to_hashable(obj)))
         elif "__str__" in obj.__class__.__dict__:
             self.__buffer.append(str(obj))
         else:
-            raise TypeError(f"Cannot parse to string, __str__ isn't defined for {obj.__class__.__name__}")
+            self.__buffer.append(str(Utils.dictionarize(obj)))
 
     def write_parameters(self, qp: "Parameters") -> None:
         if qp is None:
-            self.write_str("null-params")
+            self.write("null-params")
         else:
-            self.write_int(len(qp))
+            self.write(len(qp))
             for key, value in qp.items():
-                self.write_str(key)
                 self.__write_parameter_value(value)
 
-    def __write_parameter_value(
-        self, value: object
-    ) -> None:  # todo: rewrite from Java/dicuss about implementation in Python
-        self.write_object(value)
+    def __write_parameter_value(self, value: object) -> None:
+        self.write(value)
 
     def flush_md5(self) -> str:
         return self.calculate_hash_from_str_collection(self.__buffer)
 
     @staticmethod
     def calculate_hash_from_str_collection(unique_ids: Iterable[str]) -> str:
-        return hashlib.md5(bytes(",".join(unique_ids).encode("utf-8"))).hexdigest()
+        return hashlib.md5(str(hash(tuple(unique_ids))).encode("utf-8")).hexdigest()
 
 
 class QueryFieldUtil:

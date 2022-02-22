@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import time
 from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type
 
@@ -214,7 +215,10 @@ class _DynamicStructure(object):
 
 
 class Utils(object):
-    primitives = (int, float, bool, str, list, set)
+    primitives = (int, float, bool, str, bytes, bytearray)
+    mutable_collections = (list, set)
+    collections_no_str = (list, set, tuple)
+    primitives_and_collections = (int, float, bool, str, bytes, bytearray, list, set, tuple)
 
     @staticmethod
     def check_if_collection_but_not_str(instance) -> bool:
@@ -732,7 +736,23 @@ class Utils(object):
         return None
 
     @staticmethod
-    def entity_to_dict(entity, default_method):
+    def dictionarize(obj: object) -> dict:
+        dictionarized = {"__name__": obj.__class__.__name__}
+        dictionarized.update(obj.__dict__)
+        to_update = {}
+        for k, v in dictionarized.items():
+            if v is not None and not isinstance(
+                v, (bool, float, str, int, bytes, bytearray, list, set, dict, enum.Enum)
+            ):
+                if "__str__" in v.__dict__:
+                    to_update.update({k: str(v)})
+                else:
+                    to_update.update({k: Utils.dictionarize(v)})
+        dictionarized.update(to_update)
+        return dictionarized
+
+    @staticmethod
+    def entity_to_dict(entity, default_method) -> dict:
         return json.loads(json.dumps(entity, default=default_method))
 
     @staticmethod

@@ -140,7 +140,7 @@ class RavenCommand(Generic[ResultClass]):
                     return ResponseDisposeHandling.AUTOMATIC
 
                 json_content = response.content.decode("utf-8")
-                if cache:
+                if cache is not None:
                     self._cache_response(cache, url, response, json_content)
                 self.set_response(json_content, False)
                 return ResponseDisposeHandling.AUTOMATIC

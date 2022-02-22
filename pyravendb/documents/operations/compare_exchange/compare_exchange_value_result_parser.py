@@ -1,5 +1,5 @@
 import json
-from typing import Dict
+from typing import Dict, Type, TypeVar, Optional
 
 from pyravendb import constants
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
@@ -7,12 +7,14 @@ from pyravendb.documents.operations.compare_exchange.compare_exchange import Com
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from pyravendb.tools.utils import CaseInsensitiveDict, Utils
 
+_T = TypeVar("_T")
+
 
 class CompareExchangeValueResultParser:
     @staticmethod
     def get_values(
-        object_type: type, response: str, materialize_metadata: bool, conventions: DocumentConventions
-    ) -> Dict[str, CompareExchangeValue]:
+        object_type: Type[_T], response: str, materialize_metadata: bool, conventions: DocumentConventions
+    ) -> Dict[str, CompareExchangeValue[_T]]:
         results = CaseInsensitiveDict()
         if not response:
             return results
@@ -31,7 +33,9 @@ class CompareExchangeValueResultParser:
         return results
 
     @staticmethod
-    def get_value(object_type: type, response: str, materialize_metadata: bool, conventions: DocumentConventions):
+    def get_value(
+        object_type: Type[_T], response: str, materialize_metadata: bool, conventions: DocumentConventions
+    ) -> _T:
         if not response:
             return None
 
@@ -41,7 +45,9 @@ class CompareExchangeValueResultParser:
         return values.values().__iter__().__next__()
 
     @staticmethod
-    def get_single_value(object_type: type, item: dict, materialize_metadata: bool, conventions: DocumentConventions):
+    def get_single_value(
+        object_type: Type[_T], item: dict, materialize_metadata: bool, conventions: DocumentConventions
+    ) -> Optional[CompareExchangeValue[_T]]:
         if item is None:
             return None
         key: str = item.get("Key")
@@ -63,13 +69,13 @@ class CompareExchangeValueResultParser:
                 if not materialize_metadata
                 else MetadataAsDictionary.materialize_from_json(bjro)
             )
-        if object_type in Utils.primitives:
+        if object_type in Utils.primitives_and_collections:
             value = None
             if raw:
                 raw_value = raw.get("Object")
                 value = (
                     Utils.convert_json_dict_to_object(raw_value, object_type)
-                    if not isinstance(raw_value, Utils.primitives)
+                    if not isinstance(raw_value, Utils.primitives_and_collections)
                     else raw_value
                 )
 
@@ -90,7 +96,7 @@ class CompareExchangeValueResultParser:
             else:
                 converted = (
                     Utils.convert_json_dict_to_object(obj, object_type)
-                    if not isinstance(obj, Utils.primitives)
+                    if not isinstance(obj, Utils.primitives_and_collections)
                     else obj
                 )
                 return CompareExchangeValue(key, index, converted, metadata)

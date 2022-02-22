@@ -1,4 +1,5 @@
 int_max = 0x7FFFFFF
+json_serialize_method_name = "to_json"
 
 
 class Documents:

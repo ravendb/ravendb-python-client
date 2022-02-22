@@ -173,7 +173,7 @@ class QueryOperation:
                 if projection_field.startswith("'"):
                     projection_field = projection_field[1:-1]
 
-            if object_type == str or object_type in Utils.primitives or object_type == enum.Enum:
+            if object_type == str or object_type in Utils.primitives_and_collections or object_type == enum.Enum:
                 json_node = document.get(projection_field)
                 return Utils.initialize_object(json_node, object_type) or Utils.get_default_value(object_type)
 

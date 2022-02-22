@@ -1126,7 +1126,20 @@ class AbstractDocumentQuery(Generic[_T]):
 
         last_token = tokens[-1]
         if not isinstance(last_token, (WhereToken, CloseSubclauseToken)):
-            pass
+            return
+
+        last_where: Optional[WhereToken] = None
+        for i in range(len(tokens) - 1, -1, -1):
+            if isinstance(tokens[i], WhereToken):
+                last_where = tokens[i]
+                break
+
+        token = QueryOperatorToken.AND() if self._default_operator == QueryOperator.AND else QueryOperatorToken.OR()
+
+        if last_where is not None and last_where.options.search_operator is not None:
+            token = QueryOperatorToken.OR()
+
+        tokens.append(token)
 
     def __transform_collection(self, field_name: str, values: List) -> List:
         result = []
