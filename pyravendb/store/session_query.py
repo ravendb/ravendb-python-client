@@ -165,7 +165,7 @@ class Query(object):
         if len(self._where_tokens) > 0:
             query_builder.append(" WHERE ")
             if self.is_intersect:
-                self.query_builder.append("intersect(")
+                query_builder.append("intersect(")
 
             for token in self._where_tokens:
                 Query._add_space_if_needed(query_builder)
@@ -184,7 +184,7 @@ class Query(object):
                 first = False
                 query_builder.append(token.write)
                 if token.ordering != OrderingType.str:
-                    query_builder.append(token.ordering)
+                    query_builder.append(str(token.ordering))
                 if token.descending:
                     query_builder.append(" DESC")
 
