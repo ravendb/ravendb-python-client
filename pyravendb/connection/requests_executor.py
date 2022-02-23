@@ -56,7 +56,7 @@ class RequestsExecutor(object):
         self._last_known_urls = None
 
         self.headers = {"Accept": "application/json",
-                        "Raven-Client-Version": "5.0.0.3"}
+                        "Raven-Client-Version": "5.0.0.4"}
 
         self.update_topology_lock = Lock()
         self.update_timer_lock = Lock()
