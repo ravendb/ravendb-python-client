@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from typing import Union, Optional, Generic, TypeVar, Dict, List, TYPE_CHECKING
+from typing import Union, Optional, Generic, TypeVar, Dict, TYPE_CHECKING, Type, Collection
 
 import requests
 
@@ -114,18 +114,20 @@ class PutCompareExchangeValueOperation(IOperation[CompareExchangeResult], Generi
 
 
 class GetCompareExchangeValueOperation(IOperation[CompareExchangeValue[_T]], Generic[_T]):
-    def __init__(self, object_type: type, key: str, materialize_metadata: bool = True):
+    def __init__(self, key: str, object_type: Type[_T], materialize_metadata: bool = True):
         self.__key = key
         self.__object_type = object_type
         self.__materialize_metadata = materialize_metadata
 
     def get_command(self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache) -> RavenCommand[_T]:
         return self.GetCompareExchangeValueCommand(
-            self.__object_type, self.__key, self.__materialize_metadata, conventions
+            self.__key, self.__object_type, self.__materialize_metadata, conventions
         )
 
     class GetCompareExchangeValueCommand(RavenCommand[CompareExchangeValue[_T]]):
-        def __init__(self, object_type: type, key: str, materialize_metadata: bool, conventions: DocumentConventions):
+        def __init__(
+            self, key: str, object_type: Type[_T], materialize_metadata: bool, conventions: DocumentConventions
+        ):
             if not key:
                 raise ValueError("The key argument must have value")
             super().__init__(CompareExchangeValue[_T])
@@ -186,8 +188,8 @@ class DeleteCompareExchangeValueOperation(IOperation[CompareExchangeResult[_T]],
 class GetCompareExchangeValuesOperation(IOperation[Dict[str, CompareExchangeValue[_T]]], Generic[_T]):
     def __init__(
         self,
-        object_type: type,
-        keys_or_start_with: Union[List[str], StartingWithOptions],
+        keys_or_start_with: Union[Collection[str], StartingWithOptions],
+        object_type: Optional[Type[_T]],
         materialize_metadata: Optional[bool] = True,
     ):  # todo: starting with
         start_with = isinstance(keys_or_start_with, StartingWithOptions)

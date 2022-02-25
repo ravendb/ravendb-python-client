@@ -1,7 +1,7 @@
 from __future__ import annotations
 import datetime
 from enum import Enum
-from typing import Union, Optional, Generic, TypeVar
+from typing import Union, Optional, Generic, TypeVar, Type
 
 from pyravendb import constants
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
@@ -68,7 +68,9 @@ class CompareExchangeSessionValue(Generic[_T]):
         self.__original_value: Union[CompareExchangeValue, None] = None
         self.__value: Union[CompareExchangeValue, None] = value
 
-    def get_value(self, object_type: type, conventions: DocumentConventions) -> Optional[CompareExchangeValue[_T]]:
+    def get_value(
+        self, object_type: Optional[Type[_T]], conventions: DocumentConventions
+    ) -> Optional[CompareExchangeValue[_T]]:
         if (
             self._state.value == CompareExchangeValueState.CREATED.value
             or self._state.value == CompareExchangeValueState.NONE.value
@@ -84,9 +86,7 @@ class CompareExchangeSessionValue(Generic[_T]):
                 if object_type in [int, float, str, bool]:
                     try:
                         entity_json_value = self.__original_value.value.get(constants.CompareExchange.OBJECT_FIELD_NAME)
-                        entity = create_entity_with_mapper(
-                            entity_json_value, conventions.mappers.get(object_type), object_type, True
-                        )
+                        entity = Utils.convert_to_entity(entity_json_value, object_type, conventions, None, None)
                     except BaseException as ex:
                         raise RavenException(
                             f"Unable to read compare exchange value: {self.__original_value.value}", ex

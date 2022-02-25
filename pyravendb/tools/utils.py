@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 import time
-from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type
+from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type, TYPE_CHECKING
 
 from pyravendb.exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
@@ -27,6 +27,9 @@ import re
 _T = TypeVar("_T")
 _TKey = TypeVar("_TKey")
 _TVal = TypeVar("_TVal")
+
+if TYPE_CHECKING:
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class TimeUnit(Enum):
@@ -391,8 +394,13 @@ class Utils(object):
             del entity.__dict__[keys[0]]
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions, events, nested_object_types=None):
-
+    def convert_to_entity(
+        document: dict,
+        object_type: Optional[Type[_T]],
+        conventions: "DocumentConventions",
+        events,
+        nested_object_types=None,
+    ) -> Union[_T, _DynamicStructure]:
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)

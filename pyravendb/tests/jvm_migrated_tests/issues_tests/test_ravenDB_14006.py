@@ -32,20 +32,20 @@ class TestRavenDB14006(TestBase):
 
         with self.store.open_session(session_options=session_options) as session:
             results = session.advanced.cluster_transaction.get_compare_exchange_values(
-                Company, StartingWithOptions("comp")
+                StartingWithOptions("comp"), Company
             )
             self.assertEqual(10, len(results))
             self.assertTrue(all(map(lambda x: x is not None, results)))
             self.assertEqual(1, session.number_of_requests)
 
-            results = session.advanced.cluster_transaction.get_compare_exchange_values(Company, all_companies)
+            results = session.advanced.cluster_transaction.get_compare_exchange_values(all_companies, Company)
 
             self.assertEqual(10, len(results))
             self.assertTrue(all(map(lambda x: x is not None, results)))
             self.assertEqual(1, session.number_of_requests)
 
             for company_id in all_companies:
-                result = session.advanced.cluster_transaction.get_compare_exchange_value(Company, company_id)
+                result = session.advanced.cluster_transaction.get_compare_exchange_value(company_id, Company)
                 self.assertIsNotNone(result.value)
                 self.assertEqual(1, session.number_of_requests)
 
@@ -63,7 +63,7 @@ class TestRavenDB14006(TestBase):
 
             self.assertEqual(number_of_requests, session.number_of_requests)
 
-            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, company.external_id)
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(company.external_id, Address)
 
             self.assertEqual(number_of_requests, session.number_of_requests)
 
@@ -79,7 +79,7 @@ class TestRavenDB14006(TestBase):
             self.assertEqual(value1.key, company.external_id)
             self.assertGreater(value1.index, 0)
 
-            value2 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, company.external_id)
+            value2 = session.advanced.cluster_transaction.get_compare_exchange_value(company.external_id, Address)
             self.assertEqual(number_of_requests + 1, session.number_of_requests)
 
             self.assertEqual(value1, value2)
@@ -90,7 +90,7 @@ class TestRavenDB14006(TestBase):
 
             session.clear()
 
-            value3 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, company.external_id)
+            value3 = session.advanced.cluster_transaction.get_compare_exchange_value(company.external_id, Address)
             self.assertNotEqual(value2, value3)
 
         with self.store.open_session(session_options=session_options) as session:
@@ -102,16 +102,16 @@ class TestRavenDB14006(TestBase):
         with self.store.open_session(session_options=session_options) as session:
             number_of_requests = session.number_of_requests
 
-            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, "companies/cf")
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value("companies/cf", Address)
 
             self.assertEqual(number_of_requests + 1, session.number_of_requests)
 
-            value2 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, "companies/hr")
+            value2 = session.advanced.cluster_transaction.get_compare_exchange_value("companies/hr", Address)
 
             self.assertEqual(number_of_requests + 2, session.number_of_requests)
 
             values = session.advanced.cluster_transaction.get_compare_exchange_values(
-                Address, ["companies/cf", "companies/hr"]
+                ["companies/cf", "companies/hr"], Address
             )
 
             self.assertEqual(number_of_requests + 2, session.number_of_requests)
@@ -121,7 +121,7 @@ class TestRavenDB14006(TestBase):
             self.assertEqual(value2, values.get(value2.key))
 
             values = session.advanced.cluster_transaction.get_compare_exchange_values(
-                Address, ["companies/cf", "companies/hr", "companies/hx"]
+                ["companies/cf", "companies/hr", "companies/hx"], Address
             )
 
             self.assertEqual(number_of_requests + 3, session.number_of_requests)
@@ -130,7 +130,7 @@ class TestRavenDB14006(TestBase):
             self.assertEqual(value1, values.get(value1.key))
             self.assertEqual(value2, values.get(value2.key))
 
-            value3 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, "companies/hx")
+            value3 = session.advanced.cluster_transaction.get_compare_exchange_value("companies/hx", Address)
             self.assertEqual(number_of_requests + 3, session.number_of_requests)
 
             self.assertIsNone(value3)
@@ -188,11 +188,11 @@ class TestRavenDB14006(TestBase):
                 ).statistics(__statistics_callback)
             )
             self.assertEqual(1, len(companies))
-            self.assertGreater(statistics.duration_in_ms, 0)
+            self.assertGreaterEqual(statistics.duration_in_ms, 0)
             number_of_requests = session.number_of_requests
             result_etag = statistics.result_etag
 
-            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, companies[0].external_id)
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(companies[0].external_id, Address)
             self.assertEqual("Torun", value1.value.city)
 
             self.assertEqual(number_of_requests, session.number_of_requests)
@@ -214,7 +214,7 @@ class TestRavenDB14006(TestBase):
 
             with self.store.open_session(session_options=session_options) as inner_session:
                 value = inner_session.advanced.cluster_transaction.get_compare_exchange_value(
-                    Address, companies[0].external_id
+                    companies[0].external_id, Address
                 )
                 value.value.city = "Bydgoszcz"
                 inner_session.save_changes()
@@ -235,5 +235,5 @@ class TestRavenDB14006(TestBase):
             self.assertGreaterEqual(statistics.duration_in_ms, 0)
             self.assertNotEqual(result_etag, statistics.result_etag)
 
-            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(Address, companies[0].external_id)
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(companies[0].external_id, Address)
             self.assertEqual("Bydgoszcz", value1.value.city)
