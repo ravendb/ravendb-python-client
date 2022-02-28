@@ -263,17 +263,17 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         time_series_includes = []
 
         compare_exchange_values_to_include = (
-            include_builder.compare_exchange_values_to_include
-            if include_builder.compare_exchange_values_to_include is not None
+            include_builder._compare_exchange_values_to_include
+            if include_builder._compare_exchange_values_to_include is not None
             else None
         )
 
         result = self.__load_internal(
             object_type,
             [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys,
-            include_builder.documents_to_include if include_builder.documents_to_include else None,
-            include_builder.counters_to_include if include_builder.counters_to_include else None,
-            include_builder.is_all_counters,
+            include_builder._documents_to_include if include_builder._documents_to_include else None,
+            include_builder._counters_to_include if include_builder._counters_to_include else None,
+            include_builder._is_all_counters,
             time_series_includes,
             compare_exchange_values_to_include,
         )

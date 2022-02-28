@@ -354,15 +354,15 @@ class AbstractDocumentQuery(Generic[_T]):
             includes = path_or_include_builder
             if includes is None:
                 return
-            if includes.documents_to_include is not None:
-                self._document_includes.update(includes.documents_to_include)
+            if includes._documents_to_include is not None:
+                self._document_includes.update(includes._documents_to_include)
 
             # todo: counters and time series includes
             # self._include_counters(includes.alias, includes.counters_to_include_by_source_path)
             # if includes.time_series_to_include_by_source_alias is not None:
             #     self._include_time_series(includes.alias, includes.time_series_to_include_by_source_alias)
-            if includes.compare_exchange_values_to_include is not None:
-                for compare_exchange_value in includes.compare_exchange_values_to_include:
+            if includes._compare_exchange_values_to_include is not None:
+                for compare_exchange_value in includes._compare_exchange_values_to_include:
                     self._compare_exchange_includes_tokens.append(
                         CompareExchangeValueIncludesToken.create(compare_exchange_value)
                     )

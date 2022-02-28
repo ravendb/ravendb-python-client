@@ -19,7 +19,7 @@ from pyravendb.util.util import StartingWithOptions
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-    from pyravendb.documents import DocumentSession
+    from pyravendb.documents.session.document_session import DocumentSession
 
 _T = TypeVar("_T")
 
@@ -201,7 +201,7 @@ class ClusterTransactionOperationsBase:
         if self.session.no_tracking:
             return CompareExchangeSessionValue(value=value)
         session_value: CompareExchangeSessionValue = self._state.get(value.key)
-        if not session_value:
+        if session_value is None:
             session_value = CompareExchangeSessionValue(value=value)
             self._state[value.key] = session_value
             return session_value
@@ -242,6 +242,17 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase):
         return self._get_compare_exchange_value_internal(key, object_type)
 
     def get_compare_exchange_values(
-        self, keys_or_starting_with_options: Union[List[str], StartingWithOptions], object_type: Type[_T]
+        self, keys: List[str], object_type: Type[_T]
     ) -> Dict[str, CompareExchangeValue[_T]]:
-        return super()._get_compare_exchange_values_internal(keys_or_starting_with_options, object_type)
+        return super()._get_compare_exchange_values_internal(keys, object_type)
+
+    def get_compare_exchange_values_starting_with(
+        self,
+        starts_with: str,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        object_type: Optional[Type[_T]] = None,
+    ):
+        return self._get_compare_exchange_values_internal(
+            StartingWithOptions(starts_with, start, page_size), object_type
+        )
