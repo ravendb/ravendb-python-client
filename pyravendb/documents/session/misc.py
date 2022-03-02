@@ -95,12 +95,16 @@ class SessionOptions:
         no_caching: Optional[bool] = None,
         request_executor: Optional[RequestExecutor] = None,
         transaction_mode: Optional[TransactionMode] = None,
+        disable_atomic_document_writes_in_cluster_wide_transaction: Optional[bool] = None,
     ):
         self.database = database
         self.no_tracking = no_tracking
         self.no_caching = no_caching
         self.request_executor = request_executor
         self.transaction_mode = transaction_mode
+        self.disable_atomic_document_writes_in_cluster_wide_transaction = (
+            disable_atomic_document_writes_in_cluster_wide_transaction
+        )
 
 
 class DocumentQueryCustomization:

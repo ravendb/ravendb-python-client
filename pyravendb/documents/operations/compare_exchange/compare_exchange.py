@@ -83,10 +83,9 @@ class CompareExchangeSessionValue(Generic[_T]):
 
             entity = None
             if self.__original_value is not None and self.__original_value.value is not None:
-                if object_type in [int, float, str, bool]:
+                if object_type in [int, float, str, bool, bytes]:
                     try:
-                        entity_json_value = self.__original_value.value.get(constants.CompareExchange.OBJECT_FIELD_NAME)
-                        entity = Utils.convert_to_entity(entity_json_value, object_type, conventions, None, None)
+                        entity = self.__original_value.value
                     except BaseException as ex:
                         raise RavenException(
                             f"Unable to read compare exchange value: {self.__original_value.value}", ex

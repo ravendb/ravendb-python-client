@@ -259,10 +259,7 @@ class RequestExecutor:
             return future
 
         def __run_async():
-            try:
-                self.__update_client_configuration_semaphore.acquire()
-            except InterruptedError as e:
-                raise RuntimeError(e)
+            self.__update_client_configuration_semaphore.acquire()
 
             old_disable_client_configuration_updates = self._disable_client_configuration_updates
             self._disable_client_configuration_updates = True
@@ -507,7 +504,7 @@ class RequestExecutor:
                     response.close()
                 if len(refresh_tasks) > 0:
                     try:
-                        wait(*refresh_tasks, return_when=ALL_COMPLETED)
+                        wait(refresh_tasks, return_when=ALL_COMPLETED)
                     except:
                         raise
 
@@ -1322,11 +1319,6 @@ class ClusterRequestExecutor(RequestExecutor):
             return True
 
         return self._thread_pool_executor.submit(__supply_async)
-
-    def _update_client_configuration_async(self, server_node: ServerNode) -> Future:
-        result = Future()
-        result.set_result(None)
-        return result
 
     def _throw_exceptions(self, details: str):
         raise RuntimeError(f"Failed to retrieve cluster topology from all known nodes {os.linesep}{details}")

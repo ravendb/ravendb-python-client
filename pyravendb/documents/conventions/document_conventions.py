@@ -386,6 +386,7 @@ class DocumentConventions(object):
                 self.__original_configuration.__load_balance_behavior = self.__load_balance_behavior
                 self.__original_configuration.__load_balancer_context_seed = self.__load_balancer_context_seed
 
+            # first not None
             self.max_number_of_requests_per_session = next(
                 item
                 for item in [
@@ -426,14 +427,10 @@ class DocumentConventions(object):
                 if item is not None
             )
 
-            self.__load_balancer_context_seed = next(
-                item
-                for item in [
-                    configuration.load_balancer_context_seed,
-                    self.__original_configuration.load_balancer_context_seed,
-                    self.__load_balancer_context_seed,
-                ]
-                if item is not None
+            self.__load_balancer_context_seed = (
+                configuration.load_balancer_context_seed
+                or self.__original_configuration.load_balancer_context_seed
+                or self.__load_balancer_context_seed
             )
 
     @staticmethod

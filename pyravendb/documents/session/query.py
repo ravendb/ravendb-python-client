@@ -163,9 +163,6 @@ class AbstractDocumentQuery(Generic[_T]):
 
         self._query_operation: Union[None, QueryOperation] = None
 
-    def __str__(self):
-        return self.__to_string(False)
-
     @property
     def conventions(self) -> DocumentConventions:
         return self.__conventions

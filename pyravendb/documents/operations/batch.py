@@ -43,7 +43,12 @@ class BatchOperation:
         self.__entities = result.entities
 
         if self.__session.transaction_mode == TransactionMode.CLUSTER_WIDE:
-            return ClusterWideBatchCommand(self.__session.conventions, result.session_commands, result.options)
+            return ClusterWideBatchCommand(
+                self.__session.conventions,
+                result.session_commands,
+                result.options,
+                self.__session.disable_atomic_document_writes_in_cluster_wide_transaction,
+            )
         return SingleNodeBatchCommand(self.__session.conventions, result.session_commands, result.options)
 
     def set_result(self, result: BatchCommandResult) -> None:

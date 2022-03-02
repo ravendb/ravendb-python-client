@@ -503,6 +503,9 @@ class InMemoryDocumentSessionOperations:
         self.__save_changes_options = BatchOptions()
 
         self.transaction_mode = options.transaction_mode
+        self.disable_atomic_document_writes_in_cluster_wide_transaction = (
+            options.disable_atomic_document_writes_in_cluster_wide_transaction
+        )
 
         self._document_store: store.DocumentStore = store
         self._known_missing_ids = CaseInsensitiveSet()
@@ -518,7 +521,6 @@ class InMemoryDocumentSessionOperations:
         ] = DeletedEntitiesHolder()
         self.deferred_commands: List[CommandData] = []
         self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = {}
-        self.no_tracking: bool = False
         self.ids_for_creating_forced_revisions: Dict[str, ForceRevisionStrategy] = CaseInsensitiveDict()
         # todo: pendingLazyOperations, onEvaluateLazy
         self._generate_document_keys_on_store: bool = True
@@ -585,6 +587,14 @@ class InMemoryDocumentSessionOperations:
     @property
     def number_of_requests(self) -> int:
         return self.__number_of_requests
+
+    @property
+    def no_tracking(self) -> bool:
+        return self.__no_tracking
+
+    @no_tracking.setter
+    def no_tracking(self, value: bool):
+        self.__no_tracking = value
 
     # def counters_for(self, entity_or_document_id):
     #     """
@@ -835,7 +845,7 @@ class InMemoryDocumentSessionOperations:
             )
 
         if entity in self.deleted_entities:
-            raise RuntimeError(f"Can't legacy object, it was already deleted in this session. Document id {key}")
+            raise RuntimeError(f"Can't store object, it was already deleted in this session. Document id {key}")
 
         self._assert_no_non_unique_instance(entity, key)
 

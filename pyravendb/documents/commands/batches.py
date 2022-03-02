@@ -159,13 +159,13 @@ class SingleNodeBatchCommand(RavenCommand):
             request.data = None
 
         sb = [f"{node.url}/databases/{node.database}/bulk_docs"]
-        self.__append_options(sb)
+        self._append_options(sb)
 
         request.url = sb[0]
 
         return request
 
-    def __append_options(self, sb: List[str]) -> None:
+    def _append_options(self, sb: List[str]) -> None:
         if self.__options is None:
             return
         sb.append("?")
@@ -202,12 +202,27 @@ class SingleNodeBatchCommand(RavenCommand):
 
 class ClusterWideBatchCommand(SingleNodeBatchCommand):
     def __init__(
-        self, conventions: DocumentConventions, commands: List[CommandData], options: Optional[BatchOptions] = None
+        self,
+        conventions: DocumentConventions,
+        commands: List[CommandData],
+        options: Optional[BatchOptions] = None,
+        disable_atomic_documents_writes: Optional[bool] = None,
     ):
         super().__init__(conventions, commands, options, TransactionMode.CLUSTER_WIDE)
 
+        self.__disable_atomic_document_writes = disable_atomic_documents_writes
+
     def get_raft_unique_request_id(self) -> str:
         return RaftIdGenerator.new_id()
+
+    def _append_options(self, sb: List[str]) -> None:
+        super()._append_options(sb)
+
+        if self.__disable_atomic_document_writes is None:
+            return
+
+        sb.append("&disableAtomicDocumentWrites=")
+        sb.append("true" if self.__disable_atomic_document_writes else "false")
 
 
 # -------------- DATA ---------------

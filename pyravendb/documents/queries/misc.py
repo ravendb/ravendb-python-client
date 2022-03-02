@@ -44,7 +44,7 @@ class Query:
         return query
 
     @staticmethod
-    def from_index_type(index_type: Type) -> Query:
+    def from_index_type(index_type: Type[_TIndex]) -> Query:
         query = Query()
         query.__index_type = index_type
         return query

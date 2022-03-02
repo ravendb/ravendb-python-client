@@ -401,6 +401,8 @@ class Utils(object):
         events,
         nested_object_types=None,
     ) -> Union[_T, _DynamicStructure]:
+        if document is None:
+            return None
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)

@@ -120,15 +120,15 @@ class MultiTypeHiLoGenerator:
         with self.__generator_lock:
             if self.__identity_parts_separator == identity_parts_separator:
                 return
-            id_generators = self.__id_generators_by_tag.values()
+            id_generators = list(self.__id_generators_by_tag.values())
             self.__id_generators_by_tag.clear()
             self.__identity_parts_separator = identity_parts_separator
 
         if id_generators is not None:
             try:
                 self.__return_unused_range(id_generators)
-            except:
-                pass
+            except Exception:
+                pass  # ignored
 
     def _create_generator_for(self, tag: str):
         return HiLoIdGenerator(tag, self._store, self._db_name, self.__identity_parts_separator)

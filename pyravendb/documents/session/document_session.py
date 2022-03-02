@@ -410,7 +410,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self.query(Query.from_index_name(index_name), object_type)
         raise ValueError("index_name cannot be None or whitespace")
 
-    def query_index_type(self, index_type: Type[_TIndex], object_type: Optional[Type[_T]] = None):
+    def query_index_type(self, index_type: Type[_TIndex], object_type: Optional[Type[_T]] = None) -> DocumentQuery[_T]:
         if index_type is None or not isinstance(index_type, AbstractCommonApiForIndexes):
             return self.query(Query.from_index_type(index_type), object_type)
 
@@ -430,6 +430,18 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         @property
         def cluster_transaction(self) -> ClusterTransactionOperations:
             return self.__session.cluster_session
+
+        def document_query(
+            self,
+            index_name: str = None,
+            collection_name: str = None,
+            object_type: Type[_T] = None,
+            is_map_reduce: bool = False,
+        ) -> DocumentQuery[_T]:
+            return self.__session.document_query(index_name, collection_name, object_type, is_map_reduce)
+
+        def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
+            return self.__session.document_query_from_index_type(index_type, object_type)
 
         def refresh(self, entity: object) -> object:
             document_info = self.__session.documents_by_entity.get(entity)
