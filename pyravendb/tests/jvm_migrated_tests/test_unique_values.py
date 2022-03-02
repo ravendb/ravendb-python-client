@@ -37,29 +37,29 @@ class TestUniqueValues(TestBase):
 
     def test_can_put_unique_string(self):
         self.store.operations.send(PutCompareExchangeValueOperation("test", "Karmel", 0))
-        res: CompareExchangeValue[str] = self.store.operations.send(GetCompareExchangeValueOperation[str](str, "test"))
+        res: CompareExchangeValue[str] = self.store.operations.send(GetCompareExchangeValueOperation[str]("test", str))
         self.assertEqual("Karmel", res.value)
 
     def test_can_work_with_primitive_types(self):
-        res = self.store.operations.send(GetCompareExchangeValueOperation(int, "test"))
+        res = self.store.operations.send(GetCompareExchangeValueOperation("test", int))
         self.assertIsNone(res)
 
         self.store.operations.send(PutCompareExchangeValueOperation("test", 5, 0))
 
-        res = self.store.operations.send(GetCompareExchangeValueOperation(int, "test"))
+        res = self.store.operations.send(GetCompareExchangeValueOperation("test", int))
 
         self.assertIsNotNone(res)
         self.assertEqual(5, res.value)
 
     def test_can_read_non_existing_key(self):
-        res = self.store.operations.send(GetCompareExchangeValueOperation(int, "test"))
+        res = self.store.operations.send(GetCompareExchangeValueOperation("test", int))
         self.assertIsNone(res)
 
     def test_can_get_index_value(self):
         user = User("Karmel")
 
         self.store.operations.send(PutCompareExchangeValueOperation("test", user, 0))
-        res: CompareExchangeValue[User] = self.store.operations.send(GetCompareExchangeValueOperation(User, "test"))
+        res: CompareExchangeValue[User] = self.store.operations.send(GetCompareExchangeValueOperation("test", User))
 
         self.assertEqual("Karmel", res.value.name)
 
@@ -101,7 +101,7 @@ class TestUniqueValues(TestBase):
         self.assertTrue(res2.successful)
 
         values: Dict[str, CompareExchangeValue[User]] = self.store.operations.send(
-            GetCompareExchangeValuesOperation(User, StartingWithOptions("test"))
+            GetCompareExchangeValuesOperation(StartingWithOptions("test"), User)
         )
         self.assertEqual(2, len(values))
 
@@ -119,7 +119,7 @@ class TestUniqueValues(TestBase):
         self.assertFalse(res.successful)
 
         read_value: CompareExchangeValue[str] = self.store.operations.send(
-            GetCompareExchangeValueOperation(str, "test")
+            GetCompareExchangeValueOperation("test", str)
         )
         self.assertEqual("Karmel", read_value.value)
 
@@ -155,7 +155,7 @@ class TestUniqueValues(TestBase):
             result.metadata["TestNumber"] = num
             session.save_changes()
 
-        res: CompareExchangeValue[int] = self.store.operations.send(GetCompareExchangeValueOperation(int, key))
+        res: CompareExchangeValue[int] = self.store.operations.send(GetCompareExchangeValueOperation(key, int))
 
         self.assertIsNotNone(res.metadata)
         self.assertEqual(322, res.value)
@@ -176,5 +176,5 @@ class TestUniqueValues(TestBase):
             result.metadata["TestString"] = string
             session.save_changes()
 
-        res = self.store.operations.send(GetCompareExchangeValueOperation(list, key))
+        res = self.store.operations.send(GetCompareExchangeValueOperation(key, list))
         self.assertIsNotNone(res.metadata)

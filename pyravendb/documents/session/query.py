@@ -163,9 +163,6 @@ class AbstractDocumentQuery(Generic[_T]):
 
         self._query_operation: Union[None, QueryOperation] = None
 
-    def __str__(self):
-        return self.__to_string(False)
-
     @property
     def conventions(self) -> DocumentConventions:
         return self.__conventions
@@ -354,15 +351,15 @@ class AbstractDocumentQuery(Generic[_T]):
             includes = path_or_include_builder
             if includes is None:
                 return
-            if includes.documents_to_include is not None:
-                self._document_includes.update(includes.documents_to_include)
+            if includes._documents_to_include is not None:
+                self._document_includes.update(includes._documents_to_include)
 
             # todo: counters and time series includes
             # self._include_counters(includes.alias, includes.counters_to_include_by_source_path)
             # if includes.time_series_to_include_by_source_alias is not None:
             #     self._include_time_series(includes.alias, includes.time_series_to_include_by_source_alias)
-            if includes.compare_exchange_values_to_include is not None:
-                for compare_exchange_value in includes.compare_exchange_values_to_include:
+            if includes._compare_exchange_values_to_include is not None:
+                for compare_exchange_value in includes._compare_exchange_values_to_include:
                     self._compare_exchange_includes_tokens.append(
                         CompareExchangeValueIncludesToken.create(compare_exchange_value)
                     )
@@ -1126,7 +1123,20 @@ class AbstractDocumentQuery(Generic[_T]):
 
         last_token = tokens[-1]
         if not isinstance(last_token, (WhereToken, CloseSubclauseToken)):
-            pass
+            return
+
+        last_where: Optional[WhereToken] = None
+        for i in range(len(tokens) - 1, -1, -1):
+            if isinstance(tokens[i], WhereToken):
+                last_where = tokens[i]
+                break
+
+        token = QueryOperatorToken.AND() if self._default_operator == QueryOperator.AND else QueryOperatorToken.OR()
+
+        if last_where is not None and last_where.options.search_operator is not None:
+            token = QueryOperatorToken.OR()
+
+        tokens.append(token)
 
     def __transform_collection(self, field_name: str, values: List) -> List:
         result = []

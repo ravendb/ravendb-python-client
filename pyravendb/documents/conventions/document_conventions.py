@@ -33,7 +33,7 @@ class DocumentConventions(object):
         # timeout for wait to server in seconds
         self.timeout = kwargs.get("timeout", timedelta(seconds=30))
         self.use_optimistic_concurrency = kwargs.get("use_optimistic_concurrency", False)
-        self.json_default_method = DocumentConventions._json_default
+        self.json_default_method = DocumentConventions.json_default
         self.max_length_of_query_using_get_url = kwargs.get("max_length_of_query_using_get_url", 1024 + 512)
         self.identity_parts_separator = "/"
         self.disable_topology_updates = kwargs.get("disable_topology_update", False)
@@ -198,10 +198,9 @@ class DocumentConventions(object):
         self._mappers.update(mapper)
 
     @staticmethod
-    def _json_default(o):
+    def json_default(o):
         if o is None:
             return None
-
         if isinstance(o, datetime):
             return Utils.datetime_to_string(o)
         elif isinstance(o, timedelta):
@@ -217,7 +216,7 @@ class DocumentConventions(object):
         elif isinstance(o, (int, float)):
             return str(o)
         else:
-            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to legacy convention)")
+            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to convention)")
 
     @staticmethod
     def default_transform_plural(name):
@@ -387,6 +386,7 @@ class DocumentConventions(object):
                 self.__original_configuration.__load_balance_behavior = self.__load_balance_behavior
                 self.__original_configuration.__load_balancer_context_seed = self.__load_balancer_context_seed
 
+            # first not None
             self.max_number_of_requests_per_session = next(
                 item
                 for item in [
@@ -427,14 +427,10 @@ class DocumentConventions(object):
                 if item is not None
             )
 
-            self.__load_balancer_context_seed = next(
-                item
-                for item in [
-                    configuration.load_balancer_context_seed,
-                    self.__original_configuration.load_balancer_context_seed,
-                    self.__load_balancer_context_seed,
-                ]
-                if item is not None
+            self.__load_balancer_context_seed = (
+                configuration.load_balancer_context_seed
+                or self.__original_configuration.load_balancer_context_seed
+                or self.__load_balancer_context_seed
             )
 
     @staticmethod

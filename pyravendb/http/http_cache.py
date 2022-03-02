@@ -69,6 +69,12 @@ class HttpCache:
     def __len__(self):
         return len(self.__items)
 
+    def __setitem__(self, key, value):
+        self.__items.__setitem__(key, value)
+
+    def __getitem__(self, item):
+        self.__items.__getitem__(item)
+
     def close(self):
         self.__items.clear()
         self.__items = None

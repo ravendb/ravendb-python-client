@@ -1,4 +1,4 @@
-from typing import Union, Tuple, TYPE_CHECKING, List, Dict
+from typing import Union, Tuple, TYPE_CHECKING, List, Dict, TypeVar, Type, Optional
 
 from pyravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeSessionValue,
@@ -19,7 +19,9 @@ from pyravendb.util.util import StartingWithOptions
 
 if TYPE_CHECKING:
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-    from pyravendb.documents import DocumentSession
+    from pyravendb.documents.session.document_session import DocumentSession
+
+_T = TypeVar("_T")
 
 
 class ClusterTransactionOperationsBase:
@@ -43,7 +45,7 @@ class ClusterTransactionOperationsBase:
     def is_tracked(self, key: str) -> bool:
         return self.try_get_compare_exchange_value_from_session(key)[0]
 
-    def create_compare_exchange_value(self, key: str, item) -> CompareExchangeValue:
+    def create_compare_exchange_value(self, key: str, item: _T) -> CompareExchangeValue[_T]:
         if key is None:
             raise ValueError("Key cannot be None")
 
@@ -74,15 +76,17 @@ class ClusterTransactionOperationsBase:
     def clear(self) -> None:
         self._state.clear()
 
-    def _get_compare_exchange_value_internal(self, object_type: type, key: str) -> Union[None, CompareExchangeValue]:
-        v, not_tracked = self.get_compare_exchange_value_from_session_internal(object_type, key)
+    def _get_compare_exchange_value_internal(
+        self, key: str, object_type: Optional[Type[_T]] = None
+    ) -> Union[None, CompareExchangeValue[_T]]:
+        v, not_tracked = self.get_compare_exchange_value_from_session_internal(key, object_type)
         if not not_tracked:
             return v
 
         self.session.increment_requests_count()
 
         value = self.session.operations.send(
-            GetCompareExchangeValueOperation(dict, key, False), self.session.session_info
+            GetCompareExchangeValueOperation(key, dict, False), self.session.session_info
         )
         if value is None:
             self.register_missing_compare_exchange_value(key)
@@ -95,15 +99,13 @@ class ClusterTransactionOperationsBase:
         return None
 
     def _get_compare_exchange_values_internal(
-        self,
-        object_type: type,
-        keys_or_start_with_options: Union[List[str], StartingWithOptions],
-    ) -> Dict[str, CompareExchangeValue]:
+        self, keys_or_start_with_options: Union[List[str], StartingWithOptions], object_type: Optional[Type[_T]]
+    ) -> Dict[str, Optional[CompareExchangeValue[_T]]]:
         start_with = isinstance(keys_or_start_with_options, StartingWithOptions)
         if start_with:
             self._session.increment_requests_count()
             values = self._session.operations.send(
-                GetCompareExchangeValuesOperation(dict, keys_or_start_with_options), self.session.session_info
+                GetCompareExchangeValuesOperation(keys_or_start_with_options, dict), self.session.session_info
             )
 
             results = {}
@@ -120,7 +122,7 @@ class ClusterTransactionOperationsBase:
             return results
 
         results, not_tracked_keys = self.get_compare_exchange_values_from_session_internal(
-            object_type, keys_or_start_with_options
+            keys_or_start_with_options, object_type
         )
 
         if not not_tracked_keys:
@@ -129,7 +131,7 @@ class ClusterTransactionOperationsBase:
         self.session.increment_requests_count()
         keys_array = not_tracked_keys
         values: Dict[str, CompareExchangeValue[dict]] = self.session.operations.send(
-            GetCompareExchangeValuesOperation(dict, keys_array), self.session.session_info
+            GetCompareExchangeValuesOperation(keys_array, dict), self.session.session_info
         )
 
         for key in keys_array:
@@ -145,8 +147,8 @@ class ClusterTransactionOperationsBase:
         return results
 
     def get_compare_exchange_value_from_session_internal(
-        self, object_type: type, key: str
-    ) -> Tuple[Union[None, CompareExchangeValue], bool]:  # todo: typehint CompareExchangeValue
+        self, key: str, object_type: Optional[Type[_T]] = None
+    ) -> Tuple[Union[None, CompareExchangeValue[_T]], bool]:
         session_value_result = self.try_get_compare_exchange_value_from_session(key)
         if session_value_result[0]:
             not_tracked = False
@@ -155,12 +157,14 @@ class ClusterTransactionOperationsBase:
         not_tracked = True
         return None, not_tracked
 
-    def get_compare_exchange_values_from_session_internal(self, object_type: type, keys: List[str]):
+    def get_compare_exchange_values_from_session_internal(
+        self, keys: List[str], object_type: Optional[Type[_T]]
+    ) -> Tuple[CaseInsensitiveDict[str, CompareExchangeValue[_T]], Optional[CaseInsensitiveSet]]:
         not_tracked_keys = None
         results = CaseInsensitiveDict()
 
         if not keys:
-            return results
+            return results, None
 
         for key in keys:
             success, session_value = self.try_get_compare_exchange_value_from_session(key)
@@ -188,16 +192,16 @@ class ClusterTransactionOperationsBase:
             return
 
         if values:
-            for key, value in values:
-                self.register_compare_exchange_values(
+            for key, value in values.items():
+                self.register_compare_exchange_value(
                     CompareExchangeValueResultParser.get_single_value(dict, value, False, self.session.conventions)
                 )
 
-    def register_compare_exchange_value(self, value: CompareExchangeValue) -> CompareExchangeSessionValue:
+    def register_compare_exchange_value(self, value: CompareExchangeValue[_T]) -> CompareExchangeSessionValue[_T]:
         if self.session.no_tracking:
             return CompareExchangeSessionValue(value=value)
         session_value: CompareExchangeSessionValue = self._state.get(value.key)
-        if not session_value:
+        if session_value is None:
             session_value = CompareExchangeSessionValue(value=value)
             self._state[value.key] = session_value
             return session_value
@@ -234,10 +238,21 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase):
     def lazily(self):
         raise NotImplementedError()
 
-    def get_compare_exchange_value(self, object_type: type, key: str) -> Union[None, CompareExchangeValue]:
-        return self._get_compare_exchange_value_internal(object_type, key)
+    def get_compare_exchange_value(self, key: str, object_type: Type[_T] = None) -> Optional[CompareExchangeValue[_T]]:
+        return self._get_compare_exchange_value_internal(key, object_type)
 
     def get_compare_exchange_values(
-        self, object_type: type, keys_or_starting_with_options: Union[List[str], StartingWithOptions]
-    ) -> Dict[str, CompareExchangeValue]:  # todo: typehint if possible
-        return super()._get_compare_exchange_values_internal(object_type, keys_or_starting_with_options)
+        self, keys: List[str], object_type: Type[_T]
+    ) -> Dict[str, CompareExchangeValue[_T]]:
+        return super()._get_compare_exchange_values_internal(keys, object_type)
+
+    def get_compare_exchange_values_starting_with(
+        self,
+        starts_with: str,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        object_type: Optional[Type[_T]] = None,
+    ):
+        return self._get_compare_exchange_values_internal(
+            StartingWithOptions(starts_with, start, page_size), object_type
+        )

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import enum
 import time
-from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type
+from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type, TYPE_CHECKING
 
 from pyravendb.exceptions import exceptions
 from pyravendb.json.metadata_as_dictionary import MetadataAsDictionary
@@ -26,6 +27,9 @@ import re
 _T = TypeVar("_T")
 _TKey = TypeVar("_TKey")
 _TVal = TypeVar("_TVal")
+
+if TYPE_CHECKING:
+    from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
 class TimeUnit(Enum):
@@ -214,7 +218,10 @@ class _DynamicStructure(object):
 
 
 class Utils(object):
-    primitives = (int, float, bool, str, list, set)
+    primitives = (int, float, bool, str, bytes, bytearray)
+    mutable_collections = (list, set)
+    collections_no_str = (list, set, tuple)
+    primitives_and_collections = (int, float, bool, str, bytes, bytearray, list, set, tuple)
 
     @staticmethod
     def check_if_collection_but_not_str(instance) -> bool:
@@ -387,8 +394,15 @@ class Utils(object):
             del entity.__dict__[keys[0]]
 
     @staticmethod
-    def convert_to_entity(document, object_type, conventions, events, nested_object_types=None):
-
+    def convert_to_entity(
+        document: dict,
+        object_type: Optional[Type[_T]],
+        conventions: "DocumentConventions",
+        events,
+        nested_object_types=None,
+    ) -> Union[_T, _DynamicStructure]:
+        if document is None:
+            return None
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
@@ -732,7 +746,23 @@ class Utils(object):
         return None
 
     @staticmethod
-    def entity_to_dict(entity, default_method):
+    def dictionarize(obj: object) -> dict:
+        dictionarized = {"__name__": obj.__class__.__name__}
+        dictionarized.update(obj.__dict__)
+        to_update = {}
+        for k, v in dictionarized.items():
+            if v is not None and not isinstance(
+                v, (bool, float, str, int, bytes, bytearray, list, set, dict, enum.Enum)
+            ):
+                if "__str__" in v.__dict__:
+                    to_update.update({k: str(v)})
+                else:
+                    to_update.update({k: Utils.dictionarize(v)})
+        dictionarized.update(to_update)
+        return dictionarized
+
+    @staticmethod
+    def entity_to_dict(entity, default_method) -> dict:
         return json.loads(json.dumps(entity, default=default_method))
 
     @staticmethod

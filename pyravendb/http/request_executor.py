@@ -106,7 +106,7 @@ class RequestExecutor:
         # --- events ---
         self.__on_before_request: List[Callable[[str, str, requests.Request, int], Any]] = []
         self.__on_failed_request: List[Callable[[str, str, BaseException], None]] = []
-
+        self.__on_succeed_request: List[Callable[[str, str, requests.Response, requests.Request, int], None]] = []
         self._on_topology_updated: List[Callable[[Topology], None]] = []
 
     def __enter__(self):
@@ -192,6 +192,12 @@ class RequestExecutor:
         for event in self.__on_failed_request:
             event(self.__database_name, url, e)
 
+    def __on_succeed_request_invoke(
+        self, database: str, url: str, response: requests.Response, request: requests.Request, attempt_number: int
+    ):
+        for event in self.__on_succeed_request:
+            event(database, url, response, request, attempt_number)
+
     def _on_topology_updated_invoke(self, topology: Topology) -> None:
         for event in self._on_topology_updated:
             event(topology)
@@ -253,10 +259,7 @@ class RequestExecutor:
             return future
 
         def __run_async():
-            try:
-                self.__update_client_configuration_semaphore.acquire()
-            except InterruptedError as e:
-                raise RuntimeError(e)
+            self.__update_client_configuration_semaphore.acquire()
 
             old_disable_client_configuration_updates = self._disable_client_configuration_updates
             self._disable_client_configuration_updates = True
@@ -471,7 +474,12 @@ class RequestExecutor:
 
             try:
                 if response.status_code == HTTPStatus.NOT_MODIFIED:
-                    pass
+                    self.__on_succeed_request_invoke(self.__database_name, url, response, request, attempt_num)
+                    cached_item.not_modified()
+                    if command.response_type == RavenCommandResponseType.OBJECT:
+                        command.set_response(cached_value, True)
+                    return
+
                 if response.status_code >= 400:
                     if not self.__handle_unsuccessful_response(
                         chosen_node,
@@ -496,7 +504,7 @@ class RequestExecutor:
                     response.close()
                 if len(refresh_tasks) > 0:
                     try:
-                        wait(*refresh_tasks, return_when=ALL_COMPLETED)
+                        wait(refresh_tasks, return_when=ALL_COMPLETED)
                     except:
                         raise
 
@@ -721,7 +729,7 @@ class RequestExecutor:
 
     def __get_from_cache(
         self, command: RavenCommand, use_cache: bool, url: str
-    ) -> (HttpCache.ReleaseCacheItem, str, str):
+    ) -> Tuple[HttpCache.ReleaseCacheItem, Optional[str], Optional[str]]:
         if (
             use_cache
             and command.can_cache
@@ -1311,11 +1319,6 @@ class ClusterRequestExecutor(RequestExecutor):
             return True
 
         return self._thread_pool_executor.submit(__supply_async)
-
-    def _update_client_configuration_async(self, server_node: ServerNode) -> Future:
-        result = Future()
-        result.set_result(None)
-        return result
 
     def _throw_exceptions(self, details: str):
         raise RuntimeError(f"Failed to retrieve cluster topology from all known nodes {os.linesep}{details}")

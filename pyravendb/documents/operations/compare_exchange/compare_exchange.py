@@ -1,7 +1,7 @@
 from __future__ import annotations
 import datetime
 from enum import Enum
-from typing import Union, Optional, Generic, TypeVar
+from typing import Union, Optional, Generic, TypeVar, Type
 
 from pyravendb import constants
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
@@ -43,13 +43,13 @@ class CompareExchangeValue(Generic[_T]):
         return self._metadata_as_dictionary is not None
 
 
-class CompareExchangeSessionValue:
+class CompareExchangeSessionValue(Generic[_T]):
     def __init__(
         self,
         key: str = None,
         index: int = None,
         state: CompareExchangeValueState = None,
-        value: Optional[CompareExchangeValue] = None,
+        value: Optional[CompareExchangeValue[_T]] = None,
     ):
         if not ((value is not None) ^ all([key is not None, index is not None, state is not None])):
             raise ValueError("Specify key, index and state or just pass CompareExchangeValue.")
@@ -68,7 +68,9 @@ class CompareExchangeSessionValue:
         self.__original_value: Union[CompareExchangeValue, None] = None
         self.__value: Union[CompareExchangeValue, None] = value
 
-    def get_value(self, object_type: type, conventions: DocumentConventions) -> Union[None, CompareExchangeValue]:
+    def get_value(
+        self, object_type: Optional[Type[_T]], conventions: DocumentConventions
+    ) -> Optional[CompareExchangeValue[_T]]:
         if (
             self._state.value == CompareExchangeValueState.CREATED.value
             or self._state.value == CompareExchangeValueState.NONE.value
@@ -81,12 +83,9 @@ class CompareExchangeSessionValue:
 
             entity = None
             if self.__original_value is not None and self.__original_value.value is not None:
-                if object_type in [int, float, str, bool]:
+                if object_type in [int, float, str, bool, bytes]:
                     try:
-                        entity_json_value = self.__original_value.value.get(constants.CompareExchange.OBJECT_FIELD_NAME)
-                        entity = create_entity_with_mapper(
-                            entity_json_value, conventions.mappers.get(object_type), object_type, True
-                        )
+                        entity = self.__original_value.value
                     except BaseException as ex:
                         raise RavenException(
                             f"Unable to read compare exchange value: {self.__original_value.value}", ex
@@ -111,7 +110,7 @@ class CompareExchangeSessionValue:
         else:
             raise ValueError(f"Not supported state: {self._state}")
 
-    def create(self, item) -> CompareExchangeValue:
+    def create(self, item) -> CompareExchangeValue[_T]:
         self.__assert_state()
         if self.__value:
             raise RuntimeError(f"The compare exchange value with key {self._key} is already tracked.")
@@ -134,7 +133,9 @@ class CompareExchangeSessionValue:
         elif self._state == CompareExchangeValueState.DELETED:
             raise RuntimeError(f"The compare exchange value with key {self._key} was already deleted")
 
-    def get_command(self, conventions: DocumentConventions):
+    def get_command(
+        self, conventions: DocumentConventions
+    ) -> Optional[Union[DeleteCompareExchangeCommandData, PutCompareExchangeCommandData]]:
         s = self._state
         if s == CompareExchangeValueState.NONE or CompareExchangeValueState.CREATED:
             if not self.__value:
@@ -167,7 +168,7 @@ class CompareExchangeSessionValue:
         else:
             raise ValueError(f"Not supported state: {self._state}")
 
-    def __convert_entity(self, key: str, entity, metadata):
+    def __convert_entity(self, key: str, entity: _T, metadata) -> dict:
         object_node = {constants.CompareExchange.OBJECT_FIELD_NAME: Utils.entity_to_dict(entity, self)}
         if metadata:
             object_node[constants.Documents.Metadata.KEY] = metadata

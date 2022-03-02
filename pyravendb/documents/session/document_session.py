@@ -263,17 +263,17 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         time_series_includes = []
 
         compare_exchange_values_to_include = (
-            include_builder.compare_exchange_values_to_include
-            if include_builder.compare_exchange_values_to_include is not None
+            include_builder._compare_exchange_values_to_include
+            if include_builder._compare_exchange_values_to_include is not None
             else None
         )
 
         result = self.__load_internal(
             object_type,
             [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys,
-            include_builder.documents_to_include if include_builder.documents_to_include else None,
-            include_builder.counters_to_include if include_builder.counters_to_include else None,
-            include_builder.is_all_counters,
+            include_builder._documents_to_include if include_builder._documents_to_include else None,
+            include_builder._counters_to_include if include_builder._counters_to_include else None,
+            include_builder._is_all_counters,
             time_series_includes,
             compare_exchange_values_to_include,
         )
@@ -369,7 +369,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
         try:
             index = Utils.try_get_new_instance(index_type)
-            return self.document_query(object_type, index.index_name, index.is_map_reduce)
+            return self.document_query(index.index_name, None, object_type, index.is_map_reduce)
         except Exception as e:
             raise RuntimeError(f"unable to query index: {index_type.__name__} {e.args[0]}", e)
 
@@ -410,7 +410,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self.query(Query.from_index_name(index_name), object_type)
         raise ValueError("index_name cannot be None or whitespace")
 
-    def query_index_type(self, index_type: Type[_TIndex], object_type: Optional[Type[_T]] = None):
+    def query_index_type(self, index_type: Type[_TIndex], object_type: Optional[Type[_T]] = None) -> DocumentQuery[_T]:
         if index_type is None or not isinstance(index_type, AbstractCommonApiForIndexes):
             return self.query(Query.from_index_type(index_type), object_type)
 
@@ -430,6 +430,18 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         @property
         def cluster_transaction(self) -> ClusterTransactionOperations:
             return self.__session.cluster_session
+
+        def document_query(
+            self,
+            index_name: str = None,
+            collection_name: str = None,
+            object_type: Type[_T] = None,
+            is_map_reduce: bool = False,
+        ) -> DocumentQuery[_T]:
+            return self.__session.document_query(index_name, collection_name, object_type, is_map_reduce)
+
+        def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
+            return self.__session.document_query_from_index_type(index_type, object_type)
 
         def refresh(self, entity: object) -> object:
             document_info = self.__session.documents_by_entity.get(entity)

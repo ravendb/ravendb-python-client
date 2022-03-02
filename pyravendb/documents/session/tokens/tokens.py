@@ -949,21 +949,20 @@ class FacetToken(QueryToken):
             self.__ranges = aggregate_by_field_name__alias__ranges__options_parameter_name[2]
             self.__options_parameter_name = aggregate_by_field_name__alias__ranges__options_parameter_name[3]
             self.__facet_setup_document_id = None
-            self.__aggregations = []
-            return
+            self.__aggregations: List[FacetToken._FacetAggregationToken] = []
 
-        if facet_setup_document_id is not None:
+        elif facet_setup_document_id is not None:
             self.__facet_setup_document_id = facet_setup_document_id
-            self.__aggregate_by_field_name = None
-            self.__alias = None
-            self.__ranges = None
-            self.__options_parameter_name = None
-            return
+            self.__aggregate_by_field_name: Optional[str] = None
+            self.__alias: Optional[str] = None
+            self.__ranges: Optional[List[str]] = None
+            self.__options_parameter_name: Optional[str] = None
 
-        raise ValueError(
-            "Pass either (aggregate_by_field_name, alias, ranges, options_parameter_name) tuple or "
-            "facet_setup_document_id"
-        )
+        else:
+            raise ValueError(
+                "Pass either (aggregate_by_field_name, alias, ranges, options_parameter_name) tuple or "
+                "facet_setup_document_id"
+            )
 
     @property
     def name(self) -> str:
@@ -990,16 +989,8 @@ class FacetToken(QueryToken):
             add_query_parameter = facet__add_query_parameter[1]
             ranges = None
 
-            if isinstance(facet, facets.FacetBase):
-                return facet.to_facet_token(add_query_parameter)
-
-            options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
-            if isinstance(facet, facets.GenericRangeFacet):
-                ranges = []
-                for range_builder in facet.ranges:
-                    ranges.append(facets.GenericRangeFacet.parse(range_builder, add_query_parameter))
-
             if isinstance(facet, facets.Facet):
+                options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
                 token = FacetToken(
                     aggregate_by_field_name__alias__ranges__options_parameter_name=(
                         Utils.quote_key(facet.field_name),
@@ -1008,7 +999,8 @@ class FacetToken(QueryToken):
                         options_parameter_name,
                     )
                 )
-            else:
+            elif isinstance(facet, facets.RangeFacet):
+                options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
                 token = FacetToken(
                     aggregate_by_field_name__alias__ranges__options_parameter_name=(
                         None,
@@ -1017,6 +1009,26 @@ class FacetToken(QueryToken):
                         options_parameter_name,
                     )
                 )
+            elif isinstance(facet, facets.GenericRangeFacet):
+                options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
+                ranges = []
+                for range_builder in facet.ranges:
+                    ranges.append(facets.GenericRangeFacet.parse(range_builder, add_query_parameter))
+                token = FacetToken(
+                    aggregate_by_field_name__alias__ranges__options_parameter_name=(
+                        None,
+                        Utils.quote_key(facet.display_field_name),
+                        ranges,
+                        options_parameter_name,
+                    )
+                )
+
+            elif isinstance(facet, facets.FacetBase):
+                return facet.to_facet_token(add_query_parameter)
+
+            else:
+                raise TypeError(f"Unexpected facet type {facet.__class__.__name__}")
+
             FacetToken.__apply_aggregations(facet, token)
             return token
 
@@ -1046,6 +1058,50 @@ class FacetToken(QueryToken):
             if facet.options is not None and facet.options != FacetOptions.default_options()
             else None
         )
+
+    def write_to(self, writer: List[str]) -> None:
+        writer.append("facet(")
+
+        if self.__facet_setup_document_id is not None:
+            writer.append("id(")
+            writer.append(self.__facet_setup_document_id)
+            writer.append("'))")
+            return
+
+        first_argument = False
+
+        if self.__aggregate_by_field_name is not None:
+            writer.append(self.__aggregate_by_field_name)
+        elif self.__ranges is not None:
+            first_in_range = True
+
+            for range in self.__ranges:
+                if not first_in_range:
+                    writer.append(", ")
+
+                first_in_range = False
+                writer.append(range)
+
+        else:
+            first_argument = True
+
+        for aggregation in self.__aggregations:
+            if not first_argument:
+                writer.append(", ")
+            first_argument = False
+            aggregation.write_to(writer)
+
+        if not self.__options_parameter_name.isspace():
+            writer.append(", $")
+            writer.append(self.__options_parameter_name)
+
+        writer.append(")")
+
+        if not self.__alias or self.__alias.isspace() or self.__alias == self.__aggregate_by_field_name:
+            return
+
+        writer.append(" as ")
+        writer.append(self.__alias)
 
     class _FacetAggregationToken(QueryToken):
         def __init__(self, field_name: str, field_display_name: str, aggregation: FacetAggregation):

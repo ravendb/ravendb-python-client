@@ -14,7 +14,7 @@ class IndexQueryBase(Generic[_T]):
         self.__page_size = constants.int_max
         self.__page_size_set = False
         self.query: Union[None, str] = None
-        self.query_parameters: Union[None, _T] = None
+        self.query_parameters: Union[None, Parameters] = None
         self.projection_behavior: Union[None, ProjectionBehavior] = None
         self.start: Union[None, int] = None
         self.wait_for_non_stale_results: Union[None, bool] = None
@@ -130,16 +130,16 @@ class IndexQuery(IndexQueryWithParameters[Parameters]):
     def get_query_hash(self) -> str:
         hasher = HashCalculator()
         try:
-            hasher.write_str(self.query)
-            hasher.write_bool(self.wait_for_non_stale_results)
-            hasher.write_bool(self.skip_duplicate_checking)
-            hasher.write_int(
+            hasher.write(self.query)
+            hasher.write(self.wait_for_non_stale_results)
+            hasher.write(self.skip_duplicate_checking)
+            hasher.write(
                 (self.wait_for_non_stale_results_timeout.total_seconds() * 1000)
                 if self.wait_for_non_stale_results_timeout
                 else 0
             )
-            hasher.write_int(self.start)
-            hasher.write_int(self.page_size)
+            hasher.write(self.start)
+            hasher.write(self.page_size)
             hasher.write_parameters(self.query_parameters)
             return hasher.hash
         except Exception as e:
