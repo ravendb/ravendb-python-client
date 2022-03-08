@@ -214,7 +214,7 @@ class IndexDefinition:
             "State": self.state,
             "LockMode": self.lock_mode,
             "AdditionalSources": self.additional_sources,
-            "AdditionalAssemblies": set(map(lambda x: x.to_json(), self.additional_assemblies))
+            "AdditionalAssemblies": list(map(lambda x: x.to_json(), self.additional_assemblies))
             if self.additional_assemblies
             else None,
             "Maps": self.maps,
@@ -374,7 +374,7 @@ class AdditionalAssembly:
         return AdditionalAssembly(assembly_path=assembly_path, usings=usings)
 
     @staticmethod
-    def from_nu_get(
+    def from_NuGet(
         package_name: str,
         package_version: str,
         package_source_url: Optional[str] = None,

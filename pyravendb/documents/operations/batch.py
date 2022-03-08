@@ -4,6 +4,7 @@ from typing import Union, List, Dict, TYPE_CHECKING, Optional
 from pyravendb import constants
 from pyravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
 from pyravendb.documents.operations.patch import PatchStatus
+from pyravendb.documents.session.event_args import AfterSaveChangesEventArgs
 from pyravendb.documents.session.misc import TransactionMode
 from pyravendb.documents.session.document_info import DocumentInfo
 from pyravendb.exceptions.raven_exceptions import ClientVersionMismatchException
@@ -210,7 +211,7 @@ class BatchOperation:
 
             if document_info.entity is not None:
                 self.__session.entity_to_json.populate_entity(document_info.entity, key, document_info.document)
-                self.__session.on_after_save_changes(self.__session, document_info.key, document_info.entity)
+                self.__session.__on_after_save_changes(self.__session, document_info.key, document_info.entity)
 
     def __handle_delete(self, batch_result: dict) -> None:
         self.__handle_delete_internal(batch_result, CommandType.DELETE)
@@ -246,7 +247,7 @@ class BatchOperation:
         document_info.change_vector = change_vector
 
         self.__handle_metadata_modifications(document_info, batch_result, key, change_vector)
-        self.__session.on_after_save_changes(self.__session, document_info.key, document_info.entity)
+        self.__session.__on_after_save_changes(self.__session, document_info.key, document_info.entity)
 
     def __handle_put(self, index: int, batch_result: dict, is_deferred: bool) -> None:
         entity = None
@@ -278,7 +279,9 @@ class BatchOperation:
         if entity:
             self.__session.generate_entity_id_on_the_client.try_set_identity(entity, key)
 
-        self.__session.on_after_save_changes(self.__session, document_info.key, document_info.entity)
+        self.__session.after_save_changes_invoke(
+            AfterSaveChangesEventArgs(self.__session, document_info.key, document_info.entity)
+        )
 
     def __handle_metadata_modifications(
         self, document_info: DocumentInfo, batch_result: dict, key: str, change_vector: str

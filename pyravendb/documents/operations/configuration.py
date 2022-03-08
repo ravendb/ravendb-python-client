@@ -6,14 +6,15 @@ from typing import Union, Optional, TYPE_CHECKING
 
 import requests
 
-from pyravendb.documents.operations.definitions import VoidMaintenanceOperation
+from pyravendb.documents.operations.definitions import VoidMaintenanceOperation, MaintenanceOperation
 from pyravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from pyravendb.http.server_node import ServerNode
 from pyravendb.http.topology import RaftCommand
+from pyravendb.serverwide.operations.common import ServerOperation, VoidServerOperation
 from pyravendb.util.util import RaftIdGenerator
+from pyravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
 
 if TYPE_CHECKING:
-    from pyravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
     from pyravendb.documents.conventions.document_conventions import DocumentConventions
 
 
@@ -56,27 +57,33 @@ class ClientConfiguration:
             "Etag": self.etag,
             "Disabled": self.disabled,
             "MaxNumberOfRequestsPerSession": self.max_number_of_requests_per_session,
-            "ReadBalanceBehavior": self.read_balance_behavior,
-            "LoadBalanceBehavior": self.load_balance_behavior,
+            "ReadBalanceBehavior": self.read_balance_behavior.value
+            if self.read_balance_behavior
+            else ReadBalanceBehavior.NONE,
+            "LoadBalanceBehavior": self.load_balance_behavior.value
+            if self.load_balance_behavior
+            else LoadBalanceBehavior.NONE,
             "LoadBalancerContextSeed": self.load_balancer_context_seed,
         }
 
     @staticmethod
-    def from_json(json_dict: dict) -> ClientConfiguration:
+    def from_json(json_dict: dict) -> Optional[ClientConfiguration]:
+        if json_dict is None:
+            return None
         config = ClientConfiguration()
         config.__identity_parts_separator = json_dict["IdentityPartsSeparator"]
         config.etag = json_dict["Etag"]
         config.disabled = json_dict["Disabled"]
         config.max_number_of_requests_per_session = json_dict["MaxNumberOfRequestsPerSession"]
-        config.read_balance_behavior = json_dict["ReadBalanceBehavior"]
-        config.load_balance_behavior = json_dict["LoadBalanceBehavior"]
+        config.read_balance_behavior = ReadBalanceBehavior(json_dict["ReadBalanceBehavior"])
+        config.load_balance_behavior = LoadBalanceBehavior(json_dict["LoadBalanceBehavior"])
         config.load_balancer_context_seed = json_dict["LoadBalancerContextSeed"]
 
         return config
 
 
-class GetClientConfigurationOperation:
-    def get_command(self, **kwargs) -> RavenCommand:
+class GetClientConfigurationOperation(MaintenanceOperation):
+    def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[GetClientConfigurationOperation.Result]":
         return self.GetClientConfigurationCommand()
 
     class GetClientConfigurationCommand(RavenCommand):
@@ -86,7 +93,7 @@ class GetClientConfigurationOperation:
         def is_read_request(self) -> bool:
             return False
 
-        def create_request(self, node: ServerNode) -> (requests.Request):
+        def create_request(self, node: ServerNode) -> requests.Request:
             return requests.Request(method="GET", url=f"{node.url}/databases/{node.database}/configuration/client")
 
         def set_response(self, response: str, from_cache: bool) -> None:
@@ -124,7 +131,7 @@ class PutClientConfigurationOperation(VoidMaintenanceOperation):
             if config is None:
                 raise ValueError("Configuration cannot be None")
 
-            self.__configuration = json.dumps(config.to_json())
+            self.__configuration = json.dumps(config.to_json(), default=conventions.json_default_method)
 
         def create_request(self, node: ServerNode) -> requests.Request:
             return requests.Request(
@@ -133,3 +140,50 @@ class PutClientConfigurationOperation(VoidMaintenanceOperation):
 
         def raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
+
+
+class PutServerWideClientConfigurationOperation(VoidServerOperation):
+    def __init__(self, config: ClientConfiguration):
+        if config is None:
+            raise ValueError("Configuration cannot be None")
+        self.__configuration = config
+
+    def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
+        return self.__PutServerWideClientConfigurationCommand(conventions, self.__configuration)
+
+    class __PutServerWideClientConfigurationCommand(VoidRavenCommand, RaftCommand):
+        def __init__(self, conventions: "DocumentConventions", config: ClientConfiguration):
+            super().__init__()
+            if conventions is None:
+                raise ValueError("Conventions cannot be None")
+
+            if config is None:
+                raise ValueError("Configuration cannot be None")
+
+            self.__configuration = json.dumps(config.to_json(), default=conventions.json_default_method)
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request("PUT", f"{node.url}/admin/configuration/client", data=self.__configuration)
+
+        def raft_unique_request_id(self) -> str:
+            return RaftIdGenerator.new_id()
+
+
+class GetServerWideClientConfigurationOperation(ServerOperation[ClientConfiguration]):
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[ClientConfiguration]:
+        return GetServerWideClientConfigurationOperation.__GetServerWideClientConfigurationCommand()
+
+    class __GetServerWideClientConfigurationCommand(RavenCommand[ClientConfiguration]):
+        def __init__(self):
+            super().__init__(ClientConfiguration)
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(method="GET", url=f"{node.url}/configuration/client")
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                return
+            self.result = ClientConfiguration.from_json(json.loads(response))

@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Union, TypeVar, Generic, TYPE_CHECKING
 from pyravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
-    from pyravendb.documents.session.tokens.tokens import DeclareToken, LoadToken
+    from pyravendb.documents.session.tokens.query_tokens.definitions import DeclareToken, LoadToken
 
 _TResult = TypeVar("_TResult")
 _TIncludes = TypeVar("_TIncludes")

@@ -114,7 +114,8 @@ class HeadDocumentCommand(RavenCommand[str]):
         self.result = None
 
 
-class GetDocumentsCommand(RavenCommand):
+# todo: refactor, get rid of the options
+class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
     class GetDocumentsCommandOptionsBase:
         def __init__(
             self,
@@ -182,6 +183,73 @@ class GetDocumentsCommand(RavenCommand):
             self.matches = matches
             self.exclude = exclude
             self.metadata_only = metadata_only
+
+    @staticmethod
+    def for_page(start: int, page_size: int):
+        return GetDocumentsCommand(GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(start, page_size))
+
+    @staticmethod
+    def for_id(
+        key: str,
+        includes: List[str] = None,
+        metadata_only: bool = False,
+        counter_includes: List[str] = None,
+    ):
+        return GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsByIdCommandOptions(key, includes, metadata_only, counter_includes, None)
+        )
+
+    @staticmethod
+    def for_ids(
+        keys: List[str],
+        includes: List[str] = None,
+        counter_includes: List[str] = None,
+        time_series_includes: List[str] = None,
+        compare_exchange_value_includes: List[str] = None,
+        metadata_only: bool = False,
+    ):
+        return GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
+                keys, includes, metadata_only, time_series_includes, compare_exchange_value_includes, counter_includes
+            )
+        )
+
+    @staticmethod
+    def for_ids_all_counters(
+        keys: List[str],
+        includes: List[str] = None,
+        include_all_counters: bool = None,
+        time_series_includes: List[str] = None,
+        compare_exchange_value_includes: List[str] = None,
+        metadata_only: bool = False,
+    ):
+        return GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
+                keys,
+                includes,
+                metadata_only,
+                time_series_includes,
+                compare_exchange_value_includes,
+                None,
+                include_all_counters,
+            )
+        )
+
+    @staticmethod
+    def for_start_with(
+        start_with: str,
+        start_after: str = None,
+        matches: str = None,
+        exclude: str = None,
+        start: int = None,
+        page_size: int = None,
+        metadata_only: bool = None,
+    ):
+        return GetDocumentsCommand(
+            GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(
+                start, page_size, start_with, start_after, matches, exclude, metadata_only
+            )
+        )
 
     def __init__(self, options: GetDocumentsCommandOptionsBase):
         super().__init__(GetDocumentsResult)
@@ -287,10 +355,7 @@ class GetDocumentsCommand(RavenCommand):
             return http_post
 
     def set_response(self, response: str, from_cache: bool) -> None:
-        if response is None:
-            self.result = None
-            return
-        self.result = GetDocumentsResult.from_json(json.loads(response))
+        self.result = GetDocumentsResult.from_json(json.loads(response)) if response is not None else None
 
 
 class NextHiLoCommand(RavenCommand[HiLoResult]):

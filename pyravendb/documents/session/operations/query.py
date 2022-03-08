@@ -7,7 +7,7 @@ from pyravendb import constants
 from pyravendb.documents.commands.query import QueryCommand
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.documents.queries.query import QueryResult
-from pyravendb.documents.session.tokens.tokens import FieldsToFetchToken
+from pyravendb.documents.session.tokens.query_tokens.definitions import FieldsToFetchToken
 from pyravendb.exceptions.documents.indexes import IndexDoesNotExistException
 from pyravendb.tools.utils import Stopwatch, Utils
 
@@ -81,10 +81,7 @@ class QueryOperation:
 
     def enter_query_context(self) -> None:  # todo: make it return Closeable
         self.__start_timing()
-        if not self.__index_query.wait_for_non_stale_results:
-            return None
-
-        raise NotImplementedError()
+        return None
 
     # def complete_as_array(self, object_type: Type[_T]) -> List[_T]:
     #    query_result = self.__current_query_results.create_snapshot()

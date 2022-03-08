@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Dict, Generic, TypeVar, Union, TYPE_CHECKING
 
 from pyravendb import constants
-from pyravendb.documents.session.tokens.tokens import MoreLikeThisToken
+from pyravendb.documents.session.tokens.query_tokens.definitions import MoreLikeThisToken
 
 
 _T = TypeVar("_T")

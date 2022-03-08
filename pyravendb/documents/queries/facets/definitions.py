@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Union, Set, Dict, Callable, Optional, List, TYPE_CHECKING
 
 from pyravendb.documents.queries.facets.misc import FacetOptions, FacetAggregation
-from pyravendb.documents.session.tokens.tokens import FacetToken
+from pyravendb.documents.session.tokens.query_tokens.facets import FacetToken
 
 if TYPE_CHECKING:
     from pyravendb.documents.queries.facets.builders import RangeBuilder

@@ -46,7 +46,7 @@ class TestConversion(TestBase):
             args.entity.val = 2
 
         with self.store.open_session() as session:
-            session.on_before_store = update_item
+            session.add_before_store(update_item)
             session.store(Item(1), "item/1")
             session.save_changes()
 

@@ -74,3 +74,29 @@ class Employee:
         self.reports_to = reports_to
         self.notes = notes
         self.territories = territories
+
+
+class Product:
+    def __init__(
+        self,
+        Id: str = None,
+        name: str = None,
+        supplier: str = None,
+        category: str = None,
+        quantity_per_unit: str = None,
+        price_per_unit: float = None,
+        units_in_stock: int = None,
+        units_on_order: int = None,
+        discontinued: bool = None,
+        reorder_level: int = None,
+    ):
+        self.Id = Id
+        self.name = name
+        self.supplier = supplier
+        self.category = category
+        self.quantity_per_unit = quantity_per_unit
+        self.price_per_unit = price_per_unit
+        self.units_in_stock = units_in_stock
+        self.units_on_order = units_on_order
+        self.discontinued = discontinued
+        self.reorder_level = reorder_level

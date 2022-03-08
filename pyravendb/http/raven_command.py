@@ -4,7 +4,7 @@ import datetime
 import http
 from http import HTTPStatus
 from abc import abstractmethod
-from typing import Union, Optional, Callable, Generic, TypeVar, Dict
+from typing import Union, Optional, Callable, Generic, TypeVar, Dict, Type
 from enum import Enum
 
 import requests
@@ -35,7 +35,7 @@ class RavenCommand(Generic[ResultClass]):
         if not ((result_class is not None or void_command) ^ (copy is not None)):
             raise ValueError("Pass either result_class or RavenCommand copy.")
         is_not_copy = result_class or void_command
-        self._result_class: type = result_class if is_not_copy else copy._result_class
+        self._result_class: Type[ResultClass] = result_class if is_not_copy else copy._result_class
         self.result: Union[None, ResultClass] = None
         self.status_code: Union[None, int] = None
 
