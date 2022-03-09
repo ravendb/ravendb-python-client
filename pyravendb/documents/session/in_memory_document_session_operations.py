@@ -795,38 +795,32 @@ class InMemoryDocumentSessionOperations:
 
         raise NonUniqueObjectException(f"Attempted to associate a different object with id '{key}'.")
 
+    def track_entity_document_info(self, entity_type: Type[_T], document_found: DocumentInfo) -> _T:
+        return self.track_entity(
+            entity_type, document_found.key, document_found.document, document_found.metadata, self.no_tracking
+        )
+
     def track_entity(
         self,
         entity_type: Type[_T],
-        key: str = None,
-        document: dict = None,
-        metadata: dict = None,
-        no_tracking: bool = False,
-        document_found: Optional[DocumentInfo] = None,
+        key: Optional[str],
+        document: dict,
+        metadata: dict,
+        no_tracking: bool,
     ) -> _T:
-        if document_found:
-            key = document_found.key
-            document = document_found.document
-            metadata = document_found.metadata
-            no_tracking = (
-                self.no_tracking if no_tracking is None else no_tracking
-            )  # todo: remove if when rebuilding Query
-        else:
-            if key is None or document is None or metadata is None:
-                raise ValueError(
-                    "Pass either (entity_type, DocumentInfo) or (entity_type, key, document, metadata and no_tracking)"
-                )
-        no_tracking = no_tracking or self.no_tracking
+        no_tracking = self.no_tracking or no_tracking
         if not key:
             return self.__deserialize_from_transformer(entity_type, None, document, False)
+
         doc_info = self.documents_by_id.get(key)
-        if doc_info:
+        if doc_info is not None:
             if doc_info.entity is None:
                 doc_info.entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
+
             if not no_tracking:
-                if key in self.included_documents_by_id:
-                    self.included_documents_by_id.pop(key)
-                self.documents_by_entity[doc_info.entity] = document_found
+                self.included_documents_by_id.pop(key, None)
+                self.documents_by_entity[doc_info.entity] = doc_info
+
             return doc_info.entity
 
         doc_info = self.included_documents_by_id.get(key)
@@ -835,9 +829,8 @@ class InMemoryDocumentSessionOperations:
                 doc_info.entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
 
             if not no_tracking:
-                if key in self.included_documents_by_id:
-                    self.included_documents_by_id.pop(key)
-                self.documents_by_id.update({doc_info.key: doc_info})
+                self.included_documents_by_id.pop(key, None)
+                self.documents_by_id[doc_info.key] = doc_info
                 self.documents_by_entity[doc_info.entity] = doc_info
 
             return doc_info.entity
@@ -845,7 +838,7 @@ class InMemoryDocumentSessionOperations:
         entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
 
         change_vector = metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
-        if not change_vector:
+        if change_vector is None:
             raise ValueError(f"Document {key} must have a Change Vector")
 
         if not no_tracking:
@@ -854,6 +847,7 @@ class InMemoryDocumentSessionOperations:
             )
             self.documents_by_id[new_document_info.key] = new_document_info
             self.documents_by_entity[new_document_info.entity] = new_document_info
+
         return entity
 
     def delete(self, key_or_entity: Union[str, object], expected_change_vector: Optional[str] = None) -> None:

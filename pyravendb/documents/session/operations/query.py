@@ -7,12 +7,13 @@ from pyravendb import constants
 from pyravendb.documents.commands.query import QueryCommand
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.documents.queries.query import QueryResult
+from pyravendb.documents.session.event_args import BeforeConversionToEntityEventArgs, AfterConversionToEntityEventArgs
 from pyravendb.documents.session.tokens.query_tokens.definitions import FieldsToFetchToken
 from pyravendb.exceptions.documents.indexes import IndexDoesNotExistException
 from pyravendb.tools.utils import Stopwatch, Utils
 
 if TYPE_CHECKING:
-    from pyravendb.documents.session import InMemoryDocumentSessionOperations
+    from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class QueryOperation:
@@ -191,9 +192,12 @@ class QueryOperation:
         if object_type == dict:
             return document
 
-        document = session.on_before_conversion_to_entity(key, object_type, document, session)
+        session.before_conversion_to_entity_invoke(
+            BeforeConversionToEntityEventArgs(session, key, object_type, document)
+        )
+
         result = Utils.initialize_object(document, object_type)
-        session.on_after_conversion_to_entity(key, document, result, session)
+        session.after_conversion_to_entity_invoke(AfterConversionToEntityEventArgs(session, key, document, result))
 
         return result
 

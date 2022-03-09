@@ -1,7 +1,5 @@
-import unittest
-
-from pyravendb.documents.indexes.definitions import IndexDefinition, IndexFieldOptions, FieldIndexing
-from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.indexes.definitions import FieldIndexing
+from pyravendb.documents.indexes.index_creation import AbstractIndexCreationTask
 from pyravendb.documents.queries.misc import SearchOperator
 from pyravendb.tests.test_base import TestBase
 from datetime import datetime
@@ -16,13 +14,14 @@ class LastFm(object):
         self.tags = tags if tags is not None else []
 
 
-class LastFmAnalyzed(object):
+class LastFmAnalyzed(AbstractIndexCreationTask):
     class Result(object):
         def __init__(self, query):
             self.query = query
 
     def __init__(self):
-        index_map = (
+        super().__init__()
+        self.map = (
             "from song in docs.LastFms "
             "select new {"
             "query = new object[] {"
@@ -32,15 +31,8 @@ class LastFmAnalyzed(object):
             "song.title,"
             "song.track_id}}"
         )
-
-        self.index_definition = IndexDefinition(
-            name=LastFmAnalyzed.__name__,
-            fields={"query": IndexFieldOptions(indexing=FieldIndexing.SEARCH)},
-        )
-        self.index_definition.maps = index_map
-
-    def execute(self, store):
-        store.maintenance.send(PutIndexesOperation(self.index_definition))
+        self._analyze("query", "StandardAnalyzer")
+        self._index("query", FieldIndexing.SEARCH)
 
 
 class FullTextSearchTest(TestBase):
@@ -71,44 +63,39 @@ class FullTextSearchTest(TestBase):
         super(FullTextSearchTest, self).tearDown()
         self.delete_all_topology_files()
 
-    @unittest.skip("Full text search")
     def test_full_text_search_one(self):
         with self.store.open_session() as session:
             query = list(
-                session.query(
-                    object_type=LastFm,
-                    wait_for_non_stale_results=True,
-                    index_name=LastFmAnalyzed.__name__,
-                ).search("query", search_terms="Me")
+                session.query_index_type(LastFmAnalyzed, LastFm).wait_for_non_stale_results().search("query", "Me")
             )
             self.assertTrue("Me" in str(query[0].title) and "Me" in str(query[1].title))
 
-    @unittest.skip("Full text search")
     def test_full_text_search_two(self):
         with self.store.open_session() as session:
             query = list(
-                session.query(
-                    object_type=LastFm,
-                    wait_for_non_stale_results=True,
-                    index_name=LastFmAnalyzed.__name__,
+                session.query_index_type(
+                    LastFmAnalyzed,
+                    LastFm,
                 )
-                .search("query", search_terms="Me")
-                .search("query", search_terms="Bobo")
+                .wait_for_non_stale_results()
+                .search("query", "Me")
+                .or_else()
+                .search("query", "Bobo")
             )
             self.assertEqual(len(query), 3)
 
-    @unittest.skip("Full text search")
     def test_full_text_search_with_boost(self):
         with self.store.open_session() as session:
             query = list(
-                session.query(
-                    object_type=LastFm,
-                    wait_for_non_stale_results=True,
-                    index_name=LastFmAnalyzed.__name__,
+                session.query_index_type(
+                    LastFmAnalyzed,
+                    LastFm,
                 )
-                .search("query", search_terms="Me")
+                .wait_for_non_stale_results()
+                .search("query", "Me")
                 .boost(10)
-                .search("query", search_terms="Bobo")
+                .or_else()
+                .search("query", "Bobo")
                 .boost(2)
             )
             self.assertTrue(
@@ -116,13 +103,14 @@ class FullTextSearchTest(TestBase):
             )
 
             query = list(
-                session.query(
-                    object_type=LastFm,
-                    wait_for_non_stale_results=True,
-                    index_name=LastFmAnalyzed.__name__,
+                session.query_index_type(
+                    LastFmAnalyzed,
+                    LastFm,
                 )
+                .wait_for_non_stale_results()
                 .search("query", search_terms="Me")
                 .boost(2)
+                .or_else()
                 .search("query", search_terms="Bobo")
                 .boost(10)
             )
@@ -130,15 +118,15 @@ class FullTextSearchTest(TestBase):
                 "Me" in str(query[1].title) and "Me" in str(query[2].title) and str(query[0].title) == "Spanish Grease"
             )
 
-    @unittest.skip("Full text search")
     def test_full_text_search_with_and_operator(self):
         with self.store.open_session() as session:
             query = list(
-                session.query(
-                    object_type=LastFm,
-                    wait_for_non_stale_results=True,
-                    index_name=LastFmAnalyzed.__name__,
-                ).search("query", search_terms="Me Come", operator=SearchOperator.AND)
+                session.query_index_type(
+                    LastFmAnalyzed,
+                    LastFm,
+                )
+                .wait_for_non_stale_results()
+                .search("query", "Me Come", SearchOperator.AND)
             )
             assert len(query) == 1
             self.assertEqual(query[0].title, "Come With Me")

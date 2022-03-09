@@ -37,6 +37,6 @@ class GroupByDocumentQuery(Generic[_T]):
 
         return self.__query
 
-    def select_count(self, projected_name: str) -> DocumentQuery[_T]:
+    def select_count(self, projected_name: str = "count") -> DocumentQuery[_T]:
         self.__query._group_by_count(projected_name)
         return self.__query

@@ -1,7 +1,7 @@
-import unittest
 from typing import Optional
 
 from pyravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from pyravendb.documents.session.query_group_by import GroupByField
 from pyravendb.infrastructure.entities import User
 from pyravendb.tests.test_base import TestBase
 
@@ -11,6 +11,13 @@ class Article:
         self.title = title
         self.description = description
         self.deleted = deleted
+
+
+class ReduceResult:
+    def __init__(self, count: Optional[int] = None, name: Optional[str] = None, age: Optional[int] = None):
+        self.count = count
+        self.name = name
+        self.age = age
 
 
 class TestQuery(TestBase):
@@ -74,7 +81,6 @@ class TestQuery(TestBase):
             self.assertEqual(1, len(users))
             self.assertEqual("Tarzan", users[0].name)
 
-    @unittest.skip("Projections / select_fields ")
     def test_query_map_reduce_index(self):
         self.__add_users()
         with self.store.open_session() as session:
@@ -84,4 +90,41 @@ class TestQuery(TestBase):
             self.assertEqual("John", results[0].name)
 
             self.assertEqual(1, results[1].count)
+            self.assertEqual("Tarzan", results[1].name)
+
+    def test_query_map_reduce_with_count(self):
+        self.__add_users()
+        with self.store.open_session() as session:
+            results = list(
+                session.query(object_type=User)
+                .group_by("name")
+                .select_key()
+                .select_count()
+                .order_by_descending("count")
+                .of_type(ReduceResult)
+            )
+
+            self.assertEqual(2, results[0].count)
+            self.assertEqual("John", results[0].name)
+
+            self.assertEqual(1, results[1].count)
+            self.assertEqual("Tarzan", results[1].name)
+
+    def test_query_map_reduce_with_sum(self):
+        self.__add_users()
+
+        with self.store.open_session() as session:
+            results = list(
+                session.query(object_type=User)
+                .group_by("name")
+                .select_key()
+                .select_sum(GroupByField("age"))
+                .order_by_descending("age")
+                .of_type(ReduceResult)
+            )
+
+            self.assertEqual(8, results[0].age)
+            self.assertEqual("John", results[0].name)
+
+            self.assertEqual(2, results[1].age)
             self.assertEqual("Tarzan", results[1].name)

@@ -90,6 +90,14 @@ class AbstractGenericIndexCreationTask(
         self._pattern_references_collection_name: Union[None, str] = None
 
     @property
+    def reduce(self) -> str:
+        return self._reduce
+
+    @reduce.setter
+    def reduce(self, value: str):
+        self._reduce = value
+
+    @property
     def is_map_reduce(self) -> bool:
         return self._reduce is not None
 
@@ -185,6 +193,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
         for key, value in values.items():
             field = index_definition.fields.get(key, IndexFieldOptions())
             action(field, value)
+            index_definition.fields[key] = field  # if the field wasn't indexed yet, we need to set it.
 
     def to_index_definition(self, conventions: DocumentConventions, validate_map: bool = True) -> _T_IndexDefinition:
         try:

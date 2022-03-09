@@ -91,7 +91,7 @@ class LoadStartingWithOperation:
                 return []
 
             final_results = [
-                self.__session.track_entity(object_type, DocumentInfo.get_new_document_info(document))
+                self.__session.track_entity_document_info(object_type, DocumentInfo.get_new_document_info(document))
                 for document in self.__results.results
             ]
         else:
@@ -108,6 +108,6 @@ class LoadStartingWithOperation:
 
         doc = self.__session.documents_by_id.get(key)
         if doc:
-            return self.__session.track_entity(object_type, document_found=doc)
+            return self.__session.track_entity_document_info(object_type, doc)
 
         return None

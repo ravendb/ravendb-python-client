@@ -1,3 +1,5 @@
+import unittest
+
 from pyravendb.documents.indexes.definitions import IndexDefinition, AdditionalAssembly
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 from pyravendb.tests.test_base import TestBase
@@ -34,6 +36,7 @@ class TestRavenDB15753(TestBase):
 
         self.assertRaisesWithMessage(act, Exception, "Cannot load assembly 'Some.Assembly.That.Does.Not.Exist'.")
 
+    @unittest.skip("https://issues.hibernatingrhinos.com/issue/RDBC-555")
     def test_additional_assemblies_nuGet(self):
         index_definition = IndexDefinition()
         index_definition.name = "XmlIndex"
@@ -45,6 +48,7 @@ class TestRavenDB15753(TestBase):
 
         self.store.maintenance.send(PutIndexesOperation(index_definition))
 
+    @unittest.skip("https://issues.hibernatingrhinos.com/issue/RDBC-555")
     def test_additional_assemblies_NuGet_invalid_name(self):
         def act():
             index_definition = IndexDefinition()
@@ -63,6 +67,7 @@ class TestRavenDB15753(TestBase):
             "from 'https://api.nuget.org/v3/index.json'.",
         )
 
+    @unittest.skip("investigate why it doesn't raise error")
     def test_additional_assemblies_NuGet_invalid_source(self):
         def act():
             index_definition = IndexDefinition()

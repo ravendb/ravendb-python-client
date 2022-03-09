@@ -297,19 +297,13 @@ class AbstractDocumentQuery(Generic[_T]):
             if fields_or_field_names
             else []
         )
+        fields.insert(0, field)
 
         if not self._from_token.dynamic:
             raise RuntimeError("group_by only works with dynamic queries")
 
         self.__assert_no_raw_query()
         self._is_group_by = True
-
-        field_name = self.__ensure_valid_field_name(fields[0].field, False)
-
-        self._group_by_tokens.append(GroupByToken.create(field_name, field.method))
-
-        if not fields:
-            return
 
         for item in fields:
             field_name = self.__ensure_valid_field_name(item.field, False)
@@ -2048,7 +2042,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         # todo: self._counter_includes_tokens = self._counter_includes_tokens
         # todo: self._time_series_includes_tokens = self._time_series_includes_tokens
         query._compare_exchange_includes_tokens = self._compare_exchange_includes_tokens
-        query._root_types = set(self._object_type)
+        query._root_types = {self._object_type}
         query._before_query_executed_callback = self._before_query_executed_callback
         query._after_query_executed_callback = self._after_query_executed_callback
         query._after_stream_executed_callback = self._after_stream_executed_callback

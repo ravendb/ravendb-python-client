@@ -8,6 +8,7 @@ from pyravendb.documents.session.event_args import (
 )
 from pyravendb.exceptions import exceptions
 from pyravendb.documents.session.document_info import DocumentInfo
+from pyravendb.exceptions.exceptions import InvalidOperationException
 from pyravendb.tools.projection import create_entity_with_mapper
 from pyravendb.tools.utils import Utils, _DynamicStructure
 from copy import deepcopy
@@ -148,18 +149,21 @@ class EntityToJson:
                     object_type = object_from_metadata
                     is_inherit = True
                 elif object_type is not object_from_metadata:
-                    # todo: Try to parse if we use projection
-                    raise exceptions.InvalidOperationException(
-                        f"Cannot covert document from type {object_from_metadata} to {object_type}"
-                    )
+                    # todo: projection
+                    if not all([name in object_from_metadata.__dict__ for name in object_type.__dict__]):
+                        raise exceptions.InvalidOperationException(
+                            f"Cannot covert document from type {object_from_metadata} to {object_type}"
+                        )
 
         if nested_object_types is None and is_inherit:
             entity = Utils.convert_json_dict_to_object(document, object_type)
         else:
             entity = _DynamicStructure(**document)
             entity.__class__ = object_type
-
-            entity = Utils.initialize_object(document, object_type)
+            try:
+                entity = Utils.initialize_object(document, object_type)
+            except TypeError as e:
+                raise InvalidOperationException("Probably projection error", e)
 
             if nested_object_types:
                 for key in nested_object_types:
