@@ -23,7 +23,7 @@ from pyravendb.documents.conventions.document_conventions import DocumentConvent
 from pyravendb.documents.indexes.spatial import SpatialUnits, SpatialRelation
 from pyravendb.documents.queries.explanation import Explanations, ExplanationOptions
 from pyravendb.documents.queries.facets.builders import FacetBuilder
-from pyravendb.documents.queries.facets.facet import FacetBase
+from pyravendb.documents.queries.facets.definitions import FacetBase
 from pyravendb.documents.queries.facets.queries import AggregationDocumentQuery, AggregationRawDocumentQuery
 from pyravendb.documents.queries.group_by import GroupBy
 from pyravendb.documents.queries.highlighting import QueryHighlightings, HighlightingOptions, Highlightings
@@ -47,14 +47,16 @@ from pyravendb.documents.queries.suggestions import (
     SuggestionBuilder,
 )
 from pyravendb.documents.queries.utils import QueryFieldUtil
+from pyravendb.documents.session.event_args import BeforeQueryEventArgs
 from pyravendb.documents.session.loaders.include import IncludeBuilderBase, QueryIncludeBuilder
-from pyravendb.documents.session.misc import MethodCall, CmpXchg, OrderingType
+from pyravendb.documents.session.misc import MethodCall, CmpXchg, OrderingType, DocumentQueryCustomization
 from pyravendb.documents.session.operations.lazy import LazyQueryOperation
 from pyravendb.documents.session.operations.query import QueryOperation
 from pyravendb.documents.session.query_group_by import GroupByDocumentQuery
 from pyravendb.documents.session.tokens.misc import WhereOperator
-from pyravendb.documents.session.tokens.query_token import QueryToken
-from pyravendb.documents.session.tokens.tokens import (
+from pyravendb.documents.session.tokens.query_tokens.facets import FacetToken
+from pyravendb.documents.session.tokens.query_tokens.query_token import QueryToken
+from pyravendb.documents.session.tokens.query_tokens.definitions import (
     DeclareToken,
     LoadToken,
     FromToken,
@@ -79,7 +81,6 @@ from pyravendb.documents.session.tokens.tokens import (
     DistinctToken,
     ShapeToken,
     SuggestToken,
-    FacetToken,
 )
 from pyravendb.documents.session.utils.document_query import DocumentQueryHelper
 from pyravendb.documents.session.utils.includes_util import IncludesUtil
@@ -192,6 +193,18 @@ class AbstractDocumentQuery(Generic[_T]):
         self._the_session: "DocumentSession"
         return self._the_session
 
+    @property
+    def __default_timeout(self) -> datetime.timedelta:
+        return self.conventions.wait_for_non_stale_results_timeout
+
+    def _to_string(self) -> str:
+        """
+        Should be used only for testing
+        Overrides of __str__ cause side effects during debugging
+        @return: str
+        """
+        return self.__to_string(False)
+
     def _using_default_operator(self, operator: QueryOperator) -> None:
         if not self._where_tokens:
             raise RuntimeError("Default operator can only be set before any where clause is added")
@@ -205,6 +218,9 @@ class AbstractDocumentQuery(Generic[_T]):
                 self._timeout = wait_timeout
             return
 
+        self._the_wait_for_non_stale_results = True
+        self._timeout = wait_timeout or self.__default_timeout
+
     @property
     def lazy_query_operation(self) -> LazyQueryOperation:
         if self._query_operation is None:
@@ -215,7 +231,9 @@ class AbstractDocumentQuery(Generic[_T]):
         )
 
     def initialize_query_operation(self) -> QueryOperation:
-        self._the_session.on_before_query(self._the_session, DocumentQueryCustomizationDelegate(self))
+        self._the_session.before_query_invoke(
+            BeforeQueryEventArgs(self._the_session, DocumentQueryCustomizationDelegate(self))
+        )
 
         index_query = self.index_query
 
@@ -279,19 +297,13 @@ class AbstractDocumentQuery(Generic[_T]):
             if fields_or_field_names
             else []
         )
+        fields.insert(0, field)
 
         if not self._from_token.dynamic:
             raise RuntimeError("group_by only works with dynamic queries")
 
         self.__assert_no_raw_query()
         self._is_group_by = True
-
-        field_name = self.__ensure_valid_field_name(fields[0].field, False)
-
-        self._group_by_tokens.append(GroupByToken.create(field_name, field.method))
-
-        if not fields:
-            return
 
         for item in fields:
             field_name = self.__ensure_valid_field_name(item.field, False)
@@ -1351,6 +1363,16 @@ class AbstractDocumentQuery(Generic[_T]):
         )
         tokens.append(where_token)
 
+    def __assert_is_dynamic_query(self, dynamic_field: DynamicSpatialField, method_name: str) -> None:
+        if not self._from_token.dynamic:
+            raise RuntimeError(
+                f"Cannot execute query method '{method_name}'. "
+                f"Field '{dynamic_field.to_field(self.__ensure_valid_field_name)}' cannot be used when "
+                f"static index '{self._from_token.index_name}' is queried. Dynamic spatial fields can "
+                f"only be used with dynamic queries, for static index queries please use valid spatial "
+                f"fields defined in index definition."
+            )
+
     def _spatial(
         self,
         field_name__shape_wkt__relation__units__dist_error_percent: Optional[
@@ -1426,12 +1448,38 @@ class AbstractDocumentQuery(Generic[_T]):
     def _order_by_distance(
         self,
         field_or_field_name: Union[DynamicSpatialField, str],
-        shape_wkt_or_latitude_longitude: Union[str, Tuple[float, float]],
-        round_factor: Optional[float] = 0,
+        latitude: float,
+        longitude: float,
+        round_factor: float = 0,
     ) -> None:
         is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
-        is_shape = isinstance(shape_wkt_or_latitude_longitude, tuple)
+        if is_dynamic_field:
+            if field_or_field_name is None:
+                raise ValueError("Field cannot be None")
+            self.__assert_is_dynamic_query(field_or_field_name, "orderByDistance")
+            round_factor = field_or_field_name.round_factor
+            field_name = f"'{field_or_field_name.to_field(self.__ensure_valid_field_name)}'"
+        else:
+            field_name = field_or_field_name
 
+        round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
+
+        self._order_by_tokens.append(
+            OrderByToken.create_distance_ascending(
+                field_name,
+                self.__add_query_parameter(latitude),
+                self.__add_query_parameter(longitude),
+                round_factor_parameter_name,
+            )
+        )
+
+    def _order_by_distance_wkt(
+        self,
+        field_or_field_name: Union[DynamicSpatialField, str],
+        shape_wkt: str,
+        round_factor: float = 0,
+    ) -> None:
+        is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
         if is_dynamic_field:
             if field_or_field_name is None:
                 raise ValueError("Field cannot be None")
@@ -1442,29 +1490,19 @@ class AbstractDocumentQuery(Generic[_T]):
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
 
-        if is_shape:
-            self._order_by_tokens.append(
-                OrderByToken.create_distance_ascending(field_name, shape_wkt_or_latitude_longitude, round_factor)
-            )
-        else:
-            latitude = shape_wkt_or_latitude_longitude[0]
-            longitude = shape_wkt_or_latitude_longitude[1]
-            self._order_by_tokens.append(
-                OrderByToken.create_distance_ascending(
-                    field_name,
-                    (self.__add_query_parameter(latitude), self.__add_query_parameter(longitude)),
-                    round_factor,
-                )
-            )
+        round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
+        self._order_by_tokens.append(
+            OrderByToken.create_distance_ascending_wkt(field_name, shape_wkt, round_factor_parameter_name)
+        )
 
     def _order_by_distance_descending(
         self,
         field_or_field_name: Union[DynamicSpatialField, str],
-        shape_wkt_or_latitude_longitude: Union[str, Tuple[float, float]],
-        round_factor: Optional[float] = 0,
+        latitude: float,
+        longitude: float,
+        round_factor: float = 0,
     ) -> None:
         is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
-        is_shape = isinstance(shape_wkt_or_latitude_longitude, tuple)
 
         if is_dynamic_field:
             if field_or_field_name is None:
@@ -1476,30 +1514,39 @@ class AbstractDocumentQuery(Generic[_T]):
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
 
-        if is_shape:
-            self._order_by_tokens.append(
-                OrderByToken.create_distance_descending(field_name, shape_wkt_or_latitude_longitude, round_factor)
-            )
-        else:
-            latitude = shape_wkt_or_latitude_longitude[0]
-            longitude = shape_wkt_or_latitude_longitude[1]
-            self._order_by_tokens.append(
-                OrderByToken.create_distance_descending(
-                    field_name,
-                    (self.__add_query_parameter(latitude), self.__add_query_parameter(longitude)),
-                    round_factor,
-                )
-            )
+        round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
 
-    def __assert_is_dynamic_query(self, dynamic_field: DynamicSpatialField, method_name: str) -> None:
-        if not self._from_token.dynamic:
-            raise RuntimeError(
-                f"Cannot execute query method '{method_name}'. "
-                f"Field '{dynamic_field.to_field(self.__ensure_valid_field_name)}' cannot be used when "
-                f"static index '{self._from_token.index_name}' is queried. Dynamic spatial fields can "
-                f"only be used with dynamic queries, for static index queries please use valid spatial "
-                f"fields defined in index definition."
+        self._order_by_tokens.append(
+            OrderByToken.create_distance_descending(
+                field_name,
+                self.__add_query_parameter(latitude),
+                self.__add_query_parameter(longitude),
+                round_factor_parameter_name,
             )
+        )
+
+    def _order_by_distance_descending_wkt(
+        self,
+        field_or_field_name: Union[DynamicSpatialField, str],
+        shape_wkt: str,
+        round_factor: float = 0,
+    ):
+        is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
+
+        if is_dynamic_field:
+            if field_or_field_name is None:
+                raise ValueError("Field cannot be None")
+            self.__assert_is_dynamic_query(field_or_field_name, "orderByDistanceDescending")
+            round_factor = field_or_field_name.round_factor
+            field_name = f"'{field_or_field_name.to_field(self.__ensure_valid_field_name)}'"
+        else:
+            round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
+            field_name = field_or_field_name
+        round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
+
+        self._order_by_tokens.append(
+            OrderByToken.create_distance_descending_wkt(field_name, shape_wkt, round_factor_parameter_name)
+        )
 
     def _init_sync(self) -> None:
         if self._query_operation is not None:
@@ -1995,7 +2042,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         # todo: self._counter_includes_tokens = self._counter_includes_tokens
         # todo: self._time_series_includes_tokens = self._time_series_includes_tokens
         query._compare_exchange_includes_tokens = self._compare_exchange_includes_tokens
-        query._root_types = set(self._object_type)
+        query._root_types = {self._object_type}
         query._before_query_executed_callback = self._before_query_executed_callback
         query._after_query_executed_callback = self._after_query_executed_callback
         query._after_stream_executed_callback = self._after_stream_executed_callback
@@ -2096,7 +2143,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         longitude: float,
         round_factor: Optional[float] = 0.0,
     ) -> DocumentQuery[_T]:
-        self._order_by_distance(field_or_field_name, (latitude, longitude), round_factor)
+        self._order_by_distance(field_or_field_name, latitude, longitude, round_factor)
         return self
 
     def order_by_distance_wkt(
@@ -2232,74 +2279,70 @@ class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         return self
 
 
-class DocumentQueryCustomizationDelegate:
+class DocumentQueryCustomizationDelegate(DocumentQueryCustomization):
     def __init__(self, query: AbstractDocumentQuery):
-        self.__query = query
-
-    @property
-    def query_operation(self) -> QueryOperation:
-        return self.__query.query_operation
+        super().__init__(query)
 
     def add_before_query_executed_listener(
         self, action: Callable[[IndexQuery], None]
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._before_query_executed_callback.append(action)
+        self.query._before_query_executed_callback.append(action)
         return self
 
     def remove_before_query_executed_listener(
         self, action: Callable[[IndexQuery], None]
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._before_query_executed_callback.remove(action)
+        self.query._before_query_executed_callback.remove(action)
         return self
 
     def add_after_query_executed_listener(
         self, action: Callable[[IndexQuery], None]
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._after_query_executed_callback.append(action)
+        self.query._after_query_executed_callback.append(action)
         return self
 
     def remove_after_query_executed_listener(
         self, action: Callable[[IndexQuery], None]
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._after_query_executed_callback.remove(action)
+        self.query._after_query_executed_callback.remove(action)
         return self
 
     def add_after_stream_executed_listener(
         self, action: Callable[[IndexQuery], None]
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._after_stream_executed_callback.append(action)
+        self.query._after_stream_executed_callback.append(action)
         return self
 
     def remove_after_stream_executed_listener(
         self, action: Callable[[IndexQuery], None]
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._after_stream_executed_callback.remove(action)
+        self.query._after_stream_executed_callback.remove(action)
         return self
 
     def no_caching(self) -> DocumentQueryCustomizationDelegate:
-        self.__query._no_caching()
+        self.query._no_caching()
         return self
 
     def no_tracking(self) -> DocumentQueryCustomizationDelegate:
-        self.__query._no_tracking()
+        self.query._no_tracking()
         return self
 
     def timings(self) -> DocumentQueryCustomizationDelegate:
-        self.__query._query_timings = self.__query._include_timings()
+        self.query._query_timings = self.query._include_timings()
         return self
 
     def random_ordering(self, seed: Optional[str] = None) -> DocumentQueryCustomizationDelegate:
-        self.__query._random_ordering(seed)
+        self.query._random_ordering(seed)
         return self
 
     def wait_for_non_stale_results(
         self, wait_timeout: Optional[datetime.timedelta] = None
     ) -> DocumentQueryCustomizationDelegate:
-        self.__query._wait_for_non_stale_results(wait_timeout)
+        self.query._wait_for_non_stale_results(wait_timeout)
         return self
 
     def projection(self, projection_behavior) -> DocumentQueryCustomizationDelegate:
-        self.__query._projection(projection_behavior)
+        self.query._projection(projection_behavior)
         return self
 
 

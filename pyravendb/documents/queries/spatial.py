@@ -5,8 +5,8 @@ from typing import Callable, Optional
 from pyravendb import constants
 from pyravendb.documents.indexes.spatial import SpatialRelation, SpatialUnits
 from pyravendb.documents.session.tokens.misc import WhereOperator
-from pyravendb.documents.session.tokens.query_token import QueryToken
-from pyravendb.documents.session.tokens.tokens import ShapeToken, WhereToken
+from pyravendb.documents.session.tokens.query_tokens.query_token import QueryToken
+from pyravendb.documents.session.tokens.query_tokens.definitions import ShapeToken, WhereToken
 
 
 class DynamicSpatialField(ABC):
@@ -24,6 +24,19 @@ class DynamicSpatialField(ABC):
     def round_to(self, factor: float) -> DynamicSpatialField:
         self.__round_factor = factor
         return self
+
+
+class PointField(DynamicSpatialField):
+    def __init__(self, latitude: str, longitude: str):
+        super().__init__()
+        self.latitude = latitude
+        self.longitude = longitude
+
+    def to_field(self, ensure_valid_field_name: Callable[[str, bool], str]) -> str:
+        return (
+            f"spatial.point({ensure_valid_field_name(self.latitude, False)}, "
+            f"{ensure_valid_field_name(self.longitude, False)})"
+        )
 
 
 class SpatialCriteria(ABC):

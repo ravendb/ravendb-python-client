@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Generic, Optional, TypeVar, Union, Callable
 
-from pyravendb.documents.queries.facets.facet import GenericRangeFacet, Facet, FacetBase, FacetAggregationField
+from pyravendb.documents.queries.facets.definitions import GenericRangeFacet, Facet, FacetBase, FacetAggregationField
 from pyravendb.documents.queries.facets.misc import FacetOptions, FacetAggregation
 from pyravendb.tools.utils import CaseInsensitiveSet
 

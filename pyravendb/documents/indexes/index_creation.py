@@ -1,5 +1,6 @@
+import logging
 from abc import abstractmethod, ABC
-from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional
+from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional, List, Collection
 
 from pyravendb import constants
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
@@ -20,7 +21,7 @@ from pyravendb.documents.indexes.definitions import (
 )
 from pyravendb.documents.operations.indexes import PutIndexesOperation
 
-_T_IndexDefinition = TypeVar("_T_IndexDefinition")
+_T_IndexDefinition = TypeVar("_T_IndexDefinition", bound=IndexDefinition)
 
 
 class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_IndexDefinition]):
@@ -87,6 +88,14 @@ class AbstractGenericIndexCreationTask(
         self._output_reduce_to_collection: Union[None, str] = None
         self._pattern_for_output_reduce_to_collection_references: Union[None, str] = None
         self._pattern_references_collection_name: Union[None, str] = None
+
+    @property
+    def reduce(self) -> str:
+        return self._reduce
+
+    @reduce.setter
+    def reduce(self, value: str):
+        self._reduce = value
 
     @property
     def is_map_reduce(self) -> bool:
@@ -184,6 +193,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
         for key, value in values.items():
             field = index_definition.fields.get(key, IndexFieldOptions())
             action(field, value)
+            index_definition.fields[key] = field  # if the field wasn't indexed yet, we need to set it.
 
     def to_index_definition(self, conventions: DocumentConventions, validate_map: bool = True) -> _T_IndexDefinition:
         try:
@@ -263,7 +273,7 @@ class IndexDefinitionBuilder(AbstractIndexDefinitionBuilder[IndexDefinition]):
         index_definition.maps.add(self.map)
 
 
-class AbstractIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition]):
+class AbstractIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition], ABC):
     def __init__(self):
         super().__init__()
         self._map: Union[None, str] = None
@@ -303,3 +313,85 @@ class AbstractIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition
         index_definition_builder.deployment_mode = self.deployment_mode
 
         return index_definition_builder.to_index_definition(self.conventions)
+
+
+_T_AbstractIndexCreationTask = TypeVar("_T_AbstractIndexCreationTask", bound=AbstractIndexCreationTask)
+
+
+class AbstractMultiMapIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition]):
+    def __init__(self):
+        super().__init__()
+        self.__maps: List[str] = []
+
+    def _add_map(self, map: str) -> None:
+        if map is None:
+            raise ValueError("Map cannot be None")
+
+        self.__maps.append(map)
+
+    def create_index_definition(self):
+        if self.conventions is None:
+            self.conventions = DocumentConventions()
+
+        index_definition_builder = IndexDefinitionBuilder(self.index_name)
+        index_definition_builder.indexes_strings = self._indexes_strings
+        index_definition_builder.analyzers_strings = self._analyzers_strings
+        index_definition_builder.reduce = self._reduce
+        index_definition_builder.stores_strings = self._stores_strings
+        index_definition_builder.suggestions_options = self._index_suggestions
+        index_definition_builder.term_vectors_strings = self._term_vectors_strings
+        index_definition_builder.spatial_indexes_strings = self._spatial_options_strings
+        index_definition_builder.output_reduce_to_collection = self._output_reduce_to_collection
+        index_definition_builder.pattern_for_output_reduce_to_collection_references = (
+            self._pattern_for_output_reduce_to_collection_references
+        )
+        index_definition_builder.pattern_references_collection_name = self._pattern_references_collection_name
+        index_definition_builder.additional_sources = self.additional_sources
+        index_definition_builder.additional_assemblies = self.additional_assemblies
+        index_definition_builder.configuration = self.configuration
+        index_definition_builder.lock_mode = self.lock_mode
+        index_definition_builder.priority = self.priority
+        index_definition_builder.state = self.state
+        index_definition_builder.deployment_mode = self.deployment_mode
+
+        index_definition = index_definition_builder.to_index_definition(self.conventions, False)
+        index_definition.maps = set(self.__maps)
+
+        return index_definition
+
+
+class IndexCreation:
+    @staticmethod
+    def create_indexes(
+        indexes: Collection[_T_AbstractIndexCreationTask],
+        store: DocumentStore,
+        conventions: Optional[DocumentConventions] = None,
+    ) -> None:
+        if conventions is None:
+            conventions = store.conventions
+
+        try:
+            indexes_to_add = IndexCreation.create_indexes_to_add(indexes, conventions)
+            store.maintenance.send(PutIndexesOperation(indexes_to_add))
+        except Exception as e:
+            logging.info("Could not create indexes in one shot (maybe using older version of RavenDB ?)", exc_info=e)
+            for index in indexes:
+                index.execute(store, conventions)
+
+    @staticmethod
+    def create_indexes_to_add(
+        index_creation_tasks: Collection[_T_AbstractIndexCreationTask], conventions: DocumentConventions
+    ) -> List[IndexDefinition]:
+        def __map(x: _T_AbstractIndexCreationTask):
+            old_conventions = x.conventions
+            try:
+                x.conventions = conventions
+                definition = x.create_index_definition()
+                definition.name = x.index_name
+                definition.priority = x.priority or IndexPriority.NORMAL
+                definition.state = x.state or IndexState.NORMAL
+                return definition
+            finally:
+                x.conventions = old_conventions
+
+        return list(map(__map, index_creation_tasks))

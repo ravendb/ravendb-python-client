@@ -11,7 +11,6 @@ from pyravendb.documents.indexes.definitions import (
     AutoIndexDefinition,
 )
 from pyravendb.documents.operations.backups.settings import PeriodicBackupConfiguration
-from pyravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
 from pyravendb.documents.operations.etl.configuration import RavenConnectionString, RavenEtlConfiguration
 from pyravendb.documents.operations.etl.olap import OlapConnectionString, OlapEtlConfiguration
 from pyravendb.documents.operations.etl.sql import SqlConnectionString, SqlEtlConfiguration
@@ -37,6 +36,7 @@ if TYPE_CHECKING:
         DeletionInProgressStatus,
         DatabaseTopology,
     )
+    from pyravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
 
 
 class DatabaseRecord:

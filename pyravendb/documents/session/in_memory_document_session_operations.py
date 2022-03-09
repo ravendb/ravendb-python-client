@@ -12,6 +12,7 @@ from pyravendb.documents.session.misc import (
     SessionInfo,
     ForceRevisionStrategy,
     DocumentsChanges,
+    DocumentQueryCustomization,
 )
 
 try:
@@ -44,8 +45,7 @@ from pyravendb.documents.commands.batches import (
 from pyravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
 from pyravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from pyravendb.documents.session.document_info import DocumentInfo
-from pyravendb.documents.session.event_args import BeforeStoreEventArgs
-
+from pyravendb.documents.session.event_args import *
 from pyravendb.documents.session.time_series.time_series import TimeSeriesEntry
 from pyravendb.documents.session.utils.includes_util import IncludesUtil
 from pyravendb.extensions.json_extensions import JsonExtensions
@@ -507,7 +507,7 @@ class InMemoryDocumentSessionOperations:
             options.disable_atomic_document_writes_in_cluster_wide_transaction
         )
 
-        self._document_store: store.DocumentStore = store
+        self._document_store: DocumentStore = store
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
@@ -537,22 +537,116 @@ class InMemoryDocumentSessionOperations:
         self.events = None
 
         # --- EVENTS ---
-        self.on_before_store = lambda on_before_store_event_args: None
-        self.on_after_save_changes = lambda session, document_id, entity: None
-        self.on_before_delete = lambda session, document_id, entity: None
-        self.on_before_query = lambda session, query_customization: None
-        self.on_before_conversion_to_document = lambda key, entity, session: None
-        self.on_after_conversion_to_document = lambda key, entity, document, session: None
+        self.__before_store: List[Callable[[BeforeStoreEventArgs], None]] = []
+        self.__after_save_changes: List[Callable[[AfterSaveChangesEventArgs], None]] = []
+        self.__before_delete: List[Callable[[BeforeDeleteEventArgs], None]] = []
+        self.__before_query: List[Callable[[BeforeQueryEventArgs], None]] = []
+        self.__before_conversion_to_document: List[Callable[[BeforeConversionToDocumentEventArgs], None]] = []
+        self.__after_conversion_to_document: List[Callable[[AfterConversionToDocumentEventArgs], None]] = []
 
-        self.on_before_conversion_to_entity: Callable[
-            [str, type, dict, InMemoryDocumentSessionOperations], Union[None, dict]
-        ] = lambda key, type, document, session: None
+        self.__before_conversion_to_entity: List[Callable[[BeforeConversionToEntityEventArgs], None]] = []
 
-        self.on_after_conversion_to_entity: Callable[
-            [str, dict, Any[_T], InMemoryDocumentSessionOperations], Union[None, _T]
-        ] = lambda key, document, entity, session: None
+        self.__after_conversion_to_entity: List[Callable[[AfterConversionToEntityEventArgs], None]] = []
 
-        self.on_session_closing = lambda session: None
+        self.__session_closing: List[Callable[[SessionClosingEventArgs], None]] = []
+
+    def add_before_store(self, event: Callable[[BeforeStoreEventArgs], None]):
+        self.__before_store.append(event)
+
+    def remove_before_store(self, event: Callable[[BeforeStoreEventArgs], None]):
+        self.__before_store.remove(event)
+
+    def add_session_closing(self, event: Callable[[SessionClosingEventArgs], None]):
+        self.__session_closing.append(event)
+
+    def remove_session_closing(self, event: Callable[[SessionClosingEventArgs], None]):
+        self.__session_closing.remove(event)
+
+    def add_before_conversion_to_document(self, event: Callable[[BeforeConversionToDocumentEventArgs], None]):
+        self.__before_conversion_to_document.append(event)
+
+    def remove_before_conversion_to_document(self, event: Callable[[BeforeConversionToDocumentEventArgs], None]):
+        self.__before_conversion_to_document.remove(event)
+
+    def add_after_conversion_to_document(self, event: Callable[[AfterConversionToDocumentEventArgs], None]):
+        self.__after_conversion_to_document.append(event)
+
+    def remove_after_conversion_to_document(self, event: Callable[[AfterConversionToDocumentEventArgs], None]):
+        self.__after_conversion_to_document.remove(event)
+
+    def add_before_conversion_to_entity(self, event: Callable[[BeforeConversionToEntityEventArgs], None]):
+        self.__before_conversion_to_entity.append(event)
+
+    def remove_before_conversion_to_entity(self, event: Callable[[BeforeConversionToEntityEventArgs], None]):
+        self.__before_conversion_to_entity.remove(event)
+
+    def add_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
+        self.__after_conversion_to_entity.append(event)
+
+    def remove_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
+        self.__after_conversion_to_entity.remove(event)
+
+    def add_after_save_changes(self, event: Callable[[AfterSaveChangesEventArgs], None]):
+        self.__after_save_changes.append(event)
+
+    def remove_after_save_changes(self, event: Callable[[AfterSaveChangesEventArgs], None]):
+        self.__after_save_changes.remove(event)
+
+    def add_before_delete(self, event: Callable[[BeforeDeleteEventArgs], None]):
+        self.__before_delete.append(event)
+
+    def remove_before_delete_entity(self, event: Callable[[BeforeDeleteEventArgs], None]):
+        self.__before_delete.remove(event)
+
+    def add_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
+        self.__before_query.append(event)
+
+    def remove_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
+        self.__before_query.append(event)
+
+    def before_store_invoke(self, before_store_event_args: BeforeStoreEventArgs):
+        for event in self.__before_store:
+            event(before_store_event_args)
+
+    def session_closing_invoke(self, session_closing_event_args: SessionClosingEventArgs):
+        for event in self.__session_closing:
+            event(session_closing_event_args)
+
+    def before_conversion_to_document_invoke(
+        self, before_conversion_to_document_event_args: BeforeConversionToDocumentEventArgs
+    ):
+        for event in self.__before_conversion_to_document:
+            event(before_conversion_to_document_event_args)
+
+    def after_conversion_to_document_invoke(
+        self, after_conversion_to_document_event_args: AfterConversionToDocumentEventArgs
+    ):
+        for event in self.__after_conversion_to_document:
+            event(after_conversion_to_document_event_args)
+
+    def before_conversion_to_entity_invoke(
+        self, before_conversion_to_entity_event_args: BeforeConversionToEntityEventArgs
+    ):
+        for event in self.__before_conversion_to_entity:
+            event(before_conversion_to_entity_event_args)
+
+    def after_conversion_to_entity_invoke(
+        self, after_conversion_to_entity_event_args: AfterConversionToEntityEventArgs
+    ):
+        for event in self.__after_conversion_to_entity:
+            event(after_conversion_to_entity_event_args)
+
+    def after_save_changes_invoke(self, after_save_changes_event_args: AfterSaveChangesEventArgs):
+        for event in self.__after_save_changes:
+            event(after_save_changes_event_args)
+
+    def before_delete_invoke(self, before_delete_event_args: BeforeDeleteEventArgs):
+        for event in self.__before_delete:
+            event(before_delete_event_args)
+
+    def before_query_invoke(self, before_query_event_args: BeforeQueryEventArgs):
+        for event in self.__before_query:
+            event(before_query_event_args)
 
     @property
     def request_executor(self) -> RequestExecutor:
@@ -701,38 +795,32 @@ class InMemoryDocumentSessionOperations:
 
         raise NonUniqueObjectException(f"Attempted to associate a different object with id '{key}'.")
 
+    def track_entity_document_info(self, entity_type: Type[_T], document_found: DocumentInfo) -> _T:
+        return self.track_entity(
+            entity_type, document_found.key, document_found.document, document_found.metadata, self.no_tracking
+        )
+
     def track_entity(
         self,
         entity_type: Type[_T],
-        key: str = None,
-        document: dict = None,
-        metadata: dict = None,
-        no_tracking: bool = False,
-        document_found: Optional[DocumentInfo] = None,
+        key: Optional[str],
+        document: dict,
+        metadata: dict,
+        no_tracking: bool,
     ) -> _T:
-        if document_found:
-            key = document_found.key
-            document = document_found.document
-            metadata = document_found.metadata
-            no_tracking = (
-                self.no_tracking if no_tracking is None else no_tracking
-            )  # todo: remove if when rebuilding Query
-        else:
-            if key is None or document is None or metadata is None:
-                raise ValueError(
-                    "Pass either (entity_type, DocumentInfo) or (entity_type, key, document, metadata and no_tracking)"
-                )
-        no_tracking = no_tracking or self.no_tracking
+        no_tracking = self.no_tracking or no_tracking
         if not key:
             return self.__deserialize_from_transformer(entity_type, None, document, False)
+
         doc_info = self.documents_by_id.get(key)
-        if doc_info:
+        if doc_info is not None:
             if doc_info.entity is None:
                 doc_info.entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
+
             if not no_tracking:
-                if key in self.included_documents_by_id:
-                    self.included_documents_by_id.pop(key)
-                self.documents_by_entity[doc_info.entity] = document_found
+                self.included_documents_by_id.pop(key, None)
+                self.documents_by_entity[doc_info.entity] = doc_info
+
             return doc_info.entity
 
         doc_info = self.included_documents_by_id.get(key)
@@ -741,9 +829,8 @@ class InMemoryDocumentSessionOperations:
                 doc_info.entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
 
             if not no_tracking:
-                if key in self.included_documents_by_id:
-                    self.included_documents_by_id.pop(key)
-                self.documents_by_id.update({doc_info.key: doc_info})
+                self.included_documents_by_id.pop(key, None)
+                self.documents_by_id[doc_info.key] = doc_info
                 self.documents_by_entity[doc_info.entity] = doc_info
 
             return doc_info.entity
@@ -751,7 +838,7 @@ class InMemoryDocumentSessionOperations:
         entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
 
         change_vector = metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
-        if not change_vector:
+        if change_vector is None:
             raise ValueError(f"Document {key} must have a Change Vector")
 
         if not no_tracking:
@@ -760,6 +847,7 @@ class InMemoryDocumentSessionOperations:
             )
             self.documents_by_id[new_document_info.key] = new_document_info
             self.documents_by_entity[new_document_info.entity] = new_document_info
+
         return entity
 
     def delete(self, key_or_entity: Union[str, object], expected_change_vector: Optional[str] = None) -> None:
@@ -1013,7 +1101,7 @@ class InMemoryDocumentSessionOperations:
                     result.on_success.remove_document_by_entity(document_info.key)
 
                 change_vector = change_vector if self.__use_optimistic_concurrency else None
-                self.on_before_delete(self, document_info.key, document_info.entity)
+                self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
                 result.session_commands.append(DeleteCommandData(document_info.key, document_info.change_vector))
 
             if changes is None:
@@ -1046,10 +1134,9 @@ class InMemoryDocumentSessionOperations:
             if command:
                 self.__throw_invalid_modified_document_with_deferred_command(command)
 
-            on_before_store = self.on_before_store
-            if on_before_store is not None and entity.execute_on_before_store:
+            if self.__before_store and entity.execute_on_before_store:
                 before_store_event_args = BeforeStoreEventArgs(self, entity.value.key, entity.key)
-                on_before_store(before_store_event_args)
+                self.before_store_invoke(before_store_event_args)
 
                 if before_store_event_args.is_metadata_accessed:
                     self.__update_metadata_modifications(entity.value)

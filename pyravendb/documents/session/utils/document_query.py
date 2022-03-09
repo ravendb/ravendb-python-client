@@ -1,7 +1,7 @@
 from typing import List
 
-from pyravendb.documents.session.tokens.query_token import QueryToken
-import pyravendb.documents.session.tokens.tokens as tokens
+from pyravendb.documents.session.tokens.query_tokens.query_token import QueryToken
+import pyravendb.documents.session.tokens.query_tokens.definitions as tokens
 
 
 class DocumentQueryHelper:

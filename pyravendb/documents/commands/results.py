@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union, Optional
+from typing import Union, Optional, List, Dict
 
 
 class GetDocumentResult:
@@ -16,7 +16,7 @@ class GetDocumentsResult:
     def __init__(
         self,
         includes: Optional[dict] = None,
-        results: Optional[list] = None,
+        results: Optional[List[Dict]] = None,
         counter_includes: Optional[dict] = None,
         time_series_includes: Optional[dict] = None,
         compare_exchange_includes: Optional[dict] = None,

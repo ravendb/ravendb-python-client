@@ -153,6 +153,16 @@ class IndexFieldOptions:
         self.analyzer = analyzer
         self.suggestions = suggestions
 
+    def to_json(self):
+        return {
+            "Storage": self.storage,
+            "Indexing": self.indexing,
+            "TermVector": self.term_vector,
+            "Spatial": self.spatial,
+            "Analyzer": self.analyzer,
+            "Suggestions": self.suggestions,
+        }
+
 
 class IndexDefinition:
     def __init__(self, **kwargs):
@@ -214,11 +224,11 @@ class IndexDefinition:
             "State": self.state,
             "LockMode": self.lock_mode,
             "AdditionalSources": self.additional_sources,
-            "AdditionalAssemblies": set(map(lambda x: x.to_json(), self.additional_assemblies))
+            "AdditionalAssemblies": [x.to_json() for x in self.additional_assemblies]
             if self.additional_assemblies
             else None,
             "Maps": self.maps,
-            "Fields": self.fields,
+            "Fields": {key: value.to_json() for key, value in self.fields.items()},
             "Reduce": self.reduce,
             "Configuration": self.configuration,
             "IndexSourceType": self.__index_source_type,
@@ -374,7 +384,7 @@ class AdditionalAssembly:
         return AdditionalAssembly(assembly_path=assembly_path, usings=usings)
 
     @staticmethod
-    def from_nu_get(
+    def from_NuGet(
         package_name: str,
         package_version: str,
         package_source_url: Optional[str] = None,

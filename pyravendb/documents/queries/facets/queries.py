@@ -3,7 +3,7 @@ from typing import TypeVar, Union, Dict, Callable, Optional, Generic, TYPE_CHECK
 
 from pyravendb.documents.commands.query import QueryCommand
 from pyravendb.documents.queries.facets.builders import FacetBuilder
-from pyravendb.documents.queries.facets.facet import FacetBase
+from pyravendb.documents.queries.facets.definitions import FacetBase
 from pyravendb.documents.queries.facets.misc import FacetResult
 from pyravendb.documents.queries.index_query import IndexQuery
 from pyravendb.documents.queries.query import QueryResult

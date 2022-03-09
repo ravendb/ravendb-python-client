@@ -38,7 +38,7 @@ class LoadOperation:
         self._include_all_counters = include_all_counters
         self._time_series_to_include = time_series_to_include if time_series_to_include is not None else []
         self._results_set = False
-        self._results = []
+        self._results: Optional[GetDocumentsResult] = None
 
     def create_request(self) -> GetDocumentsCommand:
         if self._session.check_if_id_already_included(
@@ -116,15 +116,15 @@ class LoadOperation:
             if not self._results_set and len(self._keys) > 0:
                 raise RuntimeError("Cannot execute get_document before operation execution.")
 
-            if (not self._results) or not self._results["Results"]:
+            if (not self._results) or not self._results.results:
                 return None
 
-            document = self._results["Results"][0]
+            document = self._results.results[0]
             if not document:
                 return None
 
             document_info = DocumentInfo.get_new_document_info(document)
-            return self._session.track_entity(object_type, document_found=document_info)
+            return self._session.track_entity_document_info(object_type, document_info)
         return self.__get_document(object_type, self._keys[0])
 
     def __get_document(self, object_type: Type[_T], key: str) -> _T:
@@ -137,11 +137,11 @@ class LoadOperation:
 
         doc = self._session.documents_by_id.get(key)
         if doc is not None:
-            return self._session.track_entity(object_type, document_found=doc)
+            return self._session.track_entity_document_info(object_type, doc)
 
         doc = self._session.included_documents_by_id.get(key)
         if doc is not None:
-            return self._session.track_entity(object_type, document_found=doc)
+            return self._session.track_entity_document_info(object_type, doc)
 
         return Utils.get_default_value(object_type)
 
@@ -156,15 +156,15 @@ class LoadOperation:
                     continue
                 final_results[key] = None
 
-            if (not self._results) or not self._results["Results"]:
+            if (not self._results) or not self._results.results:
                 return final_results
 
-            for document in self._results["Results"]:
+            for document in self._results.results:
                 if not document:
                     continue
                 new_document_info = DocumentInfo.get_new_document_info(document)
-                final_results[new_document_info.key] = self._session.track_entity(
-                    entity_type=object_type, document_found=new_document_info
+                final_results[new_document_info.key] = self._session.track_entity_document_info(
+                    object_type, new_document_info
                 )
 
             return final_results
@@ -197,7 +197,7 @@ class LoadOperation:
             self._session.register_time_series(result.time_series_includes)
 
         if self._compare_exchange_values_to_include:
-            self._session.get_cluster_session().register_compare_exchange_values(result.compare_exchange_includes)
+            self._session.cluster_session.register_compare_exchange_values(result.compare_exchange_includes)
 
         for document in result.results:
             if document is None:

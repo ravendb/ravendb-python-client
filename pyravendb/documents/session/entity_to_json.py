@@ -1,9 +1,14 @@
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING, Union, Type, TypeVar
 
 from pyravendb import constants
+from pyravendb.documents.session.event_args import (
+    BeforeConversionToDocumentEventArgs,
+    AfterConversionToDocumentEventArgs,
+)
 from pyravendb.exceptions import exceptions
 from pyravendb.documents.session.document_info import DocumentInfo
+from pyravendb.exceptions.exceptions import InvalidOperationException
 from pyravendb.tools.projection import create_entity_with_mapper
 from pyravendb.tools.utils import Utils, _DynamicStructure
 from copy import deepcopy
@@ -11,6 +16,9 @@ from copy import deepcopy
 if TYPE_CHECKING:
     from pyravendb.documents.conventions.document_conventions import DocumentConventions
     from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+
+
+_T = TypeVar("_T")
 
 
 class EntityToJson:
@@ -24,10 +32,14 @@ class EntityToJson:
 
     def convert_entity_to_json(self, entity: object, document_info: DocumentInfo) -> dict:
         if document_info is not None:
-            self._session.on_before_conversion_to_document(self, document_info.key, entity)
+            self._session.before_conversion_to_document_invoke(
+                BeforeConversionToDocumentEventArgs(document_info.key, entity, self._session)
+            )
         document = EntityToJson._convert_entity_to_json_internal(self, entity, document_info)
         if document_info is not None:
-            self._session.on_after_conversion_to_document(document_info.key, entity, document, self)
+            self._session.after_conversion_to_document_invoke(
+                AfterConversionToDocumentEventArgs(self._session, document_info.key, entity, document)
+            )
         return document
 
     @staticmethod
@@ -60,8 +72,8 @@ class EntityToJson:
 
     # todo: refactor this method, make it more useful/simple and less ugly (like this return...[0])
     def convert_to_entity(
-        self, entity_type: type, key: str, document: dict, track_entity: bool, nested_object_types=None
-    ):
+        self, entity_type: Type[_T], key: str, document: dict, track_entity: bool, nested_object_types=None
+    ) -> _T:
         conventions = self._session.conventions
         events = self._session.events
         return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)[0]
@@ -112,8 +124,7 @@ class EntityToJson:
         metadata = document.pop("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
-        mapper = conventions.mappers.get(object_type, None)
-
+        is_inherit = False
         # todo: events
         # events.before_conversion_to_entity(document, metadata, type_from_metadata)
 
@@ -135,21 +146,24 @@ class EntityToJson:
                     object_type = object_from_metadata
 
                 elif Utils.is_inherit(object_type, object_from_metadata):
-                    mapper = conventions.mappers.get(object_from_metadata, None) or mapper
                     object_type = object_from_metadata
+                    is_inherit = True
                 elif object_type is not object_from_metadata:
-                    # todo: Try to parse if we use projection
-                    raise exceptions.InvalidOperationException(
-                        f"Cannot covert document from type {object_from_metadata} to {object_type}"
-                    )
+                    # todo: projection
+                    if not all([name in object_from_metadata.__dict__ for name in object_type.__dict__]):
+                        raise exceptions.InvalidOperationException(
+                            f"Cannot covert document from type {object_from_metadata} to {object_type}"
+                        )
 
-        if nested_object_types is None and mapper:
-            entity = create_entity_with_mapper(document, mapper, object_type)
+        if nested_object_types is None and is_inherit:
+            entity = Utils.convert_json_dict_to_object(document, object_type)
         else:
             entity = _DynamicStructure(**document)
             entity.__class__ = object_type
-
-            entity = Utils.initialize_object(document, object_type)
+            try:
+                entity = Utils.initialize_object(document, object_type)
+            except TypeError as e:
+                raise InvalidOperationException("Probably projection error", e)
 
             if nested_object_types:
                 for key in nested_object_types:

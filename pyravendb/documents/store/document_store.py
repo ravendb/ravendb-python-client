@@ -4,18 +4,37 @@ import datetime
 import uuid
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Union, Optional, TypeVar, List, Dict
+from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
+
+import requests
 
 from pyravendb import constants, exceptions
 from pyravendb.changes.database_changes import DatabaseChanges
 from pyravendb.documents.operations.counters.operation import CounterOperationType
 from pyravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
+from pyravendb.documents.operations.indexes import PutIndexesOperation
+from pyravendb.documents.session.event_args import (
+    BeforeStoreEventArgs,
+    AfterSaveChangesEventArgs,
+    BeforeDeleteEventArgs,
+    BeforeQueryEventArgs,
+    SessionCreatedEventArgs,
+    SessionClosingEventArgs,
+    BeforeConversionToDocumentEventArgs,
+    AfterConversionToDocumentEventArgs,
+    BeforeConversionToEntityEventArgs,
+    AfterConversionToEntityEventArgs,
+    BeforeRequestEventArgs,
+    SucceedRequestEventArgs,
+    FailedRequestEventArgs,
+)
 from pyravendb.documents.store.misc import Lazy, IdTypeAndName
 from pyravendb.documents.session.document_session import DocumentSession
 from pyravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from pyravendb.documents.session.misc import SessionOptions
+from pyravendb.documents.session.misc import SessionOptions, DocumentQueryCustomization
 from pyravendb.http.request_executor import RequestExecutor
 from pyravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
+from pyravendb.http.topology import Topology
 from pyravendb.legacy.raven_operations.counters_operations import GetCountersOperation, CounterOperation
 from pyravendb.tools.utils import CaseInsensitiveDict
 from pyravendb.documents.conventions.document_conventions import DocumentConventions
@@ -24,6 +43,9 @@ T = TypeVar("T")
 
 
 from pyravendb.documents.commands.batches import CommandType, CountersBatchCommandData
+
+if TYPE_CHECKING:
+    from pyravendb.documents.indexes.index_creation import AbstractIndexCreationTask, IndexCreation
 
 
 class DocumentStoreBase:
@@ -38,8 +60,23 @@ class DocumentStoreBase:
         self._database: Union[None, str] = None
         self._disposed: Union[None, bool] = None
 
-        # todo: events
-        self.on_before_store: List[Callable[[InMemoryDocumentSessionOperations, str, object], None]] = []
+        self.__before_store: List[Callable[[BeforeStoreEventArgs], None]] = []
+        self.__after_save_changes: List[Callable[[AfterSaveChangesEventArgs], None]] = []
+        self.__before_delete: List[Callable[[BeforeDeleteEventArgs], None]] = []
+        self.__before_query: List[Callable[[BeforeQueryEventArgs], None]] = []
+        self.__on_session_creation: List[Callable[[SessionCreatedEventArgs], None]] = []
+        self.__on_session_closing: List[Callable[[SessionClosingEventArgs], None]] = []
+
+        self.__before_conversion_to_document: List[Callable[[BeforeConversionToDocumentEventArgs], None]] = []
+        self.__after_conversion_to_document: List[Callable[[AfterConversionToDocumentEventArgs], None]] = []
+        self.__before_conversion_to_entity: List[Callable[[BeforeConversionToEntityEventArgs], None]] = []
+        self.__after_conversion_to_entity: List[Callable[[AfterConversionToEntityEventArgs], None]] = []
+
+        self.__before_request: List[Callable[[BeforeRequestEventArgs], None]] = []
+        self.__on_succeed_request: List[Callable[[SucceedRequestEventArgs], None]] = []
+
+        self.__on_failed_request: List[Callable[[FailedRequestEventArgs], None]] = []
+        self.__on_topology_updated: List[Callable[[Topology], None]] = []
 
     def __enter__(self):
         return self
@@ -122,8 +159,6 @@ class DocumentStoreBase:
 
     # todo: aggressive_caching
 
-    # todo: execute_indexes
-
     # todo: time_series
 
     # todo: bulk_insert
@@ -131,6 +166,74 @@ class DocumentStoreBase:
     @abstractmethod
     def open_session(self, database: Optional[str] = None, session_options: Optional = None):
         pass
+
+    def add_on_session_creation(self, event: Callable[[], None]):
+        self.__on_session_creation.append(event)
+
+    def remove_on_session_creation(self, event: Callable[[], None]):
+        self.__on_session_creation.remove(event)
+
+    def add_on_session_closing(self, event: Callable[[], None]):
+        self.__on_session_closing.append(event)
+
+    def remove_on_session_closing(self, event: Callable[[], None]):
+        self.__on_session_closing.remove(event)
+
+    def add_before_conversion_to_document(self, event: Callable[[], None]):
+        self.__before_conversion_to_document.append(event)
+
+    def remove_before_conversion_to_document(self, event: Callable[[], None]):
+        self.__before_conversion_to_document.remove(event)
+
+    def add_after_conversion_to_document(self, event: Callable[[], None]):
+        self.__after_conversion_to_document.append(event)
+
+    def remove_after_conversion_to_document(self, event: Callable[[], None]):
+        self.__after_conversion_to_document.remove(event)
+
+    def add_before_conversion_to_entity(self, event: Callable[[], None]):
+        self.__before_conversion_to_entity.append(event)
+
+    def remove_before_conversion_to_entity(self, event: Callable[[], None]):
+        self.__before_conversion_to_entity.remove(event)
+
+    def add_after_conversion_to_entity(self, event: Callable[[], None]):
+        self.__after_conversion_to_entity.append(event)
+
+    def remove_after_conversion_to_entity(self, event: Callable[[], None]):
+        self.__after_conversion_to_entity.remove(event)
+
+    def register_events_for_session(self, session: InMemoryDocumentSessionOperations):
+        for event in self.__before_store:
+            session.add_before_store(event)
+
+        for event in self.__after_save_changes:
+            session.add_after_save_changes(event)
+
+        for event in self.__before_delete:
+            session.add_before_delete(event)
+
+        for event in self.__before_query:
+            session.add_before_query(event)
+
+        for event in self.__before_conversion_to_document:
+            session.add_before_conversion_to_document(event)
+
+        for event in self.__after_conversion_to_document:
+            session.add_after_conversion_to_document(event)
+
+        for event in self.__before_conversion_to_entity:
+            session.add_before_conversion_to_entity(event)
+
+        for event in self.__after_conversion_to_entity:
+            session.add_after_conversion_to_entity(event)
+
+        for event in self.__on_session_closing:
+            session.add_session_closing(event)
+
+    def after_session_created(self, session: InMemoryDocumentSessionOperations):
+        for event in self.__on_session_creation:
+            event(SessionCreatedEventArgs(session))
 
     def _ensure_not_closed(self) -> None:
         if self.disposed:
@@ -258,8 +361,8 @@ class DocumentStore(DocumentStoreBase):
 
         session_id = uuid.uuid4()
         session = DocumentSession(self, session_id, session_options)
-        # todo: register all events
-        # todo: after session creation
+        self.register_events_for_session(session)
+        self.after_session_created(session)
         return session
 
     def get_request_executor(self, database: Optional[str] = None) -> RequestExecutor:
@@ -306,6 +409,16 @@ class DocumentStore(DocumentStoreBase):
         self.__request_executors[database] = executor
 
         return executor.value()
+
+    def execute_index(self, task: "AbstractIndexCreationTask", database: Optional[str] = None) -> None:
+        self.assert_initialized()
+        task.execute(self, self.conventions, database)
+
+    def execute_indexes(self, tasks: "List[AbstractIndexCreationTask]", database: Optional[str] = None) -> None:
+        self.assert_initialized()
+        indexes_to_add = IndexCreation.create_indexes_to_add(tasks, self.conventions)
+
+        self.maintenance.for_database(self.get_effective_database(database)).send(PutIndexesOperation(indexes_to_add))
 
     def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges:
         self.assert_initialized()
