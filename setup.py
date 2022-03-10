@@ -1,28 +1,28 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="pyravendb",
+    name="ravendb",
     packages=find_packages(),
     version="5.2beta1",
     long_description=open("README.rst").read(),
     description="Python client for RavenDB NoSQL Database",
     author="RavenDB",
     author_email="support@ravendb.net",
-    url="https://github.com/ravendb/RavenDB-Python-Client",
+    url="https://github.com/ravendb/ravendb-python-client",
     license="MIT",
     keywords=[
         "ravendb",
         "nosql",
         "database" "pyravendb",
     ],
-    python_requires="~=3.5",
+    python_requires="~=3.7",
     install_requires=[
-        "requests >= 2.18.4",
-        "requests-pkcs12 >= 1.7",
-        "pyOpenSSL >= 17.2.0",
+        "requests >= 2.27.1",
+        "requests-pkcs12 >= 1.13",
+        "pyOpenSSL >= 22.0.0",
         "ijson == 2.3",
         "websocket-client >= 0.46.0",
-        "inflect >= 1.0.0",
+        "inflect >= 5.4.0",
     ],
     zip_safe=False,
 )
