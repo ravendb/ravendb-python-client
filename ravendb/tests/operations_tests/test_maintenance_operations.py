@@ -1,7 +1,6 @@
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.indexes import PutIndexesOperation, GetIndexNamesOperation, GetIndexOperation
 from ravendb.tests.test_base import *
-import unittest
 
 
 class TestMaintenanceOperations(TestBase):
@@ -28,6 +27,3 @@ class TestMaintenanceOperations(TestBase):
         self.store.maintenance.send(PutIndexesOperation(index_definition_users))
         users_index_definition = self.store.maintenance.send(GetIndexOperation("Users"))
         self.assertEqual(users_index_definition.name, "Users")
-
-if __name__ == "__main__":
-    unittest.main()
