@@ -1,5 +1,5 @@
 
-# TBA
+# Official Python client for RavenDB NoSQL Database 🐍
 
 ## Installation
 Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.python.org/pypi/ravendb).
@@ -19,7 +19,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 ---
 
-![](https://github.com/ravendb/ravendb-python-client/blob/v5.2beta1/.github/readme_content/typehints.gif)
+![](.github/readme_content/typehints.gif)
 
 ---
 
@@ -44,7 +44,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
 ----
 
 #### Querying features
-![](https://github.com/ravendb/ravendb-python-client/blob/v5.2beta1/.github/readme_content/document_query.gif)
+![](.github/readme_content/document_query.gif)
 
 ----
 
