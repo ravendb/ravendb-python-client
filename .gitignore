@@ -12,9 +12,9 @@
 *.pyc
 /s.py
 /dist
-/pyravendb.egg-info
+/ravendb.egg-info
 *.log
 *.raven-topology
 *.raven-cluster-topology
-/build/lib/pyravendb
+/build/lib/ravendb
 /venv/

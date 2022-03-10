@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="pyravendb",
+    name="ravendb",
     packages=find_packages(),
     version="5.2beta1",
     long_description=open("README.rst").read(),
@@ -13,7 +13,7 @@ setup(
     keywords=[
         "ravendb",
         "nosql",
-        "database" "pyravendb",
+        "database" "ravendb",
     ],
     python_requires="~=3.5",
     install_requires=[

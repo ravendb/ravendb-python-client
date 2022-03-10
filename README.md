@@ -1,24 +1,23 @@
 ## Overview 
-PyRavenDB is a python client api for [RavenDB](https://ravendb.net/), a NoSQL document database.
-The API can handle most CRUD scenarios, including full support for replication, failover, dynamic queries, etc.
+Python client api for [RavenDB](https://ravendb.net/), a NoSQL document database.
 
 
 ```python
-with document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB") as store:
+with documents.store.definition.DocumentStore(["http://localhost:8080"], "PyRavenDB") as store:
     store.initialize()
     with store.open_session() as session:
         foo = session.load("foos/1")
 ```
 
 ## Installation
-There are three ways to install pyravendb.
+There are three ways to install ravendb.
 
-1. Install from [PyPi](https://pypi.python.org/pypi), as [pyravendb](https://pypi.python.org/pypi/pyravendb).
+1. Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.python.org/pypi/pyravendb).
 	```bash
-	pip install pyravendb
+	pip install ravendb
 	```
 
-2. Install from source, via PyPi. From pyravendb, download, open the source (pyravendb-x.x.x.zip) and run setup.py.
+2. Install from source, via PyPi. From ravendb, download, open the source (ravendb-x.x.x.zip) and run setup.py.
 	```bash
     python setup.py install
 	```
@@ -26,7 +25,7 @@ There are three ways to install pyravendb.
 3. Install from source via [GitHub](https://github.com/ravendb/RavenDB-Python-Client).
  
 	```bash
-    git clone https://github.com/IdanHaim/RavenDB-Python-Client.git
+    git clone https://github.com/ravendb/ravendb-python-client.git
     cd RavenDB-Python-Client
     git fetch <remote_name> v4.0
     git checkout v4.0
@@ -40,7 +39,7 @@ You can use either PEM files (cert / key) or PFX/P12 files to authenticate again
 Here is how to setup the Python RavenDB client to support it.
 
  ```python
-from pyravendb.legacy import document_store
+from ravendb.legacy import document_store
 
 urls = ["https://a.prod.roll.ravendb.cloud",
 		"https://b.prod.roll.ravendb.cloud",
@@ -66,7 +65,7 @@ with store.open_session() as session:
 ##### Load a single or several document\s from the store:
 
  ```python
-from pyravendb.legacy import document_store
+from ravendb.legacy import document_store
 
 store = document_store.DocumentStore(urls=["http://localhost:8080"], database="PyRavenDB")
 store.initialize()
