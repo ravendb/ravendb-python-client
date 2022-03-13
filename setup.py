@@ -4,7 +4,7 @@ setup(
     name="ravendb",
     packages=find_packages(),
     version="5.2.0beta1",
-    long_description_content_type ="text/markdown",
+    long_description_content_type="text/markdown",
     long_description=open("README_pypi.md").read(),
     description="Python client for RavenDB NoSQL Database",
     author="RavenDB",
