@@ -1,12 +1,12 @@
 
-# Official Python client for RavenDB NoSQL Database 🐍
+# Official Python client for RavenDB NoSQL Database
 
 ## Installation
 Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.python.org/pypi/ravendb).
 ```bash
 pip install ravendb==5.2.0b1
 ````
-## Introduction and changelog
+## Introduction
 Python client API (v5.2) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
 
 
@@ -16,12 +16,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 **Type-hinted entire project and API results** - using the API is now much more comfortable with IntelliSense
 
-
----
-
-![](.github/readme_content/typehints.gif)
-
----
+## What's new?
 
 - **Querying** 
   - Simpler, well type hinted querying
@@ -29,6 +24,8 @@ Although new API isn't compatible with the previous one, it comes with **many im
   - Spatial querying
   - Boost, fuzzy, proximity
   - Subclauses support
+  
+
  
 - **Static Indexes**
   - Store fields, index fields, pick analyzers & more using `AbstractIndexCreationTask`
@@ -40,13 +37,9 @@ Although new API isn't compatible with the previous one, it comes with **many im
 - **CRUD**
   - Type hints for results and includes
   - Support for dataclasses
- 
-----
+   
+ ------
 
-#### Querying features
-![](.github/readme_content/document_query.gif)
-
-----
 
 - **Attachments**
   - New attachments API
@@ -57,6 +50,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
   - Support for https connection
   - Certificates CRUD operations
 
+-----
 
 - **Lazy load**
   - New feature
@@ -65,6 +59,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
 - **Cluster Transactions, Compare Exchange**
   - New feature
   
+-----
 
 ### **Coming soon, work in progress**
   - More lazy operations - querying and compare exchange
@@ -75,6 +70,13 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 
 The client is still in the **beta** phase.
+
+----
+
+#### GitHub
+https://github.com/ravendb/ravendb-python-client
+
+-----
 
 ##### Bug Tracker
 http://issues.hibernatingrhinos.com/issues/RDBC
