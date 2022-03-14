@@ -46,9 +46,17 @@ class QueryTimings:
 
     @staticmethod
     def from_json(json_dict: Dict) -> QueryTimings:
-        return QueryTimings(
-            json_dict.get("DurationInMs", None), {k: QueryTimings.from_json(v) for k, v in json_dict.get("Timings", {})}
-        )
+        duration = json_dict.get("DurationInMs", None)
+        timings_json = json_dict.get("Timings", None)
+        if timings_json is None:
+            return QueryTimings(duration, None)
+
+        timings = {}
+
+        for key, value in json_dict.get("Timings").items():
+            timings[key] = QueryTimings.from_json(value)
+
+        return QueryTimings(duration, timings)
 
 
 class QueryData:
