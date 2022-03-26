@@ -67,7 +67,6 @@ class TestRavenDB15753(TestBase):
             "from 'https://api.nuget.org/v3/index.json'.",
         )
 
-    @unittest.skip("investigate why it doesn't raise error")
     def test_additional_assemblies_NuGet_invalid_source(self):
         def act():
             index_definition = IndexDefinition()

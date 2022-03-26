@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import TYPE_CHECKING
 from typing import TypeVar, Generic, Tuple
 
@@ -14,7 +14,7 @@ class ValueForQueryConverter(Generic[_T]):
         pass
 
 
-class ShouldIgnoreEntityChanges:
+class ShouldIgnoreEntityChanges(ABC):
     @abstractmethod
     def check(
         self,

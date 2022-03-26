@@ -380,10 +380,10 @@ class NextHiLoCommand(RavenCommand[HiLoResult]):
     def create_request(self, node: ServerNode) -> requests.Request:
         date = Utils.datetime_to_string(self.__last_range_at) if self.__last_range_at else ""
         path = (
-            f"/hilo/next?tag={Utils.escape(self.__tag,None,None)}"
-            f"&lastBatchSize={self.__last_batch_size if self.__last_batch_size is not None else 0}"
+            f"/hilo/next?tag={Utils.escape(self.__tag,False,False)}"
+            f"&lastBatchSize={self.__last_batch_size or 0}"
             f"&lastRangeAt={date}"
-            f"&identityPartsSeparator={Utils.quote_key(self.__identity_parts_separator)}"
+            f"&identityPartsSeparator={self.__identity_parts_separator}"
             f"&lastMax={self.__last_range_max}"
         )
 

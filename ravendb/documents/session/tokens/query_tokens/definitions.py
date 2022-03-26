@@ -204,7 +204,7 @@ class FromToken(QueryToken):
 
         if self.__dynamic:
             writer.append("from '")
-            writer.append(Utils.quote_key(self.__collection_name, reserved_at=True))
+            writer.append(Utils.escape_collection_name(self.__collection_name))
             writer.append("'")
         else:
             writer.append("from index '")

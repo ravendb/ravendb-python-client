@@ -80,6 +80,7 @@ class QueryFieldUtil:
                     and c != "]"
                     and c != "("
                     and c != ")"
+                    and c != "."
                     and not inside_escaped
                 ):
                     escape = True
