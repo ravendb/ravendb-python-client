@@ -95,7 +95,7 @@ class TimeUnit(Enum):
 class Stopwatch:
     def __init__(self):
         self.__is_running = False
-        self.__elapsed_nanos = None
+        self.__elapsed_nanos = 0
         self.__start_tick = None
 
     @staticmethod

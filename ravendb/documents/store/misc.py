@@ -7,27 +7,6 @@ from ravendb.documents.commands.batches import CommandType
 _T = TypeVar("_T")
 
 
-class Lazy(Generic[_T]):
-    def __init__(self, value_factory: Callable[[], Any]):
-        self.__value_created = False  # todo: check if it isn't cached - volatile in java
-        self.__value_factory = value_factory
-        self.__value: Union[None, _T] = None
-        self.__value_lock = threading.Lock()
-
-    @property
-    def is_value_created(self) -> bool:
-        return self.__value_created
-
-    def value(self) -> _T:  # double check locking
-        if self.__value_created:
-            return self.__value
-        with self.__value_lock:
-            if not self.__value_created:
-                self.__value = self.__value_factory()
-                self.__value_created = True
-        return self.__value
-
-
 class IdTypeAndName:
     def __init__(self, key: str, command_type: CommandType, name: str):
         self.key = key
