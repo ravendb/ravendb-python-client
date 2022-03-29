@@ -352,7 +352,7 @@ class AdditionalAssembly:
         self.assembly_path = assembly_path
         self.package_name = package_name
         self.package_version = package_version
-        self.package_source = package_source_url
+        self.package_source_url = package_source_url
         self.usings = usings
 
     def to_json(self) -> dict:
@@ -361,7 +361,7 @@ class AdditionalAssembly:
             "AssemblyPath": self.assembly_path,
             "PackageName": self.package_name,
             "PackageVersion": self.package_version,
-            "PackageSource": self.package_source,
+            "PackageSourceUrl": self.package_source_url,
             "Usings": self.usings,
         }
 

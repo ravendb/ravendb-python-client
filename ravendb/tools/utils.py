@@ -28,6 +28,24 @@ _T = TypeVar("_T")
 _TKey = TypeVar("_TKey")
 _TVal = TypeVar("_TVal")
 
+_default_wildcards = {
+    "-",
+    "&",
+    "|",
+    "!",
+    "(",
+    ")",
+    "{",
+    "}",
+    "[",
+    "]",
+    "^",
+    '"',
+    "'",
+    "~",
+    ":",
+    "\\",
+}
 if TYPE_CHECKING:
     from ravendb.documents.conventions.document_conventions import DocumentConventions
 
@@ -581,24 +599,19 @@ class Utils(object):
         return timedelta_str
 
     @staticmethod
-    def escape(term, allow_wild_cards, make_phrase):
-        wild_cards = [
-            "-",
-            "&",
-            "|",
-            "!",
-            "(",
-            ")",
-            "{",
-            "}",
-            "[",
-            "]",
-            "^",
-            '"',
-            "~",
-            ":",
-            "\\",
-        ]
+    def escape(term: str, allow_wild_cards: bool = False, make_phrase: bool = False) -> str:
+        return Utils.__escape_internal(term, _default_wildcards if allow_wild_cards else None, make_phrase)
+
+    @staticmethod
+    def escape_skip(term: str, skipped_wild_cards: List[str], make_phrase: bool = False) -> str:
+        return Utils.__escape_internal(term, _default_wildcards.difference(skipped_wild_cards), make_phrase)
+
+    @staticmethod
+    def __escape_internal(term: str, wild_cards: Collection[str] = None, make_phrase: bool = False) -> str:
+        allow_wild_cards = wild_cards is None
+        if wild_cards is None:
+            wild_cards = []
+
         if not term:
             return '""'
         start = 0
@@ -631,6 +644,19 @@ class Utils(object):
             buffer += term[start : length - start]
 
         return buffer
+
+    @staticmethod
+    def escape_collection_name(collection_name: str):
+        special = ["'", '"', "\\"]
+        position = 0
+        buffer = []
+        for char in collection_name:
+            if char in special:
+                buffer.append("\\")
+            buffer.append(char)
+            position += 1
+
+        return "".join(buffer)
 
     @staticmethod
     def pfx_to_pem(pem_path, pfx_path, pfx_password):

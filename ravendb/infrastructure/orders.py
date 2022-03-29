@@ -100,3 +100,45 @@ class Product:
         self.units_on_order = units_on_order
         self.discontinued = discontinued
         self.reorder_level = reorder_level
+
+
+class OrderLine(object):
+    def __init__(
+        self,
+        product: str = None,
+        product_name: str = None,
+        price_per_unit: float = None,
+        quantity: int = None,
+        discount: float = None,
+    ):
+        self.product = product
+        self.product_name = product_name
+        self.price_per_unit = price_per_unit
+        self.quantity = quantity
+        self.discount = discount
+
+
+class Order:
+    def __init__(
+        self,
+        key: str = None,
+        company: str = None,
+        employee: str = None,
+        ordered_at: datetime.datetime = None,
+        require_at: datetime.datetime = None,
+        shipped_at: datetime.datetime = None,
+        ship_to: Address = None,
+        ship_via: str = None,
+        freight: float = None,
+        lines: List[OrderLine] = None,
+    ):
+        self.key = key
+        self.company = company
+        self.employee = employee
+        self.ordered_at = ordered_at
+        self.require_at = require_at
+        self.shipped_at = shipped_at
+        self.ship_to = ship_to
+        self.ship_via = ship_via
+        self.freight = freight
+        self.lines = lines

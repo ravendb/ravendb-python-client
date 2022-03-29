@@ -10,6 +10,7 @@ from subprocess import Popen
 from typing import Iterable, List, Union, Optional, Set
 from datetime import timedelta
 from ravendb import constants
+from ravendb.documents.operations.indexes import GetIndexErrorsOperation
 from ravendb.exceptions.exceptions import DatabaseDoesNotExistException
 from ravendb.documents.indexes.definitions import IndexState, IndexErrors
 from ravendb.documents.operations.statistics import GetStatisticsOperation
@@ -132,15 +133,6 @@ class Employee(object):
         self.last_name = last_name
 
 
-class OrderLine(object):
-    def __init__(self, product: str, product_name: str, price_per_unit: float, quantity: int, discount: float):
-        self.product = product
-        self.product_name = product_name
-        self.price_per_unit = price_per_unit
-        self.quantity = quantity
-        self.discount = discount
-
-
 class Patch(object):
     def __init__(self, patched):
         self.patched = patched
@@ -253,7 +245,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
     def _customize_db_record(self, db_record: DatabaseRecord) -> None:
         pass
 
-    def _customize_store(self, db_record: DocumentStore) -> None:
+    def _customize_store(self, store: DocumentStore) -> None:
         pass
 
     @property
@@ -381,7 +373,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
             except RuntimeError as e:
                 raise RuntimeError(e)
 
-        errors = None  # admin.send(GetIndexErrorsOperation())
+        errors = admin.send(GetIndexErrorsOperation())  # admin.send(GetIndexErrorsOperation())
         all_index_errors_text = ""
 
         def __format_index_errors(errors_list: IndexErrors):
