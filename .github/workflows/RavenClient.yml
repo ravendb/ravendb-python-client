@@ -69,7 +69,7 @@ jobs:
         run: mkdir RavenDB/Server/certs && cp certs/server.pfx RavenDB/Server/certs/
 
       - name: Install black linter
-        run: pip install git+git://github.com/psf/black
+        run: pip install black
 
       - name: Check code format
         run: black --check .
