@@ -6,8 +6,6 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
-import requests
-
 from ravendb import constants, exceptions
 from ravendb.changes.database_changes import DatabaseChanges
 from ravendb.documents.operations.counters.operation import CounterOperationType
@@ -28,7 +26,8 @@ from ravendb.documents.session.event_args import (
     SucceedRequestEventArgs,
     FailedRequestEventArgs,
 )
-from ravendb.documents.store.misc import Lazy, IdTypeAndName
+from ravendb.documents.store.lazy import Lazy
+from ravendb.documents.store.misc import IdTypeAndName
 from ravendb.documents.session.document_session import DocumentSession
 from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from ravendb.documents.session.misc import SessionOptions, DocumentQueryCustomization
@@ -237,17 +236,17 @@ class DocumentStoreBase:
 
     def _ensure_not_closed(self) -> None:
         if self.disposed:
-            raise ValueError("The document legacy has already been disposed and cannot be used")
+            raise ValueError("The document store has already been disposed and cannot be used")
 
     def __assert_not_initialized(self, property: str) -> None:
         if self._initialized:
-            raise RuntimeError(f"You cannot set '{property}' after the document legacy has been initialized.")
+            raise RuntimeError(f"You cannot set '{property}' after the document store has been initialized.")
 
     def assert_initialized(self) -> None:
         if not self._initialized:
             raise RuntimeError(
                 f"You cannot open a session or access the database commands before initializing the "
-                f"document legacy. Did you forget calling initialize()?"
+                f"document store. Did you forget calling initialize()?"
             )
 
     def get_effective_database(self, database: str) -> str:
@@ -343,7 +342,7 @@ class DocumentStore(DocumentStoreBase):
             if not lazy.is_value_created:
                 continue
 
-            lazy.value().close()
+            lazy.value.close()
 
         self.__thread_pool_executor.shutdown()
 
@@ -372,7 +371,7 @@ class DocumentStore(DocumentStoreBase):
 
         executor = self.__request_executors.get(database, None)
         if executor:
-            return executor.value()
+            return executor.value
         effective_database = database
 
         def __create_request_executor() -> RequestExecutor:
@@ -408,7 +407,7 @@ class DocumentStore(DocumentStoreBase):
 
         self.__request_executors[database] = executor
 
-        return executor.value()
+        return executor.value
 
     def execute_index(self, task: "AbstractIndexCreationTask", database: Optional[str] = None) -> None:
         self.assert_initialized()
@@ -476,7 +475,7 @@ class DocumentStore(DocumentStoreBase):
 
     def _assert_valid_configuration(self) -> None:
         if not self.urls:
-            raise ValueError("Document legacy URLs cannot be empty.")
+            raise ValueError("Document URLs cannot be empty.")
 
     @property
     def maintenance(self) -> MaintenanceOperationExecutor:
