@@ -1,7 +1,8 @@
 import datetime
 import http
+import json
 from abc import abstractmethod
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Tuple
 
 import requests
 
@@ -43,7 +44,7 @@ class GetResponse:
     def __init__(self):
         self.headers = CaseInsensitiveDict()
         self.elapsed: Union[None, datetime.timedelta] = None
-        self.result: Union[None, dict] = None
+        self.result: Union[None, str] = None
         self.status_code: Union[None, int] = None
         self.force_retry: Union[None, bool] = None
 
@@ -63,7 +64,7 @@ class GetResponse:
 class Cached:
     def __init__(self, size: int):
         self.__size = size
-        self.values: Union[None, List[tuple[ReleaseCacheItem, str]]] = None
+        self.values: Union[None, List[Tuple[ReleaseCacheItem, str]]] = None
 
     def __enter__(self):
         return self
@@ -267,7 +268,7 @@ class MultiGetCommand(RavenCommand):
     @staticmethod
     def read_response(response_json: dict) -> GetResponse:
         get_response = GetResponse()
-        get_response.result = response_json["Result"]
+        get_response.result = json.dumps(response_json["Result"])  # todo: perf - redundant dump after response.json()
         get_response.headers = CaseInsensitiveDict(response_json["Headers"])
         if response_json["StatusCode"] == -1:
             MultiGetCommand._throw_invalid_response()

@@ -9,6 +9,7 @@ from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.queries.query import QueryResult
 from ravendb.documents.session.operations.lazy import LazyAggregationQueryOperation
 from ravendb.documents.session.operations.query import QueryOperation
+from ravendb.documents.store.lazy import Lazy
 from ravendb.tools.utils import Stopwatch
 
 _T = TypeVar("_T")
@@ -34,10 +35,12 @@ class AggregationQueryBase:
 
         return self.__process_results(command.result)
 
-    def execute_lazy(self, on_eval: Callable[[Dict[str, FacetResult]], None] = None):
+    def execute_lazy(
+        self, on_eval: Optional[Callable[[Dict[str, FacetResult]], None]] = None
+    ) -> Lazy[Dict[str, FacetResult]]:
         self.__query = self._get_index_query()
         self.__session: "DocumentSession"
-        self.__session.add_lazy_operation(
+        return self.__session.add_lazy_operation(
             dict,
             LazyAggregationQueryOperation(
                 self.__session,

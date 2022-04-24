@@ -79,34 +79,30 @@ class LazyStartsWithOperation(LazyOperation):
         return request
 
     def handle_response(self, response: GetResponse) -> None:
-        try:
-            get_documents_result = GetDocumentsResult.from_json(response.result)
-            final_results = CaseInsensitiveDict()
+        get_documents_result = GetDocumentsResult.from_json(json.loads(response.result))
+        final_results = CaseInsensitiveDict()
 
-            for document in get_documents_result.results:
-                new_document_info = DocumentInfo.get_new_document_info(document)
-                self.__session_operations.documents_by_id.add(new_document_info)
+        for document in get_documents_result.results:
+            new_document_info = DocumentInfo.get_new_document_info(document)
+            self.__session_operations.documents_by_id.add(new_document_info)
 
-                if new_document_info.key is None:
-                    continue  # is this possible?
+            if new_document_info.key is None:
+                continue  # todo: is this possible?
 
-                if self.__session_operations.is_deleted(new_document_info.key):
-                    final_results[new_document_info.key] = None
-                    continue
-
-                doc = self.__session_operations.documents_by_id.get_value(new_document_info.key)
-                if doc is not None:
-                    final_results[new_document_info.key] = self.__session_operations.track_entity_document_info(
-                        self.__object_type, doc
-                    )
-                    continue
-
+            if self.__session_operations.is_deleted(new_document_info.key):
                 final_results[new_document_info.key] = None
+                continue
 
-            self.result = final_results
+            doc = self.__session_operations.documents_by_id.get_value(new_document_info.key)
+            if doc is not None:
+                final_results[new_document_info.key] = self.__session_operations.track_entity_document_info(
+                    self.__object_type, doc
+                )
+                continue
 
-        except Exception as e:
-            raise RuntimeError(e)
+            final_results[new_document_info.key] = None
+
+        self.result = final_results
 
 
 class LazyConditionalLoadOperation(LazyOperation):
@@ -324,7 +320,7 @@ class LazyLoadOperation(LazyOperation):
             self.requires_retry = True
             return
 
-        multi_load_result = GetDocumentsResult.from_json(response.result) if response.result else None
+        multi_load_result = GetDocumentsResult.from_json(json.loads(response.result)) if response.result else None
         self.__handle_response(multi_load_result)
 
     def __handle_response(self, load_result: GetDocumentsResult) -> None:
@@ -394,7 +390,7 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
         query_result = None
 
         if response.result is not None:
-            query_result = QueryResult.from_json(response.result)
+            query_result = QueryResult.from_json(json.loads(response.result))
 
         self.__handle_response(query_result, response.elapsed)
 
@@ -446,6 +442,9 @@ class LazyAggregationQueryOperation(LazyOperation):
         self.result = self.__process_results(query_result)
         self.query_result = query_result
 
+    def is_requires_retry(self) -> bool:
+        return self.requires_retry
+
 
 class LazySuggestionQueryOperation(LazyOperation):
     def __init__(
@@ -487,3 +486,6 @@ class LazySuggestionQueryOperation(LazyOperation):
     def __handle_response(self, query_result: QueryResult) -> None:
         self.result = self.__process_results(query_result)
         self.query_result = query_result
+
+    def is_requires_retry(self) -> bool:
+        return self.requires_retry
