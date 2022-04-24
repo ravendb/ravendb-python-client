@@ -43,17 +43,9 @@ class GetResponse:
     def __init__(self):
         self.headers = CaseInsensitiveDict()
         self.elapsed: Union[None, datetime.timedelta] = None
-        self._result: Union[None, str] = None
+        self.result: Union[None, dict] = None
         self.status_code: Union[None, int] = None
         self.force_retry: Union[None, bool] = None
-
-    @property
-    def result(self):
-        return self._result
-
-    @result.setter
-    def result(self, value: str):
-        self._result = value
 
     @property
     def request_has_errors(self):

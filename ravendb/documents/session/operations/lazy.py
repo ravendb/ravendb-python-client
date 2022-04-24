@@ -41,7 +41,7 @@ class IndexQueryContent(Content):
 class LazyStartsWithOperation(LazyOperation):
     def __init__(
         self,
-        object_type: type,
+        object_type: Type[_T],
         prefix: str,
         matches: str,
         exclude: str,
@@ -63,6 +63,9 @@ class LazyStartsWithOperation(LazyOperation):
         self.query_result: Union[None, QueryResult] = None
         self.requires_retry: Union[None, bool] = None
 
+    def is_requires_retry(self) -> bool:
+        return self.requires_retry
+
     def create_request(self) -> GetRequest:
         request = GetRequest()
         request.url = "/docs"
@@ -77,7 +80,7 @@ class LazyStartsWithOperation(LazyOperation):
 
     def handle_response(self, response: GetResponse) -> None:
         try:
-            get_documents_result = GetDocumentsResult.from_json(json.loads(response.result))
+            get_documents_result = GetDocumentsResult.from_json(response.result)
             final_results = CaseInsensitiveDict()
 
             for document in get_documents_result.results:
@@ -93,7 +96,7 @@ class LazyStartsWithOperation(LazyOperation):
 
                 doc = self.__session_operations.documents_by_id.get_value(new_document_info.key)
                 if doc is not None:
-                    final_results[new_document_info.key] = self.__session_operations.track_entity(
+                    final_results[new_document_info.key] = self.__session_operations.track_entity_document_info(
                         self.__object_type, doc
                     )
                     continue
@@ -115,7 +118,7 @@ class LazyConditionalLoadOperation(LazyOperation):
         self.__change_vector = change_vector
         self.__session = session
         self.__result: Union[None, object] = None
-        self.__requires_retry: Union[None, bool] = None
+        self.requires_retry: Union[None, bool] = None
 
     @property
     def result(self) -> object:
@@ -124,6 +127,9 @@ class LazyConditionalLoadOperation(LazyOperation):
     @property
     def query_result(self) -> QueryResult:
         raise NotImplementedError()
+
+    def is_requires_retry(self) -> bool:
+        return self.requires_retry
 
     def create_request(self) -> GetRequest:
         request = GetRequest()
@@ -138,7 +144,7 @@ class LazyConditionalLoadOperation(LazyOperation):
     def handle_response(self, response: "GetResponse") -> None:
         if response.force_retry:
             self.__result = None
-            self.__requires_retry = None
+            self.requires_retry = None
             return
 
         if response.status_code == HTTPStatus.NOT_MODIFIED.value:
@@ -198,14 +204,14 @@ class LazySessionOperations:
 
     def load_starting_with(
         self,
-        object_type: type,
+        object_type: Type[_T],
         id_prefix: str,
         matches: str = None,
         start: int = 0,
         page_size: int = 25,
         exclude: str = None,
         start_after: str = None,
-    ) -> Lazy[Dict[str, object]]:
+    ) -> Lazy[Dict[str, _T]]:
         operation = LazyStartsWithOperation(
             object_type, id_prefix, matches, exclude, start, page_size, self._delegate, start_after
         )
@@ -250,7 +256,7 @@ class LazyLoadOperation(LazyOperation):
 
         self.__result: Union[None, List[_T]] = None
         self.__query_result: Union[None, QueryResult] = None
-        self.__requires_retry: Union[None, bool] = None
+        self.requires_retry: Union[None, bool] = None
 
     @property
     def query_result(self) -> QueryResult:
@@ -268,13 +274,8 @@ class LazyLoadOperation(LazyOperation):
     def result(self, value) -> None:
         self.__result = value
 
-    @property
     def is_requires_retry(self) -> bool:
-        return self.__requires_retry
-
-    @is_requires_retry.setter
-    def is_requires_retry(self, value) -> None:
-        self.__requires_retry = value
+        return self.requires_retry
 
     def create_request(self) -> GetRequest:
         query_builder = ["?"]
@@ -320,7 +321,7 @@ class LazyLoadOperation(LazyOperation):
     def handle_response(self, response: GetResponse) -> None:
         if response.force_retry:
             self.result = None
-            self.__requires_retry = True
+            self.requires_retry = True
             return
 
         multi_load_result = GetDocumentsResult.from_json(response.result) if response.result else None
@@ -332,7 +333,7 @@ class LazyLoadOperation(LazyOperation):
             LoadOperation(self.__session).by_keys(self.__already_in_session).get_documents(self.__object_type)
 
         self.__load_operation.set_result(load_result)
-        if not self.__requires_retry:
+        if not self.requires_retry:
             self.result = self.__load_operation.get_documents(self.__object_type)
 
 
@@ -351,7 +352,7 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
 
         self.__result: Union[None, List[_T]] = None
         self.__query_result: Union[None, QueryResult] = None
-        self.__requires_retry: Union[None, bool] = None
+        self.requires_retry: Union[None, bool] = None
 
     def create_request(self) -> "GetRequest":
         request = GetRequest()
@@ -367,7 +368,7 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
 
     @property
     def result(self) -> Union[None, List[_T]]:
-        return
+        return self.__result
 
     @result.setter
     def result(self, value: List[_T]):
@@ -381,24 +382,19 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
     def query_result(self, value: QueryResult):
         self.__query_result = value
 
-    @property
     def is_requires_retry(self) -> bool:
-        return self.__requires_retry
-
-    @is_requires_retry.setter
-    def is_requires_retry(self, value: bool):
-        self.__requires_retry = value
+        return self.requires_retry
 
     def handle_response(self, response: "GetResponse") -> None:
         if response.force_retry:
             self.result = None
-            self.__requires_retry = True
+            self.requires_retry = True
             return
 
         query_result = None
 
         if response.result is not None:
-            query_result = QueryResult.from_json(json.loads(response.result))
+            query_result = QueryResult.from_json(response.result)
 
         self.__handle_response(query_result, response.elapsed)
 
