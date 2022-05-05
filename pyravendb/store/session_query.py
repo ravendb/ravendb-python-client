@@ -652,17 +652,25 @@ class Query(object):
 
         return self
 
+    def order_by_keyword(self, keyword, ordering=OrderingType.str, descending=False):
+        self.assert_no_raw_query()
+        self._order_by_tokens.append(
+            _Token(field_name=keyword, token="order_by", write=keyword, descending=descending,
+                   ordering=ordering))
+
+        return self
+
     def order_by_descending(self, field_name, ordering=OrderingType.str):
         return self.order_by(field_name, ordering, descending=True)
 
     def order_by_score(self):
-        return self.order_by("score()")
+        return self.order_by_keyword("score()")
 
     def order_by_score_descending(self):
-        return self.order_by("score()", descending=True)
+        return self.order_by_keyword("score()", descending=True)
 
     def random_ordering(self):
-        return self.order_by("random()")
+        return self.order_by_keyword("random()")
 
     def and_also(self):
         if len(self._where_tokens) > 0:
