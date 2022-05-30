@@ -170,7 +170,7 @@ class FacetToken(QueryToken):
             first_argument = False
             aggregation.write_to(writer)
 
-        if not self.__options_parameter_name.isspace():
+        if self.__options_parameter_name and not self.__options_parameter_name.isspace():
             writer.append(", $")
             writer.append(self.__options_parameter_name)
 
@@ -212,7 +212,7 @@ class FacetToken(QueryToken):
             else:
                 raise ValueError(f"Invalid aggregation mode: {self.__aggregation}")
 
-            if self.__field_display_name.isspace():
+            if not self.__field_display_name or self.__field_display_name.isspace():
                 return
 
             writer.append(" as ")

@@ -160,7 +160,7 @@ class RequestExecutor:
         # todo: check if http client name is required
         session = requests.session()
         session.cert = self.__certificate_path
-        session.verify = self.__trust_store_path
+        session.verify = self.__trust_store_path if self.__trust_store_path else True
         return session
 
     @property

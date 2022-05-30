@@ -40,7 +40,6 @@ from ravendb.documents.conventions.document_conventions import DocumentConventio
 
 T = TypeVar("T")
 
-
 from ravendb.documents.commands.batches import CommandType, CountersBatchCommandData
 
 if TYPE_CHECKING:
@@ -52,7 +51,7 @@ class DocumentStoreBase:
         self.__conventions = None
         self._initialized: bool = False
 
-        self.__certificate_path: Union[None, str] = None
+        self.__certificate_pem_path: Union[None, str] = None
         self.__trust_store_path: Union[None, str] = None
 
         self._urls: List[str] = []
@@ -126,13 +125,25 @@ class DocumentStoreBase:
         self._database = value
 
     @property
-    def certificate_path(self) -> str:
-        return self.__certificate_path
+    def certificate_pem_path(self) -> str:
+        return self.__certificate_pem_path
 
-    @certificate_path.setter
-    def certificate_path(self, value: str):
+    @certificate_pem_path.setter
+    def certificate_pem_path(self, value: str):
         self.__assert_not_initialized("certificate_url")
-        self.__certificate_path = value
+        if value.endswith("pfx"):
+            raise ValueError("Invalid certificate format. " "Please use .pem file.")
+        if "BEGIN CERTIFICATE" not in open(value).read():
+            raise ValueError(
+                f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
+                f"BEGIN CERTIFICATE header wasn't found."
+            )
+        if "BEGIN RSA PRIVATE KEY" not in open(value).read():
+            raise ValueError(
+                f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
+                f"BEGIN RSA PRIVATE KEY header wasn't found."
+            )
+        self.__certificate_pem_path = value
 
     @property
     def trust_store_path(self) -> str:
@@ -379,7 +390,7 @@ class DocumentStore(DocumentStoreBase):
                 self.urls,
                 effective_database,
                 self.conventions,
-                self.certificate_path,
+                self.certificate_pem_path,
                 self.trust_store_path,
                 self.thread_pool_executor,
             )
@@ -391,7 +402,7 @@ class DocumentStore(DocumentStoreBase):
                 self.urls[0],
                 effective_database,
                 self.conventions,
-                self.certificate_path,
+                self.certificate_pem_path,
                 self.trust_store_path,
                 self.thread_pool_executor,
             )

@@ -925,7 +925,7 @@ class SuggestToken(QueryToken):
 
         writer.append(")")
 
-        if self.__alias.isspace() or self.field_name == self.__alias:
+        if not self.__alias or self.__alias.isspace() or self.field_name == self.__alias:
             return
 
         writer.append(" as ")

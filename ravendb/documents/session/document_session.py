@@ -193,7 +193,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 self._pending_lazy_operations[i].handle_response(response)
-                if self._pending_lazy_operations[i].is_requires_retry:
+                if self._pending_lazy_operations[i].is_requires_retry():
                     return True
 
             return False

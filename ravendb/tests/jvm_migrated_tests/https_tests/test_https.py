@@ -175,7 +175,7 @@ class HttpsTest(TestBase):
                 with open(tmp[1], "wb") as file:
                     file.write(key[0].encode("utf-8"))
                     file.write(key[1])
-                store_with_out_cert.certificate_path = tmp[1]
+                store_with_out_cert.certificate_pem_path = tmp[1]
                 store_with_out_cert.initialize()
 
                 with store_with_out_cert.open_session() as session:
@@ -197,7 +197,7 @@ class HttpsTest(TestBase):
                 with open(tmp[1], "wb") as file:
                     file.write(key.encode("utf-8"))
                     file.write(cert)
-                store_wit_out_cert.certificate_path = tmp[1]
+                store_wit_out_cert.certificate_pem_path = tmp[1]
                 store_wit_out_cert.initialize()
                 with self.assertRaises(AuthorizationException):
                     with store_wit_out_cert.open_session() as session:

@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="ravendb",
-    packages=find_packages(),
-    version="5.2.0beta1",
+    packages=find_packages(exclude=["*.tests.*", "tests", "*.tests", "tests.*"]),
+    version="5.2.0beta2",
     long_description_content_type="text/markdown",
     long_description=open("README_pypi.md").read(),
     description="Python client for RavenDB NoSQL Database",
