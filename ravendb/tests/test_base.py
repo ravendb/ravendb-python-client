@@ -228,7 +228,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
     def __run_server(self, secured: bool):
         def __configure_store(s: DocumentStore) -> None:
             if secured:
-                s.certificate_path = self.test_client_certificate_url
+                s.certificate_pem_path = self.test_client_certificate_url
                 s.trust_store_path = self.test_ca_certificate_url
 
         store, process = self._run_server_internal(self.__get_locator(secured), __configure_store)
@@ -284,7 +284,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         store = DocumentStore(document_store.urls, name)
 
         if secured:
-            store.certificate_path = self.test_client_certificate_url
+            store.certificate_pem_path = self.test_client_certificate_url
             store.trust_store_path = self.test_ca_certificate_url
 
         self._customize_store(store)

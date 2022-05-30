@@ -113,7 +113,7 @@ class ServerOperationExecutor:
                 store.urls[0],
                 store.thread_pool_executor,
                 store.conventions,
-                store.certificate_path,
+                store.certificate_pem_path,
                 store.trust_store_path,
             )
             if store.conventions.disable_topology_updates
@@ -121,7 +121,7 @@ class ServerOperationExecutor:
                 store.urls,
                 store.thread_pool_executor,
                 store.conventions,
-                store.certificate_path,
+                store.certificate_pem_path,
                 store.trust_store_path,
             )
         )
