@@ -133,16 +133,18 @@ class DocumentStoreBase:
         self.__assert_not_initialized("certificate_url")
         if value.endswith("pfx"):
             raise ValueError("Invalid certificate format. " "Please use .pem file.")
-        if "BEGIN CERTIFICATE" not in open(value).read():
-            raise ValueError(
-                f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
-                f"BEGIN CERTIFICATE header wasn't found."
-            )
-        if "BEGIN RSA PRIVATE KEY" not in open(value).read():
-            raise ValueError(
-                f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
-                f"BEGIN RSA PRIVATE KEY header wasn't found."
-            )
+        with open(value) as file:
+            content = file.read()
+            if "BEGIN CERTIFICATE" not in content:
+                raise ValueError(
+                    f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
+                    f"BEGIN CERTIFICATE header wasn't found."
+                )
+            if "BEGIN RSA PRIVATE KEY" not in content:
+                raise ValueError(
+                    f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
+                    f"BEGIN RSA PRIVATE KEY header wasn't found."
+                )
         self.__certificate_pem_path = value
 
     @property
