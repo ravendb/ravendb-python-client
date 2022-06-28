@@ -1026,7 +1026,7 @@ class InMemoryDocumentSessionOperations:
         if not self._has_cluster_session():
             return
 
-        cluster_transaction_operations = self.cluster_session
+        cluster_transaction_operations = self.cluster_transaction
         if cluster_transaction_operations.number_of_tracked_compare_exchange_values == 0:
             return
 
@@ -1035,7 +1035,7 @@ class InMemoryDocumentSessionOperations:
                 "Performing cluster transaction operation require the TransactionMode to be set to CLUSTER_WIDE"
             )
 
-        self.cluster_session.prepare_compare_exchange_entities(result)
+        self.cluster_transaction.prepare_compare_exchange_entities(result)
 
     # --- CLUSTER ---
     @abstractmethod
@@ -1048,7 +1048,7 @@ class InMemoryDocumentSessionOperations:
 
     @property
     @abstractmethod
-    def cluster_session(self) -> ClusterTransactionOperationsBase:
+    def cluster_transaction(self) -> ClusterTransactionOperationsBase:
         raise RuntimeError(f"{self.__class__.__name__} must override the cluster_session property method")
 
     @staticmethod

@@ -5,12 +5,17 @@ import json
 from http import HTTPStatus
 from typing import Union, List, Generic, TypeVar, Type, Callable, Dict, TYPE_CHECKING, Optional
 
+from ravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
+    CompareExchangeValueResultParser,
+)
+
 from ravendb import constants
 from ravendb.documents.queries.facets.misc import FacetResult
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.loaders.loaders import LazyMultiLoaderWithInclude
 from ravendb.documents.store.lazy import ConditionalLoadResult, Lazy
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.documents.queries.query import QueryResult
 from ravendb.extensions.json_extensions import JsonExtensions
@@ -24,6 +29,9 @@ if TYPE_CHECKING:
     from ravendb.documents.session.operations.query import QueryOperation
     from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from ravendb.documents.session.document_session import DocumentSession
+    from ravendb.documents.session.cluster_transaction_operation import (
+        ClusterTransactionOperationsBase,
+    )
 
 _T = TypeVar("_T")
 
@@ -37,7 +45,6 @@ class IndexQueryContent(Content):
         return JsonExtensions.write_index_query(self.__conventions, self.__query)
 
 
-# ------- OPERATIONS --------
 class LazyStartsWithOperation(LazyOperation):
     def __init__(
         self,
@@ -63,6 +70,7 @@ class LazyStartsWithOperation(LazyOperation):
         self.query_result: Union[None, QueryResult] = None
         self.requires_retry: Union[None, bool] = None
 
+    @property
     def is_requires_retry(self) -> bool:
         return self.requires_retry
 
@@ -114,7 +122,7 @@ class LazyConditionalLoadOperation(LazyOperation):
         self.__change_vector = change_vector
         self.__session = session
         self.__result: Union[None, object] = None
-        self.requires_retry: Union[None, bool] = None
+        self.__requires_retry: Union[None, bool] = None
 
     @property
     def result(self) -> object:
@@ -124,8 +132,9 @@ class LazyConditionalLoadOperation(LazyOperation):
     def query_result(self) -> QueryResult:
         raise NotImplementedError()
 
+    @property
     def is_requires_retry(self) -> bool:
-        return self.requires_retry
+        return self.__requires_retry
 
     def create_request(self) -> GetRequest:
         request = GetRequest()
@@ -140,7 +149,7 @@ class LazyConditionalLoadOperation(LazyOperation):
     def handle_response(self, response: "GetResponse") -> None:
         if response.force_retry:
             self.__result = None
-            self.requires_retry = None
+            self.__requires_retry = None
             return
 
         if response.status_code == HTTPStatus.NOT_MODIFIED.value:
@@ -252,7 +261,7 @@ class LazyLoadOperation(LazyOperation):
 
         self.__result: Union[None, List[_T]] = None
         self.__query_result: Union[None, QueryResult] = None
-        self.requires_retry: Union[None, bool] = None
+        self.__requires_retry: Union[None, bool] = None
 
     @property
     def query_result(self) -> QueryResult:
@@ -270,10 +279,11 @@ class LazyLoadOperation(LazyOperation):
     def result(self, value) -> None:
         self.__result = value
 
+    @property
     def is_requires_retry(self) -> bool:
-        return self.requires_retry
+        return self.__requires_retry
 
-    def create_request(self) -> GetRequest:
+    def create_request(self) -> Optional[GetRequest]:
         query_builder = ["?"]
         if self.__includes is not None:
             for include in self.__includes:
@@ -329,7 +339,7 @@ class LazyLoadOperation(LazyOperation):
             LoadOperation(self.__session).by_keys(self.__already_in_session).get_documents(self.__object_type)
 
         self.__load_operation.set_result(load_result)
-        if not self.requires_retry:
+        if not self.is_requires_retry:
             self.result = self.__load_operation.get_documents(self.__object_type)
 
 
@@ -348,7 +358,7 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
 
         self.__result: Union[None, List[_T]] = None
         self.__query_result: Union[None, QueryResult] = None
-        self.requires_retry: Union[None, bool] = None
+        self.__requires_retry: Union[None, bool] = None
 
     def create_request(self) -> "GetRequest":
         request = GetRequest()
@@ -378,13 +388,14 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
     def query_result(self, value: QueryResult):
         self.__query_result = value
 
+    @property
     def is_requires_retry(self) -> bool:
-        return self.requires_retry
+        return self.__requires_retry
 
     def handle_response(self, response: "GetResponse") -> None:
         if response.force_retry:
             self.result = None
-            self.requires_retry = True
+            self.__requires_retry = True
             return
 
         query_result = None
@@ -419,7 +430,7 @@ class LazyAggregationQueryOperation(LazyOperation):
 
         self.result: Union[None, object] = None
         self.query_result: Union[None, QueryResult] = None
-        self.requires_retry: Union[None, bool] = None
+        self.__requires_retry: Union[None, bool] = None
 
     def create_request(self) -> "GetRequest":
         request = GetRequest()
@@ -432,7 +443,7 @@ class LazyAggregationQueryOperation(LazyOperation):
     def handle_response(self, response: "GetResponse") -> None:
         if response.force_retry:
             self.result = None
-            self.requires_retry = True
+            self.__requires_retry = True
             return
 
         query_result = QueryResult.from_json(json.loads(response.result))
@@ -442,8 +453,9 @@ class LazyAggregationQueryOperation(LazyOperation):
         self.result = self.__process_results(query_result)
         self.query_result = query_result
 
+    @property
     def is_requires_retry(self) -> bool:
-        return self.requires_retry
+        return self.__requires_retry
 
 
 class LazySuggestionQueryOperation(LazyOperation):
@@ -461,7 +473,7 @@ class LazySuggestionQueryOperation(LazyOperation):
 
         self.result: Union[None, object] = None
         self.query_result: Union[None, QueryResult] = None
-        self.requires_retry: Union[None, bool] = None
+        self.__requires_retry: Union[None, bool] = None
 
     def create_request(self) -> "GetRequest":
         request = GetRequest()
@@ -477,7 +489,7 @@ class LazySuggestionQueryOperation(LazyOperation):
     def handle_response(self, response: "GetResponse") -> None:
         if response.force_retry:
             self.result = None
-            self.requires_retry = True
+            self.__requires_retry = True
             return
 
         query_result = QueryResult.from_json(json.loads(response.result))
@@ -487,5 +499,221 @@ class LazySuggestionQueryOperation(LazyOperation):
         self.result = self.__process_results(query_result)
         self.query_result = query_result
 
+    @property
     def is_requires_retry(self) -> bool:
-        return self.requires_retry
+        return self.__requires_retry
+
+
+class LazyGetCompareExchangeValueOperation(Generic[_T], LazyOperation[_T]):
+    def __init__(
+        self,
+        cluster_session: ClusterTransactionOperationsBase,
+        key: str,
+        conventions: DocumentConventions,
+        object_type: Type[_T] = None,
+    ):
+        if cluster_session is None:
+            raise ValueError("Cluster session cannot be None")
+        if conventions is None:
+            raise ValueError("Conventions cannot be None")
+        if key is None:
+            raise ValueError("Key cannot be None")
+
+        self.__cluster_session = cluster_session
+        self.__object_type = object_type
+        self.__conventions = conventions
+        self.__key = key
+
+        self.__result = None
+        self.__requires_retry = None
+
+    @property
+    def result(self) -> object:
+        return self.__result
+
+    @property
+    def query_result(self) -> QueryResult:
+        raise NotImplementedError("Not implemented")
+
+    @property
+    def is_requires_retry(self) -> bool:
+        return self.__requires_retry
+
+    def create_request(self) -> Optional["GetRequest"]:
+        if self.__cluster_session.is_tracked(self.__key):
+            self.__result, not_tracked = self.__cluster_session.get_compare_exchange_value_from_session_internal(
+                self.__key, self.__object_type
+            )
+            return None
+
+        request = GetRequest()
+        request.url = "/cmpxchg"
+        request.method = "GET"
+        query_builder = f"?key={Utils.quote_key(self.__key)}"
+        request.query = query_builder
+
+        return request
+
+    def handle_response(self, response: "GetResponse") -> None:
+        if response.force_retry:
+            self.__result = None
+            self.__requires_retry = True
+            return
+
+        try:
+            if response.result is not None:
+                value = CompareExchangeValueResultParser.get_value(dict, response.result, False, self.__conventions)
+
+                if self.__cluster_session.session.no_tracking:
+                    if value is None:
+                        self.__result = self.__cluster_session.register_missing_compare_exchange_value(
+                            self.__key
+                        ).get_value(self.__object_type, self.__conventions)
+                        return
+
+                    self.__result = self.__cluster_session.register_compare_exchange_value(value).get_value(
+                        self.__object_type, self.__conventions
+                    )
+                    return
+
+                if value is not None:
+                    self.__cluster_session.register_compare_exchange_value(value)
+
+            if not self.__cluster_session.is_tracked(self.__key):
+                self.__cluster_session.register_missing_compare_exchange_value(self.__key)
+
+            self.__result, not_tracked = self.__cluster_session.get_compare_exchange_value_from_session_internal(
+                self.__key, self.__object_type
+            )
+        except Exception as e:
+            raise RavenException(f"Unable to get compare exchange value: {self.__key}", e)
+
+
+class LazyGetCompareExchangeValuesOperation(LazyOperation[_T], Generic[_T]):
+    def __init__(
+        self,
+        cluster_session: ClusterTransactionOperationsBase,
+        keys: List[str],
+        conventions: DocumentConventions,
+        object_type: Type[_T] = None,
+        starts_with: str = None,
+        start: int = 0,
+        page_size: int = 0,
+    ):
+        if not keys:
+            raise ValueError("Keys cannot be None or empty")
+
+        if cluster_session is None:
+            raise ValueError("Cluster session cannot be None")
+
+        if conventions is None:
+            raise ValueError("Conventions cannot be None")
+
+        self.__cluster_session = cluster_session
+        self.__keys = keys
+        self.__conventions = conventions
+        self.__object_type = object_type
+
+        self.__start = start
+        self.__page_size = page_size
+        self.__starts_with = starts_with
+
+        self.__result: Optional[object] = None
+        self.__requires_retry: Optional[bool] = None
+
+    @property
+    def result(self) -> object:
+        return self.__result
+
+    @property
+    def query_result(self) -> QueryResult:
+        raise NotImplementedError("Not implemented.")
+
+    @property
+    def is_requires_retry(self) -> bool:
+        return self.__requires_retry
+
+    def create_request(self) -> Optional["GetRequest"]:
+        path_builder = None
+
+        if self.__keys:
+            for key in self.__keys:
+                if self.__cluster_session.is_tracked(key):
+                    continue
+
+                if path_builder is None:
+                    path_builder = ["?"]
+
+                path_builder.append("&key=")
+                path_builder.append(Utils.quote_key(key))
+
+        else:
+            path_builder = ["?"]
+            if self.__starts_with and not self.__starts_with.isspace():
+                path_builder.append("&startsWith")
+                path_builder.append(Utils.quote_key(self.__starts_with))
+            path_builder.append("&start=")
+            path_builder.append(self.__start)
+            path_builder.append("&pageSize=")
+            path_builder.append(self.__page_size)
+
+        if path_builder is None:
+            self.__result, _ = self.__cluster_session.get_compare_exchange_values_from_session_internal(
+                self.__keys, self.__object_type
+            )
+            return None
+
+        request = GetRequest()
+        request.url = "/cmpxchg"
+        request.method = "GET"
+        request.query = "".join(path_builder)
+
+        return request
+
+    def handle_response(self, response: "GetResponse") -> None:
+        if response.force_retry:
+            self.__result = None
+            self.__requires_retry = True
+            return
+
+        try:
+            if response.result is not None:
+
+                if self.__cluster_session.session.no_tracking:
+                    result = CaseInsensitiveDict()
+                    for key, value in CompareExchangeValueResultParser.get_values(
+                        dict, response.result, False, self.__conventions
+                    ).items():
+                        if value is None:
+                            result[key] = self.__cluster_session.register_missing_compare_exchange_value(key).get_value(
+                                self.__object_type, self.__conventions
+                            )
+                            continue
+
+                        result[key] = self.__cluster_session.register_compare_exchange_value(value).get_value(
+                            self.__object_type, self.__conventions
+                        )
+                    self.__result = result
+                    return
+
+                for key, value in CompareExchangeValueResultParser.get_values(
+                    dict, response.result, False, self.__conventions
+                ).items():
+                    if value is None:
+                        continue
+
+                    self.__cluster_session.register_compare_exchange_value(value)
+
+            if self.__keys is not None:
+                for key in self.__keys:
+                    if self.__cluster_session.is_tracked(key):
+                        continue
+
+                    self.__cluster_session.register_missing_compare_exchange_value(key)
+
+            self.__result, _ = self.__cluster_session.get_compare_exchange_values_from_session_internal(
+                self.__keys, self.__object_type
+            )
+
+        except Exception:
+            raise RavenException(f"Unable to get compare exchange values:  {' ,'.join(self.__keys)}")

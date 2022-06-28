@@ -1,4 +1,7 @@
-from typing import Union, Tuple, TYPE_CHECKING, List, Dict, TypeVar, Type, Optional
+from __future__ import annotations
+
+import abc
+from typing import Union, Tuple, TYPE_CHECKING, List, Dict, TypeVar, Type, Optional, Callable
 
 from ravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeSessionValue,
@@ -10,6 +13,10 @@ from ravendb.documents.operations.compare_exchange.operations import (
     GetCompareExchangeValueOperation,
 )
 from ravendb.documents.session.misc import TransactionMode
+from ravendb.documents.session.operations.lazy import (
+    LazyGetCompareExchangeValueOperation,
+    LazyGetCompareExchangeValuesOperation,
+)
 
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 from ravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
@@ -20,11 +27,49 @@ from ravendb.util.util import StartingWithOptions
 if TYPE_CHECKING:
     from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from ravendb.documents.session.document_session import DocumentSession
+    from ravendb import Lazy
 
 _T = TypeVar("_T")
 
 
-class ClusterTransactionOperationsBase:
+class IClusterTransactionOperationsBase(abc.ABC):
+    @abc.abstractmethod
+    def delete_compare_exchange_value(self, item_or_key: Union[CompareExchangeValue, str], index: int = None) -> None:
+        pass
+
+    @abc.abstractmethod
+    def create_compare_exchange_value(self, key: str, item: _T) -> CompareExchangeValue[_T]:
+        pass
+
+
+class IClusterTransactionOperations(IClusterTransactionOperationsBase):
+    @property
+    @abc.abstractmethod
+    def lazily(self) -> ILazyClusterTransactionOperations:
+        pass
+
+    @abc.abstractmethod
+    def get_compare_exchange_value(self, key: str, object_type: Type[_T] = None) -> Optional[CompareExchangeValue[_T]]:
+        pass
+
+    @abc.abstractmethod
+    def get_compare_exchange_values(
+        self, keys: List[str], object_type: Type[_T]
+    ) -> Dict[str, CompareExchangeValue[_T]]:
+        pass
+
+    @abc.abstractmethod
+    def get_compare_exchange_values_starting_with(
+        self,
+        starts_with: str,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        object_type: Optional[Type[_T]] = None,
+    ):
+        pass
+
+
+class ClusterTransactionOperationsBase(IClusterTransactionOperationsBase):
     def __init__(self, session: "DocumentSession"):
         if session.transaction_mode != TransactionMode.CLUSTER_WIDE:
             raise RuntimeError(
@@ -231,12 +276,13 @@ class ClusterTransactionOperationsBase:
         value.update_state(index)
 
 
-class ClusterTransactionOperations(ClusterTransactionOperationsBase):
+class ClusterTransactionOperations(ClusterTransactionOperationsBase, IClusterTransactionOperations):
     def __init__(self, session: "DocumentSession"):
         super().__init__(session)
 
-    def lazily(self):
-        raise NotImplementedError()
+    @property
+    def lazily(self) -> ILazyClusterTransactionOperations:
+        return LazyClusterTransactionOperations(self.session)
 
     def get_compare_exchange_value(self, key: str, object_type: Type[_T] = None) -> Optional[CompareExchangeValue[_T]]:
         return self._get_compare_exchange_value_internal(key, object_type)
@@ -255,4 +301,51 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase):
     ):
         return self._get_compare_exchange_values_internal(
             StartingWithOptions(starts_with, start, page_size), object_type
+        )
+
+
+# this class helps to expose better typehints without tons of methods and fields from ClusterTransactionOperationsBase
+class ILazyClusterTransactionOperations(abc.ABC):
+    @abc.abstractmethod
+    def get_compare_exchange_value(
+        self,
+        key: str,
+        object_type: Optional[Type[_T]] = None,
+        on_eval: Optional[Callable[[CompareExchangeValue[_T]], None]] = None,
+    ) -> Lazy[CompareExchangeValue[_T]]:
+        pass
+
+    @abc.abstractmethod
+    def get_compare_exchange_values(
+        self,
+        keys: List[str],
+        object_type: Type[_T] = None,
+        on_eval: Callable[[Dict[str, CompareExchangeValue[_T]]], None] = None,
+    ) -> Optional[Lazy[Dict[str, CompareExchangeValue[_T]]]]:
+        pass
+
+
+class LazyClusterTransactionOperations(ClusterTransactionOperations, ILazyClusterTransactionOperations):
+    def get_compare_exchange_value(
+        self,
+        key: str,
+        object_type: Optional[Type[_T]] = None,
+        on_eval: Optional[Callable[[CompareExchangeValue[_T]], None]] = None,
+    ) -> Lazy[CompareExchangeValue[_T]]:
+        return self.session.add_lazy_operation(
+            CompareExchangeValue,
+            LazyGetCompareExchangeValueOperation(self, key, self.session.conventions, object_type),
+            on_eval,
+        )
+
+    def get_compare_exchange_values(
+        self,
+        keys: List[str],
+        object_type: Type[_T] = None,
+        on_eval: Callable[[Dict[str, CompareExchangeValue[_T]]], None] = None,
+    ) -> Optional[Lazy[Dict[str, CompareExchangeValue[_T]]]]:
+        return self.session.add_lazy_operation(
+            dict,
+            LazyGetCompareExchangeValuesOperation(self, keys, self.session.conventions, object_type),
+            on_eval,
         )

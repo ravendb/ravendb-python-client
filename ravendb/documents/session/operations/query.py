@@ -138,7 +138,7 @@ class QueryOperation:
                 raise NotImplementedError()
 
             if query_result.compare_exchange_value_includes is not None:
-                self.__session.cluster_session.register_compare_exchange_values(
+                self.__session.cluster_transaction.register_compare_exchange_values(
                     query_result.compare_exchange_value_includes
                 )
 

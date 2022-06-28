@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar, Optional
 
 if TYPE_CHECKING:
     from ravendb.documents.commands.multi_get import GetRequest, GetResponse
@@ -11,9 +11,10 @@ _T = TypeVar("_T")
 class LazyOperation(Generic[_T], ABC):
     @abstractmethod
     def __init__(self):
-        self.query_result: "QueryResult" = None
+        self.query_result: Optional["QueryResult"] = None
         self.result: _T = None
 
+    @property
     @abstractmethod
     def is_requires_retry(self) -> bool:
         pass
@@ -23,5 +24,5 @@ class LazyOperation(Generic[_T], ABC):
         pass
 
     @abstractmethod
-    def create_request(self) -> "GetRequest":
+    def create_request(self) -> Optional["GetRequest"]:
         pass

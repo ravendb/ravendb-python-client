@@ -32,11 +32,12 @@ class CompareExchangeValueResultParser:
 
         return results
 
+    # todo: check if we can't set object type as optional
     @staticmethod
     def get_value(
         object_type: Type[_T], response: str, materialize_metadata: bool, conventions: DocumentConventions
-    ) -> _T:
-        if not response:
+    ) -> Optional[CompareExchangeValue[_T]]:
+        if not response or response == "null":
             return None
 
         values = CompareExchangeValueResultParser.get_values(object_type, response, materialize_metadata, conventions)
@@ -50,15 +51,16 @@ class CompareExchangeValueResultParser:
     ) -> Optional[CompareExchangeValue[_T]]:
         if item is None:
             return None
-        key: str = item.get("Key")
-        if not key:
-            raise ValueError("Response is invalid. Key is missing")
-        index: int = item.get("Index")
-        if not index:
-            raise ValueError("Response is invalid. Index is missing.")
-        raw: dict = item.get("Value")
-        if not raw:
+        if "Key" not in item:
+            raise KeyError("Response is invalid. Key is missing.")
+        if "Index" not in item:
+            raise IndexError("Response is invalid. Index is missing.")
+        if "Value" not in item:
             raise ValueError("Response is invalid. Value is missing.")
+
+        key: str = item.get("Key")
+        index: int = item.get("Index")
+        raw: dict = item.get("Value")
         if not raw:
             return CompareExchangeValue(key, index, None)
         metadata = None
@@ -81,7 +83,7 @@ class CompareExchangeValueResultParser:
 
             return CompareExchangeValue(key, index, value, metadata)
         elif object_type == dict:
-            if not raw or not constants.CompareExchange.OBJECT_FIELD_NAME in raw:
+            if not raw or constants.CompareExchange.OBJECT_FIELD_NAME not in raw:
                 return CompareExchangeValue(key, index, None, metadata)
 
             raw_value = raw.get(constants.CompareExchange.OBJECT_FIELD_NAME)
