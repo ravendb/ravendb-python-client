@@ -1,6 +1,5 @@
 # todo: DatabaseChanges class
 import time
-import unittest
 from typing import Callable, TYPE_CHECKING
 
 import ravendb.documents.operations as doc_operations
@@ -8,6 +7,7 @@ from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from ravendb.http.raven_command import RavenCommand
 from ravendb.primitives import OperationCancelledException
 from ravendb.tools.utils import Utils
+from ravendb.documents.operations.misc import GetOperationStateOperation
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions.document_conventions import DocumentConventions
@@ -37,9 +37,8 @@ class Operation:
     def _get_operation_state_command(
         self, conventions: "DocumentConventions", key: int, node_tag: str = None
     ) -> RavenCommand[dict]:
-        return doc_operations.GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
+        return GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
 
-    @unittest.skip("Exception dispatcher")
     def wait_for_completion(self) -> None:
         while True:
             status = self.fetch_operations_status()
