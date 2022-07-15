@@ -401,7 +401,8 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
         query_result = None
 
         if response.result is not None:
-            query_result = QueryResult.from_json(json.loads(response.result))
+            json_response = json.loads(response.result)
+            query_result = None if json_response is None else QueryResult.from_json(json_response)
 
         self.__handle_response(query_result, response.elapsed)
 
