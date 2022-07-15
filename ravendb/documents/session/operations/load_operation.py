@@ -197,7 +197,7 @@ class LoadOperation:
             self._session.register_time_series(result.time_series_includes)
 
         if self._compare_exchange_values_to_include:
-            self._session.cluster_session.register_compare_exchange_values(result.compare_exchange_includes)
+            self._session.cluster_transaction.register_compare_exchange_values(result.compare_exchange_includes)
 
         for document in result.results:
             if document is None:

@@ -146,8 +146,8 @@ class RavenCommand(Generic[ResultClass]):
                 return ResponseDisposeHandling.AUTOMATIC
             else:
                 self.set_response_raw(response, response.content)
-        except IOError as e:
-            raise RuntimeError(e)
+        except Exception as e:
+            raise e
         finally:
             response.close()
         return ResponseDisposeHandling.AUTOMATIC

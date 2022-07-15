@@ -177,7 +177,7 @@ class BatchOperation:
         if not index:
             self.__throw_missing_field(command_type, "Index")
 
-        cluster_session = self.__session.cluster_session
+        cluster_session = self.__session.cluster_transaction
         cluster_session.update_state(key, index)
 
     def __handle_patch(self, batch_result: dict) -> None:

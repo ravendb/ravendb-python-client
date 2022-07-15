@@ -22,7 +22,10 @@ from ravendb.documents.operations.batch import BatchOperation
 from ravendb.documents.operations.executor import OperationExecutor, SessionOperationExecutor
 from ravendb.documents.operations.patch import PatchRequest
 from ravendb.documents.queries.misc import Query
-from ravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperations
+from ravendb.documents.session.cluster_transaction_operation import (
+    ClusterTransactionOperations,
+    IClusterTransactionOperations,
+)
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from ravendb.documents.session.loaders.include import IncludeBuilder
@@ -58,7 +61,6 @@ from ravendb.documents.store.misc import IdTypeAndName
 if TYPE_CHECKING:
     from ravendb.documents.conventions.document_conventions import DocumentConventions
     from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
-    from ravendb.documents.session.cluster_transaction_operation import ClusterTransactionOperationsBase
 
 _T = TypeVar("_T")
 _TIndex = TypeVar("_TIndex", bound=AbstractCommonApiForIndexes)
@@ -89,7 +91,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return LazySessionOperations(self)
 
     @property
-    def cluster_session(self) -> ClusterTransactionOperationsBase:
+    def cluster_transaction(self) -> IClusterTransactionOperations:
         if self.__cluster_transaction is None:
             self.__cluster_transaction = ClusterTransactionOperations(self)
         return self.__cluster_transaction
@@ -126,7 +128,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():
             return
-        self.cluster_session.clear()
+        self.cluster_transaction.clear()
 
     def _generate_id(self, entity: object) -> str:
         return self.conventions.generate_document_id(self.database_name, entity)
@@ -193,7 +195,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 self._pending_lazy_operations[i].handle_response(response)
-                if self._pending_lazy_operations[i].is_requires_retry():
+                if self._pending_lazy_operations[i].is_requires_retry:
                     return True
 
             return False
@@ -475,8 +477,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self.__attachment
 
         @property
-        def cluster_transaction(self) -> ClusterTransactionOperations:
-            return self.__session.cluster_session
+        def cluster_transaction(self) -> IClusterTransactionOperations:
+            return self.__session.cluster_transaction
+
+        @property
+        def number_of_requests(self) -> int:
+            return self.__session.number_of_requests
 
         def document_query(
             self,
