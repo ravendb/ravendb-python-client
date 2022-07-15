@@ -329,8 +329,8 @@ class LazyLoadOperation(LazyOperation):
             self.result = None
             self.requires_retry = True
             return
-
-        multi_load_result = GetDocumentsResult.from_json(json.loads(response.result)) if response.result else None
+        json_result = json.loads(response.result)
+        multi_load_result = None if json_result is None else GetDocumentsResult.from_json(json_result)
         self.__handle_response(multi_load_result)
 
     def __handle_response(self, load_result: GetDocumentsResult) -> None:
