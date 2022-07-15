@@ -70,7 +70,7 @@ class DocumentStoreBase:
         self.__before_conversion_to_entity: List[Callable[[BeforeConversionToEntityEventArgs], None]] = []
         self.__after_conversion_to_entity: List[Callable[[AfterConversionToEntityEventArgs], None]] = []
 
-        self.__before_request: List[Callable[[BeforeRequestEventArgs], None]] = []
+        self.__on_before_request: List[Callable[[BeforeRequestEventArgs], None]] = []
         self.__on_succeed_request: List[Callable[[SucceedRequestEventArgs], None]] = []
 
         self.__on_failed_request: List[Callable[[FailedRequestEventArgs], None]] = []
@@ -179,41 +179,59 @@ class DocumentStoreBase:
     def open_session(self, database: Optional[str] = None, session_options: Optional = None):
         pass
 
-    def add_on_session_creation(self, event: Callable[[], None]):
+    def add_on_session_creation(self, event: Callable[[SessionCreatedEventArgs], None]):
         self.__on_session_creation.append(event)
 
-    def remove_on_session_creation(self, event: Callable[[], None]):
+    def remove_on_session_creation(self, event: Callable[[SessionCreatedEventArgs], None]):
         self.__on_session_creation.remove(event)
 
-    def add_on_session_closing(self, event: Callable[[], None]):
+    def add_on_session_closing(self, event: Callable[[SessionClosingEventArgs], None]):
         self.__on_session_closing.append(event)
 
-    def remove_on_session_closing(self, event: Callable[[], None]):
+    def remove_on_session_closing(self, event: Callable[[SessionClosingEventArgs], None]):
         self.__on_session_closing.remove(event)
 
-    def add_before_conversion_to_document(self, event: Callable[[], None]):
+    def add_before_conversion_to_document(self, event: Callable[[BeforeConversionToDocumentEventArgs], None]):
         self.__before_conversion_to_document.append(event)
 
-    def remove_before_conversion_to_document(self, event: Callable[[], None]):
+    def remove_before_conversion_to_document(self, event: Callable[[BeforeConversionToDocumentEventArgs], None]):
         self.__before_conversion_to_document.remove(event)
 
-    def add_after_conversion_to_document(self, event: Callable[[], None]):
+    def add_after_conversion_to_document(self, event: Callable[[AfterConversionToDocumentEventArgs], None]):
         self.__after_conversion_to_document.append(event)
 
-    def remove_after_conversion_to_document(self, event: Callable[[], None]):
+    def remove_after_conversion_to_document(self, event: Callable[[AfterConversionToDocumentEventArgs], None]):
         self.__after_conversion_to_document.remove(event)
 
-    def add_before_conversion_to_entity(self, event: Callable[[], None]):
+    def add_before_conversion_to_entity(self, event: Callable[[BeforeConversionToEntityEventArgs], None]):
         self.__before_conversion_to_entity.append(event)
 
-    def remove_before_conversion_to_entity(self, event: Callable[[], None]):
+    def remove_before_conversion_to_entity(self, event: Callable[[BeforeConversionToEntityEventArgs], None]):
         self.__before_conversion_to_entity.remove(event)
 
-    def add_after_conversion_to_entity(self, event: Callable[[], None]):
+    def add_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
         self.__after_conversion_to_entity.append(event)
 
-    def remove_after_conversion_to_entity(self, event: Callable[[], None]):
+    def remove_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
         self.__after_conversion_to_entity.remove(event)
+
+    def add_on_before_request(self, event: Callable[[], None]):
+        self.__on_before_request.append(event)
+
+    def remove_on_before_request(self, event: Callable[[], None]):
+        self.__on_before_request.remove(event)
+
+    def add_on_succeed_request(self, event: Callable[[SucceedRequestEventArgs], None]):
+        self.__on_succeed_request.append(event)
+
+    def remove_on_succeed_request(self, event: Callable[[SucceedRequestEventArgs], None]):
+        self.__on_succeed_request.remove(event)
+
+    def add_on_failed_request(self, event: Callable[[FailedRequestEventArgs], None]):
+        self.__on_failed_request.append(event)
+
+    def remove_on_failed_request(self, event: Callable[[FailedRequestEventArgs], None]):
+        self.__on_failed_request.remove(event)
 
     def register_events_for_session(self, session: InMemoryDocumentSessionOperations):
         for event in self.__before_store:
@@ -242,6 +260,16 @@ class DocumentStoreBase:
 
         for event in self.__on_session_closing:
             session.add_session_closing(event)
+
+    def register_events_for_request_executor(self, request_executor: RequestExecutor):
+        for event in self.__on_before_request:
+            request_executor.add_on_before_request(event)
+        for event in self.__on_failed_request:
+            request_executor.add_on_failed_request(event)
+        for event in self.__on_succeed_request:
+            request_executor.add_on_succeed_request(event)
+        for event in self.__on_topology_updated:
+            request_executor.add_on_topology_updated(event)
 
     def after_session_created(self, session: InMemoryDocumentSessionOperations):
         for event in self.__on_session_creation:

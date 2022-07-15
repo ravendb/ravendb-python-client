@@ -12,6 +12,7 @@ import requests
 from copy import copy
 
 from ravendb import constants
+from ravendb.documents.session.event_args import BeforeRequestEventArgs, FailedRequestEventArgs, SucceedRequestEventArgs
 from ravendb.exceptions.exceptions import (
     AllTopologyNodesDownException,
     UnsuccessfulRequestException,
@@ -104,9 +105,9 @@ class RequestExecutor:
         self.__synchronized_lock = Lock()
 
         # --- events ---
-        self.__on_before_request: List[Callable[[str, str, requests.Request, int], Any]] = []
-        self.__on_failed_request: List[Callable[[str, str, BaseException], None]] = []
-        self.__on_succeed_request: List[Callable[[str, str, requests.Response, requests.Request, int], None]] = []
+        self.__on_before_request: List[Callable[[BeforeRequestEventArgs], Any]] = []
+        self.__on_failed_request: List[Callable[[FailedRequestEventArgs], None]] = []
+        self.__on_succeed_request: List[Callable[[SucceedRequestEventArgs], None]] = []
         self._on_topology_updated: List[Callable[[Topology], None]] = []
 
     def __enter__(self):
@@ -188,19 +189,43 @@ class RequestExecutor:
         self.__ensure_node_selector()
         return self._node_selector.get_preferred_node()
 
-    def __on_failed_request_invoke(self, url: str, e: BaseException):
+    def __on_failed_request_invoke(self, url: str, e: Exception):
         for event in self.__on_failed_request:
-            event(self.__database_name, url, e)
+            event(FailedRequestEventArgs(self.__database_name, url, e))
 
     def __on_succeed_request_invoke(
         self, database: str, url: str, response: requests.Response, request: requests.Request, attempt_number: int
     ):
         for event in self.__on_succeed_request:
-            event(database, url, response, request, attempt_number)
+            event(SucceedRequestEventArgs(database, url, response, request, attempt_number))
 
     def _on_topology_updated_invoke(self, topology: Topology) -> None:
         for event in self._on_topology_updated:
             event(topology)
+
+    def add_on_succeed_request(self, event: Callable[[SucceedRequestEventArgs], None]):
+        self.__on_succeed_request.append(event)
+
+    def remove_on_succeed_request(self, event: Callable[[SucceedRequestEventArgs], None]):
+        self.__on_succeed_request.remove(event)
+
+    def add_on_failed_request(self, event: Callable[[FailedRequestEventArgs], None]):
+        self.__on_failed_request.append(event)
+
+    def remove_on_failed_request(self, event: Callable[[FailedRequestEventArgs], None]):
+        self.__on_failed_request.remove(event)
+
+    def add_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
+        self.__on_before_request.append(event)
+
+    def remove_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
+        self.__on_before_request.remove(event)
+
+    def add_on_topology_updated(self, event: Callable[[Topology], None]):
+        self._on_topology_updated.append(event)
+
+    def remove_on_topology_updated(self, event: Callable[[Topology], None]):
+        self._on_topology_updated.remove(event)
 
     @staticmethod
     def create(
@@ -459,7 +484,7 @@ class RequestExecutor:
             command.number_of_attempts = command.number_of_attempts + 1
             attempt_num = command.number_of_attempts
             for func in self.__on_before_request:
-                func(self.__database_name, url, request, attempt_num)
+                func(BeforeRequestEventArgs(self.__database_name, url, request, attempt_num))
             response = self.__send_request_to_server(
                 chosen_node, node_index, command, should_retry, session_info, request, url
             )
@@ -496,7 +521,7 @@ class RequestExecutor:
                             raise DatabaseDoesNotExistException(db_missing_header)
                         self.__throw_failed_to_contact_all_nodes(command, request)
                     return  # we either handled this already in the unsuccessful response or we are throwing
-                # todo: on_succeed_request
+                self.__on_succeed_request_invoke(self.__database_name, url, response, request, attempt_num)
                 response_dispose = command.process_response(self.__cache, response, url)
                 self.__last_returned_response = datetime.datetime.utcnow()
             finally:
