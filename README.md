@@ -2,9 +2,9 @@
 # Official Python client for RavenDB NoSQL Database 🐍
 
 ## Installation
-Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.python.org/pypi/ravendb).
+Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.org/project/ravendb/5.2.0b2/).
 ```bash
-pip install ravendb==5.2.0b1
+pip install ravendb==5.2.0b2
 ````
 ## Introduction and changelog
 Python client API (v5.2) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
@@ -16,12 +16,31 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 **Type-hinted entire project and API results** - using the API is now much more comfortable with IntelliSense
 
-
 ---
-
 ![](.github/readme_content/typehints.gif)
 
 ---
+
+## What's new?
+
+###### 5.2.0b2
+
+- **Lazy Operations**
+  - Lazy loading
+  - Lazy querying
+  - Lazy compare exchange operations
+
+
+- **Structure**
+  - Important classes are now available to import from the top level `ravendb` module
+
+...and many bugfixes
+
+
+
+---
+
+###### 5.2.0b1
 
 - **Querying** 
   - Simpler, well type hinted querying
@@ -67,14 +86,19 @@ Although new API isn't compatible with the previous one, it comes with **many im
   
 
 ### **Coming soon, work in progress**
-  - More lazy operations - querying and compare exchange
-  - Select fields
-  - Task related commands (crud for replication, subscriptions, etl) + connection strings
   - Counters, Time Series
   - Streams and Subscriptions
+  - Select fields
+  - Task related commands (crud for replication, subscriptions, etl) + connection strings
 
 
 The client is still in the **beta** phase.
 
+----
+
+#### RavenDB Documentation
+https://ravendb.net/docs/article-page/5.3/python
+
+-----
 ##### Bug Tracker
 http://issues.hibernatingrhinos.com/issues/RDBC
