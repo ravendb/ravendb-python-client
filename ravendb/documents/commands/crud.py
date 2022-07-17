@@ -338,7 +338,7 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
 
         if is_get:
             for key in unique_ids:
-                path_builder.append(f"&id={key if key else ''}")  # todo: check if need to escape at this point
+                path_builder.append(f"&id={Utils.quote_key(key) if key else ''}")
 
             return requests.Request("GET", "".join(path_builder))
 
