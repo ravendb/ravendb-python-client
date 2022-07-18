@@ -170,6 +170,39 @@ class TestCrud(TestBase):
             self.assertEqual(1, len(session.advanced.what_changed()))
             session.save_changes()
 
+    def test_crud_operations_with_array_in_object_5(self):
+        with self.store.open_session() as session:
+            family = Family(["Gracjan", "OG IT"])
+            session.store(family, "family/gracjan")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            new_family = session.load("family/gracjan", Family)
+            new_family.names = ["Gracjan"]
+            self.assertEqual(1, len(session.advanced.what_changed()))
+
+    def test_crud_operations_with_array_in_object_5_dynamic(self):
+        with self.store.open_session() as session:
+            family = Family(["Gracjan", "OG IT"])
+            session.store(family, "family/gracjan")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            new_family = session.load("family/gracjan")
+            new_family.names = ["Gracjan"]
+            self.assertEqual(1, len(session.advanced.what_changed()))
+
+    def test_crud_operations_with_array_in_object_5_dict(self):
+        with self.store.open_session() as session:
+            family = {"names": ["Gracjan", "OG IT"]}
+            session.store(family, "family/gracjan")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            new_family = session.load("family/gracjan")
+            new_family["names"] = ["Gracjan"]
+            self.assertEqual(1, len(session.advanced.what_changed()))
+
     def test_crud_operations_with_array_of_arrays(self):
         with self.store.open_session() as session:
             a1 = Arr1(["a", "b"])

@@ -133,8 +133,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def _generate_id(self, entity: object) -> str:
         return self.conventions.generate_document_id(self.database_name, entity)
 
-        # todo: lazy - WIP
-
     def execute_all_pending_lazy_operations(self) -> ResponseTimeInformation:
         requests = []
         for i in range(len(self._pending_lazy_operations)):
@@ -148,7 +146,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         if not requests:
             return ResponseTimeInformation()
 
-        sw = datetime.datetime.now()
+        sw = datetime.datetime.now()  # todo: replace with perf_counter or Stopwatch
         response_time_duration = ResponseTimeInformation()
         while self._execute_lazy_operations_single_step(response_time_duration, requests, sw):
             time.sleep(0.1)

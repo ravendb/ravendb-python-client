@@ -76,7 +76,7 @@ class EntityToJson:
     ) -> _T:
         conventions = self._session.conventions
         events = self._session.events
-        return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)[0]
+        return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)
 
     @staticmethod
     def populate_entity(entity, document: dict):
@@ -122,23 +122,23 @@ class EntityToJson:
         document: dict, object_type: type, conventions: "DocumentConventions", events, nested_object_types=None
     ):
         metadata = document.pop("@metadata")
-        original_document = deepcopy(document)
+        document_deepcopy = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         is_inherit = False
         # todo: events
         # events.before_conversion_to_entity(document, metadata, type_from_metadata)
 
-        if object_type == dict:
+        if object_type == dict or type_from_metadata == "builtins.dict":
             # events.after_conversion_to_entity(document, document, metadata)
-            return document, metadata, original_document
+            return document_deepcopy
 
         if type_from_metadata is None:
             if object_type is not None:
                 metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
             else:  # no type defined on document or during load, return a dict
-                dyn = _DynamicStructure(**document)
+                dyn = _DynamicStructure(**document_deepcopy)
                 # events.after_conversion_to_entity(dyn, document, metadata)
-                return dyn, metadata, original_document
+                return dyn
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
             if object_from_metadata is not None:
@@ -156,12 +156,12 @@ class EntityToJson:
                         )
 
         if nested_object_types is None and is_inherit:
-            entity = Utils.convert_json_dict_to_object(document, object_type)
+            entity = Utils.convert_json_dict_to_object(document_deepcopy, object_type)
         else:
-            entity = _DynamicStructure(**document)
+            entity = _DynamicStructure(**document_deepcopy)
             entity.__class__ = object_type
             try:
-                entity = Utils.initialize_object(document, object_type)
+                entity = Utils.initialize_object(document_deepcopy, object_type)
             except TypeError as e:
                 raise InvalidOperationException("Probably projection error", e)
 
@@ -192,7 +192,7 @@ class EntityToJson:
         if "Id" in entity.__dict__:
             entity.Id = metadata.get("@id", None)
         # events.after_conversion_to_entity(entity, document, metadata)
-        return entity, metadata, original_document
+        return entity
 
     def remove_from_missing(self, entity):
         try:
