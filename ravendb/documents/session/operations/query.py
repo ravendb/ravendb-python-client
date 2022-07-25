@@ -82,7 +82,6 @@ class QueryOperation:
 
     def enter_query_context(self) -> None:  # todo: make it return Closeable
         self.__start_timing()
-        return None
 
     # def complete_as_array(self, object_type: Type[_T]) -> List[_T]:
     #    query_result = self.__current_query_results.create_snapshot()

@@ -77,7 +77,7 @@ class QueryData:
         self.is_custom_function = is_custom_function
 
         self.map_reduce: Union[None, bool] = None
-        self.is_project_into: Union[None, bool] = None
+        self.project_into: Union[None, bool] = None
         self.projection_behavior: Union[None, ProjectionBehavior] = None
 
 
