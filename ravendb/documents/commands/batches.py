@@ -22,7 +22,7 @@ from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions.document_conventions import DocumentConventions
-    from ravendb.documents.operations import PatchRequest
+    from ravendb.documents.operations.patch import PatchRequest
     from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
@@ -52,37 +52,37 @@ class CommandType(Enum):
         return self.value
 
     @staticmethod
-    def parse_csharp_value(input: str) -> CommandType:
-        if input == "None":
+    def parse_csharp_value(value: str) -> CommandType:
+        if value == "None":
             return CommandType.NONE
-        elif input == "PUT":
+        elif value == "PUT":
             return CommandType.PUT
-        elif input == "PATCH":
+        elif value == "PATCH":
             return CommandType.PATCH
-        elif input == "DELETE":
+        elif value == "DELETE":
             return CommandType.DELETE
-        elif input == "AttachmentPUT":
+        elif value == "AttachmentPUT":
             return CommandType.ATTACHMENT_PUT
-        elif input == "AttachmentDELETE":
+        elif value == "AttachmentDELETE":
             return CommandType.ATTACHMENT_DELETE
-        elif input == "AttachmentMOVE":
+        elif value == "AttachmentMOVE":
             return CommandType.ATTACHMENT_MOVE
-        elif input == "AttachmentCOPY":
+        elif value == "AttachmentCOPY":
             return CommandType.ATTACHMENT_COPY
-        elif input == "CompareExchangePUT":
+        elif value == "CompareExchangePUT":
             return CommandType.COMPARE_EXCHANGE_PUT
-        elif input == "CompareExchangeDELETE":
+        elif value == "CompareExchangeDELETE":
             return CommandType.COMPARE_EXCHANGE_DELETE
-        elif input == "Counters":
+        elif value == "Counters":
             return CommandType.COUNTERS
-        elif input == "BatchPATCH":
+        elif value == "BatchPATCH":
             return CommandType.BATCH_PATCH
-        elif input == "ForceRevisionCreation":
+        elif value == "ForceRevisionCreation":
             return CommandType.FORCE_REVISION_CREATION
-        elif input == "TimeSeries":
+        elif value == "TimeSeries":
             return CommandType.TIME_SERIES
         else:
-            raise ValueError(f"Unable to parse: {input}")
+            raise ValueError(f"Unable to parse: {value}")
 
 
 # --------------COMMAND--------------
@@ -158,10 +158,10 @@ class SingleNodeBatchCommand(RavenCommand):
             request.files = files
             request.data = None
 
-        sb = [f"{node.url}/databases/{node.database}/bulk_docs"]
+        sb = [f"{node.url}/databases/{node.database}/bulk_docs?"]
         self._append_options(sb)
 
-        request.url = sb[0]
+        request.url = "".join(sb)
 
         return request
 

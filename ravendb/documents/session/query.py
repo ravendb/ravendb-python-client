@@ -89,7 +89,6 @@ from ravendb.tools.utils import Utils
 _T = TypeVar("_T")
 _TResult = TypeVar("_TResult")
 _TProjection = TypeVar("_TProjection")
-
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import Lazy
     from ravendb.documents.session.document_session import DocumentSession
@@ -1726,25 +1725,25 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._include_timings(timings_callback)
         return self
 
+    def select_fields_query_data(
+        self, projection_class: Type[_TProjection], query_data: QueryData
+    ) -> DocumentQuery[_TProjection]:
+        query_data.project_into = True
+        return self.create_document_query_internal(projection_class, query_data)
+
     def select_fields(
         self,
         projection_class: Type[_TProjection],
-        projection_behavior: Optional[ProjectionBehavior] = ProjectionBehavior,
         *fields: str,
-        query_data: Optional[QueryData] = None,
-    ) -> _TProjection:
-
-        if query_data is not None:
-            if projection_behavior is not None or fields:
-                raise ValueError("Please pass either QueryData or Optional[ProjectionBehavior], *fields")
-            query_data.is_project_into = True
-            return self.create_document_query_internal(projection_class, query_data)
-
-        query_data = QueryData(list(fields), list(fields))
-        query_data.is_project_into = True
+        projection_behavior: Optional[ProjectionBehavior] = ProjectionBehavior.DEFAULT,
+    ) -> DocumentQuery[_TProjection]:
+        if not fields:
+            fields = list(Utils.get_class_fields(projection_class))
+        query_data = QueryData(fields, fields)
+        query_data.project_into = True
         query_data.projection_behavior = projection_behavior
 
-        select_fields = self.select_fields(projection_class, query_data=query_data)
+        select_fields = self.select_fields_query_data(projection_class, query_data=query_data)
         return select_fields
 
     def wait_for_non_stale_results(self, wait_timeout: datetime.timedelta = None) -> DocumentQuery[_T]:
@@ -2023,7 +2022,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
             query_data.declare_tokens if query_data is not None else None,
             query_data.load_tokens if query_data is not None else None,
             query_data.from_alias if query_data is not None else None,
-            query_data.is_project_into if query_data is not None else None,
+            query_data.project_into if query_data is not None else None,
         )
 
         query._query_raw = self._query_raw

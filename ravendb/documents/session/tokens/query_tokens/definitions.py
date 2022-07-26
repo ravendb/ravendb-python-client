@@ -107,7 +107,7 @@ class FieldsToFetchToken(QueryToken):
         for i in range(len(self.fields_to_fetch)):
             field_to_fetch = self.fields_to_fetch[i]
             if i > 0:
-                writer.append(" ,")
+                writer.append(", ")
             if not field_to_fetch:
                 writer.append("null")
             else:
@@ -117,7 +117,7 @@ class FieldsToFetchToken(QueryToken):
                 continue
 
             projection = self.projections[i] if self.projections else None
-            if projection or projection == field_to_fetch:
+            if not projection or projection == field_to_fetch:
                 continue
 
             writer.append(" as ")

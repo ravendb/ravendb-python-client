@@ -371,7 +371,11 @@ class Utils(object):
         try:
             return Utils.initialize_object({}, object_type)
         except Exception as e:
-            raise RuntimeError(f"Couldn't initialize an object of the {object_type.__name__} class. {e.args[0]}", e)
+            raise RuntimeError(
+                f"Couldn't initialize an object of the '{object_type.__name__}' class. "
+                f"Using 'None' values as arguments in the __init__ method. {e.args[0]}",
+                e,
+            )
 
     @staticmethod
     def convert_json_dict_to_object(
@@ -410,6 +414,26 @@ class Utils(object):
         for keys, value in changes.items():  # erase
             entity.__dict__[keys[1]] = value
             del entity.__dict__[keys[0]]
+
+    @staticmethod
+    def get_object_fields(instance: object) -> Dict[str, object]:
+        return {
+            name: value
+            for name, value in inspect.getmembers(instance, lambda attr: not callable(attr))
+            if not name.startswith("__")
+        }
+
+    @staticmethod
+    def get_class_fields(object_type: type) -> Dict[str, object]:
+        try:
+            instance = Utils.try_get_new_instance(object_type)
+        except Exception as e:
+            raise RuntimeError(
+                f"Unable to retrieve information about class fields. "
+                f"Couldn't get instance of '{object_type.__qualname__}'.",
+                e,
+            )
+        return Utils.get_object_fields(instance)
 
     @staticmethod
     def convert_to_entity(
