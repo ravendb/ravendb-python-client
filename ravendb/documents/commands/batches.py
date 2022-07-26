@@ -158,10 +158,10 @@ class SingleNodeBatchCommand(RavenCommand):
             request.files = files
             request.data = None
 
-        sb = [f"{node.url}/databases/{node.database}/bulk_docs"]
+        sb = [f"{node.url}/databases/{node.database}/bulk_docs?"]
         self._append_options(sb)
 
-        request.url = ''.join(sb)
+        request.url = "".join(sb)
 
         return request
 
