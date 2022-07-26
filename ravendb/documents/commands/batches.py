@@ -161,7 +161,7 @@ class SingleNodeBatchCommand(RavenCommand):
         sb = [f"{node.url}/databases/{node.database}/bulk_docs"]
         self._append_options(sb)
 
-        request.url = sb[0]
+        request.url = ''.join(sb)
 
         return request
 
