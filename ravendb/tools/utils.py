@@ -372,7 +372,7 @@ class Utils(object):
             return Utils.initialize_object({}, object_type)
         except Exception as e:
             raise RuntimeError(
-                f"Couldn't initialize an object of the {object_type.__name__} class. "
+                f"Couldn't initialize an object of the '{object_type.__name__}' class. "
                 f"Using 'None' values as arguments in the __init__ method. {e.args[0]}",
                 e,
             )
@@ -430,7 +430,8 @@ class Utils(object):
         except Exception as e:
             raise RuntimeError(
                 f"Unable to retrieve information about class fields. "
-                f"Couldn't get instance of {object_type.__qualname__}."
+                f"Couldn't get instance of '{object_type.__qualname__}'.",
+                e,
             )
         return Utils.get_object_fields(instance)
 

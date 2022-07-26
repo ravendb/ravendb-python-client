@@ -117,7 +117,7 @@ class FieldsToFetchToken(QueryToken):
                 continue
 
             projection = self.projections[i] if self.projections else None
-            if projection is None or projection == field_to_fetch:
+            if not projection or projection == field_to_fetch:
                 continue
 
             writer.append(" as ")

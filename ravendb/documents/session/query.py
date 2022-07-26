@@ -1738,8 +1738,8 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         projection_behavior: Optional[ProjectionBehavior] = ProjectionBehavior.DEFAULT,
     ) -> DocumentQuery[_TProjection]:
         if not fields:
-            fields = Utils.get_class_fields(projection_class).keys()
-        query_data = QueryData(list(fields), list(fields))
+            fields = list(Utils.get_class_fields(projection_class))
+        query_data = QueryData(fields, fields)
         query_data.project_into = True
         query_data.projection_behavior = projection_behavior
 
