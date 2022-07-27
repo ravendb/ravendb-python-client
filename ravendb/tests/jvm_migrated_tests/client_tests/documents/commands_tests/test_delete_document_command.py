@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb import DeleteDocumentCommand
 from ravendb.exceptions.raven_exceptions import ConcurrencyException
 from ravendb.infrastructure.entities import User
@@ -8,7 +10,7 @@ class TestDeleteDocumentCommand(TestBase):
     def setUp(self):
         super(TestDeleteDocumentCommand, self).setUp()
 
-    # todo: exception dispatcher - handle conflict
+    @unittest.skip("exception dispatcher - handle conflict")
     def test_can_delete_document(self):
         with self.store.open_session() as session:
             user = User(name="Marcin")
