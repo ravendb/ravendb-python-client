@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict
 
 
 class SpatialFieldType(Enum):
@@ -97,3 +97,7 @@ class AutoSpatialOptions(SpatialOptions):
         super().__init__(options)
         self.method_type: Union[None, AutoSpatialMethodType] = None
         self.method_argument: Union[None, List[str]] = None
+
+    @staticmethod
+    def from_json(json_dict: Dict) -> AutoSpatialOptions:
+        return AutoSpatialOptions(SpatialOptions(json_dict.get("Options")))

@@ -96,7 +96,9 @@ class DatabaseRecord:
             "Analyzers": self.analyzers,
             "Indexes": self.indexes,
             "IndexesHistory": self.indexes_history_story,
-            "AutoIndexes": self.auto_indexes,
+            "AutoIndexes": {key: AutoIndexDefinition.to_json(auto_index) for key, auto_index in self.auto_indexes}
+            if self.auto_indexes
+            else None,
             "Settings": self.settings,
             "Revisions": self.revisions,
             "TimeSeries": self.time_series,
@@ -135,7 +137,9 @@ class DatabaseRecord:
         record.analyzers = json_dict.get("Analyzers", None)
         record.indexes = json_dict.get("Indexes", None)
         record.indexes_history_story = json_dict.get("IndexesHistory", None)
-        record.auto_indexes = json_dict.get("AutoIndexes", None)
+        record.auto_indexes = {
+            key: AutoIndexDefinition.from_json(auto_index) for key, auto_index in json_dict.get("AutoIndexes").items()
+        }
         record.settings = json_dict.get("Settings", None)
         record.revisions = json_dict.get("Revisions", None)
         record.time_series = json_dict.get("TimeSeries", None)
