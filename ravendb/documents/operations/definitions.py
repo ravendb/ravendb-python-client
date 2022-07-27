@@ -9,7 +9,7 @@ _Operation_T = TypeVar("_Operation_T")
 if TYPE_CHECKING:
     from ravendb.documents.conventions.document_conventions import DocumentConventions
     from ravendb.documents.store.definition import DocumentStore
-    from ravendb.http.raven_command import RavenCommand
+    from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 
 
 class IOperation(Generic[_Operation_T]):

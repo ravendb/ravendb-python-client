@@ -102,7 +102,9 @@ class MaintenanceOperationExecutor:
 
         return MaintenanceOperationExecutor(self.__store, database_name)
 
-    def send(self, operation: Union[VoidMaintenanceOperation, MaintenanceOperation]):
+    def send(
+        self, operation: Union[VoidMaintenanceOperation, MaintenanceOperation[_Operation_T]]
+    ) -> Optional[_Operation_T]:
         self.__assert_database_name_set()
         command = operation.get_command(self.__get_request_executor().conventions)
         self.__get_request_executor().execute_command(command)
