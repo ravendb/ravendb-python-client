@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import enum
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar, Optional
 
 from ravendb.http.request_executor import ClusterRequestExecutor
 from ravendb.http.topology import Topology
 from ravendb.serverwide.operations.common import (
     GetBuildNumberOperation,
     ServerOperation,
-    VoidServerOperation,
     ServerWideOperation,
 )
 from ravendb.tools.utils import CaseInsensitiveDict
@@ -17,6 +16,8 @@ if TYPE_CHECKING:
     from ravendb.documents.store.definition import DocumentStore
     from ravendb.documents.operations.operation import Operation
     from ravendb.documents.operations.definitions import OperationIdResult
+
+_T_OperationResult = TypeVar("_T_OperationResult")
 
 
 class ConnectionStringType(enum.Enum):
@@ -44,18 +45,11 @@ class ServerOperationExecutor:
 
         # todo: if node tag is null add after_close_listener
 
-    def send(
-        self,
-        operation: Union[VoidServerOperation, ServerOperation],
-    ):
-        if isinstance(operation, VoidServerOperation):
-            command = operation.get_command(self.__request_executor.conventions)
-            self.__request_executor.execute_command(command)
+    def send(self, operation: ServerOperation[_T_OperationResult]) -> Optional[None, _T_OperationResult]:
+        command = operation.get_command(self.__request_executor.conventions)
+        self.__request_executor.execute_command(command)
 
-        elif isinstance(operation, ServerOperation):
-            command = operation.get_command(self.__request_executor.conventions)
-            self.__request_executor.execute_command(command)
-
+        if isinstance(operation, ServerOperation):
             return command.result
 
     def send_async(self, operation: ServerOperation[OperationIdResult]) -> Operation:
