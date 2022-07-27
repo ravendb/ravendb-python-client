@@ -23,37 +23,34 @@ class RavenCommandResponseType(Enum):
         return self.value
 
 
-ResultClass = TypeVar("ResultClass")
+_T_Result = TypeVar("_T_Result")
 
 # todo: check what's wrong with this generic. it doesnt work e.g. in HiloCommand
 
 
-class RavenCommand(Generic[ResultClass]):
-    # void_command is rarely used arg that determine if the user didn't pass result_class due to copying RavenCommand
-    # or if user wants to create VoidRavenCommand that inherits from this class and its' result type is None
-    def __init__(self, result_class: type = None, copy: RavenCommand = None, void_command: Optional[bool] = False):
-        if not ((result_class is not None or void_command) ^ (copy is not None)):
-            raise ValueError("Pass either result_class or RavenCommand copy.")
-        is_not_copy = result_class or void_command
-        self._result_class: Type[ResultClass] = result_class if is_not_copy else copy._result_class
-        self.result: Union[None, ResultClass] = None
-        self.status_code: Union[None, int] = None
+class RavenCommand(Generic[_T_Result]):
+    @staticmethod
+    def from_copy(copy: RavenCommand[_T_Result]):
+        command = RavenCommand(copy._result_class)
+        command._response_type = copy.response_type
+        command._can_cache = copy.can_cache
+        command._can_cache_aggressively = copy.can_cache_aggressively
+        command._selected_node_tag = copy.selected_node_tag
 
-        self._response_type: RavenCommandResponseType = (
-            RavenCommandResponseType.OBJECT if is_not_copy else copy.response_type
-        )
-
-        self.timeout: Union[None, datetime.timedelta] = None
-        self._can_cache: bool = True if is_not_copy else copy.can_cache
-        self._can_cache_aggressively: bool = True if is_not_copy else copy.can_cache_aggressively
-        self._selected_node_tag: Union[None, str] = None if is_not_copy else copy.selected_node_tag
-        self._number_of_attempts: Union[None, int] = None
-
+    def __init__(self, result_class: Type[_T_Result] = None):
+        self._result_class = result_class
+        self._response_type = RavenCommandResponseType.OBJECT
+        self._can_cache_aggressively = True
+        self._can_cache = True
         self.failover_topology_etag = -2
 
-        self.on_response_failure: Callable[[requests.Response], None] = lambda resp: None
-
+        self.result: Optional[_T_Result] = None
+        self.status_code: Optional[int] = None
+        self.timeout: Optional[datetime.timedelta] = None
+        self._selected_node_tag: Optional[str] = None
+        self._number_of_attempts: Optional[int] = None
         self.failed_nodes: Dict[ServerNode, Exception] = {}
+        self.on_response_failure: Callable[[requests.Response], None] = lambda resp: None
 
     @abstractmethod
     def is_read_request(self) -> bool:
@@ -68,15 +65,15 @@ class RavenCommand(Generic[ResultClass]):
         return self._response_type
 
     @property
-    def can_cache(self):
+    def can_cache(self) -> bool:
         return self._can_cache
 
     @property
-    def can_cache_aggressively(self):
+    def can_cache_aggressively(self) -> bool:
         return self._can_cache_aggressively
 
     @property
-    def selected_node_tag(self):
+    def selected_node_tag(self) -> Optional[str]:
         return self._selected_node_tag
 
     @property
@@ -175,7 +172,7 @@ class RavenCommand(Generic[ResultClass]):
 
 class VoidRavenCommand(RavenCommand[None]):
     def __init__(self):
-        super().__init__(void_command=True)
+        super().__init__(None)
         self._response_type = RavenCommandResponseType.EMPTY
 
     @abstractmethod
