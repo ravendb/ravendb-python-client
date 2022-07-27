@@ -14,8 +14,9 @@ from ravendb.serverwide.operations.common import (
 from ravendb.tools.utils import CaseInsensitiveDict
 
 if TYPE_CHECKING:
-    from ravendb.documents import DocumentStore
-    from ravendb.documents.operations import OperationIdResult, Operation
+    from ravendb.documents.store.definition import DocumentStore
+    from ravendb.documents.operations.operation import Operation
+    from ravendb.documents.operations.definitions import OperationIdResult
 
 
 class ConnectionStringType(enum.Enum):
