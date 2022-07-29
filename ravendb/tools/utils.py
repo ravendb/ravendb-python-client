@@ -556,7 +556,7 @@ class Utils(object):
         return ",".join(item for item in builder)
 
     @staticmethod
-    def datetime_to_string(datetime_obj):
+    def datetime_to_string(datetime_obj: datetime):
         add_suffix = "0" if datetime_obj != datetime.max else "9"
         return datetime_obj.strftime(f"%Y-%m-%dT%H:%M:%S.%f{add_suffix}") if datetime_obj else ""
 
