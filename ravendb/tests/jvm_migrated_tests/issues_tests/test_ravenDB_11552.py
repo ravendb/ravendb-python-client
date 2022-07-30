@@ -3,6 +3,7 @@ from ravendb.documents.commands.batches import (
     DeleteAttachmentCommandData,
     CopyAttachmentCommandData,
     MoveAttachmentCommandData,
+    DeleteCommandData,
 )
 from ravendb.tests.test_base import TestBase, Company
 
@@ -94,3 +95,26 @@ class TestRavenDB11552(TestBase):
             self.assertTrue(session.is_loaded("companies/2"))
             self.assertEqual(4, session.number_of_requests)
             self.assertEqual(2, len(session.advanced.attachment.get_names(company2)))
+
+    def test_delete_will_work(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            self.assertIsNotNone(company)
+            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            session.defer(DeleteCommandData("companies/1", None))
+            session.save_changes()
+
+            self.assertFalse(session.is_loaded("companies/1"))
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            company = session.load("companies/1", Company)
+            self.assertIsNone(company)
+            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertEqual(3, session.advanced.number_of_requests)
