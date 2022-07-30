@@ -470,9 +470,9 @@ class _ConditionalGetResult:
         self.results = results
         self.change_vector = change_vector
 
-    @staticmethod
-    def from_json(json_dict: dict) -> _ConditionalGetResult:
-        return _ConditionalGetResult(json_dict["Results"], json_dict["ChangeVector"])
+    @classmethod
+    def from_json(cls, json_dict: dict) -> _ConditionalGetResult:
+        return cls(json_dict["Results"], None)
 
 
 class ConditionalGetDocumentsCommand(RavenCommand[_ConditionalGetResult]):
@@ -502,7 +502,7 @@ class ConditionalGetDocumentsCommand(RavenCommand[_ConditionalGetResult]):
         return False
 
     def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:
-        if response.status_code == http.HTTPStatus.NOT_MODIFIED.value:
+        if response.status_code == http.HTTPStatus.NOT_MODIFIED:
             return ResponseDisposeHandling.AUTOMATIC
 
         result = super().process_response(cache, response, url)
