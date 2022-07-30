@@ -142,7 +142,7 @@ class Stopwatch:
 
     def elapsed(self, desired_unit: Optional[TimeUnit] = None) -> Union[timedelta, int]:
         if desired_unit is not None:
-            return desired_unit.convert(self.__elapsed_nanos(), TimeUnit.NANOSECONDS)
+            return desired_unit.convert(self.__elapsed_nanos, TimeUnit.NANOSECONDS)
         return timedelta(microseconds=self.elapsed_micros())
 
 
