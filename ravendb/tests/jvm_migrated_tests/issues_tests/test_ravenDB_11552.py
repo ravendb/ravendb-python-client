@@ -1,9 +1,11 @@
+from ravendb import PatchRequest
 from ravendb.documents.commands.batches import (
     PutAttachmentCommandData,
     DeleteAttachmentCommandData,
     CopyAttachmentCommandData,
     MoveAttachmentCommandData,
     DeleteCommandData,
+    PatchCommandData,
 )
 from ravendb.tests.test_base import TestBase, Company
 
@@ -118,3 +120,30 @@ class TestRavenDB11552(TestBase):
             self.assertIsNone(company)
             self.assertTrue(session.is_loaded("companies/1"))
             self.assertEqual(3, session.advanced.number_of_requests)
+
+    def test_patch_will_work(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            self.assertIsNotNone(company)
+            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertEqual(1, session.number_of_requests)
+
+            patch_request = PatchRequest()
+            patch_request.script = "this.name = 'HR2';"
+            session.defer(PatchCommandData("companies/1", None, patch_request, None))
+            session.save_changes()
+
+            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            company2 = session.load("companies/1", Company)
+            self.assertIsNotNone(company2)
+            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertEqual(2, session.advanced.number_of_requests)
+            self.assertIs(company2, company)
+            self.assertEqual("HR2", company2.name)
