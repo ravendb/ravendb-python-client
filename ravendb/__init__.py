@@ -219,7 +219,8 @@ from ravendb.documents.session.query_group_by import GroupByDocumentQuery, Group
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.documents.session.utils.includes_util import IncludesUtil
 from ravendb.documents.store.definition import DocumentStore, DocumentStoreBase
-from ravendb.documents.store.lazy import Lazy, ConditionalLoadResult
+from ravendb.documents.store.lazy import Lazy
+from ravendb.documents.session.conditional_load import ConditionalLoadResult
 from ravendb.documents.store.misc import IdTypeAndName
 from ravendb.http.misc import AggressiveCacheOptions, Broadcast, LoadBalanceBehavior, ReadBalanceBehavior
 from ravendb.http.raven_command import RavenCommand
