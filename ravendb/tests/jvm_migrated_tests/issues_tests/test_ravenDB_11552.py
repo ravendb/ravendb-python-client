@@ -147,3 +147,31 @@ class TestRavenDB11552(TestBase):
             self.assertEqual(2, session.advanced.number_of_requests)
             self.assertIs(company2, company)
             self.assertEqual("HR2", company2.name)
+
+    def test_patch_will_update_tracked_document_after_save_changes(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            session.advanced.patch(company, "name", "CF")
+
+            cv = session.get_change_vector_for(company)
+            last_modified = session.get_last_modified_for(company)
+
+            session.save_changes()
+
+            self.assertEqual("CF", company.name)
+
+            self.assertNotEqual(cv, session.get_change_vector_for(company))
+            self.assertNotEqual(last_modified, session.get_last_modified_for(company))
+
+            company.phone = 123
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            self.assertEqual("CF", company.name)
+            self.assertEqual(123, company.phone)
