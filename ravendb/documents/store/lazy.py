@@ -25,21 +25,3 @@ class Lazy(Generic[T]):
                 self.__value = self.__value_factory()
                 self.__value_created = True
         return self.__value
-
-
-class ConditionalLoadResult(Generic[T]):
-    def __init__(self, entity: T = None, change_vector: str = None):
-        self.__entity = entity
-        self.__change_vector = change_vector
-
-    @property
-    def entity(self) -> T:
-        return self.__entity
-
-    @property
-    def change_vector(self) -> str:
-        return self.__change_vector
-
-    @staticmethod
-    def create(entity: T, change_vector: str) -> ConditionalLoadResult:
-        return ConditionalLoadResult(entity, change_vector)

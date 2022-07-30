@@ -14,7 +14,8 @@ from ravendb.documents.queries.facets.misc import FacetResult
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.loaders.loaders import LazyMultiLoaderWithInclude
-from ravendb.documents.store.lazy import ConditionalLoadResult, Lazy
+from ravendb.documents.store.lazy import Lazy
+from ravendb.documents.session.conditional_load import ConditionalLoadResult
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.documents.queries.query import QueryResult
