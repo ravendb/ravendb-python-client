@@ -153,11 +153,11 @@ class LazyConditionalLoadOperation(LazyOperation):
             self.__requires_retry = None
             return
 
-        if response.status_code == HTTPStatus.NOT_MODIFIED.value:
+        if response.status_code == HTTPStatus.NOT_MODIFIED:
             self.__result = ConditionalLoadResult.create(None, self.__change_vector)
             return
 
-        elif response.status_code == HTTPStatus.NOT_FOUND.value:
+        elif response.status_code == HTTPStatus.NOT_FOUND:
             self.__session.register_missing(self.__key)
             self.__result = ConditionalLoadResult.create(None, None)
             return
