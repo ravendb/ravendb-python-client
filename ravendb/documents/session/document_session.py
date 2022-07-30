@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import http
 import json
 import os
 import time
@@ -8,6 +9,7 @@ import uuid
 from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar
 
 from ravendb import constants
+from ravendb.documents.session.conditional_load import ConditionalLoadResult
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import InvalidOperationException
 from ravendb.data.operation import AttachmentType
@@ -52,7 +54,12 @@ from ravendb.documents.commands.batches import (
     CopyAttachmentCommandData,
     MoveAttachmentCommandData,
 )
-from ravendb.documents.commands.crud import HeadDocumentCommand, GetDocumentsCommand, HeadAttachmentCommand
+from ravendb.documents.commands.crud import (
+    HeadDocumentCommand,
+    GetDocumentsCommand,
+    HeadAttachmentCommand,
+    ConditionalGetDocumentsCommand,
+)
 from ravendb.documents.commands.multi_get import GetRequest
 
 from ravendb.documents.store.lazy import Lazy
@@ -788,8 +795,41 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def stream_into(self):  # query: Union[DocumentQuery, RawDocumentQuery], output: iter):
             pass
 
-        def conditional_load(self, object_type: type, key: str, change_vector: str):
-            pass
+        def conditional_load(
+            self, key: str, change_vector: str, object_type: Type[_T] = None
+        ) -> ConditionalLoadResult[_T]:
+            if key is None or key.isspace():
+                raise ValueError("Key cannot be None")
+
+            if self.__session.is_loaded(key):
+                entity = self.__session.load(key, object_type)
+                if entity is None:
+                    return ConditionalLoadResult.create(None, None)
+
+                cv = self.__session.get_change_vector_for(entity)
+                return ConditionalLoadResult.create(entity, cv)
+
+            if change_vector is None or change_vector.isspace():
+                raise ValueError(
+                    f"The requested document with id '{key}' is not loaded into the session "
+                    f"and could not conditional load when change_vector is None or empty."
+                )
+
+            self.__session.increment_requests_count()
+
+            cmd = ConditionalGetDocumentsCommand(key, change_vector)
+            self.__session.request_executor.execute_command(cmd)
+
+            if cmd.status_code == http.HTTPStatus.NOT_MODIFIED:
+                return ConditionalLoadResult.create(None, change_vector)  # value not changed
+
+            elif cmd.status_code == http.HTTPStatus.NOT_FOUND:
+                self.__session.register_missing(key)
+                return ConditionalLoadResult.create(None, None)  # value is missing
+
+            document_info = DocumentInfo.get_new_document_info(cmd.result.results[0])
+            r = self.__session.track_entity_document_info(object_type, document_info)
+            return ConditionalLoadResult.create(r, cmd.result.change_vector)
 
             # todo: stream, query and fors like timeseriesrollupfor, conditional load
 
