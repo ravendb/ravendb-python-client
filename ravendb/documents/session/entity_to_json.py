@@ -79,12 +79,19 @@ class EntityToJson:
         return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)
 
     @staticmethod
-    def populate_entity(entity, document: dict):
+    def populate_entity_static(entity, document: dict):
         if entity is None:
             raise ValueError("Entity cannot be None")
         if document is None:
             raise ValueError("Document cannot be None")
         entity.__dict__.update(document)
+
+    def populate_entity(self, entity, key: str, document: dict) -> None:
+        if key is None:
+            raise ValueError("Key cannot be None")
+
+        EntityToJson.populate_entity_static(entity, document)
+        self._session.generate_entity_id_on_the_client.try_set_identity(entity, key)
 
     @staticmethod
     def try_remove_identity_property(document):
