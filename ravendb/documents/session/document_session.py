@@ -654,7 +654,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 key_or_entity = metadata[constants.Documents.Metadata.ID]
 
             patch_request = PatchRequest()
-            patch_request.script = f"this.{path} = args.val_ {self.__vals_count};"
+            patch_request.script = f"this.{path} = args.val_{self.__vals_count};"
             patch_request.values = {f"val_{self.__vals_count}": value}
 
             self.__vals_count += 1
