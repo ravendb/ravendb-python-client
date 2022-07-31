@@ -14,7 +14,8 @@ from ravendb.documents.queries.facets.misc import FacetResult
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.loaders.loaders import LazyMultiLoaderWithInclude
-from ravendb.documents.store.lazy import ConditionalLoadResult, Lazy
+from ravendb.documents.store.lazy import Lazy
+from ravendb.documents.session.conditional_load import ConditionalLoadResult
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.documents.queries.query import QueryResult
@@ -152,11 +153,11 @@ class LazyConditionalLoadOperation(LazyOperation):
             self.__requires_retry = None
             return
 
-        if response.status_code == HTTPStatus.NOT_MODIFIED.value:
+        if response.status_code == HTTPStatus.NOT_MODIFIED:
             self.__result = ConditionalLoadResult.create(None, self.__change_vector)
             return
 
-        elif response.status_code == HTTPStatus.NOT_FOUND.value:
+        elif response.status_code == HTTPStatus.NOT_FOUND:
             self.__session.register_missing(self.__key)
             self.__result = ConditionalLoadResult.create(None, None)
             return

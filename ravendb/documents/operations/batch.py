@@ -211,7 +211,9 @@ class BatchOperation:
 
             if document_info.entity is not None:
                 self.__session.entity_to_json.populate_entity(document_info.entity, key, document_info.document)
-                self.__session.__on_after_save_changes(self.__session, document_info.key, document_info.entity)
+                self.__session.after_save_changes_invoke(
+                    AfterSaveChangesEventArgs(self.__session, document_info.key, document_info.entity)
+                )
 
     def __handle_delete(self, batch_result: dict) -> None:
         self.__handle_delete_internal(batch_result, CommandType.DELETE)

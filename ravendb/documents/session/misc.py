@@ -192,7 +192,7 @@ class JavaScriptArray:
             self.__parameters[argument_name] = value
             return f"args.{argument_name}"
 
-        args = list(map(__func, u))
+        args = ",".join(list(map(__func, u)))
         self.__script_lines.append(f"this.{self.__path_to_array}.push({args});")
         return self
 

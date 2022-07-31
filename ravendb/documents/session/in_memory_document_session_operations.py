@@ -751,13 +751,11 @@ class InMemoryDocumentSessionOperations:
 
     def is_loaded_or_deleted(self, key: str) -> bool:
         document_info = self.documents_by_id.get(key)
-        return document_info is not None and any(
-            [
-                document_info.document is not None,
-                document_info.entity is not None,
-                self.is_deleted(key),
-                key in self.included_documents_by_id,
-            ]
+        return (
+            document_info is not None
+            and (document_info.document is not None or document_info.entity is not None)
+            or self.is_deleted(key)
+            or key in self.included_documents_by_id
         )
 
     def is_deleted(self, key: str) -> bool:

@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 from ravendb.documents.conventions.document_conventions import DocumentConventions
@@ -89,6 +90,7 @@ class TestCustomEntityName(TestBase):
         return basic_chars + special_chars
 
     def test_find_collection_name(self):
+        logging.getLogger("QueryOperation").disabled = True
         for c in self.__get_characters_to_test_with_special():
             self.__test_when_collection_and_id_contain_special_chars(c)
 

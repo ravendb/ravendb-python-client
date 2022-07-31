@@ -205,7 +205,7 @@ class CompareExchangeSessionValue(Generic[_T]):
             self.__value.index = self._index
 
             if self.__value.value is not None:
-                EntityToJson.populate_entity(self.__value.value, value.value)
+                EntityToJson.populate_entity_static(self.__value.value, value.value)
 
     @staticmethod
     def prepare_metadata_for_put(

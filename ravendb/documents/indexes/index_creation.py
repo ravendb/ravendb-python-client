@@ -106,7 +106,7 @@ class AbstractGenericIndexCreationTask(
 
     # todo: def _spatial(self, field:str, indexing:Callable[[SpatialOptionsFactory],SpatialOptions]) -> None
     def _spatial(self, field: str, indexing: Callable) -> None:
-        raise NotImplementedError()
+        pass
 
     def _store_all_fields(self, storage: FieldStorage) -> None:
         self._stores_strings[constants.Documents.Indexing.Fields.ALL_FIELDS] = storage

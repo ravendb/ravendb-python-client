@@ -142,7 +142,7 @@ class Stopwatch:
 
     def elapsed(self, desired_unit: Optional[TimeUnit] = None) -> Union[timedelta, int]:
         if desired_unit is not None:
-            return desired_unit.convert(self.__elapsed_nanos(), TimeUnit.NANOSECONDS)
+            return desired_unit.convert(self.__elapsed_nanos, TimeUnit.NANOSECONDS)
         return timedelta(microseconds=self.elapsed_micros())
 
 
@@ -556,7 +556,7 @@ class Utils(object):
         return ",".join(item for item in builder)
 
     @staticmethod
-    def datetime_to_string(datetime_obj):
+    def datetime_to_string(datetime_obj: datetime):
         add_suffix = "0" if datetime_obj != datetime.max else "9"
         return datetime_obj.strftime(f"%Y-%m-%dT%H:%M:%S.%f{add_suffix}") if datetime_obj else ""
 

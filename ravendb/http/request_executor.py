@@ -979,7 +979,7 @@ class RequestExecutor:
         session_info: SessionInfo,
         should_retry: bool,
     ) -> bool:
-        if response.status_code == HTTPStatus.NOT_FOUND.value:
+        if response.status_code == HTTPStatus.NOT_FOUND:
             self.__cache.set_not_found(url, False)  # todo : check if aggressively cached, don't just pass False
             if command.response_type == RavenCommandResponseType.EMPTY:
                 return True
@@ -989,7 +989,7 @@ class RequestExecutor:
                 command.set_response_raw(response, None)
             return True
 
-        elif response.status_code == HTTPStatus.FORBIDDEN.value:
+        elif response.status_code == HTTPStatus.FORBIDDEN:
             msg = self.__try_get_response_of_error(response)
             builder = ["Forbidden access to ", chosen_node.database, "@", chosen_node.url, ", "]
             if self.__certificate_path is None:
@@ -1007,7 +1007,7 @@ class RequestExecutor:
             raise AuthorizationException("".join(builder))
 
         elif (
-            response.status_code == HTTPStatus.GONE.value
+            response.status_code == HTTPStatus.GONE
         ):  # request not relevant for the chosen node - the database has been moved to a different one
             if not should_retry:
                 return False
@@ -1040,16 +1040,16 @@ class RequestExecutor:
                 return True
 
         elif response.status_code in [
-            HTTPStatus.GATEWAY_TIMEOUT.value,
-            HTTPStatus.REQUEST_TIMEOUT.value,
-            HTTPStatus.BAD_GATEWAY.value,
-            HTTPStatus.SERVICE_UNAVAILABLE.value,
+            HTTPStatus.GATEWAY_TIMEOUT,
+            HTTPStatus.REQUEST_TIMEOUT,
+            HTTPStatus.BAD_GATEWAY,
+            HTTPStatus.SERVICE_UNAVAILABLE,
         ]:
             return self.__handle_server_down(
                 url, chosen_node, node_index, command, request, response, None, session_info, should_retry
             )
 
-        elif response.status_code == HTTPStatus.CONFLICT.value:
+        elif response.status_code == HTTPStatus.CONFLICT:
             raise NotImplementedError("Handle conflict")  # todo: handle conflict (exception dispatcher involved)
 
         elif response.status_code == 425:  # too early

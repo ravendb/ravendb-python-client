@@ -317,6 +317,29 @@ class AutoIndexDefinition:
         self.map_fields = map_fields
         self.group_by_fields = group_by_fields
 
+    @staticmethod
+    def from_json(json_dict: Dict) -> AutoIndexDefinition:
+        return AutoIndexDefinition(
+            IndexType(json_dict.get("Type")),
+            json_dict.get("Name"),
+            IndexPriority(json_dict.get("Priority")),
+            IndexState(json_dict.get("State")) if json_dict.get("State", None) else None,
+            json_dict.get("Collection"),
+            {name: AutoIndexFieldOptions.from_json(value) for name, value in json_dict.get("MapFields").items()},
+            {name: AutoIndexFieldOptions.from_json(value) for name, value in json_dict.get("GroupByFields").items()},
+        )
+
+    def to_json(self) -> Dict:
+        return {
+            "Type": self.type.value,
+            "Name": self.name,
+            "Priority": self.priority.value,
+            "State": self.state.value if self.state is not None else None,
+            "Collection": self.collection,
+            "MapFields": {key: map_field.to_json() for key, map_field in self.map_fields.items()},
+            "GroupByFields": {key: group_by_field.to_json() for key, group_by_field in self.group_by_fields.items()},
+        }
+
 
 class AutoIndexFieldOptions:
     def __init__(
@@ -336,6 +359,29 @@ class AutoIndexFieldOptions:
         self.group_by_array_behavior = group_by_array_behavior
         self.suggestions = suggestions
         self.is_name_quoted = is_name_quoted
+
+    @staticmethod
+    def from_json(json_dict: Dict):
+        return AutoIndexFieldOptions(
+            FieldStorage(json_dict.get("Storage")),
+            AutoFieldIndexing(json_dict.get("Indexing")),
+            AggregationOperation(json_dict.get("Aggregation")) if json_dict.get("Aggregation", None) else None,
+            AutoSpatialOptions.from_json(json_dict.get("Spatial")) if json_dict.get("Spatial", None) else None,
+            GroupByArrayBehavior(json_dict.get("GroupByArrayBehavior")),
+            json_dict.get("Suggestions"),
+            json_dict.get("IsNameQuoted"),
+        )
+
+    def to_json(self) -> Dict:
+        return {
+            "Storage": self.storage.value,
+            "Indexing": self.indexing.value,
+            "Aggregation": self.aggregation.value if self.aggregation is not None else None,
+            "Spatial": self.spatial.type if self.spatial is not None else None,
+            "GroupByArrayBehavior": self.group_by_array_behavior.value,
+            "Suggestions": self.suggestions,
+            "IsNameQuoted": self.is_name_quoted,
+        }
 
 
 class AdditionalAssembly:

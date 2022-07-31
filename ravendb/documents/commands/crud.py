@@ -465,21 +465,19 @@ class HeadAttachmentCommand(RavenCommand[str]):
         return False
 
 
-class _ConditionalGetResult:
+class ConditionalGetResult:
     def __init__(self, results: List = None, change_vector: str = None):
         self.results = results
         self.change_vector = change_vector
 
-    @staticmethod
-    def from_json(json_dict: dict) -> _ConditionalGetResult:
-        return _ConditionalGetResult(json_dict["Results"], json_dict["ChangeVector"])
+    @classmethod
+    def from_json(cls, json_dict: dict) -> ConditionalGetResult:
+        return cls(json_dict["Results"], None)
 
 
-class ConditionalGetDocumentsCommand(RavenCommand[_ConditionalGetResult]):
-    ConditionalGetResult = _ConditionalGetResult
-
+class ConditionalGetDocumentsCommand(RavenCommand[ConditionalGetResult]):
     def __init__(self, key: str, change_vector: str):
-        super().__init__(self.ConditionalGetResult)
+        super().__init__(ConditionalGetResult)
 
         self.__change_vector = change_vector
         self.__key = key
@@ -496,13 +494,13 @@ class ConditionalGetDocumentsCommand(RavenCommand[_ConditionalGetResult]):
             self.result = None
             return
 
-        self.result = self.ConditionalGetResult.from_json(json.loads(response))
+        self.result = ConditionalGetResult.from_json(json.loads(response))
 
     def is_read_request(self) -> bool:
         return False
 
     def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:
-        if response.status_code == http.HTTPStatus.NOT_MODIFIED.value:
+        if response.status_code == http.HTTPStatus.NOT_MODIFIED:
             return ResponseDisposeHandling.AUTOMATIC
 
         result = super().process_response(cache, response, url)
