@@ -224,7 +224,9 @@ class LazySessionOperations:
 
         return self._delegate.add_lazy_operation(dict, operation, None)
 
-    def conditional_load(self, object_type: Type[_T], key: str, change_vector: str):
+    def conditional_load(
+        self, key: str, change_vector: str, object_type: Type[_T] = None
+    ) -> Lazy[ConditionalLoadResult[_T]]:
         if not key.isspace():
             raise ValueError("key cannot be None or whitespace")
 
