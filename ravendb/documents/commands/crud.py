@@ -316,7 +316,7 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
             and self.__options.compare_exchange_value_includes
         ):
             for compare_exchange_value in self.__options.compare_exchange_value_includes:
-                path_builder.append(f"&cmpxchg={compare_exchange_value}")
+                path_builder.append(f"&cmpxchg={Utils.quote_key(compare_exchange_value)}")
 
         request = requests.Request("GET", "".join(path_builder))
 
