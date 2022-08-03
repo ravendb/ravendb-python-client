@@ -16,7 +16,5 @@ class TestRavenDB14989(TestBase):
         with self.store.open_session(session_options=session_options) as session:
             user = User(name="Egor")
             session.advanced.cluster_transaction.create_compare_exchange_value("e" * 513, user)
-            with self.assertRaises(
-                CompareExchangeKeyTooBigException
-            ):
+            with self.assertRaises(CompareExchangeKeyTooBigException):
                 session.save_changes()

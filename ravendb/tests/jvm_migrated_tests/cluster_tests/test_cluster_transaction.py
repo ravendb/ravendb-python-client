@@ -53,5 +53,24 @@ class TestClusterTransaction(TestBase):
             u = session.advanced.cluster_transaction.get_compare_exchange_value("usernames/ayende", User)
             self.assertEqual(user1.name, u.value.name)
 
+    def test_session_sequence(self):
+        user1 = User(name="Karmel")
+        user2 = User(name="Indych")
 
+        session_options = SessionOptions(
+            transaction_mode=TransactionMode.CLUSTER_WIDE,
+            disable_atomic_document_writes_in_cluster_wide_transaction=True,
+        )
 
+        with self.store.open_session(session_options=session_options) as session:
+            session.advanced.cluster_transaction.create_compare_exchange_value("usernames/ayende", user1)
+            session.store(user1, "users/1")
+            session.save_changes()
+
+            value = session.advanced.cluster_transaction.get_compare_exchange_value("usernames/ayende", User)
+            value.value = user2
+
+            session.store(user2, "users/2")
+            user1.age = 10
+            session.store(user1, "users/1")
+            session.save_changes()
