@@ -552,3 +552,66 @@ class TestRavenDB14006(TestBase):
 
             value1 = session.advanced.cluster_transaction.get_compare_exchange_value(companies[0].external_id, Address)
             self.assertEqual("Bydgoszcz", value1.value.city)
+
+    def test_can_use_compare_exchange_value_includes_in_load(self):
+        session_options = SessionOptions(transaction_mode=TransactionMode.CLUSTER_WIDE)
+        with self.store.open_session(session_options=session_options) as session:
+            employee = Employee("employees/1", notes=["companies/cf", "companies/hr"])
+
+            session.store(employee)
+
+            company = Company("companies/1", "companies/cf", "CF")
+            session.store(company)
+
+            address1 = Address(city="Torun")
+            session.advanced.cluster_transaction.create_compare_exchange_value("companies/cf", address1)
+
+            address2 = Address(city="Hadera")
+            session.advanced.cluster_transaction.create_compare_exchange_value("companies/hr", address2)
+
+            session.save_changes()
+
+        with self.store.open_session(session_options=session_options) as session:
+            company1 = session.load(
+                "companies/1", Company, lambda builder: builder.include_compare_exchange_value("external_id")
+            )
+
+            number_of_requests = session.advanced.number_of_requests
+
+            value1 = session.advanced.cluster_transaction.get_compare_exchange_value(company1.external_id, Address)
+
+            self.assertEqual(number_of_requests, session.advanced.number_of_requests)
+
+            self.assertIsNotNone(value1)
+            self.assertGreater(value1.index, 0)
+            self.assertEqual(company.external_id, value1.key)
+            self.assertIsNotNone(value1.value)
+            self.assertEqual("Torun", value1.value.city)
+
+            company2 = session.load(
+                "companies/1", Company, lambda builder: builder.include_compare_exchange_value("external_id")
+            )
+
+            self.assertEqual(number_of_requests, session.advanced.number_of_requests)
+
+            self.assertEqual(company1, company2)
+
+            employee1 = session.load(
+                "employees/1", Employee, lambda builder: builder.include_compare_exchange_value("notes")
+            )
+            self.assertEqual(number_of_requests + 1, session.advanced.number_of_requests)
+
+            value2 = session.advanced.cluster_transaction.get_compare_exchange_value(employee1.notes[0], Address)
+            value3 = session.advanced.cluster_transaction.get_compare_exchange_value(employee1.notes[1], Address)
+
+            self.assertEqual(number_of_requests + 1, session.advanced.number_of_requests)
+
+            self.assertEqual(value2, value1)
+            self.assertNotEqual(value3, value2)
+
+            values = session.advanced.cluster_transaction.get_compare_exchange_values(employee1.notes, Address)
+            self.assertEqual(number_of_requests + 1, session.advanced.number_of_requests)
+
+            self.assertEqual(2, len(values))
+            self.assertEqual(value2, values[value2.key])
+            self.assertEqual(value3, values[value3.key])
