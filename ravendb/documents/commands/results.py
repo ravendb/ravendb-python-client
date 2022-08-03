@@ -36,6 +36,6 @@ class GetDocumentsResult:
             json_dict.get("Results", None),
             json_dict.get("CounterIncludes", None),
             json_dict.get("TimeSeriesIncludes", None),
-            json_dict.get("CompareExchangeIncludes", None),
+            json_dict.get("CompareExchangeValueIncludes", None),
             json_dict.get("NextPageStart", None),
         )

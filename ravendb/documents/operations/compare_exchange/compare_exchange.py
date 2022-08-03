@@ -141,7 +141,7 @@ class CompareExchangeSessionValue(Generic[_T]):
             if not self.__value:
                 return None
 
-            entity = EntityToJson.convert_entity_to_json_static(self.__value.value, conventions, None)
+            entity = EntityToJson.convert_entity_to_json_internal_static(self.__value.value, conventions, None, False)
 
             entity_json = entity if isinstance(entity, dict) else None
             metadata = None
