@@ -58,9 +58,17 @@ class SuggestionOptions:
         sort_mode: SuggestionSortMode = DEFAULT_SORT_MODE,
     ):
         self.page_size = page_size
-        self.sistance = distance
+        self.distance = distance
         self.accuracy = accuracy
         self.sort_mode = sort_mode
+
+    def to_json(self) -> dict:
+        return {
+            "pageSize": self.page_size,
+            "distance": self.distance,
+            "accuracy": self.accuracy,
+            "sortMode": self.sort_mode,
+        }
 
 
 class SuggestionWithTerm(SuggestionBase):
@@ -195,7 +203,7 @@ class SuggestionQueryBase(ABC):
 
     @property
     def __command(self) -> QueryCommand:
-        self.__query = IndexQuery()
+        self.__query = self._get_index_query()
         return QueryCommand(self.__session, self.__query, False, False)
 
 
