@@ -1,4 +1,12 @@
-from ravendb import SuggestionOptions, StringDistanceTypes, SuggestionSortMode
+from ravendb import (
+    SuggestionOptions,
+    StringDistanceTypes,
+    SuggestionSortMode,
+    DocumentStore,
+    IndexDefinition,
+    IndexFieldOptions,
+    PutIndexesOperation,
+)
 from ravendb.tests.jvm_migrated_tests.client_tests.indexing_tests.test_indexes_from_client import Users_ByName
 from ravendb.tests.test_base import TestBase
 
@@ -13,6 +21,28 @@ class User:
 class TestSuggestions(TestBase):
     def setUp(self):
         super(TestSuggestions, self).setUp()
+
+    def set_up(self, store: DocumentStore) -> None:
+        index_definition = IndexDefinition()
+        index_definition.name = "test"
+        index_definition.maps = ["from doc in docs.Users select new { doc.name }"]
+        index_field_options = IndexFieldOptions()
+        index_field_options.suggestions = True
+        index_definition.fields = {"name": index_field_options}
+
+        store.maintenance.send(PutIndexesOperation(index_definition))
+
+        with self.store.open_session() as session:
+            user1 = User(name="Ayende")
+            user2 = User(name="Oren")
+            user3 = User(name="John Steinbeck")
+
+            session.store(user1)
+            session.store(user2)
+            session.store(user3)
+            session.save_changes()
+
+        self.wait_for_indexing(store)
 
     def test_can_get_suggestions(self):
         Users_ByName().execute(self.store)
@@ -52,3 +82,19 @@ class TestSuggestions(TestBase):
             self.assertSequenceContainsElements(
                 suggestions.get("name").suggestions, "john", "jones", "johnson", "david", "jack"
             )
+
+    def test_using_linq_multiple_words(self):
+        self.set_up(self.store)
+
+        with self.store.open_session() as s:
+
+            options = SuggestionOptions(accuracy=0.4, distance=StringDistanceTypes.LEVENSHTEIN)
+
+            suggestion_query_result = (
+                s.query_index("test", User)
+                .suggest_using(lambda x: x.by_field("name", "John Steinback").with_options(options))
+                .execute()
+            )
+
+            self.assertEqual(1, len(suggestion_query_result.get("name").suggestions))
+            self.assertEqual("john steinbeck", suggestion_query_result.get("name").suggestions[0])
