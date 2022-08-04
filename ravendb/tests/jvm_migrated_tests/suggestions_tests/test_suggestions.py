@@ -98,3 +98,17 @@ class TestSuggestions(TestBase):
 
             self.assertEqual(1, len(suggestion_query_result.get("name").suggestions))
             self.assertEqual("john steinbeck", suggestion_query_result.get("name").suggestions[0])
+
+    def test_with_typo(self):
+        self.set_up(self.store)
+
+        with self.store.open_session() as s:
+            options = SuggestionOptions(accuracy=0.2, page_size=10, distance=StringDistanceTypes.LEVENSHTEIN)
+            suggestion_query_result = (
+                s.query_index("test", User)
+                .suggest_using(lambda x: x.by_field("name", "Oern").with_options(options))
+                .execute()
+            )
+
+            self.assertEqual(1, len(suggestion_query_result.get("name").suggestions))
+            self.assertEqual("oren", suggestion_query_result.get("name").suggestions[0])
