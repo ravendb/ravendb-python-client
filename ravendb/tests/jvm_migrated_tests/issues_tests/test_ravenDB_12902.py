@@ -114,3 +114,30 @@ class TestRavenDB12902(TestBase):
             ).execute()
 
             self.assertIsNotNone(stats.index_name)
+
+    def test_after_suggestion_query_executed_should_be_executed_only_once(self):
+        self.store.execute_index(TestRavenDB12902.UsersByName())
+        with self.store.open_session() as session:
+            counter = 0
+            stats: Optional[QueryStatistics] = None
+
+            def __stats_callback(statistics: QueryStatistics):
+                nonlocal stats
+                stats = statistics
+
+            def __after_query_executed_callback(query_result: QueryResult):
+                nonlocal counter
+                counter += 1
+
+            results = (
+                session.query_index_type(TestRavenDB12902.UsersByName, User)
+                .add_after_query_executed_listener(__after_query_executed_callback)
+                .statistics(__stats_callback)
+                .suggest_using(lambda x: x.by_field("name", "Orin"))
+                .execute()
+            )
+
+            self.assertEqual(1, len(results))
+            self.assertEqual(0, len(results.get("name").suggestions))
+            self.assertIsNotNone(stats)
+            self.assertEqual(1, counter)
