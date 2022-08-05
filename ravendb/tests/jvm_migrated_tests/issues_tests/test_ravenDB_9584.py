@@ -66,3 +66,14 @@ class TestRavenDB9584(TestBase):
             self.assertEqual("oren", suggestion_query_result.get("name").suggestions[0])
             self.assertEqual(1, len(suggestion_query_result.get("company").suggestions))
             self.assertEqual("hibernating", suggestion_query_result.get("company").suggestions[0])
+
+    def test_can_use_alias_in_suggestions(self):
+        with self.store.open_session() as s:
+            suggestion_query_result = (
+                s.query_index("test", User)
+                .suggest_using(lambda x: x.by_field("name", "Owen").with_display_name("newName"))
+                .execute()
+            )
+
+            self.assertEqual(1, len(suggestion_query_result.get("newName").suggestions))
+            self.assertEqual("oren", suggestion_query_result.get("newName").suggestions[0])
