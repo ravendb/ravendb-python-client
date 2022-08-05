@@ -98,3 +98,19 @@ class TestRavenDB12902(TestBase):
                 .execute_lazy()
                 .value
             )
+
+    def test_can_get_valid_statistics_in_suggestion_query(self):
+        self.store.execute_index(TestRavenDB12902.UsersByName())
+
+        with self.store.open_session() as session:
+            stats: Optional[QueryStatistics] = None
+
+            def __stats_callback(statistics: QueryStatistics):
+                nonlocal stats
+                stats = statistics
+
+            session.query_index_type(TestRavenDB12902.UsersByName, User).statistics(__stats_callback).suggest_using(
+                lambda x: x.by_field("name", "Orin")
+            ).execute()
+
+            self.assertIsNotNone(stats.index_name)
