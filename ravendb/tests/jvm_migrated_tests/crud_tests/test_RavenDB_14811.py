@@ -1,17 +1,25 @@
 import unittest
 
+from ravendb import QueryData
 from ravendb.tests.test_base import TestBase, UserWithId
 
 
+class User:
+    def __init__(self, Id: str = None, name: str = None, age: int = None):
+        self.Id = Id
+        self.name = name
+        self.age = age
+
+
 class UserProjectionIntId:
-    def __init__(self, name=None, key="0"):
-        self.Id = int(key)
+    def __init__(self, name=None, Id=None):
+        self.Id = Id
         self.name = name
 
 
 class UserProjectionStringId:
-    def __init__(self, name=None, key=None):
-        self.Id = str(key)
+    def __init__(self, name=None, Id=None):
+        self.Id =
         self.name = name
 
 
@@ -38,34 +46,40 @@ class TestRavenDB14811(TestBase):
             self.assertEqual(0, result.Id)
             self.assertEqual(user.Id, result.name)
 
-    @unittest.skip("RDBC-466")
     def test_can_project_id_field(self):
-        user = UserWithId("Grisha", 34)
+        user = User(name="Grisha", age=34)
         with self.store.open_session() as session:
             session.store(user)
             session.save_changes()
 
         with self.store.open_session() as session:
-            result = session.query(UserWithId).select(UserProjectionIntId(), "name").first()
+            result = session.query(object_type=User).select_fields(UserProjectionIntId, "name").first()
             self.assertIsNotNone(result)
             self.assertEqual(user.name, result.name)
 
-        with self.store.open_session() as session:  #                           fields       projections
-            result = session.query(UserWithId).select(UserProjectionIntId(), ["age", "name"], ["Id", "name"]).first()
+        with self.store.open_session() as session:
+            result = (
+                session.query(object_type=User)
+                .select_fields_query_data(UserProjectionIntId, QueryData(["age", "name"], ["Id", "name"]))
+                .first()
+            )
             self.assertIsNotNone(result)
-            self.assertEqual(result.age, user.Id)
-            self.assertEqual(result.name, user.name)
+            self.assertEqual(user.age, result.Id)
+            self.assertEqual(user.name, result.name)
 
-        with self.store.open_session() as session:  #                           *fields
-            result = session.query(UserWithId).select(UserProjectionStringId(), "id", "name").first()
+        with self.store.open_session() as session:
+            result = session.query(object_type=User).select_fields(UserProjectionStringId, "Id", "name").first()
             self.assertIsNotNone(result)
-            self.assertEqual(result.Id, user.Id)
-            self.assertEqual(result.name, user.name)
+            self.assertEqual(user.Id, result.Id)
+            self.assertEqual(user.name, result.name)
 
         with self.store.open_session() as session:
             result = (
-                session.query(UserWithId).select(UserProjectionStringId(), ["name", "name"], ["id", "name"]).first()
+                session.query(object_type=User)
+                .select_fields_query_data(UserProjectionStringId, QueryData(["name", "name"], ["Id", "name"]))
+                .first()
             )
+
             self.assertIsNotNone(result)
-            self.assertEqual(result.Id, user.name)
-            self.assertEqual(result.name, user.name)
+            self.assertEqual(user.name, result.Id)
+            self.assertEqual(user.name, result.name)
