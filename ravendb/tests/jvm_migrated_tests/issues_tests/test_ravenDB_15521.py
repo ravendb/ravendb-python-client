@@ -17,7 +17,7 @@ class TestRavenDB15521(TestBase):
             session.store(doc)
 
             attachment = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            session.advanced.attachment.store(doc, "TestAttachment", bytes(attachment, "utf-8"))
+            session.advanced.attachments.store(doc, "TestAttachment", bytes(attachment, "utf-8"))
 
             session.save_changes()
 

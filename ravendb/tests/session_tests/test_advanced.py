@@ -60,11 +60,11 @@ class TestAdvanced(TestBase):
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 user = session.load("users/1-A")
-                session.advanced.attachment.store(user, "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachments.store(user, "my_text_file", binary_list, content_type="text/plain")
                 session.save_changes()
 
         with self.store.open_session() as session:
-            attachment = session.advanced.attachment.get("users/1-A", "my_text_file")
+            attachment = session.advanced.attachments.get("users/1-A", "my_text_file")
             self.assertIsNotNone(attachment)
 
     def test_put_attachment_with_store(self):
@@ -75,12 +75,12 @@ class TestAdvanced(TestBase):
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
                 session.store(User("Ilay", 4), "users/2-A")
-                session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachments.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 session.save_changes()
 
         with self.store.open_session() as session:
             user = session.load("users/2-A")
-            attachment = session.advanced.attachment.get("users/1-A", "my_text_file")
+            attachment = session.advanced.attachments.get("users/1-A", "my_text_file")
             self.assertIsNotNone(attachment)
             self.assertIsNotNone(user)
             self.assertTrue(user.name == "Ilay")
@@ -92,7 +92,7 @@ class TestAdvanced(TestBase):
 
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
-                session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachments.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 session.save_changes()
 
         with self.store.open_session() as session:
@@ -104,7 +104,7 @@ class TestAdvanced(TestBase):
                 attachment_names = list(map(lambda x: x.metadata["Name"], attachments))
             self.assertIn("my_text_file", attachment_names)
 
-            session.advanced.attachment.delete("users/1-A", "my_text_file")
+            session.advanced.attachments.delete("users/1-A", "my_text_file")
             session.save_changes()
 
             user = session.load("users/1-A")
@@ -122,9 +122,9 @@ class TestAdvanced(TestBase):
 
         with self.store.open_session() as session:
             with open(OUT_PUT_FILE_PATH, "rb") as binary_list:
-                session.advanced.attachment.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
+                session.advanced.attachments.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 with self.assertRaises(InvalidOperationException):
-                    session.advanced.attachment.delete("users/1-A", "my_text_file")
+                    session.advanced.attachments.delete("users/1-A", "my_text_file")
 
 
 if __name__ == "__main__":
