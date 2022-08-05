@@ -476,7 +476,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.eagerly = DocumentSession._EagerSessionOperations(session)
 
         @property
-        def attachment(self):
+        def attachments(self):
             if not self.__attachment:
                 self.__attachment = self._Attachment(self.__session)
             return self.__attachment

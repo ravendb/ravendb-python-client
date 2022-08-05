@@ -195,7 +195,6 @@ class TestWhatChanged(TestBase):
             self.assertEqual(2, len(session.advanced.what_changed()))
             self.assertEqual(2, len(session.advanced.what_changed()))
 
-    @unittest.skip("Waiting for proper projections implementation")
     def test_ravenDB_8169(self):
         # Test that when old and new values are of different type
         # but have the same value, we consider them unchanged

@@ -79,7 +79,7 @@ class EntityToJson:
         return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)
 
     @staticmethod
-    def populate_entity_static(entity, document: dict):
+    def populate_entity_static(entity, document: dict) -> None:
         if entity is None:
             raise ValueError("Entity cannot be None")
         if document is None:

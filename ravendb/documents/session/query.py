@@ -2,6 +2,7 @@ from __future__ import annotations
 import datetime
 import enum
 import os
+from copy import copy
 from typing import (
     Generic,
     TypeVar,
@@ -1262,7 +1263,7 @@ class AbstractDocumentQuery(Generic[_T]):
 
     @staticmethod
     def _get_source_alias_if_exists(object_type: type, query_data: QueryData, fields: List[str]) -> Union[None, str]:
-        if len(fields) != 1 and fields[0] is None:
+        if len(fields) != 1 or fields[0] is None:
             return None
         try:
             index_of = fields[0].index(".")
@@ -1739,7 +1740,8 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
     ) -> DocumentQuery[_TProjection]:
         if not fields:
             fields = list(Utils.get_class_fields(projection_class))
-        query_data = QueryData(fields, fields)
+        fields = list(fields)
+        query_data = QueryData(fields, copy(fields))
         query_data.project_into = True
         query_data.projection_behavior = projection_behavior
 
@@ -2000,8 +2002,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
             if not self._is_group_by:
                 # todo: conventions.getIdentityProperty(result_class) - now I assume that identity property is always Id
                 if "Id" in fields:
-                    fields.remove("Id")
-                    fields.append(constants.Documents.Indexing.Fields.DOCUMENT_ID_FIELD_NAME)
+                    fields[fields.index("Id")] = constants.Documents.Indexing.Fields.DOCUMENT_ID_FIELD_NAME
 
             source_alias = self._get_source_alias_if_exists(result_class, query_data, fields)
             new_fields_to_fetch = FieldsToFetchToken.create(
