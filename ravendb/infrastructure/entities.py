@@ -1,3 +1,8 @@
+from __future__ import annotations
+from datetime import datetime
+from typing import List
+
+
 class User:
     def __init__(
         self,
@@ -14,3 +19,21 @@ class User:
         self.address_id = address_id
         self.count = count
         self.age = age
+
+
+class Post:
+    def __init__(
+        self,
+        Id: str = None,
+        title: str = None,
+        desc: str = None,
+        comments: List[Post] = None,
+        attachment_ids: str = None,
+        created_at: datetime.date = None,
+    ):
+        self.Id = Id
+        self.title = title
+        self.desc = desc
+        self.comments = comments
+        self.attachment_ids = attachment_ids
+        self.created_at = created_at
