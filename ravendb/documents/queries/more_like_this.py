@@ -139,7 +139,7 @@ class MoreLikeThisBuilder(Generic[_T], MoreLikeThisOperations[_T]):
     def using_document(
         self, document_json_or_builder: Union[str, Callable[[DocumentQuery[_T]], None]]
     ) -> MoreLikeThisOperations[_T]:
-        if isinstance(str, document_json_or_builder):
+        if isinstance(document_json_or_builder, str):
             self.__more_like_this = MoreLikeThisUsingDocument(document_json_or_builder)
             return self
         self.__more_like_this = MoreLikeThisUsingDocumentForDocumentQuery()
