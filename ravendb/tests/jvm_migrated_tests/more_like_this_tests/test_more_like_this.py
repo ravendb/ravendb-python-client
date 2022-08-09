@@ -1,3 +1,4 @@
+import random
 from abc import ABC
 from typing import Optional, List, Type, TypeVar
 
@@ -247,3 +248,46 @@ class TestMoreLikeThis(TestBase):
                 )
             )
             self.assertNotEqual(0, len(results))
+
+    @staticmethod
+    def _get_lorem(num_words: int) -> str:
+        the_lorem = (
+            "Morbi nec purus eu libero interdum laoreet Nam metus quam posuere in elementum eget egestas eget "
+            "justo Aenean orci ligula ullamcorper nec convallis non placerat nec lectus Quisque convallis "
+            "porta suscipit Aliquam sollicitudin ligula sit amet libero cursus egestas Maecenas nec mauris "
+            "neque at faucibus justo Fusce ut orci neque Nunc sodales pulvinar lobortis Praesent dui tellus "
+            "fermentum sed faucibus nec faucibus non nibh Vestibulum adipiscing porta purus ut varius mi "
+            "pulvinar eu Nam sagittis sodales hendrerit Vestibulum et tincidunt urna Fusce lacinia nisl at "
+            "luctus lobortis lacus quam rhoncus risus a posuere nulla lorem at nisi Sed non erat nisl Cras in "
+            "augue velit a mattis ante Etiam lorem dui elementum eget facilisis vitae viverra sit amet tortor "
+            "Suspendisse potenti Nunc egestas accumsan justo viverra viverra Sed faucibus ullamcorper "
+            "mauris ut pharetra ligula ornare eget Donec suscipit luctus rhoncus Pellentesque eget justo ac "
+            "nunc tempus consequat Nullam fringilla egestas leo Praesent condimentum laoreet magna vitae "
+            "luctus sem cursus sed Mauris massa purus suscipit ac malesuada a accumsan non neque Proin et "
+            "libero vitae quam ultricies rhoncus Praesent urna neque molestie et suscipit vestibulum iaculis "
+            "ac nulla Integer porta nulla vel leo ullamcorper eu rhoncus dui semper Donec dictum dui"
+        )
+
+        lorem_array = the_lorem.split(" ")
+        output = []
+        for i in range(num_words):
+            output.append(lorem_array[random.randint(0, len(lorem_array) - 1)])
+            output.append(" ")
+
+        return "".join(output)
+
+    def test_with_lots_of_random_data(self):
+        key = "datas/1-A"
+
+        with self.store.open_session() as session:
+            DataIndex().execute(self.store)
+
+            for i in range(100):
+                data = Data(body=self._get_lorem(200))
+                session.store(data)
+
+            session.save_changes()
+
+            self.wait_for_indexing(self.store)
+
+        self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, key)
