@@ -93,3 +93,39 @@ class TestMoreLikeThis(TestBase):
                 )
             )
             self.assertEqual(5, len(results))
+
+    def test_can_use_boost_param(self):
+        key = "datas/1-A"
+
+        with self.store.open_session() as session:
+            DataIndex().execute(self.store)
+
+            def __factory(text: str):
+                data = Data(body=text)
+                session.store(data)
+
+            __factory("This is a test. It is a great test . I hope I pass my great test!")
+            __factory("Cake is great.")
+            __factory("I have a test tomorrow.")
+
+            session.save_changes()
+
+            self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            options = MoreLikeThisOptions(
+                fields=["body"],
+                minimum_word_length=3,
+                minimum_document_frequency=1,
+                minimum_term_frequency=2,
+                boost=True,
+            )
+
+            results = list(
+                session.query_index_type(DataIndex, Data).more_like_this(
+                    lambda f: f.using_document(lambda x: x.where_equals("id()", key)).with_options(options)
+                )
+            )
+
+            self.assertNotEqual(0, len(results))
+            self.assertEqual("I have a test tomorrow.", results[0].body)
