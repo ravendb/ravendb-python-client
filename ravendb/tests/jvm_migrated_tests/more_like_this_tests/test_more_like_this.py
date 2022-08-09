@@ -1,9 +1,13 @@
 from abc import ABC
+from typing import Optional, List, Type, TypeVar
 
-from ravendb import AbstractIndexCreationTask
+from ravendb import AbstractIndexCreationTask, DocumentStore
 from ravendb.documents.indexes.definitions import FieldStorage, FieldTermVector, FieldIndexing
 from ravendb.documents.queries.more_like_this import MoreLikeThisStopWords, MoreLikeThisOptions
 from ravendb.tests.test_base import TestBase
+
+_T = TypeVar("_T")
+_T_Index = TypeVar("_T_Index")
 
 
 class Identity(ABC):
@@ -129,3 +133,45 @@ class TestMoreLikeThis(TestBase):
 
             self.assertNotEqual(0, len(results))
             self.assertEqual("I have a test tomorrow.", results[0].body)
+
+    @staticmethod
+    def _get_data_list() -> List[Data]:
+        items = [
+            Data(body="This is a test. Isn't it great? I hope I pass my test!"),
+            Data(body="I have a test tomorrow. I hate having a test"),
+            Data(body="Cake is great"),
+            Data(body="This document has the word test only once"),
+            Data(body="test"),
+            Data(body="test"),
+            Data(body="test"),
+            Data(body="test"),
+        ]
+
+        return items
+
+    def _assert_more_like_this_has_matches_for(
+        self, object_type: Type[_T], index_type: Type[_T_Index], store: DocumentStore, document_key: str
+    ):
+        with store.open_session() as session:
+            options = MoreLikeThisOptions(fields=["body"])
+            results = list(
+                session.query_index_type(index_type, object_type).more_like_this(
+                    lambda f: f.using_document(lambda b: b.where_equals("id()", document_key)).with_options(options)
+                )
+            )
+            self.assertNotEqual(0, len(results))
+
+    def test_can_get_results_using_term_vectors(self):
+        Id: Optional[str] = None
+        with self.store.open_session() as session:
+            DataIndex(True, True).execute(self.store)
+
+            data_list = self._get_data_list()
+            for data in data_list:
+                session.store(data)
+            session.save_changes()
+
+            Id = session.get_document_id(data_list[0])
+            self.wait_for_indexing(self.store)
+
+        self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
