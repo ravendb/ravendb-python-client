@@ -330,3 +330,19 @@ class TestMoreLikeThis(TestBase):
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
+
+    def test_can_get_results_using_storage(self):
+        Id: Optional[str] = None
+        with self.store.open_session() as session:
+            DataIndex(False, True).execute(self.store)
+
+            data_list = self._get_data_list()
+            for d in data_list:
+                session.store(d)
+
+            session.save_changes()
+
+            Id = session.get_document_id(data_list[0])
+            self.wait_for_indexing(self.store)
+
+        self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
