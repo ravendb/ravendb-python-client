@@ -1,4 +1,6 @@
 from abc import ABCMeta, abstractmethod
+from typing import Callable
+
 from ravendb.tools.concurrentset import ConcurrentSet
 from concurrent.futures import Future
 from threading import Lock
@@ -117,7 +119,7 @@ class Observer(metaclass=ABCMeta):
 
 
 class ActionObserver(Observer):
-    def __init__(self, on_next, on_error=None, on_completed=None):
+    def __init__(self, on_next: Callable, on_error=None, on_completed=None):
         self._on_next = on_next
         self._on_error = on_error
         self._on_completed = on_completed

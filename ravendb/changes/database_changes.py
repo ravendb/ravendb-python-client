@@ -1,7 +1,15 @@
 from threading import Lock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 from ravendb.changes.observers import Observable
+from ravendb.changes.types import (
+    DocumentChange,
+    IndexChange,
+    TimeSeriesChange,
+    CounterChange,
+    OperationStatusChange,
+    TopologyChange,
+)
 from ravendb.legacy.subscriptions.data import IncrementalJsonParser
 import websocket
 from ravendb.exceptions.exceptions import NotSupportedException
@@ -107,23 +115,29 @@ class DatabaseChanges:
                                 future.set_result("done complete future")
                     else:
                         value = response.get("Value", None)
-                        if value:
-                            if response_type not in (
-                                "DocumentChange",
-                                "IndexChange",
-                                "TimeSeriesChange",
-                                "CounterChange",
-                                "OperationsStatusChange",
-                            ):
-                                raise NotSupportedException(response_type)
-                            self._notify_subscribers(value, copy.copy(self._observables[response_type]))
+                        self._notify_subscribers(response_type, value, copy.copy(self._observables[response_type]))
             except Exception as e:
                 self.notify_about_error(e)
                 raise ChangeProcessingException(e)
 
-    def _notify_subscribers(self, value, observables):
+    def _notify_subscribers(self, type_of_change: str, value: Dict, observables: Dict[str, Observable]):
+        if type_of_change == "DocumentChange":
+            result = DocumentChange.from_json(value)
+        elif type_of_change == "IndexChange":
+            result = IndexChange.from_json(value)
+        elif type_of_change == "TimeSeriesChange":
+            result = TimeSeriesChange.from_json(value)
+        elif type_of_change == "CounterChange":
+            result = CounterChange.from_json(value)
+        elif type_of_change == "OperationStatusChange":
+            result = OperationStatusChange.from_json(value)
+        elif type_of_change == "TopologyChange":
+            result = TopologyChange.from_json(value)
+        else:
+            raise NotSupportedException(type_of_change)
+
         for observable in observables.values():
-            observable.send(value)
+            observable.send(result)
 
     def close(self):
         self._closed = True
@@ -151,7 +165,7 @@ class DatabaseChanges:
             for observer in observables.values():
                 observer.error(e)
 
-    def for_all_documents(self):
+    def for_all_documents(self) -> Observable:
         observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None)(
             lambda x: True
         )
