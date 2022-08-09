@@ -203,3 +203,47 @@ class TestMoreLikeThis(TestBase):
                 )
             )
             self.assertNotEqual(0, len(results))
+
+    def test_each_field_should_use_correct_analyzer(self):
+        key1 = "datas/1-A"
+
+        with self.store.open_session() as session:
+            DataIndex().execute(self.store)
+
+            for i in range(10):
+                data = Data()
+                data.whitespace_analyzer_field = "bob@hotmail.com hotmail"
+                session.store(data)
+
+            session.save_changes()
+            self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            options = MoreLikeThisOptions(minimum_term_frequency=2, minimum_document_frequency=5)
+            result = list(
+                session.query_index_type(DataIndex, Data).more_like_this(
+                    lambda f: f.using_document(lambda x: x.where_equals("id()", key1)).with_options(options)
+                )
+            )
+
+            self.assertEqual(0, len(result))
+
+        key2 = "datas/11-A"
+
+        with self.store.open_session() as session:
+            DataIndex().execute(self.store)
+
+            for i in range(10):
+                data = Data(whitespace_analyzer_field="bob@hotmail.com bob@hotmail.com")
+                session.store(data)
+
+            session.save_changes()
+            self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            results = list(
+                session.query_index_type(DataIndex, Data).more_like_this(
+                    lambda f: f.using_document(lambda x: x.where_equals("id()", key2))
+                )
+            )
+            self.assertNotEqual(0, len(results))
