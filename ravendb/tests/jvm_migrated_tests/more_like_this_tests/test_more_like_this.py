@@ -415,3 +415,29 @@ class TestMoreLikeThis(TestBase):
             results = lazy_list.value
 
             self.assertNotEqual(0, len(results))
+
+    def test_can_get_results_using_term_vector_with_document_query(self):
+        Id: Optional[str] = None
+
+        with self.store.open_session() as session:
+            DataIndex(True, False).execute(self.store)
+
+            data_list = self._get_data_list()
+            for d in data_list:
+                session.store(d)
+
+            session.save_changes()
+
+            Id = session.get_document_id(data_list[0])
+            self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            options = MoreLikeThisOptions(fields=["body"])
+
+            results = list(
+                session.query_index_type(DataIndex, Data).more_like_this(
+                    lambda f: f.using_document(lambda x: x.where_equals("id()", Id)).with_options(options)
+                )
+            )
+
+            self.assertNotEqual(0, len(results))
