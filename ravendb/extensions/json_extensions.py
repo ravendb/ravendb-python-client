@@ -75,12 +75,14 @@ class JsonExtensions:
             updated = set()
             for item in param:
                 updated.add(JsonExtensions._convert_parameter_to_json(item, conventions))
+            return updated
 
         elif isinstance(param, dict):
             param: dict
             updated = {}
             for key, value in param.items():
                 updated.update({key: JsonExtensions._convert_parameter_to_json(value, conventions)})
+            return updated
 
         elif isinstance(param, tuple):
             param: tuple

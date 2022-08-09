@@ -30,6 +30,8 @@ class HashCalculator:
             self.__buffer.append(str(obj))
         elif isinstance(obj, list):
             self.__buffer.append(str(self.__convert_to_hashable(obj)))
+        elif isinstance(obj, dict):
+            self.__buffer.append(str(self.__convert_to_hashable(obj.items())))
         elif "__str__" in obj.__class__.__dict__:
             self.__buffer.append(str(obj))
         else:

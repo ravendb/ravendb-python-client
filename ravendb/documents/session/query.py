@@ -2184,6 +2184,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         more_like_this_or_builder(f)
 
         more_like_this = self._more_like_this()
+        more_like_this.with_options(f.more_like_this.options)
 
         if isinstance(f.more_like_this, MoreLikeThisUsingDocument):
             more_like_this_using_document: MoreLikeThisUsingDocument = f.more_like_this
