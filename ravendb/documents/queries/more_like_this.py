@@ -149,3 +149,12 @@ class MoreLikeThisBuilder(Generic[_T], MoreLikeThisOperations[_T]):
     def with_options(self, options: MoreLikeThisOptions) -> MoreLikeThisOperations[_T]:
         self.__more_like_this.options = options
         return self
+
+
+class MoreLikeThisStopWords:
+    def __init__(self, Id: str = None, stop_words: List[str] = None):
+        self.Id = Id
+        self.stop_words = stop_words
+
+    def to_json(self):
+        return {"Id": self.Id, "StopWords": self.stop_words}
