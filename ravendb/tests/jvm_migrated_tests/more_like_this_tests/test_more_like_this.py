@@ -175,3 +175,31 @@ class TestMoreLikeThis(TestBase):
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
+
+    def test_can_use_min_doc_freq_param(self):
+        key = "datas/1-A"
+
+        with self.store.open_session() as session:
+            DataIndex().execute(self.store)
+
+            def __factory(text: str):
+                data = Data(body=text)
+                session.store(data)
+
+            __factory("This is a test. Isn't it great? I hope I pass my test!")
+            __factory("I have a test tomorrow. I hate having a test")
+            __factory("Cake is great.")
+            __factory("This document has the word test only once")
+
+            session.save_changes()
+
+            self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            options = MoreLikeThisOptions(fields=["body"], minimum_document_frequency=2)
+            results = list(
+                session.query_index_type(DataIndex, Data).more_like_this(
+                    lambda f: f.using_document(lambda x: x.where_equals("id()", key)).with_options(options)
+                )
+            )
+            self.assertNotEqual(0, len(results))
