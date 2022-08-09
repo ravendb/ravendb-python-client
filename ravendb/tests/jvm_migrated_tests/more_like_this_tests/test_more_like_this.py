@@ -291,3 +291,28 @@ class TestMoreLikeThis(TestBase):
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, key)
+
+    def test_can_make_dynamic_document_queries(self):
+        DataIndex().execute(self.store)
+
+        with self.store.open_session() as session:
+            data_list = self._get_data_list()
+
+            for d in data_list:
+                session.store(d)
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            options = MoreLikeThisOptions(fields=["body"], minimum_term_frequency=1, minimum_document_frequency=1)
+
+            results = list(
+                session.query_index_type(DataIndex, Data).more_like_this(
+                    lambda f: f.using_document('{ "body": "A test"}').with_options(options)
+                )
+            )
+            self.assertEqual(7, len(results))
+
+
