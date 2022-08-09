@@ -25,7 +25,7 @@ class Data(Identity):
 
 
 class ComplexProperty:
-    def __init__(self, body: str):
+    def __init__(self, body: str = None):
         self.body = body
 
 
@@ -346,3 +346,25 @@ class TestMoreLikeThis(TestBase):
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
+
+    def test_can_make_dynamic_document_queries_with_complex_properties(self):
+        ComplexDataIndex().execute(self.store)
+
+        with self.store.open_session() as session:
+            complex_property = ComplexProperty("test")
+            complex_data = ComplexData(property_=complex_property)
+
+            session.store(complex_data)
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            options = MoreLikeThisOptions(minimum_term_frequency=1, minimum_document_frequency=1)
+
+            results = list(
+                session.query_index_type(ComplexDataIndex, ComplexData).more_like_this(
+                    lambda f: f.using_document('{ "Property": { "Body": "test" } }').with_options(options)
+                )
+            )
+            self.assertEqual(1, len(results))
