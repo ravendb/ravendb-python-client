@@ -209,6 +209,8 @@ class DocumentConventions(object):
             return o.value
         elif isinstance(o, ravendb.json.metadata_as_dictionary.MetadataAsDictionary):
             return o.metadata
+        elif getattr(o, "to_json", None) and getattr(o.to_json, "__call__", None):
+            return o.to_json()
         elif getattr(o, "__dict__", None):
             return o.__dict__
         elif isinstance(o, set):
