@@ -86,3 +86,43 @@ class TestChanges(TestBase):
         self.assertEqual(changes_list[1].key, "users/2")
 
         close_action()
+
+    def test_single_document_changes(self):
+        event = Event()
+        document_change: Optional[DocumentChange] = None
+        observable = self.store.changes().for_document("users/1")
+
+        def __ev(value: DocumentChange):
+            nonlocal document_change
+            document_change = value
+            event.set()
+
+        subscription = ActionObserver(__ev)
+        close_action = observable.subscribe(subscription)
+        observable.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User("users/1"))
+            session.save_changes()
+
+        event.wait(1)
+        self.assertIsNotNone(document_change)
+        self.assertEqual("users/1", document_change.key)
+        self.assertEqual("Users", document_change.collection_name)
+        self.assertEqual("Put", document_change.type_of_change.value)
+
+        document_change = None
+        event.clear()
+
+        event.wait(1)
+        self.assertIsNone(document_change)
+
+        close_action()
+
+        with self.store.open_session() as session:
+            user = User(name="another name")
+            session.store(user, "users/1")
+            session.save_changes()
+
+        event.wait(1)
+        self.assertIsNone(document_change)
