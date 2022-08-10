@@ -166,7 +166,32 @@ class TestChanges(TestBase):
 
         operation = SetIndexesPriorityOperation(IndexPriority.LOW, index.index_name)
         self.store.maintenance.send(operation)
+        event.wait(1)
+        self.assertIsNotNone(index_change)
+        self.assertEqual(index.index_name, index_change.name)
+        close_action()
 
+    def test_all_index_changes(self):
+        index = UsersByName()
+        self.store.execute_index(index)
+        event = Event()
+        index_change: Optional[IndexChange] = None
+
+        observable = self.store.changes().for_all_indexes()
+
+        def __ev(value: IndexChange):
+            nonlocal index_change
+            index_change = value
+            event.set()
+
+        subscription = ActionObserver(__ev)
+        close_action = observable.subscribe(subscription)
+        observable.ensure_subscribe_now()
+
+        operation = SetIndexesPriorityOperation(IndexPriority.LOW, index.index_name)
+        self.store.maintenance.send(operation)
+
+        event.wait(1)
         self.assertIsNotNone(index_change)
         self.assertEqual(index.index_name, index_change.name)
         close_action()
