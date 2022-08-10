@@ -131,13 +131,13 @@ class ActionObserver(Observer):
         self._on_error = on_error
         self._on_completed = on_completed
 
-    def on_next(self, value: _T_Change):
+    def on_next(self, value: _T_Change) -> None:
         self._on_next(value)
 
-    def on_error(self, exception):
+    def on_error(self, exception: Exception) -> None:
         if self._on_error:
             self._on_error(exception)
 
-    def on_completed(self):
+    def on_completed(self) -> None:
         if self._on_completed:
             self._on_completed()
