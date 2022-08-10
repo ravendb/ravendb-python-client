@@ -195,3 +195,41 @@ class TestChanges(TestBase):
         self.assertIsNotNone(index_change)
         self.assertEqual(index.index_name, index_change.name)
         close_action()
+
+    def test_can_can_notification_about_documents_starting_with(self):
+        event = Event()
+        document_changes: List[DocumentChange] = []
+
+        observable = self.store.changes().for_documents_start_with("users/")
+
+        def __ev(value: DocumentChange):
+            nonlocal document_changes
+            document_changes.append(value)
+            if len(document_changes) == 2:
+                event.set()
+
+        subscription = ActionObserver(__ev)
+        close_action = observable.subscribe(subscription)
+        observable.ensure_subscribe_now()
+
+        with self.store.open_session() as session:
+            session.store(User(), "users/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.store(User(), "differentDocumentPrefix/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.store(User(), "users/2")
+            session.save_changes()
+
+        self.assertEqual(2, len(document_changes))
+
+        self.assertIsNotNone(document_changes[0])
+        self.assertEqual("users/1", document_changes[0].key)
+
+        self.assertIsNotNone(document_changes[1])
+        self.assertEqual("users/2", document_changes[1].key)
+
+        close_action()
