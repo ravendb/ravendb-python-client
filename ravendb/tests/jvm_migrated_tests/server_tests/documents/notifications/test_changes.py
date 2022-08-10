@@ -1,11 +1,31 @@
 from threading import Event
 from typing import Optional, List
 
+from ravendb import AbstractIndexCreationTask, SetIndexesPriorityOperation
 from ravendb.changes.observers import ActionObserver
-from ravendb.changes.types import DocumentChange
+from ravendb.changes.types import DocumentChange, IndexChange
+from ravendb.documents.indexes.definitions import IndexPriority
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Order
 from ravendb.tests.test_base import TestBase
+
+
+class UsersByName(AbstractIndexCreationTask):
+    def __init__(self):
+        super(UsersByName, self).__init__()
+
+        self.map = "from c in docs.Users select new { c.name, count = 1 }"
+
+        self.reduce = (
+            "from result in results "
+            + "group result by result.name "
+            + "into g "
+            + "select new "
+            + "{ "
+            + "  name = g.Key, "
+            + "  count = g.Sum(x => x.count) "
+            + "}"
+        )
 
 
 class TestChanges(TestBase):
@@ -126,3 +146,27 @@ class TestChanges(TestBase):
 
         event.wait(1)
         self.assertIsNone(document_change)
+
+    def test_single_index_changes(self):
+        index = UsersByName()
+        self.store.execute_index(index)
+        event = Event()
+        index_change: Optional[IndexChange] = None
+
+        observable = self.store.changes().for_index(index.index_name)
+
+        def __ev(value: IndexChange):
+            nonlocal index_change
+            index_change = value
+            event.set()
+
+        subscription = ActionObserver(__ev)
+        close_action = observable.subscribe(subscription)
+        observable.ensure_subscribe_now()
+
+        operation = SetIndexesPriorityOperation(IndexPriority.LOW, index.index_name)
+        self.store.maintenance.send(operation)
+
+        self.assertIsNotNone(index_change)
+        self.assertEqual(index.index_name, index_change.name)
+        close_action()
