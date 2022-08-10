@@ -1,12 +1,14 @@
 from abc import ABCMeta, abstractmethod
-from typing import Callable
+from typing import Callable, Generic, TypeVar
 
 from ravendb.tools.concurrentset import ConcurrentSet
 from concurrent.futures import Future
 from threading import Lock
 
+_T_Change = TypeVar("_T_Change")
 
-class Observable:
+
+class Observable(Generic[_T_Change]):
     def __init__(self, on_connect=None, on_disconnect=None, executor=None):
         self.on_connect = on_connect
         self._on_disconnect = on_disconnect
@@ -22,7 +24,7 @@ class Observable:
         self._filter = filter_method
         return self
 
-    def on_document_change_notification(self, value):
+    def on_document_change_notification(self, value: _T_Change):
         try:
             if self._filter(value):
                 for subscriber in self._subscribers:
@@ -94,7 +96,7 @@ class Observable:
     def ensure_subscribe_now(self):
         self._future.result() if self._future else self._future_set.result()
 
-    def send(self, msg):
+    def send(self, msg: _T_Change):
         try:
             if self._filter(msg):
                 for subscriber in self._subscribers:
@@ -106,25 +108,30 @@ class Observable:
 
 class Observer(metaclass=ABCMeta):
     @abstractmethod
-    def on_completed(self):
+    def on_completed(self) -> None:
         pass
 
     @abstractmethod
-    def on_error(self, exception):
+    def on_error(self, exception: Exception) -> None:
         pass
 
     @abstractmethod
-    def on_next(self, value):
+    def on_next(self, value: _T_Change) -> None:
         pass
 
 
 class ActionObserver(Observer):
-    def __init__(self, on_next: Callable, on_error=None, on_completed=None):
+    def __init__(
+        self,
+        on_next: Callable[[_T_Change], None],
+        on_error: Callable[[Exception], None] = None,
+        on_completed: Callable[[], None] = None,
+    ):
         self._on_next = on_next
         self._on_error = on_error
         self._on_completed = on_completed
 
-    def on_next(self, value):
+    def on_next(self, value: _T_Change):
         self._on_next(value)
 
     def on_error(self, exception):
