@@ -30,7 +30,7 @@ class Observable:
         except Exception as e:
             self.error(e)
 
-    def subscribe(self, observer):
+    def subscribe(self, observer) -> Callable[[], None]:
         """
         @param Observer or func observer: The observer that will do action when changes happens
         :return: method that close the subscriber
@@ -42,9 +42,9 @@ class Observable:
 
         def close_action():
             self.dec()
-            subscriber = self._subscribers.pop(observer)
-            if subscriber.on_complete:
-                subscriber.on_complete()
+            self._subscribers.remove(observer)
+            if "on_complete" in observer.__dict__ and "__call__" in observer.on_complete.__dict__:
+                observer.on_complete()
 
         return close_action
 
