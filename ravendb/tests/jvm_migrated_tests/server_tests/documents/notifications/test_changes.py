@@ -224,6 +224,8 @@ class TestChanges(TestBase):
             session.store(User(), "users/2")
             session.save_changes()
 
+            event.wait(1)
+
         self.assertEqual(2, len(document_changes))
 
         self.assertIsNotNone(document_changes[0])
