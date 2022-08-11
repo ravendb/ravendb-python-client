@@ -143,3 +143,35 @@ class TestAggregation(TestBase):
 
             self.assertEqual(3336, list(filter(lambda x: x.range_ == "eur", facet_result.values))[0].sum_)
             self.assertEqual(9, list(filter(lambda x: x.range_ == "nis", facet_result.values))[0].sum_)
+
+    def test_can_correctly_aggregate_multiple_aggregations(self):
+        Orders_All().execute(self.store)
+
+        with self.store.open_session() as session:
+            obj = Order(Currency.EUR, "Milk", 3)
+            obj2 = Order(Currency.NIS, "Milk", 9)
+            obj3 = Order(Currency.EUR, "iPhone", 3333)
+
+            session.store(obj)
+            session.store(obj2)
+            session.store(obj3)
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            r = (
+                session.query_index_type(Orders_All, Order)
+                .aggregate_by(lambda f: f.by_field("product").max_on("total").min_on("total"))
+                .execute()
+            )
+
+            facet_result = r.get("product")
+            self.assertEqual(2, len(facet_result.values))
+
+            self.assertEqual(9, list(filter(lambda x: x.range_ == "milk", facet_result.values))[0].max_)
+            self.assertEqual(3, list(filter(lambda x: x.range_ == "milk", facet_result.values))[0].min_)
+
+            self.assertEqual(3333, list(filter(lambda x: x.range_ == "iphone", facet_result.values))[0].max_)
+            self.assertEqual(3333, list(filter(lambda x: x.range_ == "iphone", facet_result.values))[0].min_)
