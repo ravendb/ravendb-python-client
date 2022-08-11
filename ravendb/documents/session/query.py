@@ -2149,7 +2149,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
     def order_by_distance_wkt(
         self, field_or_field_name: Union[str, DynamicSpatialField], shape_wkt: str
     ) -> DocumentQuery[_T]:
-        self._order_by_distance(field_or_field_name, shape_wkt)
+        self._order_by_distance_wkt(field_or_field_name, shape_wkt)
         return self
 
     def order_by_distance_descending(
@@ -2159,13 +2159,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         longitude: float,
         round_factor: Optional[float] = 0.0,
     ) -> DocumentQuery[_T]:
-        self._order_by_distance_descending(field_or_field_name, (latitude, longitude), round_factor)
+        self._order_by_distance_descending(field_or_field_name, latitude, longitude, round_factor)
         return self
 
     def order_by_distance_descending_wkt(
         self, field_or_field_name: Union[str, DynamicSpatialField], shape_wkt: str
     ) -> DocumentQuery[_T]:
-        self._order_by_distance_descending(field_or_field_name, shape_wkt)
+        self._order_by_distance_descending_wkt(field_or_field_name, shape_wkt)
         return self
 
     def more_like_this(

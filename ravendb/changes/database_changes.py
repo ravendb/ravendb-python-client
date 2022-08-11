@@ -1,7 +1,15 @@
 from threading import Lock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 from ravendb.changes.observers import Observable
+from ravendb.changes.types import (
+    DocumentChange,
+    IndexChange,
+    TimeSeriesChange,
+    CounterChange,
+    OperationStatusChange,
+    TopologyChange,
+)
 from ravendb.legacy.subscriptions.data import IncrementalJsonParser
 import websocket
 from ravendb.exceptions.exceptions import NotSupportedException
@@ -107,23 +115,29 @@ class DatabaseChanges:
                                 future.set_result("done complete future")
                     else:
                         value = response.get("Value", None)
-                        if value:
-                            if response_type not in (
-                                "DocumentChange",
-                                "IndexChange",
-                                "TimeSeriesChange",
-                                "CounterChange",
-                                "OperationsStatusChange",
-                            ):
-                                raise NotSupportedException(response_type)
-                            self._notify_subscribers(value, copy.copy(self._observables[response_type]))
+                        self._notify_subscribers(response_type, value, copy.copy(self._observables[response_type]))
             except Exception as e:
                 self.notify_about_error(e)
                 raise ChangeProcessingException(e)
 
-    def _notify_subscribers(self, value, observables):
+    def _notify_subscribers(self, type_of_change: str, value: Dict, observables: Dict[str, Observable]):
+        if type_of_change == "DocumentChange":
+            result = DocumentChange.from_json(value)
+        elif type_of_change == "IndexChange":
+            result = IndexChange.from_json(value)
+        elif type_of_change == "TimeSeriesChange":
+            result = TimeSeriesChange.from_json(value)
+        elif type_of_change == "CounterChange":
+            result = CounterChange.from_json(value)
+        elif type_of_change == "OperationStatusChange":
+            result = OperationStatusChange.from_json(value)
+        elif type_of_change == "TopologyChange":
+            result = TopologyChange.from_json(value)
+        else:
+            raise NotSupportedException(type_of_change)
+
         for observable in observables.values():
-            observable.send(value)
+            observable.send(result)
 
     def close(self):
         self._closed = True
@@ -151,13 +165,13 @@ class DatabaseChanges:
             for observer in observables.values():
                 observer.error(e)
 
-    def for_all_documents(self):
+    def for_all_documents(self) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None)(
             lambda x: True
         )
         return observable
 
-    def for_all_operations(self):
+    def for_all_operations(self) -> Observable[OperationStatusChange]:
         observable = self.get_or_add_observable(
             "OperationsStatusChange",
             "all-operations",
@@ -167,59 +181,59 @@ class DatabaseChanges:
         )(lambda x: True)
         return observable
 
-    def for_all_indexes(self):
+    def for_all_indexes(self) -> Observable[IndexChange]:
         observable = self.get_or_add_observable("IndexChange", "all-indexes", "watch-indexes", "unwatch-indexes", None)(
             lambda x: True
         )
         return observable
 
-    def for_index(self, index_name):
+    def for_index(self, index_name) -> Observable[IndexChange]:
         observable = self.get_or_add_observable(
             "IndexChange",
             "indexes/" + index_name,
             "watch-index",
             "unwatch-index",
             index_name,
-        )(lambda x: x["Name"].casefold() == index_name.casefold())
+        )(lambda x: x.name.casefold() == index_name.casefold())
         return observable
 
-    def for_operation_id(self, operation_id):
+    def for_operation_id(self, operation_id) -> Observable[OperationStatusChange]:
         observable = self.get_or_add_observable(
             "OperationsStatusChange",
             "operations/" + str(operation_id),
             "watch-operation",
             "unwatch-operation",
             str(operation_id),
-        )(lambda x: x["operationId"] == str(operation_id))
+        )(lambda x: x.operation_id == str(operation_id))
         return observable
 
-    def for_document(self, doc_id):
+    def for_document(self, doc_id) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable("DocumentChange", "docs/" + doc_id, "watch-doc", "unwatch-doc", doc_id)(
-            lambda x: x["Id"].casefold() == doc_id.casefold()
+            lambda x: x.key.casefold() == doc_id.casefold()
         )
         return observable
 
-    def for_documents_start_with(self, doc_id_prefix):
+    def for_documents_start_with(self, doc_id_prefix) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable(
             "DocumentChange",
             "prefixes/" + doc_id_prefix,
             "watch-prefix",
             "unwatch-prefix",
             doc_id_prefix,
-        )(lambda x: x["Id"] is not None and x["Id"].casefold().startswith(doc_id_prefix.casefold()))
+        )(lambda x: x.key is not None and x.key.casefold().startswith(doc_id_prefix.casefold()))
         return observable
 
-    def for_documents_in_collection(self, collection_name):
+    def for_documents_in_collection(self, collection_name) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable(
             "DocumentChange",
             "collections/" + collection_name,
             "watch-collection",
             "unwatch-collection",
             collection_name,
-        )(lambda x: x["CollectionName"].casefold() == collection_name.casefold())
+        )(lambda x: x.collection_name.casefold() == collection_name.casefold())
         return observable
 
-    def for_all_time_series(self):
+    def for_all_time_series(self) -> Observable[TimeSeriesChange]:
         observable = self.get_or_add_observable(
             "TimeSeriesChange",
             "all-timeseries",
@@ -229,7 +243,7 @@ class DatabaseChanges:
         )(lambda x: True)
         return observable
 
-    def for_time_series(self, time_series_name):
+    def for_time_series(self, time_series_name) -> Observable[TimeSeriesChange]:
         if not time_series_name:
             raise ValueError("time_series_name cannot be None or empty")
         observable = self.get_or_add_observable(
@@ -238,10 +252,10 @@ class DatabaseChanges:
             "watch-timeseries",
             "unwatch-timeseries",
             time_series_name,
-        )(lambda x: x["Name"].casefold() == time_series_name.casefold())
+        )(lambda x: x.name.casefold() == time_series_name.casefold())
         return observable
 
-    def for_time_series_of_document(self, doc_id, time_series_name=None):
+    def for_time_series_of_document(self, doc_id, time_series_name=None) -> Observable[TimeSeriesChange]:
         """
         Can subscribe to all time series changes that associated with the document or
         by passing the time series name only for a specific time series
@@ -251,8 +265,8 @@ class DatabaseChanges:
 
         def get_lambda():
             if time_series_name:
-                return lambda x: x["DocumentId"].casefold() == doc_id.casefold() and x["Name"].casefold()
-            return lambda x: x["DocumentId"].casefold() == doc_id.casefold()
+                return lambda x: x.document_id.casefold() == doc_id.casefold() and x.name.casefold()
+            return lambda x: x.document_id.casefold() == doc_id.casefold()
 
         name = f"document/{doc_id}/timeseries{f'/{time_series_name}' if time_series_name else ''}"
         watch_command = "watch-document-timeseries" if time_series_name else "watch-all-document-timeseries"
@@ -269,13 +283,13 @@ class DatabaseChanges:
         )(get_lambda())
         return observable
 
-    def for_all_counters(self):
+    def for_all_counters(self) -> Observable[CounterChange]:
         observable = self.get_or_add_observable(
             "CounterChange", "all-counters", "watch-counters", "unwatch-counters", None
         )(lambda x: True)
         return observable
 
-    def for_counter(self, counter_name):
+    def for_counter(self, counter_name) -> Observable[CounterChange]:
         if not counter_name:
             raise ValueError("counter_name cannot be None or empty")
         observable = self.get_or_add_observable(
@@ -284,10 +298,10 @@ class DatabaseChanges:
             "watch-counter",
             "unwatch-counter",
             counter_name,
-        )(lambda x: x["Name"].casefold() == counter_name.casefold())
+        )(lambda x: x.name.casefold() == counter_name.casefold())
         return observable
 
-    def for_counters_of_document(self, doc_id):
+    def for_counters_of_document(self, doc_id) -> Observable[CounterChange]:
         """
         Can subscribe to all counters changes that associated with the document or
         """
@@ -301,10 +315,10 @@ class DatabaseChanges:
             "unwatch-document-counters",
             value=doc_id,
             values=None,
-        )(lambda x: x["DocumentId"].casefold() == doc_id.casefold())
+        )(lambda x: x.document_id.casefold() == doc_id.casefold())
         return observable
 
-    def for_counter_of_document(self, doc_id, counter_name):
+    def for_counter_of_document(self, doc_id, counter_name) -> Observable[CounterChange]:
         """
         Can subscribe to all counters changes that associated with the document and for counter name
         """
@@ -320,7 +334,7 @@ class DatabaseChanges:
             "unwatch-document-counter",
             value=None,
             values=[doc_id, counter_name],
-        )(lambda x: x["DocumentId"].casefold() == doc_id.casefold() and x["Name"].casefold())
+        )(lambda x: x.document_id.casefold() == doc_id.casefold() and x.name.casefold())
         return observable
 
     def get_or_add_observable(self, group, name, watch_command, unwatch_command, value, values=None):
