@@ -234,3 +234,33 @@ class TestAggregation(TestBase):
         self.assertEqual(4, facet_results[0].count_)
         self.assertEqual(1, facet_results[1].count_)
         self.assertEqual(3, facet_results[2].count_)
+
+    def test_can_correctly_aggregate_display_name(self):
+        Orders_All().execute(self.store)
+
+        with self.store.open_session() as session:
+            obj = Order(Currency.EUR, "Milk", 3)
+            obj2 = Order(Currency.NIS, "Milk", 9)
+            obj3 = Order(Currency.EUR, "iPhone", 3333)
+
+            session.store(obj)
+            session.store(obj2)
+            session.store(obj3)
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            r = (
+                session.query_index_type(Orders_All, Order)
+                .aggregate_by(lambda f: f.by_field("product").with_display_name("product_max").max_on("total"))
+                .and_aggregate_by(lambda f: f.by_field("product").with_display_name("product_min"))
+                .execute()
+            )
+
+            self.assertEqual(2, len(r))
+            self.assertIsNotNone(r.get("product_max"))
+            self.assertIsNotNone(r.get("product_min"))
+            self.assertEqual(3333, r.get("product_max").values[0].max_)
+            self.assertEqual(2, r.get("product_min").values[1].count_)
