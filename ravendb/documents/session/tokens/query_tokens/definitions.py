@@ -667,7 +667,7 @@ class WhereToken(QueryToken):
         elif self.where_operator == WhereOperator.SPATIAL_WITHIN:
             writer.append("spatial.within(")
         elif self.where_operator == WhereOperator.SPATIAL_CONTAINS:
-            writer.append("spatial.within(")
+            writer.append("spatial.contains(")
         elif self.where_operator == WhereOperator.SPATIAL_DISJOINT:
             writer.append("spatial.disjoint(")
         elif self.where_operator == WhereOperator.SPATIAL_INTERSECTS:
