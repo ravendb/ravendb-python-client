@@ -4,112 +4,155 @@ from typing import Tuple, Union, List, Optional, Callable
 import ravendb.documents.queries.facets.definitions as facets_definitions
 from ravendb.documents.queries.facets.misc import FacetAggregation, FacetOptions
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
-from ravendb.tools.utils import Utils
+from ravendb.tools.utils import Utils, QueryFieldUtil
 
 
 class FacetToken(QueryToken):
     def __init__(
         self,
-        aggregate_by_field_name__alias__ranges__options_parameter_name: Optional[
-            Tuple[Union[None, str], str, Union[None, List[str]], str]
-        ] = None,
-        facet_setup_document_id: Optional[str] = None,
+        aggregate_by_field_name: Optional[str] = None,
+        alias: Optional[str] = None,
+        ranges: Optional[List[str]] = None,
+        options_parameter_name: Optional[str] = None,
     ):
+        self._aggregate_by_field_name = aggregate_by_field_name
+        self._alias = alias
+        self._ranges = ranges
+        self._options_parameter_name = options_parameter_name
+        self._aggregations = []
+        self._facet_setup_document_id: Optional[str] = None
 
-        self.__aggregations: Union[None, List[FacetToken._FacetAggregationToken]] = None
-        if aggregate_by_field_name__alias__ranges__options_parameter_name is not None:
-            self.__aggregate_by_field_name = aggregate_by_field_name__alias__ranges__options_parameter_name[0]
-            self.__alias = aggregate_by_field_name__alias__ranges__options_parameter_name[1]
-            self.__ranges = aggregate_by_field_name__alias__ranges__options_parameter_name[2]
-            self.__options_parameter_name = aggregate_by_field_name__alias__ranges__options_parameter_name[3]
-            self.__facet_setup_document_id = None
-            self.__aggregations: List[FacetToken._FacetAggregationToken] = []
-
-        elif facet_setup_document_id is not None:
-            self.__facet_setup_document_id = facet_setup_document_id
-            self.__aggregate_by_field_name: Optional[str] = None
-            self.__alias: Optional[str] = None
-            self.__ranges: Optional[List[str]] = None
-            self.__options_parameter_name: Optional[str] = None
-
-        else:
-            raise ValueError(
-                "Pass either (aggregate_by_field_name, alias, ranges, options_parameter_name) tuple or "
-                "facet_setup_document_id"
-            )
+    @classmethod
+    def from_facet_setup_document_id(cls, facet_setup_document_id: str) -> FacetToken:
+        token = cls()
+        token._facet_setup_document_id = facet_setup_document_id
+        return token
 
     @property
     def name(self) -> str:
-        return self.__alias or self.__aggregate_by_field_name
+        return self._alias or self._aggregate_by_field_name
 
     @staticmethod
-    def create(
-        facet_setup_document_id: Optional[str] = None,
-        facet__add_query_parameter: Optional[
-            Tuple[
-                Union[
-                    facets_definitions.Facet,
-                    facets_definitions.RangeFacet,
-                    facets_definitions.GenericRangeFacet,
-                    facets_definitions.FacetBase,
-                ],
-                Callable[[object], str],
-            ]
-        ] = None,
-    ):
-        if facet_setup_document_id is not None:
-            if facet_setup_document_id.isspace():
-                raise ValueError("facet_setup_document_id cannot be None")
+    def create():
+        pass
 
-            return FacetToken(facet_setup_document_id=facet_setup_document_id)
+    @classmethod
+    def create_from_facet_setup_document_id(
+        cls,
+        facet_setup_document_id: str = None,
+    ) -> FacetToken:
+        if facet_setup_document_id is None or facet_setup_document_id.isspace():
+            raise ValueError("facet_setup_document_id cannot be None or whitespace")
+        return FacetToken.from_facet_setup_document_id(facet_setup_document_id)
 
-        elif facet__add_query_parameter:
-            facet = facet__add_query_parameter[0]
-            add_query_parameter = facet__add_query_parameter[1]
-            ranges = None
+    @classmethod
+    def create_from_facet(
+        cls, facet: facets_definitions.Facet, add_query_parameter: Callable[[object], str]
+    ) -> FacetToken:
+        options_parameter_name = cls.__get_options_parameter_name(facet, add_query_parameter)
+        token = FacetToken(
+            QueryFieldUtil.escape_if_necessary(facet.field_name),
+            QueryFieldUtil.escape_if_necessary(facet.display_field_name),
+            None,
+            options_parameter_name,
+        )
 
-            if isinstance(facet, facets_definitions.Facet):
-                options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
-                token = FacetToken(
-                    aggregate_by_field_name__alias__ranges__options_parameter_name=(
-                        Utils.quote_key(facet.field_name),
-                        Utils.quote_key(facet.display_field_name),
-                        None,
-                        options_parameter_name,
-                    )
-                )
-            elif isinstance(facet, facets_definitions.RangeFacet):
-                options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
-                token = FacetToken(
-                    aggregate_by_field_name__alias__ranges__options_parameter_name=(
-                        None,
-                        Utils.quote_key(facet.display_field_name),
-                        ranges if isinstance(facet, facets_definitions.GenericRangeFacet) else facet.ranges,
-                        options_parameter_name,
-                    )
-                )
-            elif isinstance(facet, facets_definitions.GenericRangeFacet):
-                options_parameter_name = FacetToken.__get_options_parameter_name(facet, add_query_parameter)
-                ranges = []
-                for range_builder in facet.ranges:
-                    ranges.append(facets_definitions.GenericRangeFacet.parse(range_builder, add_query_parameter))
-                token = FacetToken(
-                    aggregate_by_field_name__alias__ranges__options_parameter_name=(
-                        None,
-                        Utils.quote_key(facet.display_field_name),
-                        ranges,
-                        options_parameter_name,
-                    )
-                )
+        cls.__apply_aggregations(facet, token)
 
-            elif isinstance(facet, facets_definitions.FacetBase):
-                return facet.to_facet_token(add_query_parameter)
+        return token
 
-            else:
-                raise TypeError(f"Unexpected facet type {facet.__class__.__name__}")
+    @classmethod
+    def create_from_range_facet(
+        cls, facet: facets_definitions.RangeFacet, add_query_parameter: Callable[[object], str]
+    ) -> FacetToken:
+        options_parameter_name = cls.__get_options_parameter_name(facet, add_query_parameter)
 
-            FacetToken.__apply_aggregations(facet, token)
-            return token
+        token = FacetToken(
+            None, QueryFieldUtil.escape_if_necessary(facet.display_field_name), facet.ranges, options_parameter_name
+        )
+
+        cls.__apply_aggregations(facet, token)
+
+        return token
+
+    @classmethod
+    def create_from_generic_range_facet(
+        cls, facet: facets_definitions.GenericRangeFacet, add_query_parameter: Callable[[object], str]
+    ) -> FacetToken:
+        options_parameter_name = cls.__get_options_parameter_name(facet, add_query_parameter)
+
+        ranges = [
+            facets_definitions.GenericRangeFacet.parse(range_builder, add_query_parameter)
+            for range_builder in facet.ranges
+        ]
+
+        token = FacetToken(
+            None, QueryFieldUtil.escape_if_necessary(facet.display_field_name), ranges, options_parameter_name
+        )
+
+        cls.__apply_aggregations(facet, token)
+        return token
+
+    @classmethod
+    def create_from_facet_base(
+        cls, facet: facets_definitions.FacetBase, add_query_parameter: Callable[[object], str]
+    ) -> FacetToken:
+        # this is just a dispatcher
+        return facet.to_facet_token(add_query_parameter)
+
+    def write_to(self, writer: List[str]) -> None:
+        writer.append("facet(")
+
+        if self._facet_setup_document_id is not None:
+            writer.append("id(")
+            writer.append(self._facet_setup_document_id)
+            writer.append("'))")
+            return
+
+        first_argument = False
+
+        if self._aggregate_by_field_name is not None:
+            writer.append(self._aggregate_by_field_name)
+        elif self._ranges is not None:
+            first_in_range = True
+
+            for range_ in self._ranges:
+                if not first_in_range:
+                    writer.append(", ")
+
+                first_in_range = False
+                writer.append(range_)
+
+        else:
+            first_argument = True
+
+        for aggregation in self._aggregations:
+            if not first_argument:
+                writer.append(", ")
+            first_argument = False
+            aggregation.write_to(writer)
+
+        if self._options_parameter_name and not self._options_parameter_name.isspace():
+            writer.append(", $")
+            writer.append(self._options_parameter_name)
+
+        writer.append(")")
+
+        if not self._alias or self._alias.isspace() or self._alias == self._aggregate_by_field_name:
+            return
+
+        writer.append(" as ")
+        writer.append(self._alias)
+
+    @staticmethod
+    def __get_options_parameter_name(
+        facet: facets_definitions.FacetBase, add_query_parameter: Callable[[object], str]
+    ) -> Optional[str]:
+        return (
+            add_query_parameter(facet.options)
+            if facet.options is not None and facet.options != FacetOptions.default_options()
+            else None
+        )
 
     @staticmethod
     def __apply_aggregations(facet: facets_definitions.FacetBase, token: FacetToken) -> None:
@@ -126,61 +169,7 @@ class FacetToken(QueryToken):
                 else:
                     raise NotImplementedError(f"Unsupported aggregation method: {key}")
 
-                token.__aggregations.append(aggregation_token)
-
-    @staticmethod
-    def __get_options_parameter_name(
-        facet: facets_definitions.FacetBase, add_query_parameter: Callable[[object], str]
-    ) -> Union[None, str]:
-        return (
-            add_query_parameter(facet.options)
-            if facet.options is not None and facet.options != FacetOptions.default_options()
-            else None
-        )
-
-    def write_to(self, writer: List[str]) -> None:
-        writer.append("facet(")
-
-        if self.__facet_setup_document_id is not None:
-            writer.append("id(")
-            writer.append(self.__facet_setup_document_id)
-            writer.append("'))")
-            return
-
-        first_argument = False
-
-        if self.__aggregate_by_field_name is not None:
-            writer.append(self.__aggregate_by_field_name)
-        elif self.__ranges is not None:
-            first_in_range = True
-
-            for range in self.__ranges:
-                if not first_in_range:
-                    writer.append(", ")
-
-                first_in_range = False
-                writer.append(range)
-
-        else:
-            first_argument = True
-
-        for aggregation in self.__aggregations:
-            if not first_argument:
-                writer.append(", ")
-            first_argument = False
-            aggregation.write_to(writer)
-
-        if self.__options_parameter_name and not self.__options_parameter_name.isspace():
-            writer.append(", $")
-            writer.append(self.__options_parameter_name)
-
-        writer.append(")")
-
-        if not self.__alias or self.__alias.isspace() or self.__alias == self.__aggregate_by_field_name:
-            return
-
-        writer.append(" as ")
-        writer.append(self.__alias)
+                token._aggregations.append(aggregation_token)
 
     class _FacetAggregationToken(QueryToken):
         def __init__(self, field_name: str, field_display_name: str, aggregation: FacetAggregation):

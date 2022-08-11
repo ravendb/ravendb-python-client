@@ -1585,10 +1585,10 @@ class AbstractDocumentQuery(Generic[_T]):
                 f"Aggregation query can select only facets while it got {token.__class__.__name__} token"
             )
 
-        self._select_tokens.append(FacetToken.create(facet__add_query_parameter=(facet, self.__add_query_parameter)))
+        self._select_tokens.append(FacetToken.create_from_facet_base(facet, self.__add_query_parameter))
 
     def _aggregate_using(self, facet_setup_document_id: str) -> None:
-        self._select_tokens.append(FacetToken.create(facet_setup_document_id))
+        self._select_tokens.append(FacetToken.create_from_facet_setup_document_id(facet_setup_document_id))
 
     def lazily(self, on_eval: Callable[[List[_T]], None] = None) -> Lazy[List[_T]]:
         lazy_query_operation = self.lazy_query_operation
