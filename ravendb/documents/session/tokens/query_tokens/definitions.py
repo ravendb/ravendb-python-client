@@ -763,6 +763,7 @@ class WhereToken(QueryToken):
             ):
                 writer.append(", ")
                 writer.append(str(self.options.distance_error_pct))
+            writer.append(")")
 
         else:
             raise TypeError("Unexpected WhereToken.where_operator")

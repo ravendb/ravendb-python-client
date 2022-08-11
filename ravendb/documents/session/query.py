@@ -1418,7 +1418,9 @@ class AbstractDocumentQuery(Generic[_T]):
                     WhereToken.WhereOptions(shape__distance=(wkt_token, dist_error_percent)),
                 )
             )
-        elif isinstance(dynamic_field_or_field_name__criteria[0], DynamicSpatialField):
+            return
+
+        elif issubclass(dynamic_field_or_field_name__criteria[0].__class__, DynamicSpatialField):
             dynamic_field = dynamic_field_or_field_name__criteria[0]
             self.__assert_is_dynamic_query(dynamic_field, "spatial")
 
@@ -1431,6 +1433,7 @@ class AbstractDocumentQuery(Generic[_T]):
                     dynamic_field.to_field(self.__ensure_valid_field_name), self.__add_query_parameter
                 )
             )
+            return
 
         elif isinstance(dynamic_field_or_field_name__criteria[0], str):
             field_name = self.__ensure_valid_field_name(dynamic_field_or_field_name__criteria[0], False)
@@ -1442,6 +1445,7 @@ class AbstractDocumentQuery(Generic[_T]):
             tokens.append(
                 dynamic_field_or_field_name__criteria[1].to_query_token(field_name, self.__add_query_parameter)
             )
+            return
 
         raise ValueError()
 
