@@ -218,11 +218,11 @@ class RangeBuilder(Generic[_T]):
 
         if self.__less_set:
             less_param_name = add_query_parameter(self.__less_bound)
-            less = self.__path + " <= " if self.__less_inclusive else " < " + "$" + less_param_name
+            less = self.__path + (" <= " if self.__less_inclusive else " < ") + "$" + less_param_name
 
         if self.__greater_set:
             greater_param_name = add_query_parameter(self.__greater_bound)
-            greater = self.__path + " >= " if self.__greater_inclusive else " > " + "$" + greater_param_name
+            greater = self.__path + (" >= " if self.__greater_inclusive else " > ") + "$" + greater_param_name
 
         if less is not None and greater is not None:
             return greater + " and " + less
