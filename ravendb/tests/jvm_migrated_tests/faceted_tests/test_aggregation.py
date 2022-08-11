@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import datetime
 from enum import Enum
+from typing import List
+
 from ravendb import AbstractIndexCreationTask, RangeBuilder
 from ravendb.tests.test_base import TestBase
 
@@ -31,6 +34,18 @@ class Currency(Enum):
     EUR = "EUR"
     PLN = "PLN"
     NIS = "NIS"
+
+
+class ItemsOrder:
+    def __init__(self, items: List[str], at: datetime.datetime):
+        self.items = items
+        self.at = at
+
+
+class ItemsOrders_All(AbstractIndexCreationTask):
+    def __init__(self):
+        super(ItemsOrders_All, self).__init__()
+        self.map = "docs.ItemsOrders.Select(order => new { order.at, \n" "                          order.items })"
 
 
 class TestAggregation(TestBase):
@@ -175,3 +190,47 @@ class TestAggregation(TestBase):
 
             self.assertEqual(3333, list(filter(lambda x: x.range_ == "iphone", facet_result.values))[0].max_)
             self.assertEqual(3333, list(filter(lambda x: x.range_ == "iphone", facet_result.values))[0].min_)
+
+    def test_can_correctly_aggregate_date_time_data_type_with_range_counts(self):
+        ItemsOrders_All().execute(self.store)
+
+        with self.store.open_session() as session:
+            item1 = ItemsOrder(["first", "second"], datetime.datetime(3333, 3, 3, 3, 3, 3, 3))
+            item2 = ItemsOrder(["first", "second"], datetime.datetime(3333, 3, 1, 3, 3, 3, 3))
+            item3 = ItemsOrder(["first", "second"], datetime.datetime(3333, 3, 3, 3, 3, 3, 3))
+            item4 = ItemsOrder(["first"], datetime.datetime(3333, 3, 3, 3, 3, 3, 3))
+
+            session.store(item1)
+            session.store(item2)
+            session.store(item3)
+            session.store(item4)
+            session.save_changes()
+
+        items = ["second"]
+        min_value = datetime.datetime(1980, 3, 3, 3, 3, 3, 3)
+        end0 = datetime.datetime(3333, 3, 1, 3, 3, 3, 3)
+        end1 = datetime.datetime(3333, 3, 2, 3, 3, 3, 3)
+        end2 = datetime.datetime(3333, 3, 3, 3, 3, 3, 4)
+
+        self.wait_for_indexing(self.store)
+
+        builder = RangeBuilder.for_path("at")
+        with self.store.open_session() as session:
+            r = (
+                session.query_index_type(ItemsOrders_All, ItemsOrder)
+                .where_greater_than_or_equal("at", end0)
+                .aggregate_by(
+                    lambda f: f.by_ranges(
+                        builder.is_greater_than_or_equal_to(min_value),  # all - 4
+                        builder.is_greater_than_or_equal_to(end0).is_less_than(end1),  # 0
+                        builder.is_greater_than_or_equal_to(end1).is_less_than(end2),  # 1
+                    )
+                )
+                .execute()
+            )
+
+        facet_results = r.get("at").values
+
+        self.assertEqual(4, facet_results[0].count_)
+        self.assertEqual(1, facet_results[1].count_)
+        self.assertEqual(3, facet_results[2].count_)
