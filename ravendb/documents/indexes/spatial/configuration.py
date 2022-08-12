@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import  Union, List, Dict
+from typing import Union, List, Dict
 
 
 class SpatialFieldType(Enum):
@@ -37,15 +37,15 @@ class SpatialOptions:
     DEFAULT_QUAD_TREE_LEVEL = 23
 
     def __init__(
-            self,
-            field_type: SpatialFieldType = SpatialFieldType.GEOGRAPHY,
-            strategy: SpatialSearchStrategy = SpatialSearchStrategy.GEOHASH_PREFIX_TREE,
-            max_tree_level: int = DEFAULT_GEOHASH_LEVEL,
-            min_x: int = -180,
-            max_x: int = 180,
-            min_y: int = -90,
-            max_y: int = 90,
-            units: SpatialUnits = SpatialUnits.KILOMETERS,
+        self,
+        field_type: SpatialFieldType = SpatialFieldType.GEOGRAPHY,
+        strategy: SpatialSearchStrategy = SpatialSearchStrategy.GEOHASH_PREFIX_TREE,
+        max_tree_level: int = DEFAULT_GEOHASH_LEVEL,
+        min_x: int = -180,
+        max_x: int = 180,
+        min_y: int = -90,
+        max_y: int = 90,
+        units: SpatialUnits = SpatialUnits.KILOMETERS,
     ):
         self.type = field_type
         self.strategy = strategy
@@ -86,11 +86,11 @@ class SpatialOptions:
             result = result and self.max_tree_level == other.max_tree_level
             if self.type == SpatialFieldType.CARTESIAN:
                 result = (
-                        result
-                        and self.min_x == other.min_x
-                        and self.max_x == other.max_x
-                        and self.min_y == other.min_y
-                        and self.max_y == other.max_y
+                    result
+                    and self.min_x == other.min_x
+                    and self.max_x == other.max_x
+                    and self.min_y == other.min_y
+                    and self.max_y == other.max_y
                 )
         return result
 
@@ -107,15 +107,15 @@ class AutoSpatialMethodType(Enum):
 
 class AutoSpatialOptions(SpatialOptions):
     def __init__(
-            self,
-            field_type: SpatialFieldType = SpatialFieldType.GEOGRAPHY,
-            strategy: SpatialSearchStrategy = SpatialSearchStrategy.GEOHASH_PREFIX_TREE,
-            max_tree_level: int = SpatialOptions.DEFAULT_GEOHASH_LEVEL,
-            min_x: int = -180,
-            max_x: int = 180,
-            min_y: int = -90,
-            max_y: int = 90,
-            units: SpatialUnits = SpatialUnits.KILOMETERS,
+        self,
+        field_type: SpatialFieldType = SpatialFieldType.GEOGRAPHY,
+        strategy: SpatialSearchStrategy = SpatialSearchStrategy.GEOHASH_PREFIX_TREE,
+        max_tree_level: int = SpatialOptions.DEFAULT_GEOHASH_LEVEL,
+        min_x: int = -180,
+        max_x: int = 180,
+        min_y: int = -90,
+        max_y: int = 90,
+        units: SpatialUnits = SpatialUnits.KILOMETERS,
     ):
         super(AutoSpatialOptions, self).__init__(
             field_type, strategy, max_tree_level, min_x, max_x, min_y, max_y, units

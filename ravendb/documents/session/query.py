@@ -1377,7 +1377,7 @@ class AbstractDocumentQuery(Generic[_T]):
         is_string = isinstance(field_or_field_name, str)
         if is_string:
             field_or_field_name = self.__ensure_valid_field_name(field_or_field_name, False)
-        elif issubclass(field_or_field_name.__class__,DynamicSpatialField):
+        elif issubclass(field_or_field_name.__class__, DynamicSpatialField):
             self.__assert_is_dynamic_query(field_or_field_name, "spatial")
         else:
             raise TypeError(
