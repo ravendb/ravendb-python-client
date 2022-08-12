@@ -201,3 +201,24 @@ class TestFirstClassPatch(TestBase):
             loaded = session.load(self.doc_id, User)
             self.assertEqual(9, len(loaded.numbers))
             self.assertEqual(202, loaded.numbers[7])
+
+    def test_can_remove_from_array(self):
+        stuff = [Stuff(6), Stuff(phone="123456")]
+        user = User(stuff, numbers=[1, 2, 3])
+
+        with self.store.open_session() as session:
+            session.store(user)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.advanced.patch_array(self.doc_id, "numbers", lambda roles: roles.remove_at(1))
+            session.advanced.patch_array(self.doc_id, "stuff", lambda roles: roles.remove_at(0))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            self.assertEqual(2, len(loaded.numbers))
+            self.assertEqual(3, loaded.numbers[1])
+
+            self.assertEqual(1, len(loaded.stuff))
+            self.assertEqual("123456", loaded.stuff[0].phone)
