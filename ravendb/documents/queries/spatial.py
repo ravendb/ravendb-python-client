@@ -39,6 +39,15 @@ class PointField(DynamicSpatialField):
         )
 
 
+class WktField(DynamicSpatialField):
+    def __init__(self, wkt: str):
+        super().__init__()
+        self.wkt = wkt
+
+    def to_field(self, ensure_valid_field_name: Callable[[str, bool], str]) -> str:
+        return f"spatial.wkt({ensure_valid_field_name(self.wkt, False)})"
+
+
 class SpatialCriteria(ABC):
     def __init__(self, relation: SpatialRelation, distance_error_pct: float):
         self.__relation = relation
