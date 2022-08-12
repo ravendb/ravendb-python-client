@@ -408,9 +408,7 @@ class PatchCommandData(CommandData):
         if not patch:
             raise ValueError("Patch cannot be None")
 
-        self.__key = key
         self.create_if_missing: Union[None, dict] = None
-        self.__change_vector = change_vector
         self.__patch = patch
         self.__patch_if_missing = patch_if_missing
         self.return_document: Union[None, bool] = None

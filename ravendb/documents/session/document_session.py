@@ -612,8 +612,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             self.__session.__load_internal_stream(keys, LoadOperation(self.__session), output)
 
-        def __try_merge_patches(self, key: str, patch_request: PatchRequest) -> bool:
-            command = self.__session.deferred_commands_map.get(IdTypeAndName.create(key, CommandType.PATCH, None))
+        def __try_merge_patches(self, document_key: str, patch_request: PatchRequest) -> bool:
+            command = self.__session.deferred_commands_map.get(
+                IdTypeAndName.create(document_key, CommandType.PATCH, None)
+            )
             if command is None:
                 return False
 
@@ -632,7 +634,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             new_patch_request.script = new_script
             new_patch_request.values = new_vals
 
-            self.__session.defer(PatchCommandData(key, None, new_patch_request, None))
+            self.__session.defer(PatchCommandData(document_key, None, new_patch_request, None))
             return True
 
         def increment(self, key_or_entity: Union[object, str], path: str, value_to_add: object) -> None:
