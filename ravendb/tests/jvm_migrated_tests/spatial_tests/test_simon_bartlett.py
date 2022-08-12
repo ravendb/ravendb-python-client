@@ -51,3 +51,36 @@ class TestSimonBartlett(TestBase):
             )
 
             self.assertEqual(1, count)
+
+    def test_circles_should_not_intersect(self):
+        self.store.execute_index(GeoIndex())
+
+        with self.store.open_session() as session:
+            # 110km is approximately 1 degree
+            geo_document = GeoDocument("CIRCLE(0.000000 0.000000 d=110)")
+            session.store(geo_document)
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            # should not intersect, as there is 1 Degree between two shapes
+            count = (
+                session.query_index_type(GeoIndex, GeoDocument)
+                .spatial(
+                    "WKT", lambda f: f.relates_to_shape("CIRCLE(0.000000 3.000000 d=110)", SpatialRelation.INTERSECTS)
+                )
+                .wait_for_non_stale_results()
+                .count()
+            )
+
+            self.assertEqual(0, count)
+
+            count = (
+                session.query_index_type(GeoIndex, object)
+                .relates_to_shape("WKT", "CIRCLE(0.000000 3.000000 d=110)", SpatialRelation.INTERSECTS)
+                .wait_for_non_stale_results()
+                .count()
+            )
+
+            self.assertEqual(0, count)
