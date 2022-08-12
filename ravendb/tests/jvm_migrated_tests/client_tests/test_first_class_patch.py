@@ -38,7 +38,7 @@ class Stuff:
     phone: str = None
     pet: Pet = None
     friend: Friend = None
-    dic: Dict[str, str] = None
+    dic: Dict[str] = None
 
     @classmethod
     def from_json(cls, json_dict: Dict) -> Stuff:
@@ -46,6 +46,8 @@ class Stuff:
             int(json_dict["key"]) if json_dict["key"] is not None else None,
             json_dict["phone"],
             Pet.from_json(json_dict["pet"]) if json_dict["pet"] is not None else None,
+            Friend.from_json(json_dict["friend"]) if json_dict["friend"] is not None else None,
+            json_dict["dic"],
         )
 
 
@@ -62,7 +64,9 @@ class User:
             if json_dict["stuff"] is not None
             else None,
             Utils.string_to_datetime(json_dict["last_login"]),
-            [int(number) if number is not None else None for number in json_dict["numbers"]],
+            [int(number) if number is not None else None for number in json_dict["numbers"]]
+            if json_dict["numbers"] is not None
+            else None,
         )
 
 
@@ -113,3 +117,43 @@ class TestFirstClassPatch(TestBase):
             session.advanced.patch(loaded, "numbers[0]", 2)
             with self.assertRaises(RuntimeError):
                 session.save_changes()
+
+    def test_can_patch_complex(self):
+        stuff = [Stuff(key=6), None, None]
+
+        user = User(stuff=stuff)
+
+        with self.store.open_session() as session:
+            session.store(user)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            new_stuff = Stuff(key=4, phone="9255864406", friend=Friend())
+            session.advanced.patch(self.doc_id, "stuff[1]", new_stuff)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+
+            self.assertEqual("9255864406", loaded.stuff[1].phone)
+            self.assertEqual(4, loaded.stuff[1].key)
+            self.assertIsNotNone(loaded.stuff[1].friend)
+
+            pet1 = Pet(kind="Dog", name="Hanan")
+            friends_pet = Pet("Miriam", "Cat")
+            friend = Friend("Gonras", 28, friends_pet)
+            second_stuff = Stuff(4, "9255864406", pet1, friend)
+            map_ = {"Ohio": "Columbus", "Utah": "Salt Lake City", "Texas": "Austin", "California": "Sacramento"}
+
+            second_stuff.dic = map_
+
+            session.advanced.patch(loaded, "stuff[2]", second_stuff)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            self.assertEqual("Hanan", loaded.stuff[2].pet.name)
+            self.assertEqual("Gonras", loaded.stuff[2].friend.name)
+            self.assertEqual("Miriam", loaded.stuff[2].friend.pet.name)
+            self.assertEqual(4, loaded.stuff[2].key)
+            self.assertEqual("Salt Lake City", loaded.stuff[2].dic.get("Utah"))
