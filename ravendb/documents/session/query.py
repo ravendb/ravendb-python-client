@@ -1373,81 +1373,65 @@ class AbstractDocumentQuery(Generic[_T]):
                 f"fields defined in index definition."
             )
 
+    def _spatial_with_criteria(self, field_or_field_name: Union[str, DynamicSpatialField], criteria: SpatialCriteria):
+        is_string = isinstance(field_or_field_name, str)
+        if is_string:
+            field_or_field_name = self.__ensure_valid_field_name(field_or_field_name, False)
+        elif issubclass(field_or_field_name.__class__,DynamicSpatialField):
+            self.__assert_is_dynamic_query(field_or_field_name, "spatial")
+        else:
+            raise TypeError(
+                "Incorrect type for 'field_or_field_name' in the _spatial_with_criteria method. "
+                f"Pass str or DynamicSpatialField. Type is '{field_or_field_name.__class__.__name__}'"
+            )
+
+        tokens = self.__get_current_where_tokens()
+        self.__append_operator_if_needed(tokens)
+        self.__negate_if_needed(tokens, None)
+
+        tokens.append(
+            criteria.to_query_token(
+                field_or_field_name if is_string else field_or_field_name.to_field(self.__ensure_valid_field_name),
+                self.__add_query_parameter,
+            )
+        )
+
     def _spatial(
         self,
-        field_name__shape_wkt__relation__units__dist_error_percent: Optional[
-            Tuple[str, str, SpatialRelation, SpatialUnits, float]
-        ] = None,
-        dynamic_field_or_field_name__criteria: Optional[Tuple[Union[DynamicSpatialField, str], SpatialCriteria]] = None,
+        field_name: str,
+        shape_wkt: str,
+        relation: SpatialRelation,
+        units: SpatialUnits,
+        dist_error_percent: float,
     ):
-        is_shape = field_name__shape_wkt__relation__units__dist_error_percent is not None
-        if not (is_shape ^ (dynamic_field_or_field_name__criteria is not None)):
-            raise ValueError(f"_spatial() takes only one argument at max.")
-        if is_shape:
-            field_name = self.__ensure_valid_field_name(
-                field_name__shape_wkt__relation__units__dist_error_percent[0], False
+        field_name = self.__ensure_valid_field_name(field_name, False)
+
+        tokens = self.__get_current_where_tokens()
+        self.__append_operator_if_needed(tokens)
+        self.__negate_if_needed(tokens, field_name)
+
+        wkt_token = ShapeToken.wkt(self.__add_query_parameter(shape_wkt), units)
+
+        if relation == SpatialRelation.WITHIN:
+            where_operator = WhereOperator.SPATIAL_WITHIN
+        elif relation == SpatialRelation.CONTAINS:
+            where_operator = WhereOperator.SPATIAL_CONTAINS
+        elif relation == SpatialRelation.DISJOINT:
+            where_operator = WhereOperator.SPATIAL_DISJOINT
+        elif relation == SpatialRelation.INTERSECTS:
+            where_operator = WhereOperator.SPATIAL_INTERSECTS
+        else:
+            raise ValueError()
+
+        tokens.append(
+            WhereToken.create(
+                where_operator,
+                field_name,
+                None,
+                WhereToken.WhereOptions(shape__distance=(wkt_token, dist_error_percent)),
             )
-
-            tokens = self.__get_current_where_tokens()
-            self.__append_operator_if_needed(tokens)
-            self.__negate_if_needed(tokens, field_name)
-
-            wkt_token = ShapeToken.wkt(
-                self.__add_query_parameter(field_name__shape_wkt__relation__units__dist_error_percent[1]),
-                field_name__shape_wkt__relation__units__dist_error_percent[3],
-            )
-
-            relation = field_name__shape_wkt__relation__units__dist_error_percent[2]
-            dist_error_percent = field_name__shape_wkt__relation__units__dist_error_percent[3]
-            if relation == SpatialRelation.WITHIN:
-                where_operator = WhereOperator.SPATIAL_WITHIN
-            elif relation == SpatialRelation.CONTAINS:
-                where_operator = WhereOperator.SPATIAL_CONTAINS
-            elif relation == SpatialRelation.DISJOINT:
-                where_operator = WhereOperator.SPATIAL_DISJOINT
-            elif relation == SpatialRelation.INTERSECTS:
-                where_operator = WhereOperator.SPATIAL_INTERSECTS
-            else:
-                raise ValueError()
-
-            tokens.append(
-                WhereToken.create(
-                    where_operator,
-                    field_name,
-                    None,
-                    WhereToken.WhereOptions(shape__distance=(wkt_token, dist_error_percent)),
-                )
-            )
-            return
-
-        elif issubclass(dynamic_field_or_field_name__criteria[0].__class__, DynamicSpatialField):
-            dynamic_field = dynamic_field_or_field_name__criteria[0]
-            self.__assert_is_dynamic_query(dynamic_field, "spatial")
-
-            tokens = self.__get_current_where_tokens()
-            self.__append_operator_if_needed(tokens)
-            self.__negate_if_needed(tokens, None)
-
-            tokens.append(
-                dynamic_field_or_field_name__criteria[1].to_query_token(
-                    dynamic_field.to_field(self.__ensure_valid_field_name), self.__add_query_parameter
-                )
-            )
-            return
-
-        elif isinstance(dynamic_field_or_field_name__criteria[0], str):
-            field_name = self.__ensure_valid_field_name(dynamic_field_or_field_name__criteria[0], False)
-
-            tokens = self.__get_current_where_tokens()
-            self.__append_operator_if_needed(tokens)
-            self.__negate_if_needed(tokens, field_name)
-
-            tokens.append(
-                dynamic_field_or_field_name__criteria[1].to_query_token(field_name, self.__add_query_parameter)
-            )
-            return
-
-        raise ValueError()
+        )
+        return
 
     def _order_by_distance(
         self,
@@ -2116,7 +2100,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         clause: Callable[[SpatialCriteriaFactory], SpatialCriteria],
     ):
         criteria = clause(SpatialCriteriaFactory.instance())
-        self._spatial(dynamic_field_or_field_name__criteria=(field_name_or_field, criteria))
+        self._spatial_with_criteria(field_name_or_field, criteria)
         return self
 
     def within_radius_of(
@@ -2137,17 +2121,9 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         shape_wkt: str,
         relation: SpatialRelation,
         units: Optional[SpatialUnits] = None,
-        distance_error_pct: Optional[float] = None,
+        distance_error_pct: Optional[float] = constants.Documents.Indexing.Spatial.DEFAULT_DISTANCE_ERROR_PCT,
     ):
-        self._spatial(
-            field_name__shape_wkt__relation__units__dist_error_percent=(
-                field_name,
-                shape_wkt,
-                relation,
-                units,
-                distance_error_pct,
-            )
-        )
+        self._spatial(field_name, shape_wkt, relation, units, distance_error_pct)
         return self
 
     def order_by_distance(
