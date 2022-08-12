@@ -1580,6 +1580,11 @@ class AbstractDocumentQuery(Generic[_T]):
 
         self._init_sync()
 
+    def get_query_result(self):
+        self._init_sync()
+
+        return self._query_operation.current_query_results.create_snapshot()
+
     def _aggregate_by(self, facet: FacetBase) -> None:
         for token in self._select_tokens:
             if isinstance(token, FacetToken):
@@ -1854,6 +1859,11 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
 
     def first(self) -> _T:
         return list(self.take(1))[0]
+
+    def count(self) -> int:
+        self._take(0)
+        query_result = self.get_query_result()
+        return query_result.total_results
 
     def single(self) -> _T:
         result = list(self.take(2))
