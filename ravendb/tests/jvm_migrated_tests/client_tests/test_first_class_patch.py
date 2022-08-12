@@ -99,3 +99,17 @@ class TestFirstClassPatch(TestBase):
         with self.store.open_session() as session:
             loaded = session.load(self.doc_id, User)
             self.assertEqual("123456", loaded.stuff[0].phone)
+
+    def test_can_patch_and_modify(self):
+        user = User(numbers=[66])
+
+        with self.store.open_session() as session:
+            session.store(user)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            loaded.numbers[0] = 1
+            session.advanced.patch(loaded, "numbers[0]", 2)
+            with self.assertRaises(RuntimeError):
+                session.save_changes()
