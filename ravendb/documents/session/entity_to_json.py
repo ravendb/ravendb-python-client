@@ -1,3 +1,4 @@
+import inspect
 from datetime import datetime, timedelta
 from typing import Optional, TYPE_CHECKING, Union, Type, TypeVar
 
@@ -161,8 +162,11 @@ class EntityToJson:
                         raise exceptions.InvalidOperationException(
                             f"Cannot covert document from type {object_from_metadata} to {object_type}"
                         )
+        # todo: make separate interface to do from_json
+        if "from_json" in object_type.__dict__ and inspect.ismethod(object_type.from_json):
+            entity = object_type.from_json(document_deepcopy)
 
-        if nested_object_types is None and is_inherit:
+        elif nested_object_types is None and is_inherit:
             entity = Utils.convert_json_dict_to_object(document_deepcopy, object_type)
         else:
             entity = _DynamicStructure(**document_deepcopy)
