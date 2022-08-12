@@ -21,7 +21,7 @@ from typing import (
 
 from ravendb import constants
 from ravendb.documents.conventions.document_conventions import DocumentConventions
-from ravendb.documents.indexes.spatial import SpatialUnits, SpatialRelation
+from ravendb.documents.indexes.spatial.configuration import SpatialUnits, SpatialRelation
 from ravendb.documents.queries.explanation import Explanations, ExplanationOptions
 from ravendb.documents.queries.facets.builders import FacetBuilder
 from ravendb.documents.queries.facets.definitions import FacetBase

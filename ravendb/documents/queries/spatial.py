@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Optional
 
 from ravendb import constants
-from ravendb.documents.indexes.spatial import SpatialRelation, SpatialUnits
+from ravendb.documents.indexes.spatial.configuration import SpatialRelation, SpatialUnits
 from ravendb.documents.session.tokens.misc import WhereOperator
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.tokens.query_tokens.definitions import ShapeToken, WhereToken

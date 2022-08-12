@@ -7,7 +7,7 @@ from typing import List, Union, Optional, Tuple
 from ravendb import constants
 from ravendb.documents.session.misc import OrderingType
 from ravendb.data.timeseries import TimeSeriesRange
-from ravendb.documents.indexes.spatial import SpatialUnits
+from ravendb.documents.indexes.spatial.configuration import SpatialUnits
 from ravendb.documents.queries.group_by import GroupByMethod
 from ravendb.documents.queries.misc import SearchOperator
 from ravendb.documents.queries.query import QueryOperator

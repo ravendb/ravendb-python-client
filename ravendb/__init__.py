@@ -27,7 +27,7 @@ from ravendb.documents.indexes.definitions import (
     AutoIndexFieldOptions,
 )
 from ravendb.documents.indexes.index_creation import AbstractIndexDefinitionBuilder, AbstractIndexCreationTask
-from ravendb.documents.indexes.spatial import AutoSpatialOptions
+from ravendb.documents.indexes.spatial.configuration import AutoSpatialOptions
 from ravendb.documents.operations.attachments import (
     DeleteAttachmentOperation,
     PutAttachmentOperation,
