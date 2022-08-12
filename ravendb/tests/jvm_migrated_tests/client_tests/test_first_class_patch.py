@@ -222,3 +222,26 @@ class TestFirstClassPatch(TestBase):
 
             self.assertEqual(1, len(loaded.stuff))
             self.assertEqual("123456", loaded.stuff[0].phone)
+
+    def test_can_increment(self):
+        s = [Stuff(6), None, None]
+        user = User(s, numbers=[66])
+
+        with self.store.open_session() as session:
+            session.store(user)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.advanced.increment(self.doc_id, "numbers[0]", 1)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            self.assertEqual(67, loaded.numbers[0])
+
+            session.advanced.increment(loaded, "stuff[0].key", -3)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            self.assertEqual(3, loaded.stuff[0].key)
