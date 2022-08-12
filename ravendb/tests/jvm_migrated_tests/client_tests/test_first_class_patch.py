@@ -157,3 +157,47 @@ class TestFirstClassPatch(TestBase):
             self.assertEqual("Miriam", loaded.stuff[2].friend.pet.name)
             self.assertEqual(4, loaded.stuff[2].key)
             self.assertEqual("Salt Lake City", loaded.stuff[2].dic.get("Utah"))
+
+    def test_can_add_to_array(self):
+        stuff = [Stuff(key=6)]
+        user = User(stuff, numbers=[1, 2])
+
+        with self.store.open_session() as session:
+            session.store(user)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            # push
+            session.advanced.patch_array(self.doc_id, "numbers", lambda roles: roles.add(3))
+            session.advanced.patch_array(self.doc_id, "stuff", lambda roles: roles.add(Stuff(75)))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+
+            self.assertEqual(3, loaded.numbers[2])
+            self.assertEqual(75, loaded.stuff[1].key)
+
+            # concat
+
+            session.advanced.patch_array(loaded, "numbers", lambda roles: roles.add(101, 102, 103))
+            session.advanced.patch_array(
+                loaded, "stuff", lambda roles: roles.add(Stuff(102)).add(Stuff(phone="123456"))
+            )
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            self.assertEqual(6, len(loaded.numbers))
+            self.assertEqual(103, loaded.numbers[5])
+
+            self.assertEqual(102, loaded.stuff[2].key)
+            self.assertEqual("123456", loaded.stuff[3].phone)
+
+            session.advanced.patch_array(loaded, "numbers", lambda roles: roles.add(201, 202, 203))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            loaded = session.load(self.doc_id, User)
+            self.assertEqual(9, len(loaded.numbers))
+            self.assertEqual(202, loaded.numbers[7])
