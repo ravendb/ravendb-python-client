@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Optional
 
 from ravendb import constants
-from ravendb.documents.indexes.spatial import SpatialRelation, SpatialUnits
+from ravendb.documents.indexes.spatial.configuration import SpatialRelation, SpatialUnits
 from ravendb.documents.session.tokens.misc import WhereOperator
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.tokens.query_tokens.definitions import ShapeToken, WhereToken
@@ -37,6 +37,15 @@ class PointField(DynamicSpatialField):
             f"spatial.point({ensure_valid_field_name(self.latitude, False)}, "
             f"{ensure_valid_field_name(self.longitude, False)})"
         )
+
+
+class WktField(DynamicSpatialField):
+    def __init__(self, wkt: str):
+        super().__init__()
+        self.wkt = wkt
+
+    def to_field(self, ensure_valid_field_name: Callable[[str, bool], str]) -> str:
+        return f"spatial.wkt({ensure_valid_field_name(self.wkt, False)})"
 
 
 class SpatialCriteria(ABC):

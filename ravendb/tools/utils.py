@@ -4,6 +4,7 @@ import enum
 import time
 from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type, TYPE_CHECKING
 
+from ravendb import constants
 from ravendb.exceptions import exceptions
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto
@@ -233,6 +234,84 @@ class _DynamicStructure(object):
 
     def __str__(self):
         return str(self.__dict__)
+
+
+class QueryFieldUtil:
+    @staticmethod
+    def _should_escape(s: str, is_path: bool) -> bool:
+        escape = False
+        inside_escaped = False
+
+        first = True
+        for c in s:
+            if c in ["'", '"']:
+                inside_escaped = not inside_escaped
+                continue
+            if first:
+                first = False
+                if not c.isalpha() and c not in ["_", "@"] and not inside_escaped:
+                    escape = True
+                    break
+            else:
+                if not c.isalnum() and c not in ["_", "-", "@", ".", "[", "]"] and not inside_escaped:
+                    escape = True
+                    break
+
+                if is_path and c == "." and not inside_escaped:
+                    escape = True
+                    break
+
+        escape |= inside_escaped
+        return escape
+
+    @staticmethod
+    def escape_if_necessary(name: str, is_path: bool = False) -> str:
+        if (
+            not name
+            or name.isspace()
+            or name
+            in [
+                constants.Documents.Indexing.Fields.DOCUMENT_ID_FIELD_NAME,
+                constants.Documents.Indexing.Fields.REDUCE_KEY_HASH_FIELD_NAME,
+                constants.Documents.Indexing.Fields.REDUCE_KEY_KEY_VALUE_FIELD_NAME,
+                constants.Documents.Indexing.Fields.VALUE_FIELD_NAME,
+                constants.Documents.Indexing.Fields.SPATIAL_SHAPE_FIELD_NAME,
+            ]
+        ):
+            return name
+
+        if not QueryFieldUtil._should_escape(name, is_path):
+            return name
+
+        sb = [c for c in name]
+        need_end_quote = False
+        last_term_start = 0
+
+        for i in range(len(sb)):
+            c = sb[i]
+            if i == 0 and not c.isalpha() and c not in ["_", "@"]:
+                sb.insert(last_term_start, "'")
+                need_end_quote = True
+                continue
+
+            if is_path and c == ".":
+                if need_end_quote:
+                    need_end_quote = False
+                    sb.insert(i, "'")
+                    i += 1
+
+                last_term_start = i + 1
+                continue
+
+            if c.isalnum() and c not in ["_", "-", "@", ".", "[", "]"] and not need_end_quote:
+                sb.insert(last_term_start, "'")
+                need_end_quote = True
+                continue
+
+        if need_end_quote:
+            sb.append("'")
+
+        return "".join(sb)
 
 
 class Utils(object):

@@ -51,7 +51,7 @@ class GenericRangeFacet(FacetBase):
         if self.__parent is not None:
             return self.__parent.to_facet_token(add_query_parameter)
 
-        return FacetToken.create(facet__add_query_parameter=(self, add_query_parameter))
+        return FacetToken.create_from_generic_range_facet(self, add_query_parameter)
 
 
 class RangeFacet(FacetBase):
@@ -64,7 +64,7 @@ class RangeFacet(FacetBase):
         if self.__parent is not None:
             return self.__parent.to_facet_token(add_query_parameter)
 
-        return FacetToken.create(facet__add_query_parameter=(self, add_query_parameter))
+        return FacetToken.create_from_range_facet(self, add_query_parameter)
 
 
 class Facet(FacetBase):
@@ -73,4 +73,4 @@ class Facet(FacetBase):
         self.field_name = field_name
 
     def to_facet_token(self, add_query_parameter: Callable[[object], str]) -> FacetToken:
-        return FacetToken.create(facet__add_query_parameter=(self, add_query_parameter))
+        return FacetToken.create_from_facet(self, add_query_parameter)

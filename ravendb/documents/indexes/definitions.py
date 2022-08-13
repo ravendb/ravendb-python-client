@@ -3,7 +3,7 @@ import datetime
 from enum import Enum
 from abc import ABC
 from typing import Union, Optional, List, Dict, Set, Iterable
-from ravendb.documents.indexes.spatial import SpatialOptions, AutoSpatialOptions
+from ravendb.documents.indexes.spatial.configuration import SpatialOptions, AutoSpatialOptions
 from ravendb.tools.utils import Utils
 
 
