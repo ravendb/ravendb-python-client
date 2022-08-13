@@ -53,16 +53,8 @@ class LoadStartingWithOperation:
             f"Requesting documents with ids starting with '{self.__start_with}' from {self.__session.store_identifier}"
         )
 
-        return GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(
-                self.__start if self.__start else 0,  # todo: replace with more elegant solution
-                self.__page_size if self.__page_size else 25,
-                self.__start_with,
-                self.__start_after,
-                self.__matches,
-                self.__exclude,
-                False,
-            )
+        return GetDocumentsCommand.from_starts_with(
+            self.__start_with, self.__start_after, self.__matches, self.__exclude, self.__start, self.__page_size, False
         )
 
     def set_result(self, result: GetDocumentsResult) -> None:

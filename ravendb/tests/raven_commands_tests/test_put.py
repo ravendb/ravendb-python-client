@@ -11,7 +11,7 @@ class TestPut(TestBase):
         request_executor = self.store.get_request_executor()
         put_command = PutDocumentCommand("testing/1", None, {"Name": "test", "@metadata": {}})
         request_executor.execute_command(put_command)
-        command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsByIdCommandOptions("testing/1"))
+        command = GetDocumentsCommand.from_single_id("testing/1")
         request_executor.execute_command(command)
         response = command.result
         self.assertEqual(response.results[0]["@metadata"]["@id"], "testing/1")

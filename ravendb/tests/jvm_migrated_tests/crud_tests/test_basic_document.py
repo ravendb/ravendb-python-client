@@ -22,9 +22,7 @@ class TestBasicDocument(TestBase):
             session.save_changes()
 
         req_executor = self.store.get_request_executor()
-        get_document_command = GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(["users/1", "users/2"])
-        )
+        get_document_command = GetDocumentsCommand.from_multiple_ids(["users/1", "users/2"])
         req_executor.execute_command(get_document_command)
         results = get_document_command.result.results
         self.assertEqual(len(results), 2)
@@ -44,9 +42,7 @@ class TestBasicDocument(TestBase):
             self.assertEqual(user1.name, "jacus")
             self.assertEqual(user2.name, "arek")
 
-        get_document_command = GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(["users/1", "users/2"], None, True)
-        )
+        get_document_command = GetDocumentsCommand.from_multiple_ids(["users/1", "users/2"], metadata_only=True)
         req_executor.execute_command(get_document_command)
         results = get_document_command.result.results
         self.assertEqual(len(results), 2)

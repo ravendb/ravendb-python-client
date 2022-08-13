@@ -59,7 +59,7 @@ class TestDelete(TestBase):
     def test_scripted_patch(self):
         batch_command = SingleNodeBatchCommand(self.store.conventions, [self.put_command1, self.scripted_patch_command])
         self.requests_executor.execute_command(batch_command)
-        get_doc_command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsByIdCommandOptions("products/1-A"))
+        get_doc_command = GetDocumentsCommand.from_single_id("products/1-A")
         self.requests_executor.execute_command(get_doc_command)
         get_result = get_doc_command.result
         self.assertEqual(get_result.results[0]["Name"], "testing")

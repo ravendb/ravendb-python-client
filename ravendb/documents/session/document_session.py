@@ -507,9 +507,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 raise ValueError("Cannot refresh a transient instance")
             self.__session.increment_requests_count()
 
-            command = GetDocumentsCommand(
-                GetDocumentsCommand.GetDocumentsByIdsCommandOptions([document_info.key], None, False)
-            )
+            command = GetDocumentsCommand.from_single_id(document_info.key, None, False)
             self.__session.request_executor.execute_command(command, self.__session.session_info)
             entity = self.__session._refresh_internal(entity, command, document_info)
             return entity
