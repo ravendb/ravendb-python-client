@@ -166,6 +166,7 @@ class DatabaseChanges:
                 observer.error(e)
 
     def for_all_documents(self) -> Observable[DocumentChange]:
+        # todo: ResourceWarning: unclosed socket
         observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None)(
             lambda x: True
         )

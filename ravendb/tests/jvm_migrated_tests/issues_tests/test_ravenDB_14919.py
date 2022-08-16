@@ -16,7 +16,7 @@ class TestRavenDB14919(TestBase):
         ids.extend([None for _ in range(24)])
 
         re = self.store.get_request_executor()
-        command = GetDocumentsCommand(options=GetDocumentsCommand.GetDocumentsByIdsCommandOptions(ids, None, False))
+        command = GetDocumentsCommand.from_multiple_ids(ids, metadata_only=False)
         re.execute_command(command)
 
         self.assertEqual(1001, len(command.result.results))
@@ -35,7 +35,7 @@ class TestRavenDB14919(TestBase):
         ids.extend([None for _ in range(24)])
 
         re = self.store.get_request_executor()
-        command = GetDocumentsCommand(options=GetDocumentsCommand.GetDocumentsByIdsCommandOptions(ids, None, False))
+        command = GetDocumentsCommand.from_multiple_ids(ids, metadata_only=False)
         re.execute_command(command)
 
         self.assertEqual(101, len(command.result.results))

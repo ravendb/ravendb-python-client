@@ -14,15 +14,15 @@ class TestGet(TestBase):
         self.requests_executor.execute_command(put_command2)
         self.requests_executor.execute_command(put_command3)
 
-        command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsByIdCommandOptions("products/101"))
+        command = GetDocumentsCommand.from_single_id("products/101")
         self.requests_executor.execute_command(command)
         self.response = command.result
 
-        other_command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsByIdCommandOptions("products/10"))
+        other_command = GetDocumentsCommand.from_single_id("products/10")
         self.requests_executor.execute_command(other_command)
         self.other_response = other_command.result
 
-        paged_command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(2, 1))
+        paged_command = GetDocumentsCommand.from_paging(2, 1)
         self.requests_executor.execute_command(paged_command)
         self.paged_response = paged_command.result
 
@@ -44,7 +44,7 @@ class TestGet(TestBase):
         self.assertEqual(self.paged_response.results[0]["@metadata"]["@id"], "products/101")  # todo: check if valid
 
     def test_null(self):
-        command = GetDocumentsCommand(GetDocumentsCommand.GetDocumentsByIdCommandOptions("product"))
+        command = GetDocumentsCommand.from_single_id("product")
         self.requests_executor.execute_command(command)
         self.assertIsNone(command.result)
 

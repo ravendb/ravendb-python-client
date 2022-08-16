@@ -2,13 +2,12 @@ from __future__ import annotations
 import datetime
 import http
 import json
-from typing import Optional, Union, List
+from typing import Optional, List
 from typing import TYPE_CHECKING
 import requests
 
 from ravendb import constants
 from ravendb.documents.commands.results import GetDocumentsResult
-from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.documents.queries.utils import HashCalculator
 from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.http.raven_command import VoidRavenCommand
@@ -18,7 +17,6 @@ from ravendb.http.http_cache import HttpCache
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.tools.utils import Utils
-
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions.document_conventions import DocumentConventions
@@ -71,7 +69,7 @@ class DeleteDocumentCommand(VoidRavenCommand):
     def create_request(self, node: ServerNode) -> requests.Request:
         self.ensure_is_not_null_or_string(self.__key, "id")
         request = requests.Request(
-            "DELETE", f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key, None,None)}"
+            "DELETE", f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key, None, None)}"
         )
         self._add_change_vector_if_not_none(self.__change_vector, request)
         return request
@@ -89,7 +87,7 @@ class HeadDocumentCommand(RavenCommand[str]):
         return False
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key,True,False)}"
+        url = f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key, True, False)}"
         request = requests.Request("HEAD", url)
         if self.__change_vector is not None:
             request.headers["If-None-Match"] = self.__change_vector
@@ -114,129 +112,92 @@ class HeadDocumentCommand(RavenCommand[str]):
         self.result = None
 
 
-# todo: refactor, get rid of the options
 class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
-    class GetDocumentsCommandOptionsBase:
-        def __init__(
-            self,
-            counter_includes: Optional[List[str]] = None,
-            include_all_counters: Optional[bool] = None,
-            conventions: "DocumentConventions" = None,
-        ):
-            self.counter_includes = counter_includes
-            self.include_all_counters = include_all_counters
-            self.conventions = conventions
+    def __init__(self):
+        """Creates hollow GetDocumentsCommand.
+        Class methods ('from_*') instantiate this class by this constructor - then the object is filled with data."""
+        super(GetDocumentsCommand, self).__init__(GetDocumentsResult)
+        self._keys: Optional[List[str]] = None
+        self._includes: Optional[List[str]] = None
+        self._metadata_only: Optional[bool] = None
 
-    class GetDocumentsByIdCommandOptions(GetDocumentsCommandOptionsBase):
-        def __init__(
-            self,
-            key: str,
-            includes: Optional[List[str]] = None,
-            metadata_only: Optional[bool] = False,
-            counter_includes: Optional[List[str]] = None,
-            include_all_counters: Optional[bool] = None,
-            conventions: "DocumentConventions" = None,
-        ):
-            super().__init__(counter_includes, include_all_counters, conventions)
-            self.key = key
-            self.includes = includes
-            self.metadata_only = metadata_only
+        self._key: Optional[str] = None
+        self._counters: Optional[List[str]] = None
+        self._include_all_counters: Optional[bool] = None
+        self._time_series_includes: Optional[List] = None  # todo: AbstractTimeSeriesRange
 
-    class GetDocumentsByIdsCommandOptions(GetDocumentsCommandOptionsBase):
-        def __init__(
-            self,
-            keys: List[str],
-            includes: Optional[List[str]] = None,
-            metadata_only: Optional[bool] = None,
-            time_series_includes: Optional[List[TimeSeriesRange]] = None,
-            compare_exchange_value_includes: Optional[List[str]] = None,
-            counter_includes: Optional[List[str]] = None,
-            include_all_counters: Optional[bool] = None,
-            conventions: "DocumentConventions" = None,
-        ):
-            super().__init__(counter_includes, include_all_counters, conventions)
-            self.keys = keys
-            self.includes = includes
-            self.metadata_only = metadata_only
-            self.time_series_includes = time_series_includes
-            self.compare_exchange_value_includes = compare_exchange_value_includes
+        self._compare_exchange_value_includes: Optional[List[str]] = None
 
-    class GetDocumentsStartingWithCommandOptions(GetDocumentsCommandOptionsBase):
-        def __init__(
-            self,
-            start: int,
-            page_size: int,
-            starts_with: Optional[str] = None,
-            start_after: Optional[str] = None,
-            matches: Optional[str] = None,
-            exclude: Optional[str] = None,
-            metadata_only: Optional[bool] = None,
-            counter_includes: Optional[List[str]] = None,
-            include_all_counters: Optional[bool] = None,
-            conventions: "DocumentConventions" = None,
-        ):
-            super().__init__(counter_includes, include_all_counters, conventions)
-            self.start = start
-            self.page_size = page_size
-            self.starts_with = starts_with
-            self.start_after = start_after
-            self.matches = matches
-            self.exclude = exclude
-            self.metadata_only = metadata_only
+        self._start_with: Optional[str] = None
+        self._matches: Optional[str] = None
+        self._start: Optional[int] = None
+        self._page_size: Optional[int] = None
+        self._exclude: Optional[str] = None
+        self._start_after: Optional[str] = None
 
-    @staticmethod
-    def for_page(start: int, page_size: int):
-        return GetDocumentsCommand(GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(start, page_size))
+    @classmethod
+    def from_paging(cls, start: int, page_size: int) -> GetDocumentsCommand:
+        command = cls()
+        command._start = start
+        command._page_size = page_size
+        return command
 
-    @staticmethod
-    def for_id(
-        key: str,
-        includes: List[str] = None,
-        metadata_only: bool = False,
-        counter_includes: List[str] = None,
-    ):
-        return GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsByIdCommandOptions(key, includes, metadata_only, counter_includes, None)
-        )
+    @classmethod
+    def from_single_id(cls, key: str, includes: List[str] = None, metadata_only: bool = None) -> GetDocumentsCommand:
+        if key is None:
+            raise ValueError("Key cannot be None")
+        command = cls()
+        command._key = key
+        command._includes = includes
+        command._metadata_only = metadata_only
+        return command
 
-    @staticmethod
-    def for_ids(
+    @classmethod
+    def from_multiple_ids(
+        cls,
         keys: List[str],
         includes: List[str] = None,
         counter_includes: List[str] = None,
         time_series_includes: List[str] = None,
         compare_exchange_value_includes: List[str] = None,
         metadata_only: bool = False,
-    ):
-        return GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
-                keys, includes, metadata_only, time_series_includes, compare_exchange_value_includes, counter_includes
-            )
-        )
+    ) -> GetDocumentsCommand:
+        if not keys:
+            raise ValueError("Please supply at least one id")
+        command = cls()
+        command._keys = keys
+        command._includes = includes
+        command._metadata_only = metadata_only
 
-    @staticmethod
-    def for_ids_all_counters(
+        command._counters = counter_includes
+        command._time_series_includes = time_series_includes
+        command._compare_exchange_value_includes = compare_exchange_value_includes
+        return command
+
+    @classmethod
+    def from_multiple_ids_all_counters(
+        cls,
         keys: List[str],
         includes: List[str] = None,
         include_all_counters: bool = None,
         time_series_includes: List[str] = None,
         compare_exchange_value_includes: List[str] = None,
         metadata_only: bool = False,
-    ):
-        return GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
-                keys,
-                includes,
-                metadata_only,
-                time_series_includes,
-                compare_exchange_value_includes,
-                None,
-                include_all_counters,
-            )
-        )
+    ) -> GetDocumentsCommand:
+        if not keys:
+            raise ValueError("Please supply at least one id")
+        command = cls()
+        command._keys = keys
+        command._includes = includes
+        command._include_all_counters = include_all_counters
+        command._time_series_includes = time_series_includes
+        command._compare_exchange_value_includes = compare_exchange_value_includes
+        command._metadata_only = metadata_only
+        return command
 
-    @staticmethod
-    def for_start_with(
+    @classmethod
+    def from_starts_with(
+        cls,
         start_with: str,
         start_after: str = None,
         matches: str = None,
@@ -244,89 +205,75 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
         start: int = None,
         page_size: int = None,
         metadata_only: bool = None,
-    ):
-        return GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsStartingWithCommandOptions(
-                start, page_size, start_with, start_after, matches, exclude, metadata_only
-            )
-        )
+    ) -> GetDocumentsCommand:
+        if start_with is None:
+            raise ValueError("start_with cannot be None")
 
-    def __init__(self, options: GetDocumentsCommandOptionsBase):
-        super().__init__(GetDocumentsResult)
-        self.__options = options
-        if isinstance(options, GetDocumentsCommand.GetDocumentsByIdCommandOptions):
-            pass
-        elif isinstance(options, GetDocumentsCommand.GetDocumentsByIdsCommandOptions):
-            pass
-        elif isinstance(options, GetDocumentsCommand.GetDocumentsStartingWithCommandOptions):
-            pass
-        else:
-            raise TypeError("Unexpected options type")
+        command = cls()
+        command._start_with = start_with
+        command._start_after = start_after
+        command._matches = matches
+        command._exclude = exclude
+        command._start = start
+        command._page_size = page_size
+        command._metadata_only = metadata_only
 
-    @property
-    def is_read_request(self) -> bool:
-        return True
+        return command
 
     def create_request(self, node: ServerNode) -> requests.Request:
         path_builder: List[str] = [node.url, f"/databases/{node.database}/docs?"]
-        if "start" in self.__options.__dict__:
-            self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
-            path_builder.append(f"&start={self.__options.start}")
 
-        if "page_size" in self.__options.__dict__:
-            self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
-            path_builder.append(f"&pageSize={self.__options.page_size}")
+        if self._start is not None:
+            path_builder.append(f"&start={self._start}")
 
-        if "metadata_only" in self.__options.__dict__ and self.__options.metadata_only:
+        if self._page_size is not None:
+            path_builder.append(f"&pageSize={self._page_size}")
+
+        if self._metadata_only:
             path_builder.append("&metadataOnly=true")
 
-        if "starts_with" in self.__options.__dict__ and self.__options.starts_with:
-            self.__options: GetDocumentsCommand.GetDocumentsStartingWithCommandOptions
-            path_builder.append(f"&startsWith={self.__options.starts_with}")
+        if self._start_with is not None:
+            path_builder.append(f"&startsWith={Utils.quote_key(self._start_with)}")
 
-            if "matches" in self.__options.__dict__ and self.__options.matches:
-                path_builder.append(f"&matches={self.__options.matches}")
-            if "exclude" in self.__options.__dict__ and self.__options.exclude:
-                path_builder.append(f"&exclude={self.__options.exclude}")
-            if "start_after" in self.__options.__dict__ and self.__options.start_after:
-                path_builder.append(f"&startAfter={self.__options.start_after}")
+            if self._matches is not None:
+                path_builder.append(f"&matches={self._matches}")
 
-        if "includes" in self.__options.__dict__ and self.__options.includes:
-            self.__options: Union[
-                GetDocumentsCommand.GetDocumentsByIdCommandOptions, GetDocumentsCommand.GetDocumentsByIdsCommandOptions
-            ]
-            for include in self.__options.includes:
+            if self._exclude is not None:
+                path_builder.append(f"&exclude={self._exclude}")
+
+            if self._start_after is not None:
+                path_builder.append(f"&startAfter={self._start_after}")
+
+        if self._includes is not None:
+            for include in self._includes:
                 path_builder.append(f"&include={include}")
 
-        if self.__options.include_all_counters:
+        # todo: counters
+        if self._include_all_counters:
             path_builder.append(f"&counter={constants.Counters.ALL}")
-        elif self.__options.counter_includes:
-            for counter in self.__options.counter_includes:
-                path_builder.append(f"counter={counter}")
+        elif self._counters:
+            for counter in self._counters:
+                path_builder.append(f"&counter={counter}")
 
-        if "time_series_includes" in self.__options.__dict__ and self.__options.time_series_includes:
-            self.__options: GetDocumentsCommand.GetDocumentsByIdsCommandOptions
-            for time_series in self.__options.time_series_includes:
+        # todo: time series
+        if self._time_series_includes is not None:
+            for time_series in self._time_series_includes:
                 path_builder.append(
                     f"&timeseries={time_series.name}&from={time_series.from_date}&to={time_series.to_date}"
                 )
 
-        if (
-            "compare_exchange_value_includes" in self.__options.__dict__
-            and self.__options.compare_exchange_value_includes
-        ):
-            for compare_exchange_value in self.__options.compare_exchange_value_includes:
-                path_builder.append(f"&cmpxchg={Utils.quote_key(compare_exchange_value)}")
+        if self._compare_exchange_value_includes is not None:
+            for compare_exchange_value in self._compare_exchange_value_includes:
+                path_builder.append(f"&cmpxchg={compare_exchange_value}")
 
-        request = requests.Request("GET", "".join(path_builder))
+        request = requests.Request("GET")
 
-        if "key" in self.__options.__dict__:
-            self.__options: GetDocumentsCommand.GetDocumentsByIdCommandOptions
-            request.url += f"&id={self.__options.key}"
-        elif "keys" in self.__options.__dict__:
-            self.__options: GetDocumentsCommand.GetDocumentsByIdsCommandOptions
-            request = self.prepare_request_with_multiple_ids(path_builder, request, self.__options.keys)
+        if self._key is not None:
+            path_builder.append(f"&id={Utils.quote_key(self._key)}")
+        if self._keys is not None:
+            request = self.prepare_request_with_multiple_ids(path_builder, request, self._keys)
 
+        request.url = "".join(path_builder)
         return request
 
     def prepare_request_with_multiple_ids(
@@ -340,22 +287,25 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
             for key in unique_ids:
                 path_builder.append(f"&id={Utils.quote_key(key) if key else ''}")
 
-            return requests.Request("GET", "".join(path_builder))
+            return requests.Request("GET")
 
         else:
             http_post = requests.Request("POST")
             try:
                 calculate_hash = HashCalculator.calculate_hash_from_str_collection(unique_ids)
                 path_builder.append(f"&loadHash={calculate_hash}")
-            except IOError as e:
-                raise RuntimeError(f"Unable to computer query hash: {e.args[0]}")
+            except Exception as e:
+                raise RuntimeError(f"Unable to computer query hash: {e.args[0]}", e)
 
             http_post.data = {"Ids": [str(key) for key in unique_ids]}
-            http_post.url = "".join(path_builder)
             return http_post
 
     def set_response(self, response: str, from_cache: bool) -> None:
         self.result = GetDocumentsResult.from_json(json.loads(response)) if response is not None else None
+
+    @property
+    def is_read_request(self) -> bool:
+        return True
 
 
 class NextHiLoCommand(RavenCommand[HiLoResult]):
@@ -380,7 +330,7 @@ class NextHiLoCommand(RavenCommand[HiLoResult]):
     def create_request(self, node: ServerNode) -> requests.Request:
         date = Utils.datetime_to_string(self.__last_range_at) if self.__last_range_at else ""
         path = (
-            f"/hilo/next?tag={Utils.escape(self.__tag,False,False)}"
+            f"/hilo/next?tag={Utils.escape(self.__tag, False, False)}"
             f"&lastBatchSize={self.__last_batch_size or 0}"
             f"&lastRangeAt={date}"
             f"&identityPartsSeparator={self.__identity_parts_separator}"

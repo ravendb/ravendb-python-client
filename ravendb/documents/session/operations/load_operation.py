@@ -29,18 +29,17 @@ class LoadOperation:
     ):
         self._session = session
         self._keys = keys
-        self._includes = includes if includes is not None else []
-        self._counters_to_include = counters_to_include if counters_to_include is not None else []
-        self._compare_exchange_values_to_include = (
-            compare_exchange_values_to_include if compare_exchange_values_to_include is not None else []
-        )
-        self._time_series_to_include = time_series_to_include if time_series_to_include is not None else []
+        self._includes = includes or []
+        self._counters_to_include = counters_to_include or []
+        self._compare_exchange_values_to_include = compare_exchange_values_to_include or []
+
+        self._time_series_to_include = time_series_to_include or []
         self._include_all_counters = include_all_counters
-        self._time_series_to_include = time_series_to_include if time_series_to_include is not None else []
+        self._time_series_to_include = time_series_to_include or []
         self._results_set = False
         self._results: Optional[GetDocumentsResult] = None
 
-    def create_request(self) -> GetDocumentsCommand:
+    def create_request(self) -> Optional[GetDocumentsCommand]:
         if self._session.check_if_id_already_included(
             self._keys, list(self._includes) if self._includes is not None else None
         ):
@@ -51,30 +50,22 @@ class LoadOperation:
         self.logger.info(f"Requesting the following ids {','.join(self._keys)} from {self._session.store_identifier}")
 
         if self._include_all_counters:
-            return GetDocumentsCommand(
-                GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
-                    self._keys,
-                    self._includes,
-                    False,
-                    self._time_series_to_include,
-                    self._compare_exchange_values_to_include,
-                    [],
-                    True,
-                    self._session.conventions,
-                )
-            )
-
-        return GetDocumentsCommand(
-            GetDocumentsCommand.GetDocumentsByIdsCommandOptions(
+            return GetDocumentsCommand.from_multiple_ids_all_counters(
                 self._keys,
                 self._includes,
-                False,
+                True,
                 self._time_series_to_include,
                 self._compare_exchange_values_to_include,
-                self._counters_to_include,
                 False,
-                self._session.conventions,
             )
+
+        return GetDocumentsCommand.from_multiple_ids(
+            self._keys,
+            self._includes,
+            self._counters_to_include,
+            self._time_series_to_include,
+            self._compare_exchange_values_to_include,
+            False,
         )
 
     def by_key(self, key: str):
