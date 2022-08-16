@@ -31,7 +31,7 @@ class AggregationQueryBase:
         self.__duration = Stopwatch.create_started()
 
         self.__session.increment_requests_count()
-        self.__session.request_executor.execute_command(command)
+        self.__session.advanced.request_executor.execute_command(command)
 
         return self.__process_results(command.result)
 

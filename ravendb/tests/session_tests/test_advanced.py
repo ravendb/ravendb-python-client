@@ -27,7 +27,7 @@ class TestAdvanced(TestBase):
             user = User("U", 1)
             s.store(user, "test/")
             s.save_changes()
-            id = s.get_document_id(user)
+            id = s.advanced.get_document_id(user)
             self.assertFalse(id.endswith("/"))
 
     @unittest.skip("Query streaming")
@@ -97,7 +97,7 @@ class TestAdvanced(TestBase):
 
         with self.store.open_session() as session:
             user = session.load("users/1-A")
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
             attachment_names = []
             if attachments:
@@ -108,7 +108,7 @@ class TestAdvanced(TestBase):
             session.save_changes()
 
             user = session.load("users/1-A")
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
             attachment_names = []
             if attachments:

@@ -17,7 +17,7 @@ class TestDeleteDocumentCommand(TestBase):
             session.store(user, "users/1")
             session.save_changes()
 
-            change_vector = session.get_change_vector_for(user)
+            change_vector = session.advanced.get_change_vector_for(user)
 
         with self.store.open_session() as session:
             loaded_user = session.load("users/1", User)

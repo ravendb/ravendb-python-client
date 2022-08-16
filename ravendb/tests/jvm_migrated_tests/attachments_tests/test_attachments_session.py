@@ -28,7 +28,7 @@ class TestAttachmentsSession(TestBase):
 
         with self.store.open_session() as session:
             user = session.load("users/1", User)
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             self.assertEqual(
                 "HasAttachments",
                 metadata.get(
@@ -101,7 +101,7 @@ class TestAttachmentsSession(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.defer(DeleteCommandData("users/1", None))
+            session.advanced.defer(DeleteCommandData("users/1", None))
             session.advanced.attachments.delete("users/1", "file")
             session.advanced.attachments.delete("users/1", "file")
 
@@ -136,7 +136,7 @@ class TestAttachmentsSession(TestBase):
 
         with self.store.open_session() as session:
             user = session.load("users/1", User)
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             self.assertEqual(
                 "HasAttachments",
                 metadata.get(
@@ -247,7 +247,7 @@ class TestAttachmentsSession(TestBase):
 
         with self.store.open_session() as session:
             user = session.load("users/1", User)
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             self.assertEqual(
                 "HasAttachments",
                 str(

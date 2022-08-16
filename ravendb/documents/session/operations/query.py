@@ -77,7 +77,7 @@ class QueryOperation:
         self.__logger.info(
             f"Executing query {self.__index_query.query} "
             f"on index {self.__index_name} "
-            f"in {self.__session.store_identifier}"
+            f"in {self.__session.advanced.store_identifier}"
         )
 
     def enter_query_context(self) -> None:  # todo: make it return Closeable

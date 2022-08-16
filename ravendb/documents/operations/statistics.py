@@ -55,11 +55,9 @@ class CollectionStatistics:
         self.count_of_conflicts = count_of_conflicts
         self.collections = collections
 
-    @staticmethod
-    def from_json(json_dict: dict) -> CollectionStatistics:
-        return CollectionStatistics(
-            json_dict["CountOfDocuments"], json_dict["CountOfConflicts"], json_dict["Collections"]
-        )
+    @classmethod
+    def from_json(cls, json_dict: dict) -> CollectionStatistics:
+        return cls(json_dict["CountOfDocuments"], json_dict["CountOfConflicts"], json_dict["Collections"])
 
 
 class GetCollectionStatisticsOperation(MaintenanceOperation[CollectionStatistics]):
@@ -99,9 +97,9 @@ class IndexInformation:
         self.last_indexing_time: datetime.datetime = last_indexing_time
         self.source_type = source_type
 
-    @staticmethod
-    def from_json(json_dict) -> IndexInformation:
-        return IndexInformation(
+    @classmethod
+    def from_json(cls, json_dict) -> IndexInformation:
+        return cls(
             json_dict["Stale"],
             IndexLockMode(json_dict["LockMode"]),
             IndexPriority(json_dict["IndexPriority"]),
@@ -164,9 +162,9 @@ class DatabaseStatistics:
     def stale_indexes(self) -> List[IndexInformation]:
         return list(filter(lambda x: x.stale, self.indexes))
 
-    @staticmethod
-    def from_json(json_dict) -> DatabaseStatistics:
-        return DatabaseStatistics(
+    @classmethod
+    def from_json(cls, json_dict) -> DatabaseStatistics:
+        return cls(
             json_dict.get("LastDocEtag", None),
             json_dict.get("LastDatabaseEtag", None),
             json_dict.get("CountOfIndexes", None),
@@ -247,11 +245,11 @@ class DetailedDatabaseStatistics(DatabaseStatistics):
         self.count_of_compare_exchange = count_of_compare_exchange
         self.count_of_compare_exchange_tombstones = count_of_compare_exchange_tombstones
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> DetailedDatabaseStatistics:
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> DetailedDatabaseStatistics:
         database_stats = DatabaseStatistics.from_json(json_dict)
 
-        detailed_database_stats = DetailedDatabaseStatistics()
+        detailed_database_stats = cls()
         detailed_database_stats.__dict__.update(database_stats.__dict__)
 
         detailed_database_stats.count_of_identities = json_dict["CountOfIdentities"]

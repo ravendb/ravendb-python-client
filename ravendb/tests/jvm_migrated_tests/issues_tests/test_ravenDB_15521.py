@@ -21,7 +21,7 @@ class TestRavenDB15521(TestBase):
 
             session.save_changes()
 
-            change_vector_1 = session.get_change_vector_for(doc)
+            change_vector_1 = session.advanced.get_change_vector_for(doc)
             session.advanced.refresh(doc)
-            change_vector_2 = session.get_change_vector_for(doc)
+            change_vector_2 = session.advanced.get_change_vector_for(doc)
             self.assertEqual(change_vector_1, change_vector_2)

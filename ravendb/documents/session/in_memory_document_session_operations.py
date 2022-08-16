@@ -417,64 +417,11 @@ _T = TypeVar("_T")
 class InMemoryDocumentSessionOperations:
     __instances_counter: int = 0
 
-    class SaveChangesData:
-        def __init__(self, session: InMemoryDocumentSessionOperations):
-            self.deferred_commands: List[CommandData] = session.deferred_commands
-            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session.deferred_commands_map
-            self.session_commands: List[CommandData] = []
-            self.entities: List = []
-            self.options = session._save_changes_options
-            self.on_success = InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess(session)
+    def __enter__(self):
+        return self
 
-        class ActionsToRunOnSuccess:
-            def __init__(self, session: InMemoryDocumentSessionOperations):
-                self.__session = session
-                self.__documents_by_id_to_remove: List[str] = []
-                self.__documents_by_entity_to_remove: List = []
-                self.__document_infos_to_update: List[Tuple[DocumentInfo, dict]] = []
-                self.__clear_deleted_entities: bool = False
-
-            def remove_document_by_id(self, key: str):
-                self.__documents_by_id_to_remove.append(key)
-
-            def remove_document_by_entity(self, entity):
-                self.__documents_by_entity_to_remove.append(entity)
-
-            def update_entity_document_info(self, document_info: DocumentInfo, document: dict):
-                self.__document_infos_to_update.append((document_info, document))
-
-            def clear_session_state_after_successful_save_changes(self):
-                for key in self.__documents_by_id_to_remove:
-                    self.__session.documents_by_id.pop(key)
-                for key in self.__documents_by_entity_to_remove:
-                    self.__session.documents_by_entity.pop(key)
-
-                for document_info_dict_tuple in self.__document_infos_to_update:
-                    info: DocumentInfo = document_info_dict_tuple[0]
-                    document: dict = document_info_dict_tuple[1]
-                    info.new_document = False
-                    info.document = document
-
-                if self.__clear_deleted_entities:
-                    self.__session.deleted_entities.clear()
-
-                self.__session.deferred_commands.clear()
-                self.__session.deferred_commands_map.clear()
-
-            def clear_deleted_entities(self) -> None:
-                self.__clear_deleted_entities = True
-
-    @staticmethod
-    def raise_no_database() -> None:
-        raise RuntimeError(
-            "Cannot open a Session without specyfing a name of a database "
-            "to operate on. Database name can be passed as an argument when Session is"
-            " being opened or default database can be defined using 'DocumentStore.database' field"
-        )
-
-    @abstractmethod
-    def _generate_id(self, entity: object) -> str:
-        pass
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def __init__(self, store: "DocumentStore", key: uuid.UUID, options: SessionOptions):
         self.__id = key
@@ -482,7 +429,6 @@ class InMemoryDocumentSessionOperations:
         if not self.__database_name:
             InMemoryDocumentSessionOperations.raise_no_database()
 
-        self._document_store = store
         self._request_executor = (
             options.request_executor if options.request_executor else store.get_request_executor(self.__database_name)
         )
@@ -493,12 +439,15 @@ class InMemoryDocumentSessionOperations:
 
         self.__no_tracking = options.no_tracking
 
-        self.__use_optimistic_concurrency = self.request_executor.conventions.use_optimistic_concurrency
-        self.__max_number_of_requests_per_session = self.request_executor.conventions.max_number_of_requests_per_session
+        self.__use_optimistic_concurrency = self._request_executor.conventions.use_optimistic_concurrency
+        self.__max_number_of_requests_per_session = (
+            self._request_executor.conventions.max_number_of_requests_per_session
+        )
         self.__generate_entity_id_on_client = GenerateEntityIdOnTheClient(
-            self.request_executor.conventions, self._generate_id
+            self._request_executor.conventions, self._generate_id
         )
         self.entity_to_json = EntityToJson(self)
+        self._document_store: DocumentStore = store
         self.session_info = SessionInfo(self, options, self._document_store)
         self.__save_changes_options = BatchOptions()
 
@@ -507,14 +456,13 @@ class InMemoryDocumentSessionOperations:
             options.disable_atomic_document_writes_in_cluster_wide_transaction
         )
 
-        self._document_store: DocumentStore = store
         self._known_missing_ids = CaseInsensitiveSet()
         self.documents_by_id = DocumentsByIdHolder()
         self.included_documents_by_id = CaseInsensitiveDict()
         self.documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
-        self.__counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
-        self.__time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
+        self._counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
+        self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
         self.deleted_entities: Union[
             Set[DeletedEntitiesHolder.DeletedEntitiesEnumeratorResult], DeletedEntitiesHolder
@@ -649,10 +597,6 @@ class InMemoryDocumentSessionOperations:
             event(before_query_event_args)
 
     @property
-    def request_executor(self) -> RequestExecutor:
-        return self._request_executor
-
-    @property
     def operation_executor(self) -> OperationExecutor:
         return self._operation_executor
 
@@ -661,7 +605,7 @@ class InMemoryDocumentSessionOperations:
         return self._request_executor.conventions
 
     @property
-    def store_identifier(self):
+    def _store_identifier(self):
         return self._document_store.identifier
 
     @property
@@ -674,9 +618,9 @@ class InMemoryDocumentSessionOperations:
 
     @property
     def counters_by_doc_id(self):
-        if self.__counters_by_doc_id is None:
-            self.__counters_by_doc_id = CaseInsensitiveDict()
-        return self.__counters_by_doc_id
+        if self._counters_by_doc_id is None:
+            self._counters_by_doc_id = CaseInsensitiveDict()
+        return self._counters_by_doc_id
 
     @property
     def number_of_requests(self) -> int:
@@ -696,46 +640,19 @@ class InMemoryDocumentSessionOperations:
     #     """
     #     return ravendb.documents.DocumentCounters(self, entity_or_document_id)
 
-    def get_metadata_for(self, entity: object) -> MetadataAsDictionary:
-        if entity is None:
-            raise ValueError("Entity cannot be None")
-        document_info = self.__get_document_info(entity)
-        if document_info.metadata_instance:
-            return document_info.metadata_instance
-        metadata_as_json = document_info.metadata
-        metadata = MetadataAsDictionary(metadata=metadata_as_json)
-        document_info.metadata_instance = metadata
-        return metadata
+    @staticmethod
+    def raise_no_database() -> None:
+        raise RuntimeError(
+            "Cannot open a Session without specyfing a name of a database "
+            "to operate on. Database name can be passed as an argument when Session is"
+            " being opened or default database can be defined using 'DocumentStore.database' field"
+        )
 
-    def get_counters_for(self, entity: object) -> List[str]:
-        if entity is None:
-            raise ValueError("Entity cannot be None")
-        document_info = self.__get_document_info(entity)
+    @abstractmethod
+    def _generate_id(self, entity: object) -> str:
+        pass
 
-        counters_array = document_info.metadata.get(constants.Documents.Metadata.COUNTERS)
-        return counters_array if counters_array else None
-
-    def get_time_series_for(self, entity: object) -> List[str]:
-        if not entity:
-            raise ValueError("Instance cannot be None")
-        document_info = self.__get_document_info(entity)
-        array = document_info.metadata.get(constants.Documents.Metadata.TIME_SERIES)
-        return list(map(str, array)) if array else []
-
-    def get_change_vector_for(self, entity: object) -> str:
-        if not entity:
-            raise ValueError("Entity cannot be None")
-        return self.__get_document_info(entity).metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
-
-    def get_last_modified_for(self, entity: object) -> datetime.datetime:
-        if entity is None:
-            raise ValueError("Entity cannot be None")
-        document_info = self.__get_document_info(entity)
-        last_modified = document_info.metadata.get(constants.Documents.Metadata.LAST_MODIFIED)
-        if last_modified is not None and last_modified is not None:
-            return Utils.string_to_datetime(last_modified)
-
-    def __get_document_info(self, entity: object) -> DocumentInfo:
+    def _get_document_info(self, entity: object) -> DocumentInfo:
         document_info = self.documents_by_entity.get(entity)
         if document_info:
             return document_info
@@ -745,9 +662,6 @@ class InMemoryDocumentSessionOperations:
             raise ValueError(f"Could not find the document id for {entity}")
         self._assert_no_non_unique_instance(entity, value)
         raise ValueError(f"Document {value} doesn't exist in the session")
-
-    def is_loaded(self, key: str) -> bool:
-        return self.is_loaded_or_deleted(key)
 
     def is_loaded_or_deleted(self, key: str) -> bool:
         document_info = self.documents_by_id.get(key)
@@ -760,13 +674,6 @@ class InMemoryDocumentSessionOperations:
 
     def is_deleted(self, key: str) -> bool:
         return key in self._known_missing_ids
-
-    def get_document_id(self, entity: object) -> Union[None, str]:
-        if entity is None:
-            return None
-
-        value = self.documents_by_entity.get(entity)
-        return value.key if value is not None else None
 
     def increment_requests_count(self) -> None:
         self.__number_of_requests += 1
@@ -869,9 +776,9 @@ class InMemoryDocumentSessionOperations:
 
             self._known_missing_ids.add(key)
             change_vector = change_vector if self.__use_optimistic_concurrency else None
-            if self.__counters_by_doc_id:
-                self.__counters_by_doc_id.pop(key, None)
-            self.defer(DeleteCommandData(key, expected_change_vector if expected_change_vector else change_vector))
+            if self._counters_by_doc_id:
+                self._counters_by_doc_id.pop(key, None)
+            self._defer(DeleteCommandData(key, expected_change_vector if expected_change_vector else change_vector))
             return
 
         entity = key_or_entity
@@ -886,8 +793,8 @@ class InMemoryDocumentSessionOperations:
 
         self.deleted_entities.add(entity)
         self.included_documents_by_id.pop(value.key, None)
-        if self.__counters_by_doc_id:
-            self.__counters_by_doc_id.pop(value.key, None)
+        if self._counters_by_doc_id:
+            self._counters_by_doc_id.pop(value.key, None)
         self._known_missing_ids.add(value.key)
 
     def store(self, entity: object, key: Optional[str] = None, change_vector: Optional[str] = None) -> None:
@@ -939,7 +846,7 @@ class InMemoryDocumentSessionOperations:
         metadata = {}
         if collection_name:
             metadata[constants.Documents.Metadata.COLLECTION] = collection_name
-        python_type = self.request_executor.conventions.find_python_class_name(type(entity))
+        python_type = self._request_executor.conventions.find_python_class_name(type(entity))
         if python_type:
             metadata[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
         if key:
@@ -1206,49 +1113,6 @@ class InMemoryDocumentSessionOperations:
 
         return not len(self.deleted_entities) == 0
 
-    def has_changed(self, entity: object) -> bool:
-        document_info = self.documents_by_entity.get(entity)
-
-        if document_info is None:
-            return False
-
-        document = self.entity_to_json.convert_entity_to_json(entity, document_info)
-        return self._entity_changed(document, document_info, None)
-
-    def wait_for_replication_after_save_changes(
-        self, options: Callable[[ReplicationWaitOptsBuilder], None] = lambda options: None
-    ) -> None:
-        builder = self.ReplicationWaitOptsBuilder(self)
-        options(builder)
-
-        builder_options = builder.get_options()
-        replication_options = builder_options.replication_options
-        if replication_options is None:
-            builder_options.replication_options = ReplicationBatchOptions()
-
-        if replication_options.wait_for_replicas_timeout is None:
-            replication_options.wait_for_replicas_timeout = (
-                self.conventions.wait_for_replication_after_save_changes_timeout
-            )
-        replication_options.wait_for_replicas = True
-
-    def wait_for_indexes_after_save_changes(
-        self, options: Callable[[IndexesWaitOptsBuilder], None] = lambda options: None
-    ):
-        builder = InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder(self)
-        options(builder)
-
-        builder_options = builder.get_options()
-        index_options = builder_options.index_options
-
-        if index_options is None:
-            builder_options.index_options = IndexBatchOptions()
-
-        if index_options.wait_for_indexes_timeout is None:
-            index_options.wait_for_indexes_timeout = self.conventions.wait_for_indexes_after_save_changes_timeout
-
-        index_options.wait_for_indexes = True
-
     def _what_changed(self) -> Dict[str, List[DocumentsChanges]]:
         changes = {}
 
@@ -1264,36 +1128,9 @@ class InMemoryDocumentSessionOperations:
             self._entity_changed(new_obj, value, changes)
 
     def ignore_changes_for(self, entity: object) -> None:
-        self.__get_document_info(entity).ignore_changes = True
+        self._get_document_info(entity).ignore_changes = True
 
-    def evict(self, entity: object) -> None:
-        document_info = self.documents_by_entity.get(entity)
-        if document_info is not None:
-            self.documents_by_entity.evict(entity)
-            self.documents_by_id.pop(document_info.key, None)
-
-            if self.__counters_by_doc_id:
-                self.__counters_by_doc_id.pop(document_info.key, None)
-            if self.__time_series_by_doc_id:
-                self.__time_series_by_doc_id.pop(document_info.key, None)
-
-        self.deleted_entities.evict(entity)
-        self.entity_to_json.remove_from_missing(entity)
-
-    def clear(self) -> None:
-        self.documents_by_entity.clear()
-        self.deleted_entities.clear()
-        self.documents_by_id.clear()
-        self._known_missing_ids.clear()
-        if self.__counters_by_doc_id:
-            self.__counters_by_doc_id.clear()
-        self.deferred_commands.clear()
-        self.deferred_commands_map.clear()
-        self._clear_cluster_session()
-        self._pending_lazy_operations.clear()
-        self.entity_to_json.clear()
-
-    def defer(self, *commands: CommandData) -> None:
+    def _defer(self, *commands: CommandData) -> None:
         self.deferred_commands.extend(commands)
         for command in commands:
             self.__defer_internal(command)
@@ -1329,7 +1166,7 @@ class InMemoryDocumentSessionOperations:
         if self.__is_disposed:
             return
 
-        self.on_session_closing(self)
+        self.session_closing_invoke(SessionClosingEventArgs(self))
         self.__is_disposed = True
 
     def close(self) -> None:
@@ -1426,19 +1263,19 @@ class InMemoryDocumentSessionOperations:
                 got_all = True if counters is not None and len(counters) == 0 else False
 
             if len(result_counters) == 0 and not got_all:
-                cache = self.__counters_by_doc_id.get(key, None)
+                cache = self._counters_by_doc_id.get(key, None)
                 if not cache:
                     continue
                 for counter in counters:
                     del cache[1][counter]
-                self.__counters_by_doc_id[key] = cache
+                self._counters_by_doc_id[key] = cache
                 continue
             self.__register_counters_for_document(key, got_all, result_counters, counters_to_include)
 
     def __register_counters_for_document(
         self, key: str, got_all: bool, result_counters: List[Dict], counters_to_include: Dict[str, List[str]]
     ):
-        cache = self.__counters_by_doc_id.get(key)
+        cache = self._counters_by_doc_id.get(key)
         if not cache:
             cache = [got_all, CaseInsensitiveDict()]
 
@@ -1463,7 +1300,7 @@ class InMemoryDocumentSessionOperations:
                 del cache[1][name]
 
         cache[0] = got_all
-        self.__counters_by_doc_id[key] = cache
+        self._counters_by_doc_id[key] = cache
 
     def __set_got_all_in_cache_if_needed(self, counters_to_include: Dict[str, List[str]]):
         if not counters_to_include:
@@ -1474,21 +1311,21 @@ class InMemoryDocumentSessionOperations:
             self.__set_got_all_counters_for_document(key)
 
     def __set_got_all_counters_for_document(self, key: str):
-        cache = self.__counters_by_doc_id.get(key, None)
+        cache = self._counters_by_doc_id.get(key, None)
         if not cache:
             cache = [False, CaseInsensitiveDict()]
         cache[0] = True
-        self.__counters_by_doc_id[key] = cache
+        self._counters_by_doc_id[key] = cache
 
     def __register_missing_counters(self, counters_to_include: Dict[str, List[str]]):
         if not counters_to_include:
             return
 
         for key, value in counters_to_include.items():
-            cache = self.__counters_by_doc_id.get(key, None)
+            cache = self._counters_by_doc_id.get(key, None)
             if cache is None:
                 cache = [False, CaseInsensitiveDict()]
-                self.__counters_by_doc_id[key] = cache
+                self._counters_by_doc_id[key] = cache
 
             for counter in value:
                 if counter in cache[1]:
@@ -1501,10 +1338,10 @@ class InMemoryDocumentSessionOperations:
 
         for counter in counters_to_include:
             for key in keys:
-                cache = self.__counters_by_doc_id.get(key)
+                cache = self._counters_by_doc_id.get(key)
                 if not cache:
                     cache = [False, CaseInsensitiveDict()]
-                    self.__counters_by_doc_id[key] = cache
+                    self._counters_by_doc_id[key] = cache
 
                 if counter in cache[1]:
                     continue
@@ -1518,7 +1355,7 @@ class InMemoryDocumentSessionOperations:
         for key, value in result_time_series:
             if not value:
                 continue
-            cache = self.__time_series_by_doc_id.get(key, CaseInsensitiveDict())
+            cache = self._time_series_by_doc_id.get(key, CaseInsensitiveDict())
             for inner_key, inner_value in value:
                 if not inner_value:
                     continue
@@ -1930,3 +1767,50 @@ class InMemoryDocumentSessionOperations:
         def wait_for_indexes(self, *indexes: str) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
             self.get_options().index_options.wait_for_indexes = indexes
             return self
+
+    class SaveChangesData:
+        def __init__(self, session: InMemoryDocumentSessionOperations):
+            self.deferred_commands: List[CommandData] = session.deferred_commands
+            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session.deferred_commands_map
+            self.session_commands: List[CommandData] = []
+            self.entities: List = []
+            self.options = session._save_changes_options
+            self.on_success = InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess(session)
+
+        class ActionsToRunOnSuccess:
+            def __init__(self, session: InMemoryDocumentSessionOperations):
+                self.__session = session
+                self.__documents_by_id_to_remove: List[str] = []
+                self.__documents_by_entity_to_remove: List = []
+                self.__document_infos_to_update: List[Tuple[DocumentInfo, dict]] = []
+                self.__clear_deleted_entities: bool = False
+
+            def remove_document_by_id(self, key: str):
+                self.__documents_by_id_to_remove.append(key)
+
+            def remove_document_by_entity(self, entity):
+                self.__documents_by_entity_to_remove.append(entity)
+
+            def update_entity_document_info(self, document_info: DocumentInfo, document: dict):
+                self.__document_infos_to_update.append((document_info, document))
+
+            def clear_session_state_after_successful_save_changes(self):
+                for key in self.__documents_by_id_to_remove:
+                    self.__session.documents_by_id.pop(key)
+                for key in self.__documents_by_entity_to_remove:
+                    self.__session.documents_by_entity.pop(key)
+
+                for document_info_dict_tuple in self.__document_infos_to_update:
+                    info: DocumentInfo = document_info_dict_tuple[0]
+                    document: dict = document_info_dict_tuple[1]
+                    info.new_document = False
+                    info.document = document
+
+                if self.__clear_deleted_entities:
+                    self.__session.deleted_entities.clear()
+
+                self.__session.deferred_commands.clear()
+                self.__session.deferred_commands_map.clear()
+
+            def clear_deleted_entities(self) -> None:
+                self.__clear_deleted_entities = True

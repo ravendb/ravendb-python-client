@@ -141,7 +141,7 @@ class TestLazy(TestBase):
 
             session.advanced.eagerly.execute_all_pending_lazy_operations()
 
-            self.assertTrue(session.is_loaded("users/1"))
+            self.assertTrue(session.advanced.is_loaded("users/1"))
 
             users = lazy_load.value
             self.assertEqual(2, len(users))

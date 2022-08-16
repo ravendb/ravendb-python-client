@@ -39,7 +39,7 @@ class BeforeStoreEventArgs(EventArgs):
     @property
     def document_metadata(self):
         if self.__document_metadata is None:
-            self.__document_metadata = self.__session.get_metadata_for(self.__entity)
+            self.__document_metadata = self.__session.advanced.get_metadata_for(self.__entity)
         return self.__document_metadata
 
 

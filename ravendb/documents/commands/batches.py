@@ -51,36 +51,36 @@ class CommandType(Enum):
     def __str__(self):
         return self.value
 
-    @staticmethod
-    def parse_csharp_value(value: str) -> CommandType:
+    @classmethod
+    def from_csharp_value_str(cls, value: str) -> CommandType:
         if value == "None":
-            return CommandType.NONE
+            return cls.NONE
         elif value == "PUT":
-            return CommandType.PUT
+            return cls.PUT
         elif value == "PATCH":
-            return CommandType.PATCH
+            return cls.PATCH
         elif value == "DELETE":
-            return CommandType.DELETE
+            return cls.DELETE
         elif value == "AttachmentPUT":
-            return CommandType.ATTACHMENT_PUT
+            return cls.ATTACHMENT_PUT
         elif value == "AttachmentDELETE":
-            return CommandType.ATTACHMENT_DELETE
+            return cls.ATTACHMENT_DELETE
         elif value == "AttachmentMOVE":
-            return CommandType.ATTACHMENT_MOVE
+            return cls.ATTACHMENT_MOVE
         elif value == "AttachmentCOPY":
-            return CommandType.ATTACHMENT_COPY
+            return cls.ATTACHMENT_COPY
         elif value == "CompareExchangePUT":
-            return CommandType.COMPARE_EXCHANGE_PUT
+            return cls.COMPARE_EXCHANGE_PUT
         elif value == "CompareExchangeDELETE":
-            return CommandType.COMPARE_EXCHANGE_DELETE
+            return cls.COMPARE_EXCHANGE_DELETE
         elif value == "Counters":
-            return CommandType.COUNTERS
+            return cls.COUNTERS
         elif value == "BatchPATCH":
-            return CommandType.BATCH_PATCH
+            return cls.BATCH_PATCH
         elif value == "ForceRevisionCreation":
-            return CommandType.FORCE_REVISION_CREATION
+            return cls.FORCE_REVISION_CREATION
         elif value == "TimeSeries":
-            return CommandType.TIME_SERIES
+            return cls.TIME_SERIES
         else:
             raise ValueError(f"Unable to parse: {value}")
 
@@ -331,9 +331,9 @@ class BatchPatchCommandData(CommandData):
             self.key = key
             self.change_vector = change_vector
 
-        @staticmethod
-        def create(key: str, change_vector: str) -> BatchPatchCommandData.IdAndChangeVector:
-            return BatchPatchCommandData.IdAndChangeVector(key, change_vector)
+        @classmethod
+        def create(cls, key: str, change_vector: str) -> BatchPatchCommandData.IdAndChangeVector:
+            return cls(key, change_vector)
 
     def __init__(self, patch: PatchRequest, patch_if_missing: PatchRequest, *ids: Union[str, IdAndChangeVector]):
         if patch is None:
@@ -414,7 +414,7 @@ class PatchCommandData(CommandData):
         self.return_document: Union[None, bool] = None
 
         def __consumer(session: InMemoryDocumentSessionOperations) -> None:
-            self.return_document = session.is_loaded(key)
+            self.return_document = session.advanced.is_loaded(key)
 
         self.__on_before_save_changes = __consumer
 

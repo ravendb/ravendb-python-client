@@ -26,6 +26,6 @@ class IdTypeAndName:
     def __hash__(self):
         return hash((self.key, self.command_type, self.name))
 
-    @staticmethod
-    def create(key: str, command_type: CommandType, name: Union[None, str]) -> IdTypeAndName:
-        return IdTypeAndName(key, command_type, name)
+    @classmethod
+    def create(cls, key: str, command_type: CommandType, name: Union[None, str]) -> IdTypeAndName:
+        return cls(key, command_type, name)

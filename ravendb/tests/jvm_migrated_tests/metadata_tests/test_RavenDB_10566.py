@@ -10,13 +10,13 @@ class TestRavenDB10566(TestBase):
         self.name = None
 
         def update_item(after_save_changes_event_args: AfterSaveChangesEventArgs):
-            self.name = session.get_metadata_for(after_save_changes_event_args.entity).get("Name")
+            self.name = session.advanced.get_metadata_for(after_save_changes_event_args.entity).get("Name")
 
         with self.store.open_session() as session:
             session.add_after_save_changes(update_item)
             user = User("Oren", 30)
             session.store(user, "users/oren")
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             metadata.update({"Name": "FooBar"})
             session.save_changes()
 

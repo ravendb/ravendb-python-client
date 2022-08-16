@@ -29,9 +29,9 @@ _T_Result = TypeVar("_T_Result")
 
 
 class RavenCommand(Generic[_T_Result]):
-    @staticmethod
-    def from_copy(copy: RavenCommand[_T_Result]):
-        command = RavenCommand(copy._result_class)
+    @classmethod
+    def from_copy(cls, copy: RavenCommand[_T_Result]):
+        command = cls(copy._result_class)
         command._response_type = copy.response_type
         command._can_cache = copy.can_cache
         command._can_cache_aggressively = copy.can_cache_aggressively

@@ -123,6 +123,6 @@ class AutoSpatialOptions(SpatialOptions):
         self.method_type: Union[None, AutoSpatialMethodType] = None
         self.method_argument: Union[None, List[str]] = None
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> AutoSpatialOptions:
-        return AutoSpatialOptions.from_copy(SpatialOptions.from_copy(json_dict.get("Options")))
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> AutoSpatialOptions:
+        return cls.from_copy(SpatialOptions.from_copy(json_dict.get("Options")))

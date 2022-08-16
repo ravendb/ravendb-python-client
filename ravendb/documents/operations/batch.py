@@ -60,7 +60,7 @@ class BatchOperation:
 
             type_as_str = str(c_type)
 
-            command_type = CommandType.parse_csharp_value(type_as_str)
+            command_type = CommandType.from_csharp_value_str(type_as_str)
             return command_type
 
         if result.results is None:
@@ -73,7 +73,7 @@ class BatchOperation:
             if result.transaction_index <= 0:
                 raise ClientVersionMismatchException(
                     "Cluster transaction was send to a node that is not supporting "
-                    "it. So it was executed ONLY on the requested node on " + self.__session.request_executor.url
+                    "it. So it was executed ONLY on the requested node on " + self.__session._request_executor.url
                 )
 
         for i in range(self.__session_commands_count):

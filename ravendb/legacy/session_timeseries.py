@@ -225,7 +225,7 @@ class TimeSeries:
             operation.append(timestamp, values, tag)
             command = TimeSeriesBatchCommandData(self._document_id, self._name, operation=operation)
             self._session.timeseries_defer_commands[(self._document_id, "TimeSeries", self._name)] = command
-            self._session.defer(command)
+            self._session.advanced.defer(command)
 
     def remove(self, from_date: datetime, to_date: Optional[datetime] = None):
         document = self._session.documents_by_id.get(self._document_id, None)
@@ -243,4 +243,4 @@ class TimeSeries:
             operation.remove(from_date, to_date)
             command = TimeSeriesBatchCommandData(self._document_id, self._name, operation=operation)
             self._session.timeseries_defer_commands[self._document_id] = command
-            self._session.defer(command)
+            self._session.advanced.defer(command)

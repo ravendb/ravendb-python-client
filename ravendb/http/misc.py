@@ -19,10 +19,10 @@ class ClusterTopologyResponse:
         self.status = status
         self.etag = etag
 
-    @staticmethod
-    def from_json(json_dict: dict) -> ClusterTopologyResponse:
+    @classmethod
+    def from_json(cls, json_dict: dict) -> ClusterTopologyResponse:
 
-        return ClusterTopologyResponse(
+        return cls(
             json_dict["Leader"],
             json_dict["NodeTag"],
             ClusterTopology.from_json(json_dict["Topology"]),

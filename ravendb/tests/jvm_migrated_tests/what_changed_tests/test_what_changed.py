@@ -61,13 +61,13 @@ class TestWhatChanged(TestBase):
             users = session.load(["users/1", "users/2"], User)
             user1 = users["users/1"]
             user2 = users["users/2"]
-            self.assertFalse(session.has_changed(user1))
-            self.assertFalse(session.has_changed(user2))
+            self.assertFalse(session.advanced.has_changed(user1))
+            self.assertFalse(session.advanced.has_changed(user2))
 
             user1.name = "newName"
 
-            self.assertTrue(session.has_changed(user1))
-            self.assertFalse(session.has_changed(user2))
+            self.assertTrue(session.advanced.has_changed(user1))
+            self.assertFalse(session.advanced.has_changed(user2))
             self.assertTrue(session.has_changes())
 
     def test_what_changed_new_field(self):

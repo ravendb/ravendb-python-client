@@ -1,4 +1,5 @@
-from typing import Any
+from __future__ import annotations
+from typing import Any, Dict
 
 from ravendb import constants
 from ravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
@@ -30,8 +31,8 @@ class DocumentInfo:
         self.new_document = new_document
         self.collection = collection
 
-    @staticmethod
-    def get_new_document_info(document):
+    @classmethod
+    def get_new_document_info(cls, document: Dict) -> DocumentInfo:
         metadata = document.get(constants.Documents.Metadata.KEY)
         if not metadata:
             raise ValueError("Document must have a metadata")
@@ -43,4 +44,4 @@ class DocumentInfo:
         if not change_vector or not isinstance(change_vector, str):
             raise ValueError(f"Document {key} must have a Change Vector")
 
-        return DocumentInfo(key=key, document=document, metadata=metadata, entity=None, change_vector=change_vector)
+        return cls(key=key, document=document, metadata=metadata, entity=None, change_vector=change_vector)

@@ -41,9 +41,9 @@ class SuggestionBase:
 
 
 class SuggestionOptions:
-    @staticmethod
-    def default_options() -> SuggestionOptions:
-        return SuggestionOptions()
+    @classmethod
+    def default_options(cls) -> SuggestionOptions:
+        return cls()
 
     DEFAULT_ACCURACY = 0.5
     DEFAULT_PAGE_SIZE = 15
@@ -88,9 +88,9 @@ class SuggestionResult:
         self.name = name
         self.suggestions = suggestions
 
-    @staticmethod
-    def from_json(json_dict: dict) -> SuggestionResult:
-        return SuggestionResult(json_dict["Name"], json_dict["Suggestions"])
+    @classmethod
+    def from_json(cls, json_dict: dict) -> SuggestionResult:
+        return cls(json_dict["Name"], json_dict["Suggestions"])
 
 
 class SuggestionOperations(Generic[_T]):
@@ -159,7 +159,7 @@ class SuggestionQueryBase(ABC):
 
         self.__duration = Stopwatch.create_started()
         self.__session.increment_requests_count()
-        self.__session.request_executor.execute_command(command)
+        self.__session.advanced.request_executor.execute_command(command)
 
         return self.__process_results(command.result)
 

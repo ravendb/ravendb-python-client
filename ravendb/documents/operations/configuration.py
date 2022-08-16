@@ -66,11 +66,11 @@ class ClientConfiguration:
             "LoadBalancerContextSeed": self.load_balancer_context_seed,
         }
 
-    @staticmethod
-    def from_json(json_dict: dict) -> Optional[ClientConfiguration]:
+    @classmethod
+    def from_json(cls, json_dict: dict) -> Optional[ClientConfiguration]:
         if json_dict is None:
             return None
-        config = ClientConfiguration()
+        config = cls()
         config.__identity_parts_separator = json_dict["IdentityPartsSeparator"]
         config.etag = json_dict["Etag"]
         config.disabled = json_dict["Disabled"]
@@ -106,11 +106,9 @@ class GetClientConfigurationOperation(MaintenanceOperation):
             self.etag = etag
             self.configuration = configuration
 
-        @staticmethod
-        def from_json(json_dict: dict) -> GetClientConfigurationOperation.Result:
-            return GetClientConfigurationOperation.Result(
-                json_dict["Etag"], ClientConfiguration.from_json(json_dict["Configuration"])
-            )
+        @classmethod
+        def from_json(cls, json_dict: dict) -> GetClientConfigurationOperation.Result:
+            return cls(json_dict["Etag"], ClientConfiguration.from_json(json_dict["Configuration"]))
 
 
 class PutClientConfigurationOperation(VoidMaintenanceOperation):

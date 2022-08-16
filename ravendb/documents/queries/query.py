@@ -44,19 +44,19 @@ class QueryTimings:
         self.duration_in_ms = query_result.timings.duration_in_ms
         self.timings = query_result.timings.timings
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> QueryTimings:
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> QueryTimings:
         duration = json_dict.get("DurationInMs", None)
         timings_json = json_dict.get("Timings", None)
         if timings_json is None:
-            return QueryTimings(duration, None)
+            return cls(duration, None)
 
         timings = {}
 
         for key, value in json_dict.get("Timings").items():
-            timings[key] = QueryTimings.from_json(value)
+            timings[key] = cls.from_json(value)
 
-        return QueryTimings(duration, timings)
+        return cls(duration, timings)
 
 
 class QueryData:
@@ -195,8 +195,8 @@ class QueryResult(Generic[_TResult, _TIncludes], GenericQueryResult[_TResult, _T
             self.result_size,
         )
 
-    @staticmethod
-    def from_json(json_dict: dict) -> QueryResult:
+    @classmethod
+    def from_json(cls, json_dict: dict) -> QueryResult:
         return QueryResult(
             json_dict.get("Results", None),
             json_dict.get("Includes", None),

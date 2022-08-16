@@ -15,9 +15,9 @@ class FacetAggregation(enum.Enum):
 
 
 class FacetOptions:
-    @staticmethod
-    def default_options() -> FacetOptions:
-        return FacetOptions()
+    @classmethod
+    def default_options(cls) -> FacetOptions:
+        return cls()
 
     def __init__(self):
         self.page_size: int = constants.int_max
@@ -42,9 +42,9 @@ class FacetResult:
         self.remaining_terms_count: Union[None, int] = None
         self.remaining_hits: Union[None, int] = None
 
-    @staticmethod
-    def from_json(json_dict: dict) -> FacetResult:
-        x = FacetResult()
+    @classmethod
+    def from_json(cls, json_dict: dict) -> FacetResult:
+        x = cls()
         x.name = json_dict.get("Name", None)
         x.values = [FacetValue.from_json(jv) for jv in json_dict.get("Values", None)]
         x.remaining_terms = json_dict.get("RemainingTerms", None)
@@ -78,9 +78,9 @@ class FacetValue:
 
         return msg.removesuffix(";")
 
-    @staticmethod
-    def from_json(json_dict: dict) -> FacetValue:
-        return FacetValue(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> FacetValue:
+        return cls(
             json_dict.get("Name"),
             json_dict.get("Range"),
             json_dict.get("Count"),

@@ -29,22 +29,22 @@ class TestRavenDB11552(TestBase):
             company = session.load("companies/1", Company)
 
             self.assertIsNotNone(company)
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(1, session.number_of_requests)
             self.assertEqual(1, len(session.advanced.attachments.get_names(company)))
 
             file1stream = bytes([1, 2, 3])
-            session.defer(PutAttachmentCommandData("companies/1", "file1", file1stream, None, None))
+            session.advanced.defer(PutAttachmentCommandData("companies/1", "file1", file1stream, None, None))
             session.save_changes()
 
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(2, session.number_of_requests)
             self.assertEqual(2, len(session.advanced.attachments.get_names(company)))
 
-            session.defer(DeleteAttachmentCommandData("companies/1", "file1", None))
+            session.advanced.defer(DeleteAttachmentCommandData("companies/1", "file1", None))
             session.save_changes()
 
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(3, session.number_of_requests)
             self.assertEqual(1, len(session.advanced.attachments.get_names(company)))
 
@@ -67,34 +67,34 @@ class TestRavenDB11552(TestBase):
             company2 = session.load("companies/2", Company)
 
             self.assertIsNotNone(company1)
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(2, session.number_of_requests)
             self.assertEqual(1, len(session.advanced.attachments.get_names(company1)))
 
             self.assertIsNotNone(company2)
-            self.assertTrue(session.is_loaded("companies/2"))
+            self.assertTrue(session.advanced.is_loaded("companies/2"))
             self.assertEqual(2, session.number_of_requests)
             self.assertEqual(0, len(session.advanced.attachments.get_names(company2)))
 
-            session.defer(CopyAttachmentCommandData("companies/1", "file1", "companies/2", "file1", None))
+            session.advanced.defer(CopyAttachmentCommandData("companies/1", "file1", "companies/2", "file1", None))
             session.save_changes()
 
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(3, session.number_of_requests)
             self.assertEqual(1, len(session.advanced.attachments.get_names(company1)))
 
-            self.assertTrue(session.is_loaded("companies/2"))
+            self.assertTrue(session.advanced.is_loaded("companies/2"))
             self.assertEqual(3, session.number_of_requests)
             self.assertEqual(1, len(session.advanced.attachments.get_names(company2)))
 
-            session.defer(MoveAttachmentCommandData("companies/1", "file1", "companies/2", "file2", None))
+            session.advanced.defer(MoveAttachmentCommandData("companies/1", "file1", "companies/2", "file2", None))
             session.save_changes()
 
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(4, session.number_of_requests)
             self.assertEqual(0, len(session.advanced.attachments.get_names(company1)))
 
-            self.assertTrue(session.is_loaded("companies/2"))
+            self.assertTrue(session.advanced.is_loaded("companies/2"))
             self.assertEqual(4, session.number_of_requests)
             self.assertEqual(2, len(session.advanced.attachments.get_names(company2)))
 
@@ -107,18 +107,18 @@ class TestRavenDB11552(TestBase):
         with self.store.open_session() as session:
             company = session.load("companies/1", Company)
             self.assertIsNotNone(company)
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(1, session.advanced.number_of_requests)
 
-            session.defer(DeleteCommandData("companies/1", None))
+            session.advanced.defer(DeleteCommandData("companies/1", None))
             session.save_changes()
 
-            self.assertFalse(session.is_loaded("companies/1"))
+            self.assertFalse(session.advanced.is_loaded("companies/1"))
             self.assertEqual(2, session.advanced.number_of_requests)
 
             company = session.load("companies/1", Company)
             self.assertIsNone(company)
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(3, session.advanced.number_of_requests)
 
     def test_patch_will_work(self):
@@ -130,20 +130,20 @@ class TestRavenDB11552(TestBase):
         with self.store.open_session() as session:
             company = session.load("companies/1", Company)
             self.assertIsNotNone(company)
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(1, session.number_of_requests)
 
             patch_request = PatchRequest()
             patch_request.script = "this.name = 'HR2';"
-            session.defer(PatchCommandData("companies/1", None, patch_request, None))
+            session.advanced.defer(PatchCommandData("companies/1", None, patch_request, None))
             session.save_changes()
 
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(2, session.advanced.number_of_requests)
 
             company2 = session.load("companies/1", Company)
             self.assertIsNotNone(company2)
-            self.assertTrue(session.is_loaded("companies/1"))
+            self.assertTrue(session.advanced.is_loaded("companies/1"))
             self.assertEqual(2, session.advanced.number_of_requests)
             self.assertIs(company2, company)
             self.assertEqual("HR2", company2.name)
@@ -158,15 +158,15 @@ class TestRavenDB11552(TestBase):
             company = session.load("companies/1", Company)
             session.advanced.patch(company, "name", "CF")
 
-            cv = session.get_change_vector_for(company)
-            last_modified = session.get_last_modified_for(company)
+            cv = session.advanced.get_change_vector_for(company)
+            last_modified = session.advanced.get_last_modified_for(company)
 
             session.save_changes()
 
             self.assertEqual("CF", company.name)
 
-            self.assertNotEqual(cv, session.get_change_vector_for(company))
-            self.assertNotEqual(last_modified, session.get_last_modified_for(company))
+            self.assertNotEqual(cv, session.advanced.get_change_vector_for(company))
+            self.assertNotEqual(last_modified, session.advanced.get_last_modified_for(company))
 
             company.phone = 123
             session.save_changes()

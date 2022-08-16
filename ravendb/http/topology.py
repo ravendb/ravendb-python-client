@@ -44,9 +44,9 @@ class ClusterTopology:
 
         return self.watchers is not None and node in self.watchers
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> ClusterTopology:
-        topology = ClusterTopology()
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> ClusterTopology:
+        topology = cls()
         topology.etag = json_dict["Etag"]
         topology.topology_id = json_dict["TopologyId"]
         topology.members = json_dict["Members"]
@@ -136,15 +136,15 @@ class NodeSelector:
         state = self.__state
         return self.get_preferred_node_internal(state)
 
-    @staticmethod
-    def get_preferred_node_internal(state: NodeSelector.__NodeSelectorState) -> CurrentIndexAndNode:
+    @classmethod
+    def get_preferred_node_internal(cls, state: NodeSelector.__NodeSelectorState) -> CurrentIndexAndNode:
         state_failures = state.failures
         server_nodes = state.nodes
         length = min(len(server_nodes), len(state_failures))
         for i in range(length):
             if state_failures[0] == 0 and server_nodes[i].url:
                 return CurrentIndexAndNode(i, server_nodes[i])
-        return NodeSelector.unlikely_everyone_faulted_choice(state)
+        return cls.unlikely_everyone_faulted_choice(state)
 
     def get_preferred_node_with_topology(self) -> CurrentIndexAndNodeAndEtag:
         state = self.__state

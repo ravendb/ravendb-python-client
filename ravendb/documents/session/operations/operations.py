@@ -13,7 +13,7 @@ class MultiGetOperation:
         self.__session = session
 
     def create_request(self, requests: List[GetRequest]):
-        return MultiGetCommand(self.__session.request_executor, requests)
+        return MultiGetCommand(self.__session.advanced.request_executor, requests)
 
     def set_result(self, result: dict) -> None:
         pass
@@ -50,7 +50,7 @@ class LoadStartingWithOperation:
         self.__session.increment_requests_count()
 
         self.logger.info(
-            f"Requesting documents with ids starting with '{self.__start_with}' from {self.__session.store_identifier}"
+            f"Requesting documents with ids starting with '{self.__start_with}' from {self.__session.advanced.store_identifier}"
         )
 
         return GetDocumentsCommand.from_starts_with(

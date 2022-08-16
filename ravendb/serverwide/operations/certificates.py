@@ -65,9 +65,9 @@ class CertificateMetadata:
         self.collection_secondary_keys = collection_secondary_keys
         self.public_key_pinning_hash = public_key_pinning_hash
 
-    @staticmethod
-    def from_json(json_dict: dict) -> CertificateMetadata:
-        return CertificateMetadata(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> CertificateMetadata:
+        return cls(
             json_dict["Name"],
             SecurityClearance(json_dict.get("SecurityClearance", None)),
             json_dict.get("Thumbprint", None),
@@ -122,9 +122,9 @@ class CertificateDefinition(CertificateMetadata):
             json_dict.update({"NotAfter": Utils.datetime_to_string(self.not_after)})
         return json_dict
 
-    @staticmethod
-    def from_json(json_dict: dict) -> CertificateDefinition:
-        return CertificateDefinition(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> CertificateDefinition:
+        return cls(
             json_dict["Certificate"],
             json_dict.get("Password", None),
             json_dict["Name"],
@@ -208,12 +208,12 @@ class GetCertificatesResponse:
     def __init__(self, results: List[CertificateDefinition]):
         self.results = results
 
-    @staticmethod
-    def from_json(json_dict: dict) -> GetCertificatesResponse:
+    @classmethod
+    def from_json(cls, json_dict: dict) -> GetCertificatesResponse:
         results = []
         for cert_dict in json_dict["Results"]:
             results.append(CertificateDefinition.from_json(cert_dict))
-        return GetCertificatesResponse(results)
+        return cls(results)
 
 
 class GetCertificateOperation(ServerOperation[CertificateDefinition]):

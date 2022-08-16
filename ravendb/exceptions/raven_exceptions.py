@@ -7,9 +7,9 @@ class RavenException(RuntimeError):
         super(RavenException, self).__init__((message, cause) or message)
         self.reached_leader = None
 
-    @staticmethod
-    def generic(error: str, json: str):
-        return RavenException(f"{error}. Response: {json}")
+    @classmethod
+    def generic(cls, error: str, json: str):
+        return cls(f"{error}. Response: {json}")
 
 
 class BadResponseException(RavenException):

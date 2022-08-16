@@ -35,8 +35,10 @@ class CompareExchangeResult(Generic[_T]):
         self.index = index
         self.successful = successful
 
-    @staticmethod
-    def parse_from_string(object_type: type, response_string: str, conventions: DocumentConventions):
+    @classmethod
+    def parse_from_string(
+        cls, object_type: type, response_string: str, conventions: DocumentConventions
+    ) -> CompareExchangeResult:
         response: dict = json.loads(response_string)
 
         index = response.get("Index", None)
@@ -52,13 +54,13 @@ class CompareExchangeResult(Generic[_T]):
             val = raw.get(constants.CompareExchange.OBJECT_FIELD_NAME)
 
         if val is None:
-            return CompareExchangeResult(Utils.json_default(object_type), index, successful)
+            return cls(Utils.json_default(object_type), index, successful)
 
         result = (
             Utils.convert_json_dict_to_object(val, object_type) if not isinstance(val, (str, int, float, bool)) else val
         )
 
-        return CompareExchangeResult(result, index, successful)
+        return cls(result, index, successful)
 
 
 class PutCompareExchangeValueOperation(IOperation[CompareExchangeResult], Generic[_T]):

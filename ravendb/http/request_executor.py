@@ -227,23 +227,25 @@ class RequestExecutor:
     def remove_on_topology_updated(self, event: Callable[[Topology], None]):
         self._on_topology_updated.remove(event)
 
-    @staticmethod
+    @classmethod
     def create(
+        cls,
         initial_urls: List[str],
         database_name: str,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
-    ):
-        executor = RequestExecutor(database_name, conventions, certificate_path, trust_store_path, thread_pool_executor)
+    ) -> RequestExecutor:
+        executor = cls(database_name, conventions, certificate_path, trust_store_path, thread_pool_executor)
         executor._first_topology_update_task = executor._first_topology_update(
-            initial_urls, RequestExecutor.__GLOBAL_APPLICATION_IDENTIFIER
+            initial_urls, cls.__GLOBAL_APPLICATION_IDENTIFIER
         )
         return executor
 
-    @staticmethod
+    @classmethod
     def create_for_single_node_with_configuration_updates(
+        cls,
         url: str,
         database_name: str,
         conventions: DocumentConventions,
@@ -251,14 +253,15 @@ class RequestExecutor:
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
-        executor = RequestExecutor.create_for_single_node_without_configuration_updates(
+        executor = cls.create_for_single_node_without_configuration_updates(
             url, database_name, conventions, certificate_path, trust_store_path, thread_pool_executor
         )
         executor._disable_client_configuration_updates = False
         return executor
 
-    @staticmethod
+    @classmethod
     def create_for_single_node_without_configuration_updates(
+        cls,
         url: str,
         database_name: str,
         conventions: DocumentConventions,
@@ -266,12 +269,12 @@ class RequestExecutor:
         trust_store_path: Optional[str] = None,
         thread_pool_executor: Optional[ThreadPoolExecutor] = None,
     ) -> RequestExecutor:
-        initial_urls = RequestExecutor.validate_urls([url])
-        executor = RequestExecutor(database_name, conventions, certificate_path, trust_store_path, thread_pool_executor)
+        initial_urls = cls.validate_urls([url])
+        executor = cls(database_name, conventions, certificate_path, trust_store_path, thread_pool_executor)
 
         topology = Topology(-1, [ServerNode(initial_urls[0], database_name)])
-        executor._node_selector = NodeSelector(topology)
-        executor._topology_etag = RequestExecutor.__INITIAL_TOPOLOGY_ETAG
+        executor._node_selector = NodeSelector(topology, thread_pool_executor)
+        executor._topology_etag = cls.__INITIAL_TOPOLOGY_ETAG
         executor._disable_topology_updates = True
         executor._disable_client_configuration_updates = True
 
@@ -772,8 +775,6 @@ class RequestExecutor:
         if server_version_header is not None:
             return server_version_header
 
-        return None
-
     def __throw_failed_to_contact_all_nodes(self, command: RavenCommand, request: requests.Request):
         if not command.failed_nodes:
             raise RuntimeError(
@@ -1242,18 +1243,19 @@ class ClusterRequestExecutor(RequestExecutor):
         )
         self.__cluster_topology_semaphore = Semaphore(1)
 
-    @staticmethod
+    @classmethod
     def create_for_single_node(
+        cls,
         url: str,
         thread_pool_executor: ThreadPoolExecutor,
         conventions: Optional[DocumentConventions] = None,
         certificate_path: Optional[str] = None,
         trust_store_path: Optional[str] = None,
-    ):
+    ) -> ClusterRequestExecutor:
         initial_urls = [url]
         # todo: validate urls
         # todo: use default, static DocumentConventions
-        executor = ClusterRequestExecutor(
+        executor = cls(
             (conventions if conventions else DocumentConventions()),
             certificate_path,
             trust_store_path,
@@ -1274,15 +1276,16 @@ class ClusterRequestExecutor(RequestExecutor):
 
         return executor
 
-    @staticmethod
+    @classmethod
     def create_without_database_name(
+        cls,
         initial_urls: List[str],
         thread_pool_executor: ThreadPoolExecutor,
         conventions: DocumentConventions,
         certificate_path: Optional[str] = None,
         trust_store_path: Optional[str] = None,
-    ):
-        executor = ClusterRequestExecutor(
+    ) -> ClusterRequestExecutor:
+        executor = cls(
             (conventions if conventions else DocumentConventions()),
             certificate_path,
             trust_store_path,

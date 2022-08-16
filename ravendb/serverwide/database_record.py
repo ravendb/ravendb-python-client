@@ -120,9 +120,9 @@ class DatabaseRecord:
             "TruncatedClusterTransactionCommand": self.truncated_cluster_transaction_commands_count,
         }
 
-    @staticmethod
-    def from_json(json_dict: dict) -> DatabaseRecord:
-        record = DatabaseRecord(json_dict.get("DatabaseName", None))
+    @classmethod
+    def from_json(cls, json_dict: dict) -> DatabaseRecord:
+        record = cls(json_dict.get("DatabaseName", None))
         record.disabled = json_dict.get("Disabled", None)
         record.encrypted = json_dict.get("Encrypted", None)
         record.etag_for_backup = json_dict.get("EtagForBackup", None)
@@ -195,9 +195,9 @@ class DatabaseRecordWithEtag(DatabaseRecord):
         super().__init__(database_name)
         self.__etag = etag
 
-    @staticmethod
-    def from_json(json_dict: dict):
+    @classmethod
+    def from_json(cls, json_dict: dict) -> DatabaseRecordWithEtag:
         record = DatabaseRecord.from_json(json_dict)
-        record_with_etag = DatabaseRecordWithEtag(record.database_name, json_dict["Etag"])
+        record_with_etag = cls(record.database_name, json_dict["Etag"])
         record_with_etag.__dict__.update(record.__dict__)
         return record_with_etag

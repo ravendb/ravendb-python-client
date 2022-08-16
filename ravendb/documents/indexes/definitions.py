@@ -185,9 +185,9 @@ class IndexDefinition:
         self.deployment_mode: Union[None, IndexDeploymentMode] = None
         self.__dict__.update(kwargs)
 
-    @staticmethod
-    def from_json(json_dict: dict) -> IndexDefinition:
-        result = IndexDefinition()
+    @classmethod
+    def from_json(cls, json_dict: dict) -> IndexDefinition:
+        result = cls()
         result.name = json_dict["Name"]
         result.priority = IndexPriority(json_dict["Priority"])
         result.state = IndexState(json_dict["State"])
@@ -317,9 +317,9 @@ class AutoIndexDefinition:
         self.map_fields = map_fields
         self.group_by_fields = group_by_fields
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> AutoIndexDefinition:
-        return AutoIndexDefinition(
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> AutoIndexDefinition:
+        return cls(
             IndexType(json_dict.get("Type")),
             json_dict.get("Name"),
             IndexPriority(json_dict.get("Priority")),
@@ -360,9 +360,9 @@ class AutoIndexFieldOptions:
         self.suggestions = suggestions
         self.is_name_quoted = is_name_quoted
 
-    @staticmethod
-    def from_json(json_dict: Dict):
-        return AutoIndexFieldOptions(
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> AutoIndexFieldOptions:
+        return cls(
             FieldStorage(json_dict.get("Storage")),
             AutoFieldIndexing(json_dict.get("Indexing")),
             AggregationOperation(json_dict.get("Aggregation")) if json_dict.get("Aggregation", None) else None,
@@ -411,26 +411,27 @@ class AdditionalAssembly:
             "Usings": self.usings,
         }
 
-    @staticmethod
-    def only_usings(usings: Set[str]) -> AdditionalAssembly:
+    @classmethod
+    def only_usings(cls, usings: Set[str]) -> AdditionalAssembly:
         if not usings:
             raise ValueError("using cannot be None or empty")
-        return AdditionalAssembly(usings=usings)
+        return cls(usings=usings)
 
-    @staticmethod
-    def from_runtime(assembly_name: str, usings: Optional[Set[str]] = None) -> AdditionalAssembly:
+    @classmethod
+    def from_runtime(cls, assembly_name: str, usings: Optional[Set[str]] = None) -> AdditionalAssembly:
         if not assembly_name or assembly_name.isspace():
             raise ValueError("Assembly name cannot be None or whitespace")
-        return AdditionalAssembly(assembly_name, usings=usings)
+        return cls(assembly_name, usings=usings)
 
-    @staticmethod
-    def from_path(assembly_path: str, usings: Optional[Set[str]] = None) -> AdditionalAssembly:
+    @classmethod
+    def from_path(cls, assembly_path: str, usings: Optional[Set[str]] = None) -> AdditionalAssembly:
         if not assembly_path or assembly_path.isspace():
             raise ValueError("Assembly path cannot be None or whitespace")
-        return AdditionalAssembly(assembly_path=assembly_path, usings=usings)
+        return cls(assembly_path=assembly_path, usings=usings)
 
-    @staticmethod
+    @classmethod
     def from_NuGet(
+        cls,
         package_name: str,
         package_version: str,
         package_source_url: Optional[str] = None,
@@ -441,7 +442,7 @@ class AdditionalAssembly:
         if not package_version or package_version.isspace():
             raise ValueError("Package version cannot be None or whitespace")
 
-        return AdditionalAssembly(
+        return cls(
             package_name=package_name,
             package_version=package_version,
             package_source_url=package_source_url,
@@ -486,40 +487,6 @@ class AbstractCommonApiForIndexes(ABC):
     @configuration.setter
     def configuration(self, value: Dict[str, str]):
         self.__configuration = value
-
-    @staticmethod
-    def only_usings(usings: Set[str]) -> AdditionalAssembly:
-        if not usings:
-            raise ValueError("Using cannot be None or empty")
-        return AdditionalAssembly(usings=usings)
-
-    @staticmethod
-    def from_runtime(assembly_name: str, usings: Set[str] = None) -> AdditionalAssembly:
-        if not assembly_name or assembly_name.isspace():
-            raise ValueError("assembly_name cannot be None or whitespace.")
-        return AdditionalAssembly(assembly_name=assembly_name, usings=usings)
-
-    @staticmethod
-    def from_path(assembly_path: str, usings: Set[str] = None) -> AdditionalAssembly:
-        if not assembly_path or assembly_path.isspace():
-            raise ValueError("assembly_path cannot be None or whitespace")
-        return AdditionalAssembly(assembly_path=assembly_path, usings=usings)
-
-    @staticmethod
-    def from_nuget(
-        package_name: str, package_version: str, package_source_url: str = None, usings: Set[str] = None
-    ) -> AdditionalAssembly:
-        if not package_name or package_name.isspace():
-            raise ValueError("package_name cannot be None or whitespace")
-        if not package_version or package_version.isspace():
-            raise ValueError("package_version cannot be None or whitespace")
-
-        return AdditionalAssembly(
-            package_name=package_name,
-            package_version=package_version,
-            package_source_url=package_source_url,
-            usings=usings,
-        )
 
 
 class RollingIndexState(Enum):
@@ -566,9 +533,9 @@ class IndexingError:
     def __str__(self):
         return f"Error: {self.error}, Document: {self.document}, Action: {self.action}"
 
-    @staticmethod
-    def from_json(json_dict: dict) -> IndexingError:
-        return IndexingError(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> IndexingError:
+        return cls(
             json_dict["Error"],
             Utils.string_to_datetime(json_dict["Timestamp"]),
             json_dict["Document"],
@@ -581,6 +548,6 @@ class IndexErrors:
         self.name = name
         self.errors = errors
 
-    @staticmethod
-    def from_json(json_dict: dict) -> IndexErrors:
-        return IndexErrors(json_dict["Name"], list(map(lambda x: IndexingError.from_json(x), json_dict["Errors"])))
+    @classmethod
+    def from_json(cls, json_dict: dict) -> IndexErrors:
+        return cls(json_dict["Name"], list(map(lambda x: IndexingError.from_json(x), json_dict["Errors"])))

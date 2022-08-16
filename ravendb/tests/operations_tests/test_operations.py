@@ -38,14 +38,14 @@ class TestOperations(TestBase):
         self.test_put_attachment()
         with self.store.open_session() as session:
             user = session.load("users/1-A")
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
             self.assertTrue(attachments)  # not None, more than 0
 
         self.store.operations.send(DeleteAttachmentOperation("users/1-A", "my_picture"))
         with self.store.open_session() as session:
             user = session.load("users/1-A")
-            metadata = session.get_metadata_for(user)
+            metadata = session.advanced.get_metadata_for(user)
             attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
             self.assertFalse(attachments)  # 0 or None
 

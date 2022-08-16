@@ -127,11 +127,11 @@ class TestLoad(TestBase):
             foo = Foo("Beginning")
             session.store(foo)
 
-            fid = session.get_document_id(foo)
+            fid = session.advanced.get_document_id(foo)
             bar = Bar(name="End", foo_id=fid)
             session.store(bar)
 
-            bar_id = session.get_document_id(bar)
+            bar_id = session.advanced.get_document_id(bar)
             session.save_changes()
 
         with self.store.open_session() as session:

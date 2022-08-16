@@ -172,7 +172,7 @@ class TestMoreLikeThis(TestBase):
                 session.store(data)
             session.save_changes()
 
-            Id = session.get_document_id(data_list[0])
+            Id = session.advanced.get_document_id(data_list[0])
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
@@ -326,7 +326,7 @@ class TestMoreLikeThis(TestBase):
 
             session.save_changes()
 
-            Id = session.get_document_id(data_list[0])
+            Id = session.advanced.get_document_id(data_list[0])
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
@@ -342,7 +342,7 @@ class TestMoreLikeThis(TestBase):
 
             session.save_changes()
 
-            Id = session.get_document_id(data_list[0])
+            Id = session.advanced.get_document_id(data_list[0])
             self.wait_for_indexing(self.store)
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
@@ -401,7 +401,7 @@ class TestMoreLikeThis(TestBase):
 
             session.save_changes()
 
-            Id = session.get_document_id(data_list[0])
+            Id = session.advanced.get_document_id(data_list[0])
             self.wait_for_indexing(self.store)
 
         with self.store.open_session() as session:
@@ -428,7 +428,7 @@ class TestMoreLikeThis(TestBase):
 
             session.save_changes()
 
-            Id = session.get_document_id(data_list[0])
+            Id = session.advanced.get_document_id(data_list[0])
             self.wait_for_indexing(self.store)
 
         with self.store.open_session() as session:

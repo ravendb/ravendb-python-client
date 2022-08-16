@@ -47,7 +47,9 @@ class LoadOperation:
 
         self._session.increment_requests_count()
 
-        self.logger.info(f"Requesting the following ids {','.join(self._keys)} from {self._session.store_identifier}")
+        self.logger.info(
+            f"Requesting the following ids {','.join(self._keys)} from {self._session.advanced.store_identifier}"
+        )
 
         if self._include_all_counters:
             return GetDocumentsCommand.from_multiple_ids_all_counters(
