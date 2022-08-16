@@ -350,7 +350,7 @@ class RequestExecutor:
                         self._node_selector.schedule_speed_test()
 
                 elif self._node_selector.on_update_topology(topology, parameters.force_update):
-                    self.dispose_all_failed_nodes_timers()
+                    self._dispose_all_failed_nodes_timers()
                     if self.conventions.read_balance_behavior == ReadBalanceBehavior.FASTEST_NODE:
                         self._node_selector.schedule_speed_test()
 
