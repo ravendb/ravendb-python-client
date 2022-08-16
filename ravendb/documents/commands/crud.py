@@ -27,9 +27,9 @@ class PutResult:
         self.key = key
         self.change_vector = change_vector
 
-    @staticmethod
-    def from_json(json_dict: dict) -> PutResult:
-        return PutResult(json_dict["Id"], json_dict["ChangeVector"])
+    @classmethod
+    def from_json(cls, json_dict: dict) -> PutResult:
+        return cls(json_dict["Id"], json_dict["ChangeVector"])
 
 
 class PutDocumentCommand(RavenCommand[PutResult]):

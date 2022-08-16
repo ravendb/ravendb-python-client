@@ -29,9 +29,9 @@ class GetDocumentsResult:
         self.compare_exchange_includes = compare_exchange_includes
         self.next_page_start = next_page_start
 
-    @staticmethod
-    def from_json(json_dict: dict) -> GetDocumentsResult:
-        return GetDocumentsResult(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> GetDocumentsResult:
+        return cls(
             json_dict.get("Includes", None),
             json_dict.get("Results", None),
             json_dict.get("CounterIncludes", None),

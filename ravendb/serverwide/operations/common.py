@@ -103,9 +103,9 @@ class DatabasePutResult:
         self.topology = topology
         self.nodes_added_to = nodes_added_to
 
-    @staticmethod
-    def from_json(json_dict: dict) -> DatabasePutResult:
-        return DatabasePutResult(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> DatabasePutResult:
+        return cls(
             json_dict["RaftCommandIndex"],
             json_dict["Name"],
             DatabaseTopology.from_json(json_dict["Topology"]),
@@ -173,9 +173,9 @@ class DeleteDatabaseResult:
         self.raft_command_index = raft_command_index
         self.pending_deletes = pending_deletes
 
-    @staticmethod
-    def from_json(json_dict) -> DeleteDatabaseResult:
-        return DeleteDatabaseResult(json_dict["RaftCommandIndex"], json_dict["PendingDeletes"])
+    @classmethod
+    def from_json(cls, json_dict) -> DeleteDatabaseResult:
+        return cls(json_dict["RaftCommandIndex"], json_dict["PendingDeletes"])
 
 
 class DeleteDatabaseOperation(ServerOperation[DeleteDatabaseResult]):
@@ -262,9 +262,9 @@ class BuildNumber:
         self.commit_hash = commit_hash
         self.full_version = full_version
 
-    @staticmethod
-    def from_json(json_dict: dict) -> BuildNumber:
-        return BuildNumber(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> BuildNumber:
+        return cls(
             json_dict["ProductVersion"], json_dict["BuildVersion"], json_dict["CommitHash"], json_dict["FullVersion"]
         )
 

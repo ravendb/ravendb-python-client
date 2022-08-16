@@ -23,9 +23,9 @@ class CompareExchangeValueIncludesToken(QueryToken):
             raise ValueError("Path cannot be None")
         self.__path = path
 
-    @staticmethod
-    def create(path: str):
-        return CompareExchangeValueIncludesToken(path)
+    @classmethod
+    def create(cls, path: str):
+        return cls(path)
 
     def write_to(self, writer: List[str]):
         writer.append(f"cmpxchg('{self.__path}')")
@@ -37,13 +37,13 @@ class CounterIncludesToken(QueryToken):
         self.__all = is_all
         self.__source_path = source_path
 
-    @staticmethod
-    def create(source_path: str, counter_name: str):
-        return CounterIncludesToken(source_path, counter_name, False)
+    @classmethod
+    def create(cls, source_path: str, counter_name: str) -> CounterIncludesToken:
+        return cls(source_path, counter_name, False)
 
-    @staticmethod
-    def all(source_path: str):
-        return CounterIncludesToken(source_path, None, True)
+    @classmethod
+    def all(cls, source_path: str) -> CounterIncludesToken:
+        return cls(source_path, None, True)
 
     def add_alias_to_path(self, alias: str):
         self.__source_path = alias if not self.__source_path else f"{alias}.{self.__source_path}"
@@ -67,9 +67,9 @@ class TimeSeriesIncludesToken(QueryToken):
         self.__range = time_range
         self.__source_path = source_path
 
-    @staticmethod
-    def create(source_path: str, time_range: TimeSeriesRange):
-        return TimeSeriesIncludesToken(source_path, time_range)
+    @classmethod
+    def create(cls, source_path: str, time_range: TimeSeriesRange) -> TimeSeriesIncludesToken:
+        return cls(source_path, time_range)
 
     def add_alias_to_path(self, alias: str):
         self.__source_path = alias if not self.__source_path else f"{alias}.{self.__source_path}"
@@ -94,8 +94,10 @@ class FieldsToFetchToken(QueryToken):
         self.custom_function = custom_function
         self.source_alias = source_alias
 
-    @staticmethod
-    def create(fields_to_fetch: List[str], projections: List[str], custom_function: bool, source_alias=None):
+    @classmethod
+    def create(
+        cls, fields_to_fetch: List[str], projections: List[str], custom_function: bool, source_alias=None
+    ) -> FieldsToFetchToken:
         if not fields_to_fetch:
             raise ValueError("fields_to_fetch cannot be None")
         if (not custom_function) and projections is not None and len(projections) != len(fields_to_fetch):
@@ -131,13 +133,13 @@ class DeclareToken(QueryToken):
         self.__parameters = parameters
         self.__time_series = time_series
 
-    @staticmethod
-    def create_function(name: str, body: str, parameters: Optional[str] = None) -> DeclareToken:
-        return DeclareToken(name, body, parameters, False)
+    @classmethod
+    def create_function(cls, name: str, body: str, parameters: Optional[str] = None) -> DeclareToken:
+        return cls(name, body, parameters, False)
 
-    @staticmethod
-    def create_time_series(name: str, body: str, parameters: Optional[str] = None) -> DeclareToken:
-        return DeclareToken(name, body, parameters, True)
+    @classmethod
+    def create_time_series(cls, name: str, body: str, parameters: Optional[str] = None) -> DeclareToken:
+        return cls(name, body, parameters, True)
 
     def write_to(self, writer: List[str]) -> None:
         writer.append("declare ")
@@ -159,9 +161,9 @@ class LoadToken(QueryToken):
         self.argument = argument
         self.alias = alias
 
-    @staticmethod
-    def create(argument: str, alias: str) -> LoadToken:
-        return LoadToken(argument, alias)
+    @classmethod
+    def create(cls, argument: str, alias: str) -> LoadToken:
+        return cls(argument, alias)
 
     def write_to(self, writer: List[str]) -> None:
         writer.append(self.argument)
@@ -194,9 +196,9 @@ class FromToken(QueryToken):
     def alias(self) -> str:
         return self.__alias
 
-    @staticmethod
-    def create(index_name: str, collection_name: str, alias: str) -> FromToken:
-        return FromToken(index_name, collection_name, alias)
+    @classmethod
+    def create(cls, index_name: str, collection_name: str, alias: str) -> FromToken:
+        return cls(index_name, collection_name, alias)
 
     def write_to(self, writer: List[str]) -> None:
         if self.__index_name is None and self.__collection_name is None:
@@ -217,17 +219,17 @@ class FromToken(QueryToken):
 
 
 class OrderByToken(QueryToken):
-    @staticmethod
-    def random():
-        return OrderByToken("random()", False, OrderingType.STRING)
+    @classmethod
+    def random(cls) -> OrderByToken:
+        return cls("random()", False, OrderingType.STRING)
 
-    @staticmethod
-    def score_ascending():
-        return OrderByToken("score()", False, OrderingType.STRING)
+    @classmethod
+    def score_ascending(cls) -> OrderByToken:
+        return cls("score()", False, OrderingType.STRING)
 
-    @staticmethod
-    def score_descending():
-        return OrderByToken("score()", True, OrderingType.STRING)
+    @classmethod
+    def score_descending(cls) -> OrderByToken:
+        return cls("score()", True, OrderingType.STRING)
 
     def __init__(self, field_name: str, descending: bool, ordering_or_sorter_name: Union[OrderingType, str]):
         self.__field_name = field_name
@@ -236,9 +238,11 @@ class OrderByToken(QueryToken):
         self.__ordering = ordering_or_sorter_name if is_ordering else None
         self.__sorter_name = None if is_ordering else ordering_or_sorter_name
 
-    @staticmethod
-    def create_distance_ascending_wkt(field_name: str, wkt_parameter_name: str, round_factor_parameter_name: str):
-        return OrderByToken(
+    @classmethod
+    def create_distance_ascending_wkt(
+        cls, field_name: str, wkt_parameter_name: str, round_factor_parameter_name: str
+    ) -> OrderByToken:
+        return cls(
             f"spatial.distance({field_name}), "
             f"spatial.wkt(${wkt_parameter_name})"
             f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name + ')'}",
@@ -246,14 +250,15 @@ class OrderByToken(QueryToken):
             OrderingType.STRING,
         )
 
-    @staticmethod
+    @classmethod
     def create_distance_ascending(
+        cls,
         field_name: str,
         latitude_parameter_name: str,
         longitude_parameter_name: str,
         round_factor_parameter_name: str,
     ) -> OrderByToken:
-        return OrderByToken(
+        return cls(
             f"spatial.distance({field_name}, "
             f"spatial.point(${latitude_parameter_name}, "
             f"${longitude_parameter_name})"
@@ -262,9 +267,9 @@ class OrderByToken(QueryToken):
             OrderingType.STRING,
         )
 
-    @staticmethod
-    def create_distance_descending_wkt(field_name: str, wkt_parameter_name: str, round_factor_parameter_name: str):
-        return OrderByToken(
+    @classmethod
+    def create_distance_descending_wkt(cls, field_name: str, wkt_parameter_name: str, round_factor_parameter_name: str):
+        return cls(
             f"spatial.distance({field_name}, "
             f"spatial.wkt(${wkt_parameter_name})"
             f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name + ')'}",
@@ -272,14 +277,15 @@ class OrderByToken(QueryToken):
             OrderingType.STRING,
         )
 
-    @staticmethod
+    @classmethod
     def create_distance_descending(
+        cls,
         field_name: str,
         latitude_parameter_name: str,
         longitude_parameter_name: str,
         round_factor_parameter_name: str,
     ) -> OrderByToken:
-        return OrderByToken(
+        return cls(
             f"spatial.distance({field_name}), "
             f"spatial.point(${latitude_parameter_name}, "
             f"${longitude_parameter_name})"
@@ -288,20 +294,20 @@ class OrderByToken(QueryToken):
             OrderingType.STRING,
         )
 
-    @staticmethod
-    def create_random(seed: str) -> OrderByToken:
+    @classmethod
+    def create_random(cls, seed: str) -> OrderByToken:
         if seed is None:
             raise ValueError("Seed cannot be None")
 
-        return OrderByToken("random('" + seed.replace("'", "''") + "')", False, OrderingType.STRING)
+        return cls("random('" + seed.replace("'", "''") + "')", False, OrderingType.STRING)
 
-    @staticmethod
-    def create_ascending(field_name: str, sorter_name_or_ordering_type: Union[OrderingType, str]) -> OrderByToken:
-        return OrderByToken(field_name, False, sorter_name_or_ordering_type)
+    @classmethod
+    def create_ascending(cls, field_name: str, sorter_name_or_ordering_type: Union[OrderingType, str]) -> OrderByToken:
+        return cls(field_name, False, sorter_name_or_ordering_type)
 
-    @staticmethod
-    def create_descending(field_name: str, sorter_name_or_ordering_type: Union[OrderingType, str]) -> OrderByToken:
-        return OrderByToken(field_name, True, sorter_name_or_ordering_type)
+    @classmethod
+    def create_descending(cls, field_name: str, sorter_name_or_ordering_type: Union[OrderingType, str]) -> OrderByToken:
+        return cls(field_name, True, sorter_name_or_ordering_type)
 
     def write_to(self, writer: List[str]) -> None:
         if self.__sorter_name is not None:
@@ -330,9 +336,9 @@ class GroupByToken(QueryToken):
         self.__field_name = field_name
         self.__method = method
 
-    @staticmethod
-    def create(field_name: str, method: Optional[GroupByMethod] = GroupByMethod.NONE) -> GroupByToken:
-        return GroupByToken(field_name, method)
+    @classmethod
+    def create(cls, field_name: str, method: Optional[GroupByMethod] = GroupByMethod.NONE) -> GroupByToken:
+        return cls(field_name, method)
 
     def write_to(self, writer: List[str]):
         if self.__method is not GroupByMethod.NONE:
@@ -347,9 +353,9 @@ class GroupByKeyToken(QueryToken):
         self.__field_name = field_name
         self.__projected_name = projected_name
 
-    @staticmethod
-    def create(field_name: str, projected_name: str) -> GroupByKeyToken:
-        return GroupByKeyToken(field_name, projected_name)
+    @classmethod
+    def create(cls, field_name: str, projected_name: str) -> GroupByKeyToken:
+        return cls(field_name, projected_name)
 
     def write_to(self, writer: List[str]):
         self.write_field(writer, self.__field_name or "key()")
@@ -368,9 +374,9 @@ class GroupBySumToken(QueryToken):
         self.__field_name = field_name
         self.__projected_name = projected_name
 
-    @staticmethod
-    def create(field_name: str, projected_name: str) -> GroupBySumToken:
-        return GroupBySumToken(field_name, projected_name)
+    @classmethod
+    def create(cls, field_name: str, projected_name: str) -> GroupBySumToken:
+        return cls(field_name, projected_name)
 
     def write_to(self, writer: List[str]):
         writer.append("sum(")
@@ -388,9 +394,9 @@ class GroupByCountToken(QueryToken):
     def __init__(self, field_name: str):
         self.__field_name = field_name
 
-    @staticmethod
-    def create(field_name: str) -> GroupByCountToken:
-        return GroupByCountToken(field_name)
+    @classmethod
+    def create(cls, field_name: str) -> GroupByCountToken:
+        return cls(field_name)
 
     def write_to(self, writer: List[str]):
         writer.append("count()")
@@ -433,9 +439,9 @@ class OpenSubclauseToken(QueryToken):
     def __init__(self):
         self.boost_parameter_name: Union[None, str] = None
 
-    @staticmethod
-    def create() -> OpenSubclauseToken:
-        return OpenSubclauseToken()
+    @classmethod
+    def create(cls) -> OpenSubclauseToken:
+        return cls()
 
     def write_to(self, writer: List[str]):
         if self.boost_parameter_name is not None:
@@ -448,9 +454,9 @@ class CloseSubclauseToken(QueryToken):
     def __init__(self):
         self.boost_parameter_name: Union[None, str] = None
 
-    @staticmethod
-    def create() -> CloseSubclauseToken:
-        return CloseSubclauseToken()
+    @classmethod
+    def create(cls) -> CloseSubclauseToken:
+        return cls()
 
     def write_to(self, writer: List[str]):
         if self.boost_parameter_name is not None:
@@ -477,44 +483,45 @@ class ShapeToken(QueryToken):
     def __init__(self, shape: str):
         self.__shape = shape
 
-    @staticmethod
+    @classmethod
     def circle(
+        cls,
         radius_parameter_name: str,
         latitude_parameter_name: str,
         longitude_parameter_name: str,
         radius_units: SpatialUnits,
-    ):
+    ) -> ShapeToken:
         if radius_units is None:
-            return ShapeToken(
+            return cls(
                 f"spatial.circle(${radius_parameter_name}, "
                 f"${latitude_parameter_name}, "
                 f"${longitude_parameter_name})"
             )
 
         if radius_units == SpatialUnits.KILOMETERS:
-            return ShapeToken(
+            return cls(
                 f"spatial.circle(${radius_parameter_name}, "
                 f"${latitude_parameter_name}, "
                 f"${longitude_parameter_name}, "
                 f"'Kilometers')"
             )
 
-        return ShapeToken(
+        return cls(
             f"spatial.circle(${radius_parameter_name}, "
             f"${latitude_parameter_name}, "
             f"${longitude_parameter_name}, "
             f"'Miles')"
         )
 
-    @staticmethod
-    def wkt(shape_wkt_parameter_name: str, units: SpatialUnits) -> ShapeToken:
+    @classmethod
+    def wkt(cls, shape_wkt_parameter_name: str, units: SpatialUnits) -> ShapeToken:
         if units is None:
-            return ShapeToken(f"spatial.wkt(${shape_wkt_parameter_name})")
+            return cls(f"spatial.wkt(${shape_wkt_parameter_name})")
 
         if units == SpatialUnits.KILOMETERS:
-            return ShapeToken(f"spatial.wkt(${shape_wkt_parameter_name}, " f"'Kilometers')")
+            return cls(f"spatial.wkt(${shape_wkt_parameter_name}, " f"'Kilometers')")
 
-        return ShapeToken(f"spatial.wkt(${shape_wkt_parameter_name}, " f"'Miles')")
+        return cls(f"spatial.wkt(${shape_wkt_parameter_name}, " f"'Miles')")
 
     def write_to(self, writer: List[str]):
         writer.append(self.__shape)
@@ -587,9 +594,9 @@ class WhereToken(QueryToken):
                 )
                 self.exact = method_type__parameters__property__exact[3]
 
-        @staticmethod
-        def default_options() -> WhereToken.WhereOptions:
-            return WhereToken.WhereOptions()
+        @classmethod
+        def default_options(cls) -> WhereToken.WhereOptions:
+            return cls()
 
     def __init__(
         self,
@@ -603,14 +610,15 @@ class WhereToken(QueryToken):
         self.parameter_name = parameter_name
         self.options = where_options
 
-    @staticmethod
+    @classmethod
     def create(
+        cls,
         op: WhereOperator,
         field_name: str,
         parameter_name: Union[None, str],
         options: Optional[WhereToken.WhereOptions] = None,
     ) -> WhereToken:
-        return WhereToken(field_name, op, parameter_name, options or WhereToken.WhereOptions.default_options())
+        return cls(field_name, op, parameter_name, options or WhereToken.WhereOptions.default_options())
 
     def add_alias(self, alias: str) -> WhereToken:
         if self.field_name == "id()":
@@ -799,13 +807,13 @@ class QueryOperatorToken(QueryToken):
     def __init__(self, query_operator: QueryOperator):
         self.__query_operator = query_operator
 
-    @staticmethod
-    def AND() -> QueryOperatorToken:
-        return QueryOperatorToken(QueryOperator.AND)
+    @classmethod
+    def AND(cls) -> QueryOperatorToken:
+        return cls(QueryOperator.AND)
 
-    @staticmethod
-    def OR() -> QueryOperatorToken:
-        return QueryOperatorToken(QueryOperator.OR)
+    @classmethod
+    def OR(cls) -> QueryOperatorToken:
+        return cls(QueryOperator.OR)
 
     def write_to(self, writer: List[str]):
         if self.__query_operator == QueryOperator.AND:
@@ -822,9 +830,11 @@ class HighlightingToken(QueryToken):
         self.__fragment_count = fragment_count
         self.__operations_parameter_name = operations_parameter_name
 
-    @staticmethod
-    def create(field_name: str, fragment_length: int, fragment_count: int, operations_parameter_name: str):
-        return HighlightingToken(field_name, fragment_length, fragment_count, operations_parameter_name)
+    @classmethod
+    def create(
+        cls, field_name: str, fragment_length: int, fragment_count: int, operations_parameter_name: str
+    ) -> HighlightingToken:
+        return cls(field_name, fragment_length, fragment_count, operations_parameter_name)
 
     def write_to(self, writer: List[str]):
         writer.append("highlight(")
@@ -846,9 +856,9 @@ class ExplanationToken(QueryToken):
     def __init__(self, options_parameter_name: str):
         self.__options_parameter_name = options_parameter_name
 
-    @staticmethod
-    def create(options_parameter_name: str) -> ExplanationToken:
-        return ExplanationToken(options_parameter_name)
+    @classmethod
+    def create(cls, options_parameter_name: str) -> ExplanationToken:
+        return cls(options_parameter_name)
 
     def write_to(self, writer: List[str]) -> None:
         writer.append("explanations(")
@@ -904,11 +914,15 @@ class SuggestToken(QueryToken):
         self.__term_parameter_name = term_parameter_name
         self.__options_parameter_name = options_parameter_name
 
-    @staticmethod
+    @classmethod
     def create(
-        field_name: str, alias: Union[None, str], term_parameter_name: str, options_parameter_name: Union[None, str]
+        cls,
+        field_name: str,
+        alias: Union[None, str],
+        term_parameter_name: str,
+        options_parameter_name: Union[None, str],
     ):
-        return SuggestToken(field_name, alias, term_parameter_name, options_parameter_name)
+        return cls(field_name, alias, term_parameter_name, options_parameter_name)
 
     @property
     def field_name(self) -> str:

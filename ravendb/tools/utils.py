@@ -152,9 +152,9 @@ class Size:
         self.size_in_bytes = size_in_bytes
         self.human_size = human_size
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> Size:
-        return Size(json_dict["SizeInBytes"], json_dict["HumaneSize"])
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> Size:
+        return cls(json_dict["SizeInBytes"], json_dict["HumaneSize"])
 
 
 class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):

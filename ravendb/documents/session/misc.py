@@ -240,9 +240,9 @@ class MethodCall(ABC):
 
 
 class CmpXchg(MethodCall):
-    @staticmethod
-    def value(key: str) -> CmpXchg:
-        cmp_xchg = CmpXchg()
+    @classmethod
+    def value(cls, key: str) -> CmpXchg:
+        cmp_xchg = cls()
         cmp_xchg.args = [key]
 
         return cmp_xchg

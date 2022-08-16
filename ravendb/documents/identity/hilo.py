@@ -240,9 +240,9 @@ class HiLoResult:
         self.server_tag = server_tag
         self.last_range_at = last_range_at
 
-    @staticmethod
-    def from_json(json_dict: dict) -> HiLoResult:
-        return HiLoResult(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> HiLoResult:
+        return cls(
             json_dict["Prefix"],
             json_dict["Low"],
             json_dict["High"],

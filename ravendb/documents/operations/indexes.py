@@ -282,9 +282,9 @@ class IndexStatus:
         self.name = name
         self.status = status
 
-    @staticmethod
-    def from_json(json_dict: dict) -> IndexStatus:
-        return IndexStatus(json_dict["Name"], IndexRunningStatus(json_dict["Status"]))
+    @classmethod
+    def from_json(cls, json_dict: dict) -> IndexStatus:
+        return cls(json_dict["Name"], IndexRunningStatus(json_dict["Status"]))
 
 
 class IndexingStatus:
@@ -294,11 +294,9 @@ class IndexingStatus:
         self.status = status
         self.indexes = indexes
 
-    @staticmethod
-    def from_json(json_dict) -> IndexingStatus:
-        return IndexingStatus(
-            IndexRunningStatus(json_dict["Status"]), list(map(IndexStatus.from_json, json_dict["Indexes"]))
-        )
+    @classmethod
+    def from_json(cls, json_dict) -> IndexingStatus:
+        return cls(IndexRunningStatus(json_dict["Status"]), list(map(IndexStatus.from_json, json_dict["Indexes"])))
 
 
 class GetIndexingStatusOperation(MaintenanceOperation[IndexingStatus]):

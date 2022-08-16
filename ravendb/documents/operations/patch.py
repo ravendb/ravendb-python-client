@@ -24,9 +24,9 @@ class PatchRequest:
         self.values: Dict[str, object] = values or {}
         self.script = script
 
-    @staticmethod
-    def for_script(script: str) -> PatchRequest:
-        request = PatchRequest()
+    @classmethod
+    def for_script(cls, script: str) -> PatchRequest:
+        request = cls()
         request.script = script
         return request
 
@@ -64,9 +64,9 @@ class PatchResult:
         self.change_vector = change_vector
         self.collection = collection
 
-    @staticmethod
-    def from_json(json_dict: dict) -> PatchResult:
-        return PatchResult(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> PatchResult:
+        return cls(
             PatchStatus(json_dict["Status"]),
             json_dict.get("ModifiedDocument", None),
             json_dict.get("OriginalDocument", None),

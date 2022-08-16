@@ -27,9 +27,9 @@ class AttachmentName:
         self.content_type = content_type
         self.size = size
 
-    @staticmethod
-    def from_json(json_dict: dict) -> AttachmentName:
-        return AttachmentName(json_dict["Name"], json_dict["Hash"], json_dict["ContentType"], json_dict["Size"])
+    @classmethod
+    def from_json(cls, json_dict: dict) -> AttachmentName:
+        return cls(json_dict["Name"], json_dict["Hash"], json_dict["ContentType"], json_dict["Size"])
 
 
 class AttachmentDetails(AttachmentName):
@@ -40,9 +40,9 @@ class AttachmentDetails(AttachmentName):
         self.change_vector = change_vector
         self.document_id = document_id
 
-    @staticmethod
-    def from_json(json_dict: dict) -> AttachmentDetails:
-        return AttachmentDetails(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> AttachmentDetails:
+        return cls(
             json_dict["Name"],
             json_dict["Hash"],
             json_dict["ContentType"],

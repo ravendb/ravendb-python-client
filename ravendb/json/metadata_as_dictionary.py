@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class MetadataAsDictionary:
     def __init__(self, metadata=None, parent=None, parent_key=None):
         self._parent = parent
@@ -46,9 +49,9 @@ class MetadataAsDictionary:
     def has_parent(self):
         return self._parent is not None
 
-    @staticmethod
-    def materialize_from_json(metadata: dict):
-        result: MetadataAsDictionary = MetadataAsDictionary(None)
+    @classmethod
+    def materialize_from_json(cls, metadata: dict) -> MetadataAsDictionary:
+        result = cls(None)
         result._initialize(metadata)
         return result
 

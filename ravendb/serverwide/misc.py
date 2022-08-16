@@ -70,9 +70,9 @@ class DatabaseTopology:
     def all_nodes(self) -> List[str]:
         return [*self.members, *self.promotables, *self.rehabs]
 
-    @staticmethod
-    def from_json(json_dict: dict) -> DatabaseTopology:
-        return DatabaseTopology(
+    @classmethod
+    def from_json(cls, json_dict: dict) -> DatabaseTopology:
+        return cls(
             json_dict["Members"],
             json_dict["Promotables"],
             json_dict["Rehabs"],
@@ -93,6 +93,6 @@ class LeaderStamp:
         self.term = term
         self.leaders_ticks = leaders_ticks
 
-    @staticmethod
-    def from_json(json_dict: Dict) -> LeaderStamp:
-        return LeaderStamp(json_dict["Index"], json_dict["Term"], json_dict["LeadersTicks"])
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> LeaderStamp:
+        return cls(json_dict["Index"], json_dict["Term"], json_dict["LeadersTicks"])

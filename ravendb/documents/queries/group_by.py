@@ -12,10 +12,10 @@ class GroupBy:
         self.field = field
         self.method = method
 
-    @staticmethod
-    def field(field_name: str) -> GroupBy:
-        return GroupBy(field_name, GroupByMethod.NONE)
+    @classmethod
+    def field(cls, field_name: str) -> GroupBy:
+        return cls(field_name, GroupByMethod.NONE)
 
-    @staticmethod
-    def array(field_name: str) -> GroupBy:
-        return GroupBy(field_name, GroupByMethod.ARRAY)
+    @classmethod
+    def array(cls, field_name: str) -> GroupBy:
+        return cls(field_name, GroupByMethod.ARRAY)

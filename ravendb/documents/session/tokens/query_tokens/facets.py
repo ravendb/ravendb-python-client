@@ -32,8 +32,8 @@ class FacetToken(QueryToken):
     def name(self) -> str:
         return self._alias or self._aggregate_by_field_name
 
-    @staticmethod
-    def create():
+    @classmethod
+    def create(cls) -> FacetToken:
         pass
 
     @classmethod
@@ -154,18 +154,18 @@ class FacetToken(QueryToken):
             else None
         )
 
-    @staticmethod
-    def __apply_aggregations(facet: facets_definitions.FacetBase, token: FacetToken) -> None:
+    @classmethod
+    def __apply_aggregations(cls, facet: facets_definitions.FacetBase, token: FacetToken) -> None:
         for key, value in facet.aggregations.items():
             for value_ in value:
                 if key == FacetAggregation.MAX:
-                    aggregation_token = FacetToken._FacetAggregationToken.max(value_.name, value_.display_name)
+                    aggregation_token = cls._FacetAggregationToken.max(value_.name, value_.display_name)
                 elif key == FacetAggregation.MIN:
-                    aggregation_token = FacetToken._FacetAggregationToken.min(value_.name, value_.display_name)
+                    aggregation_token = cls._FacetAggregationToken.min(value_.name, value_.display_name)
                 elif key == FacetAggregation.AVERAGE:
-                    aggregation_token = FacetToken._FacetAggregationToken.average(value_.name, value_.display_name)
+                    aggregation_token = cls._FacetAggregationToken.average(value_.name, value_.display_name)
                 elif key == FacetAggregation.SUM:
-                    aggregation_token = FacetToken._FacetAggregationToken.sum(value_.name, value_.display_name)
+                    aggregation_token = cls._FacetAggregationToken.sum(value_.name, value_.display_name)
                 else:
                     raise NotImplementedError(f"Unsupported aggregation method: {key}")
 
@@ -207,26 +207,28 @@ class FacetToken(QueryToken):
             writer.append(" as ")
             self.write_field(writer, self.__field_display_name)
 
-        @staticmethod
-        def max(field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
+        @classmethod
+        def max(cls, field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
             if field_name.isspace():
                 raise ValueError("field_name cannot be None")
-            return FacetToken._FacetAggregationToken(field_name, field_display_name, FacetAggregation.MAX)
+            return cls(field_name, field_display_name, FacetAggregation.MAX)
 
-        @staticmethod
-        def min(field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
+        @classmethod
+        def min(cls, field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
             if field_name.isspace():
                 raise ValueError("field_name cannot be None")
-            return FacetToken._FacetAggregationToken(field_name, field_display_name, FacetAggregation.MIN)
+            return cls(field_name, field_display_name, FacetAggregation.MIN)
 
-        @staticmethod
-        def average(field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
+        @classmethod
+        def average(
+            cls, field_name: str, field_display_name: Optional[str] = None
+        ) -> FacetToken._FacetAggregationToken:
             if field_name.isspace():
                 raise ValueError("field_name cannot be None")
-            return FacetToken._FacetAggregationToken(field_name, field_display_name, FacetAggregation.AVERAGE)
+            return cls(field_name, field_display_name, FacetAggregation.AVERAGE)
 
-        @staticmethod
-        def sum(field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
+        @classmethod
+        def sum(cls, field_name: str, field_display_name: Optional[str] = None) -> FacetToken._FacetAggregationToken:
             if field_name.isspace():
                 raise ValueError("field_name cannot be None")
-            return FacetToken._FacetAggregationToken(field_name, field_display_name, FacetAggregation.SUM)
+            return cls(field_name, field_display_name, FacetAggregation.SUM)

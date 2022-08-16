@@ -69,9 +69,9 @@ class MoreLikeThisOptions:
     DEFAULT_MAXIMUM_WORD_LENGTH = 0
     DEFAULT_MAXIMUM_QUERY_TERMS = 25
 
-    @staticmethod
-    def default_options() -> MoreLikeThisOptions:
-        return MoreLikeThisOptions()
+    @classmethod
+    def default_options(cls) -> MoreLikeThisOptions:
+        return cls()
 
     def __init__(
         self,

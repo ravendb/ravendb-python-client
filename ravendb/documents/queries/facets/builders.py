@@ -155,9 +155,9 @@ class RangeBuilder(Generic[_T]):
 
         self.__path = path
 
-    @staticmethod
-    def for_path(path: str) -> RangeBuilder[_T]:
-        return RangeBuilder(path)
+    @classmethod
+    def for_path(cls, path: str) -> RangeBuilder[_T]:
+        return cls(path)
 
     def __create_clone(self) -> RangeBuilder[_T]:
         builder = RangeBuilder(self.__path)

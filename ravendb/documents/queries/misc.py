@@ -31,20 +31,20 @@ class Query:
     def index_type(self) -> Type[_TIndex]:
         return self.__index_type
 
-    @staticmethod
-    def from_collection_name(collection_name: str) -> Query:
-        query = Query()
+    @classmethod
+    def from_collection_name(cls, collection_name: str) -> Query:
+        query = cls()
         query.__collection_name = collection_name
         return query
 
-    @staticmethod
-    def from_index_name(index_name: str) -> Query:
-        query = Query()
+    @classmethod
+    def from_index_name(cls, index_name: str) -> Query:
+        query = cls()
         query.__index_name = index_name
         return query
 
-    @staticmethod
-    def from_index_type(index_type: Type[_TIndex]) -> Query:
-        query = Query()
+    @classmethod
+    def from_index_type(cls, index_type: Type[_TIndex]) -> Query:
+        query = cls()
         query.__index_type = index_type
         return query

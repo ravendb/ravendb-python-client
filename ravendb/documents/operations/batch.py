@@ -60,7 +60,7 @@ class BatchOperation:
 
             type_as_str = str(c_type)
 
-            command_type = CommandType.parse_csharp_value(type_as_str)
+            command_type = CommandType.from_csharp_value_str(type_as_str)
             return command_type
 
         if result.results is None:
