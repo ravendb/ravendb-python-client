@@ -83,12 +83,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         )
         self.__cluster_transaction: Union[None, ClusterTransactionOperations] = None
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
     @property
     def advanced(self):
         return self.__advanced

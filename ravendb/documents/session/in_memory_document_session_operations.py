@@ -417,64 +417,11 @@ _T = TypeVar("_T")
 class InMemoryDocumentSessionOperations:
     __instances_counter: int = 0
 
-    class SaveChangesData:
-        def __init__(self, session: InMemoryDocumentSessionOperations):
-            self.deferred_commands: List[CommandData] = session.deferred_commands
-            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session.deferred_commands_map
-            self.session_commands: List[CommandData] = []
-            self.entities: List = []
-            self.options = session._save_changes_options
-            self.on_success = InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess(session)
+    def __enter__(self):
+        return self
 
-        class ActionsToRunOnSuccess:
-            def __init__(self, session: InMemoryDocumentSessionOperations):
-                self.__session = session
-                self.__documents_by_id_to_remove: List[str] = []
-                self.__documents_by_entity_to_remove: List = []
-                self.__document_infos_to_update: List[Tuple[DocumentInfo, dict]] = []
-                self.__clear_deleted_entities: bool = False
-
-            def remove_document_by_id(self, key: str):
-                self.__documents_by_id_to_remove.append(key)
-
-            def remove_document_by_entity(self, entity):
-                self.__documents_by_entity_to_remove.append(entity)
-
-            def update_entity_document_info(self, document_info: DocumentInfo, document: dict):
-                self.__document_infos_to_update.append((document_info, document))
-
-            def clear_session_state_after_successful_save_changes(self):
-                for key in self.__documents_by_id_to_remove:
-                    self.__session.documents_by_id.pop(key)
-                for key in self.__documents_by_entity_to_remove:
-                    self.__session.documents_by_entity.pop(key)
-
-                for document_info_dict_tuple in self.__document_infos_to_update:
-                    info: DocumentInfo = document_info_dict_tuple[0]
-                    document: dict = document_info_dict_tuple[1]
-                    info.new_document = False
-                    info.document = document
-
-                if self.__clear_deleted_entities:
-                    self.__session.deleted_entities.clear()
-
-                self.__session.deferred_commands.clear()
-                self.__session.deferred_commands_map.clear()
-
-            def clear_deleted_entities(self) -> None:
-                self.__clear_deleted_entities = True
-
-    @staticmethod
-    def raise_no_database() -> None:
-        raise RuntimeError(
-            "Cannot open a Session without specyfing a name of a database "
-            "to operate on. Database name can be passed as an argument when Session is"
-            " being opened or default database can be defined using 'DocumentStore.database' field"
-        )
-
-    @abstractmethod
-    def _generate_id(self, entity: object) -> str:
-        pass
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def __init__(self, store: "DocumentStore", key: uuid.UUID, options: SessionOptions):
         self.__id = key
@@ -695,6 +642,18 @@ class InMemoryDocumentSessionOperations:
     #     Get A counters object associated with the document
     #     """
     #     return ravendb.documents.DocumentCounters(self, entity_or_document_id)
+
+    @staticmethod
+    def raise_no_database() -> None:
+        raise RuntimeError(
+            "Cannot open a Session without specyfing a name of a database "
+            "to operate on. Database name can be passed as an argument when Session is"
+            " being opened or default database can be defined using 'DocumentStore.database' field"
+        )
+
+    @abstractmethod
+    def _generate_id(self, entity: object) -> str:
+        pass
 
     def get_metadata_for(self, entity: object) -> MetadataAsDictionary:
         if entity is None:
@@ -1329,7 +1288,7 @@ class InMemoryDocumentSessionOperations:
         if self.__is_disposed:
             return
 
-        self.on_session_closing(self)
+        self.session_closing_invoke(SessionClosingEventArgs(self))
         self.__is_disposed = True
 
     def close(self) -> None:
@@ -1930,3 +1889,50 @@ class InMemoryDocumentSessionOperations:
         def wait_for_indexes(self, *indexes: str) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
             self.get_options().index_options.wait_for_indexes = indexes
             return self
+
+    class SaveChangesData:
+        def __init__(self, session: InMemoryDocumentSessionOperations):
+            self.deferred_commands: List[CommandData] = session.deferred_commands
+            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session.deferred_commands_map
+            self.session_commands: List[CommandData] = []
+            self.entities: List = []
+            self.options = session._save_changes_options
+            self.on_success = InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess(session)
+
+        class ActionsToRunOnSuccess:
+            def __init__(self, session: InMemoryDocumentSessionOperations):
+                self.__session = session
+                self.__documents_by_id_to_remove: List[str] = []
+                self.__documents_by_entity_to_remove: List = []
+                self.__document_infos_to_update: List[Tuple[DocumentInfo, dict]] = []
+                self.__clear_deleted_entities: bool = False
+
+            def remove_document_by_id(self, key: str):
+                self.__documents_by_id_to_remove.append(key)
+
+            def remove_document_by_entity(self, entity):
+                self.__documents_by_entity_to_remove.append(entity)
+
+            def update_entity_document_info(self, document_info: DocumentInfo, document: dict):
+                self.__document_infos_to_update.append((document_info, document))
+
+            def clear_session_state_after_successful_save_changes(self):
+                for key in self.__documents_by_id_to_remove:
+                    self.__session.documents_by_id.pop(key)
+                for key in self.__documents_by_entity_to_remove:
+                    self.__session.documents_by_entity.pop(key)
+
+                for document_info_dict_tuple in self.__document_infos_to_update:
+                    info: DocumentInfo = document_info_dict_tuple[0]
+                    document: dict = document_info_dict_tuple[1]
+                    info.new_document = False
+                    info.document = document
+
+                if self.__clear_deleted_entities:
+                    self.__session.deleted_entities.clear()
+
+                self.__session.deferred_commands.clear()
+                self.__session.deferred_commands_map.clear()
+
+            def clear_deleted_entities(self) -> None:
+                self.__clear_deleted_entities = True
