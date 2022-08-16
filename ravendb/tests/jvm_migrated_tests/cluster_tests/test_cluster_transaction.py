@@ -43,11 +43,11 @@ class TestClusterTransaction(TestBase):
 
         with self.store.open_session(session_options=options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("usernames/ayende", user1)
-            session.transaction_mode = TransactionMode.SINGLE_NODE
+            session.advanced.transaction_mode = TransactionMode.SINGLE_NODE
             with self.assertRaises(RuntimeError):
                 session.save_changes()
 
-            session.transaction_mode = TransactionMode.CLUSTER_WIDE
+            session.advanced.transaction_mode = TransactionMode.CLUSTER_WIDE
             session.save_changes()
 
             u = session.advanced.cluster_transaction.get_compare_exchange_value("usernames/ayende", User)

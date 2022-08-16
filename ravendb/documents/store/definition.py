@@ -601,7 +601,7 @@ class DocumentCounters:
             self._session.deferred_commands_map[
                 IdTypeAndName.create(self._document_id, CommandType.COUNTERS, None)
             ] = command
-            self._session.defer(command)
+            self._session._defer(command)
 
     def delete(self, counter_name):
         if not counter_name:
@@ -622,13 +622,13 @@ class DocumentCounters:
             command.counters.add_operations(counter_operation)
 
         command = CountersBatchCommandData(self._document_id, counter_operations=counter_operation)
-        self._session.counters_defer_commands[self._document_id] = command
-        self._session.defer(command)
+        self._session.deferred_commands_map[self._document_id] = command  # IdTypeAndName
+        self._session._defer(command)
 
-        cache = self._session.counters_by_document_id.get(self._document_id, None)
+        cache = self._session._counters_by_doc_id.get(self._document_id, None)
         if cache:
             cache[1].pop(counter_name, None)
-        cache = self._session.included_counters_by_document_id.get(self._document_id, None)
+        cache = self._session._included_counters_by_document_id.get(self._document_id, None)
         if cache:
             cache[1].pop(counter_name, None)
 

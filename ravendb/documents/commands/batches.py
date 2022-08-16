@@ -414,7 +414,7 @@ class PatchCommandData(CommandData):
         self.return_document: Union[None, bool] = None
 
         def __consumer(session: InMemoryDocumentSessionOperations) -> None:
-            self.return_document = session.is_loaded(key)
+            self.return_document = session.advanced.is_loaded(key)
 
         self.__on_before_save_changes = __consumer
 

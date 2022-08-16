@@ -14,7 +14,7 @@ class ConditionalLoadTest(TestBase):
 
         with self.store.open_session() as new_session:
             user = new_session.load("users/1", User)
-            cv = new_session.get_change_vector_for(user)
+            cv = new_session.advanced.get_change_vector_for(user)
             self.assertIsNotNone(user)
             self.assertEqual("RavenDB", user.name)
             user.name = "RavenDB 5.1"
@@ -38,7 +38,7 @@ class ConditionalLoadTest(TestBase):
             self.assertEqual("RavenDB", user.name)
             user.name = "RavenDB 5.1"
             new_session.save_changes()
-            cv = new_session.get_change_vector_for(user)
+            cv = new_session.advanced.get_change_vector_for(user)
 
         with self.store.open_session() as newest_session:
             user = newest_session.advanced.conditional_load("users/1", cv, User)
@@ -59,7 +59,7 @@ class ConditionalLoadTest(TestBase):
             self.assertEqual("RavenDB", user.name)
             user.name = "RavenDB 5.1"
             new_session.save_changes()
-            cv = new_session.get_change_vector_for(user)
+            cv = new_session.advanced.get_change_vector_for(user)
 
         with self.store.open_session() as newest_session:
             with self.assertRaises(ValueError):
@@ -68,7 +68,7 @@ class ConditionalLoadTest(TestBase):
             result = newest_session.advanced.conditional_load("users/2", cv, User)
             self.assertIsNone(result.entity)
             self.assertIsNone(result.change_vector)
-            self.assertTrue(newest_session.is_loaded("users/2"))
+            self.assertTrue(newest_session.advanced.is_loaded("users/2"))
 
             expected = newest_session.advanced.number_of_requests
             newest_session.load("users/2", User)

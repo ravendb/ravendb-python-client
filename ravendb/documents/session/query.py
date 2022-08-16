@@ -251,8 +251,8 @@ class AbstractDocumentQuery(Generic[_T]):
     @property
     def index_query(self) -> IndexQuery:
         server_version = None
-        if self._the_session is not None and self._the_session.request_executor is not None:
-            server_version = self._the_session.request_executor.last_server_version
+        if self._the_session is not None and self._the_session.advanced.request_executor is not None:
+            server_version = self._the_session.advanced.request_executor.last_server_version
 
         compability_mode = server_version is not None and server_version < "4.2"
 
@@ -1546,7 +1546,7 @@ class AbstractDocumentQuery(Generic[_T]):
     def __execute_actual_query(self) -> None:
         self._query_operation.enter_query_context()  # todo: improve with context manager
         command = self._query_operation.create_request()
-        self._the_session.request_executor.execute_command(command, self._the_session.session_info)
+        self._the_session.advanced.request_executor.execute_command(command, self._the_session.session_info)
         self._query_operation.set_result(command.result)
         self.invoke_after_query_executed(self._query_operation.current_query_results)
 

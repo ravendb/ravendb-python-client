@@ -39,10 +39,10 @@ class TestRavenDB13735(TestBase):
                 tzinfo=datetime_now.tzinfo,
             )
 
-            session.get_metadata_for(user)["@refresh"] = hour_ago.isoformat()
+            session.advanced.get_metadata_for(user)["@refresh"] = hour_ago.isoformat()
             session.save_changes()
 
-            expected_change_vector = session.get_change_vector_for(user)
+            expected_change_vector = session.advanced.get_change_vector_for(user)
 
         sw = Stopwatch.create_started()
 
@@ -54,7 +54,7 @@ class TestRavenDB13735(TestBase):
                 user = session.load("users/1-A", User)
                 self.assertIsNotNone(user)
 
-                if not session.get_change_vector_for(user) == expected_change_vector:
+                if not session.advanced.get_change_vector_for(user) == expected_change_vector:
                     # change vector was changed - great!
                     break
 

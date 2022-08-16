@@ -65,7 +65,7 @@ class DocumentCounters:
         else:
             command = CountersBatchCommandData(self._document_id, counter_operations=counter_operation)
             self._session.counters_defer_commands[self._document_id] = command
-            self._session.defer(command)
+            self._session.advanced.defer(command)
 
     def delete(self, counter_name):
         if not counter_name:
@@ -87,7 +87,7 @@ class DocumentCounters:
 
         command = CountersBatchCommandData(self._document_id, counter_operations=counter_operation)
         self._session.counters_defer_commands[self._document_id] = command
-        self._session.defer(command)
+        self._session.advanced.defer(command)
 
         cache = self._session.counters_by_document_id.get(self._document_id, None)
         if cache:

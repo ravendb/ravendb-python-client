@@ -194,7 +194,7 @@ class LazySessionOperations:
 
         if isinstance(ids, str):
             key = ids
-            if self._delegate.is_loaded(key):
+            if self._delegate.advanced.is_loaded(key):
                 return Lazy(lambda: self._delegate.load(key, object_type))
 
             lazy_load_operation = LazyLoadOperation(

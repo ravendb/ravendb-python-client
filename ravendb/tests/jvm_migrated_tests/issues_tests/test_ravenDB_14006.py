@@ -89,7 +89,7 @@ class TestRavenDB14006(TestBase):
 
             self.assertEqual(number_of_requests + 1, session.number_of_requests)
 
-            session.clear()
+            session.advanced.clear()
 
             value3 = session.advanced.cluster_transaction.get_compare_exchange_value(company.external_id, Address)
             self.assertNotEqual(value2, value3)

@@ -62,7 +62,7 @@ class TestRavenDB16334(TestBase):
 
         # act
         with self.store.open_session() as session:
-            session.wait_for_indexes_after_save_changes(
+            session.advanced.wait_for_indexes_after_save_changes(
                 lambda builder: builder.with_timeout(datetime.timedelta(seconds=15))
                 .throw_on_timeout(True)
                 .wait_for_indexes(None if all_indexes else ["MyIndex"])

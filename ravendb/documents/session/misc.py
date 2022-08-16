@@ -46,7 +46,7 @@ class SessionInfo:
         self.__session = session
         self.__session_id: Union[None, int] = None
         self.__session_id_used: Union[None, bool] = None
-        self.__load_balancer_context_seed = session.request_executor.conventions.load_balancer_context_seed
+        self.__load_balancer_context_seed = session._request_executor.conventions.load_balancer_context_seed
         self.__can_use_load_balance_behavior = (
             session.conventions.load_balance_behavior == LoadBalanceBehavior.USE_SESSION_CONTEXT
             and session.conventions.load_balancer_per_session_context_selector is not None
