@@ -327,6 +327,12 @@ class DocumentStore(DocumentStoreBase):
         self.__after_close: List[Callable[[], None]] = []
         self.__before_close: List[Callable[[], None]] = []
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     @property
     def thread_pool_executor(self):
         return self.__thread_pool_executor
