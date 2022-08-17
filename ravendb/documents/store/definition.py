@@ -466,7 +466,7 @@ class DocumentStore(DocumentStoreBase):
 
         self.maintenance.for_database(self.get_effective_database(database)).send(PutIndexesOperation(indexes_to_add))
 
-    def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges:
+    def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges: # todo: sync with java
         self.assert_initialized()
         if not database:
             database = self.database
