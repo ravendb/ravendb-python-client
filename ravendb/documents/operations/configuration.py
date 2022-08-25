@@ -15,7 +15,7 @@ from ravendb.util.util import RaftIdGenerator
 from ravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class StudioEnvironment(Enum):
@@ -136,7 +136,7 @@ class PutClientConfigurationOperation(VoidMaintenanceOperation):
                 "PUT", f"{node.url}/databases/{node.database}/admin/configuration/client", data=self.__configuration
             )
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -163,7 +163,7 @@ class PutServerWideClientConfigurationOperation(VoidServerOperation):
         def create_request(self, node: ServerNode) -> requests.Request:
             return requests.Request("PUT", f"{node.url}/admin/configuration/client", data=self.__configuration)
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 

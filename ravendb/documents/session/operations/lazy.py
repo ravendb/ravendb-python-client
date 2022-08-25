@@ -22,7 +22,7 @@ from ravendb.documents.queries.query import QueryResult
 from ravendb.extensions.json_extensions import JsonExtensions
 from ravendb.documents.commands.crud import GetDocumentsResult, ConditionalGetDocumentsCommand
 from ravendb.documents.session.operations.load_operation import LoadOperation
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
 from ravendb.documents.commands.multi_get import Content, GetRequest, GetResponse
 

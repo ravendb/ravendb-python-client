@@ -1,24 +1,25 @@
 # todo: DatabaseChanges class
 import time
-from typing import Callable, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING, Optional
 
-import ravendb.documents.operations as doc_operations
+from ravendb.documents.operations.definitions import OperationExceptionResult
 from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from ravendb.http.raven_command import RavenCommand
-from ravendb.primitives import OperationCancelledException
+from ravendb.primitives.exceptions import OperationCancelledException
 from ravendb.tools.utils import Utils
 from ravendb.documents.operations.misc import GetOperationStateOperation
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from ravendb.http.request_executor import RequestExecutor
+    from ravendb.changes.database_changes import DatabaseChanges
 
 
 class Operation:
     def __init__(
         self,
         request_executor: "RequestExecutor",
-        changes: Callable[[], "DatabaseChanges"],
+        changes: Optional[Callable[[], "DatabaseChanges"]],
         conventions: "DocumentConventions",
         key: int,
         node_tag: str = None,
@@ -50,8 +51,8 @@ class Operation:
                 raise OperationCancelledException()
             elif operation_status == "Faulted":
                 result = status.get("Result")
-                exception_result: doc_operations.OperationExceptionResult = Utils.initialize_object(
-                    result, doc_operations.OperationExceptionResult, True
+                exception_result: OperationExceptionResult = Utils.initialize_object(
+                    result, OperationExceptionResult, True
                 )
                 schema = ExceptionDispatcher.ExceptionSchema(
                     self.__request_executor.url, exception_result.type, exception_result.message, exception_result.error

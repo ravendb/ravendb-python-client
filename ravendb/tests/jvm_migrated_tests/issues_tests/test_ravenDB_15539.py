@@ -1,4 +1,4 @@
-from ravendb.documents.conventions.misc import ShouldIgnoreEntityChanges
+from ravendb.documents.conventions import ShouldIgnoreEntityChanges
 from ravendb.documents.store.definition import DocumentStore
 from ravendb.tests.test_base import TestBase
 

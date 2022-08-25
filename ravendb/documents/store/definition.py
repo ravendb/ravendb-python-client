@@ -36,7 +36,7 @@ from ravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
 from ravendb.http.topology import Topology
 from ravendb.legacy.raven_operations.counters_operations import GetCountersOperation, CounterOperation
 from ravendb.tools.utils import CaseInsensitiveDict
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 
 T = TypeVar("T")
 
@@ -466,7 +466,7 @@ class DocumentStore(DocumentStoreBase):
 
         self.maintenance.for_database(self.get_effective_database(database)).send(PutIndexesOperation(indexes_to_add))
 
-    def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges: # todo: sync with java
+    def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges:  # todo: sync with java
         self.assert_initialized()
         if not database:
             database = self.database

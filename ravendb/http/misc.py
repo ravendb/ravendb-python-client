@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from ravendb.http.topology import ClusterTopology, NodeStatus
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class ClusterTopologyResponse:

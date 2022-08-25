@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.store.definition import DocumentStore
 from ravendb.tests.test_base import TestBase
 

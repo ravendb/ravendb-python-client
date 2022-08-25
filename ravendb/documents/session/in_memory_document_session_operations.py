@@ -12,7 +12,6 @@ from ravendb.documents.session.misc import (
     SessionInfo,
     ForceRevisionStrategy,
     DocumentsChanges,
-    DocumentQueryCustomization,
 )
 
 try:
@@ -22,13 +21,12 @@ except Exception:
 
 import uuid as uuid
 from copy import deepcopy, Error
-from typing import Optional, Union, Callable, TYPE_CHECKING, List, Dict, Set, Type, TypeVar, Any, Tuple
+from typing import Optional, Union, Callable, List, Dict, Set, Type, TypeVar, Tuple
 
 from ravendb import constants
 from ravendb.documents.commands.crud import GetDocumentsResult
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
-from ravendb.http.request_executor import RequestExecutor
 from ravendb.exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
 from ravendb.data.timeseries import TimeSeriesRangeResult
 from ravendb.documents.commands.batches import (
@@ -481,9 +479,6 @@ class InMemoryDocumentSessionOperations:
             self._request_executor.conventions.max_number_of_requests_per_session
         )
 
-        # todo: events object
-        self.events = None
-
         # --- EVENTS ---
         self.__before_store: List[Callable[[BeforeStoreEventArgs], None]] = []
         self.__after_save_changes: List[Callable[[AfterSaveChangesEventArgs], None]] = []
@@ -704,6 +699,31 @@ class InMemoryDocumentSessionOperations:
         return self.track_entity(
             entity_type, document_found.key, document_found.document, document_found.metadata, self.no_tracking
         )
+
+    def register_external_loaded_into_the_session(self, info: DocumentInfo) -> None:
+        if self.no_tracking:
+            return
+
+        existing = self.documents_by_id.get_value(info.key)
+        if existing is not None:
+            if existing.entity == info.entity:
+                return
+
+            raise RuntimeError(f"The document {info.key} is already in the session with a different entity instance.")
+
+        existing_entity = self.documents_by_entity.get(info.entity)
+        if existing_entity is not None:
+            if existing_entity.key.lower() == info.key.lower():
+                return
+
+            raise RuntimeError(
+                f"Attempted to load an entity with id {info.key}, "
+                f"but the entity instance already exists in the session with id: {existing_entity.key}"
+            )
+
+        self.documents_by_entity[info.entity] = info
+        self.documents_by_id.add(info)
+        self.included_documents_by_id.pop(info.key)
 
     def track_entity(
         self,

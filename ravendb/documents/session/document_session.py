@@ -71,7 +71,7 @@ from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents.store.definition import DocumentStore

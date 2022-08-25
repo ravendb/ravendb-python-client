@@ -306,5 +306,5 @@ class NodeStatus:
 
 class RaftCommand:
     @abstractmethod
-    def raft_unique_request_id(self) -> str:
+    def get_raft_unique_request_id(self) -> str:
         pass

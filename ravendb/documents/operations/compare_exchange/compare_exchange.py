@@ -4,12 +4,11 @@ from enum import Enum
 from typing import Union, Optional, Generic, TypeVar, Type
 
 from ravendb import constants
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.commands.batches import PutCompareExchangeCommandData, DeleteCompareExchangeCommandData
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.entity_to_json import EntityToJson
-from ravendb.tools.projection import create_entity_with_mapper
 from ravendb.tools.utils import Utils
 
 _T = TypeVar("_T")

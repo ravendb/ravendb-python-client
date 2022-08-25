@@ -21,7 +21,7 @@ from ravendb.tools.utils import CaseInsensitiveSet, Utils
 from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.patch import PatchRequest
     from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 

@@ -8,7 +8,7 @@ from ravendb.http.server_node import ServerNode
 from ravendb.serverwide.operations.common import ServerOperation
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class AdminJsConsoleOperation(ServerOperation[dict]):

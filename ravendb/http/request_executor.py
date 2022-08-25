@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, List, Dict, Tuple
 
 if TYPE_CHECKING:
     from ravendb.documents.session import SessionInfo
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from typing import Union, Callable, Any, Optional
 
 
@@ -127,6 +127,14 @@ class RequestExecutor:
             self.__update_topology_timer.cancel()
 
         self._dispose_all_failed_nodes_timers()
+
+    @property
+    def certificate_path(self) -> str:
+        return self.__certificate_path
+
+    @property
+    def trust_store_path(self) -> str:
+        return self.__trust_store_path
 
     @property
     def url(self) -> Union[None, str]:

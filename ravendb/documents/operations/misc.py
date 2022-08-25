@@ -11,7 +11,7 @@ from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents import DocumentStore
 
 

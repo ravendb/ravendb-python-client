@@ -4,7 +4,7 @@ import datetime
 import enum
 import json
 from abc import abstractmethod
-from typing import Generic, TypeVar, TYPE_CHECKING, Optional, List
+from typing import Generic, TypeVar, TYPE_CHECKING, Optional, List, Dict
 import requests
 
 from ravendb import constants
@@ -17,9 +17,10 @@ from ravendb.util.util import RaftIdGenerator
 from ravendb.http.topology import RaftCommand
 
 if TYPE_CHECKING:
-    from ravendb.http import VoidRavenCommand, ServerNode
+    from ravendb.http.server_node import ServerNode
+    from ravendb.http.raven_command import VoidRavenCommand
     from ravendb.http.request_executor import RequestExecutor
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 T = TypeVar("T")
 
@@ -164,7 +165,7 @@ class CreateDatabaseOperation(ServerOperation):
             return False
 
         @property
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -238,12 +239,12 @@ class DeleteDatabaseOperation(ServerOperation[DeleteDatabaseResult]):
         def is_read_request(self) -> bool:
             return False
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
         def create_request(self, node: ServerNode) -> requests.Request:
             request = requests.Request(
-                "DELETE", f"{node.url}/admin/databases?raft-request-id={self.raft_unique_request_id()}"
+                "DELETE", f"{node.url}/admin/databases?raft-request-id={self.get_raft_unique_request_id()}"
             )
             request.headers["Content-type"] = "application/json"
             request.data = self.__parameters.to_json()
@@ -347,3 +348,19 @@ class GetDatabaseNamesOperation(ServerOperation[List[str]]):
 
         def is_read_request(self) -> bool:
             return True
+
+
+class ModifyOngoingTaskResult:
+    def __init__(
+        self,
+        task_id: Optional[int] = None,
+        raft_command_index: Optional[int] = None,
+        responsible_node: Optional[str] = None,
+    ):
+        self.task_id = task_id
+        self.raft_command_id = raft_command_index
+        self.responsible_node = responsible_node
+
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> ModifyOngoingTaskResult:
+        return cls(json_dict["TaskId"], json_dict["RaftCommandId"], json_dict["ResponsibleNode"])

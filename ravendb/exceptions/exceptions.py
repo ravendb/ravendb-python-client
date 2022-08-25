@@ -1,3 +1,6 @@
+from typing import Optional, Dict
+
+
 class InvalidOperationException(Exception):
     pass
 
@@ -90,7 +93,9 @@ class SubscriptionInUseException(SubscriptionException):
 
 
 class SubscriptionClosedException(SubscriptionException):
-    pass
+    def __init__(self, *args, can_reconnect: Optional[bool] = None):
+        super(SubscriptionClosedException, self).__init__(*args)
+        self.can_reconnect = can_reconnect
 
 
 class SubscriptionInvalidStateException(SubscriptionException):
@@ -102,9 +107,10 @@ class SubscriptionDoesNotExistException(SubscriptionException):
 
 
 class SubscriptionDoesNotBelongToNodeException(SubscriptionException):
-    def __init__(self, appropriate_node, message):
-        super(SubscriptionDoesNotBelongToNodeException, self).__init__(message)
+    def __init__(self, *args, appropriate_node: Optional[str] = None, reasons: Dict[str, str] = None):
+        super(SubscriptionDoesNotBelongToNodeException, self).__init__(*args)
         self.appropriate_node = appropriate_node
+        self.reasons = reasons
 
 
 class SubscriptionChangeVectorUpdateConcurrencyException(SubscriptionException):

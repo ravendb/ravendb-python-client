@@ -16,7 +16,7 @@ from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class PutIndexesOperation(MaintenanceOperation):
@@ -47,7 +47,7 @@ class PutIndexesOperation(MaintenanceOperation):
                     raise ValueError("None Index name is not valid")
                 self.indexes_to_add.append(index_definition.to_json())
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
         def is_read_request(self) -> bool:
@@ -124,7 +124,7 @@ class DeleteIndexOperation(VoidMaintenanceOperation):
                 f"{server_node.url}/databases/{server_node.database}/indexes?name={Utils.quote_key(self.__index_name)}",
             )
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -155,7 +155,7 @@ class DisableIndexOperation(VoidMaintenanceOperation):
                 f"&clusterWide={self.__cluster_wide}",
             )
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -515,7 +515,7 @@ class SetIndexesLockOperation(VoidMaintenanceOperation):
         def is_read_request(self) -> bool:
             return False
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
         def create_request(self, server_node):
@@ -551,7 +551,7 @@ class SetIndexesPriorityOperation(VoidMaintenanceOperation):
         def is_read_request(self) -> bool:
             return False
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 

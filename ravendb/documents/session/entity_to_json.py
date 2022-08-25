@@ -1,21 +1,20 @@
 import inspect
+from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING, Union, Type, TypeVar
+from typing import Optional, TYPE_CHECKING, Union, Type, TypeVar, Dict
 
 from ravendb import constants
+from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.event_args import (
     BeforeConversionToDocumentEventArgs,
     AfterConversionToDocumentEventArgs,
 )
 from ravendb.exceptions import exceptions
-from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.exceptions.exceptions import InvalidOperationException
-from ravendb.tools.projection import create_entity_with_mapper
 from ravendb.tools.utils import Utils, _DynamicStructure
-from copy import deepcopy
+from ravendb.documents.conventions import DocumentConventions
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
     from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
@@ -76,8 +75,7 @@ class EntityToJson:
         self, entity_type: Type[_T], key: str, document: dict, track_entity: bool, nested_object_types=None
     ) -> _T:
         conventions = self._session.conventions
-        events = self._session.events
-        return self.convert_to_entity_static(document, entity_type, conventions, events, nested_object_types)
+        return self.convert_to_entity_static(document, entity_type, conventions, nested_object_types)
 
     @staticmethod
     def populate_entity_static(entity, document: dict) -> None:
@@ -126,9 +124,30 @@ class EntityToJson:
             json_node.update({constants.Documents.Metadata.KEY: metadata_node})
 
     @staticmethod
+    def convert_to_entity_by_key_static(
+        entity_class: Type[_T], key: str, document: Dict, conventions: DocumentConventions
+    ) -> _T:
+        try:
+            default_value = Utils.get_default_value(entity_class)
+            entity = default_value
+
+            document_type = conventions.get_python_class(key, document)
+            if document_type is not None:
+                clazz = Utils.import_class(document_type)
+                if clazz is not None and issubclass(clazz, entity_class):
+                    entity = EntityToJson.convert_to_entity_static(document, clazz, conventions)
+
+            if entity is None:
+                entity = EntityToJson.convert_to_entity_static(document, entity_class, conventions)
+
+            return entity
+        except Exception as e:
+            raise RuntimeError(f"Could not convert document {key} to entity of type {entity_class}", e)
+
+    @staticmethod
     def convert_to_entity_static(
-        document: dict, object_type: type, conventions: "DocumentConventions", events, nested_object_types=None
-    ):
+        document: dict, object_type: [_T], conventions: "DocumentConventions", nested_object_types=None
+    ) -> _T:
         metadata = document.pop("@metadata")
         document_deepcopy = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)

@@ -6,7 +6,7 @@ from typing import Union, Optional, Dict, Generic, TYPE_CHECKING
 
 import requests
 
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.definitions import OperationIdResult, IOperation, _Operation_T
 from ravendb.documents.operations.misc import QueryOperationOptions
 from ravendb.documents.queries.index_query import IndexQuery

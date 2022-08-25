@@ -3,7 +3,7 @@ from ravendb.http.topology import ServerNode, UpdateTopologyParameters
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.serverwide.operations.common import GetDatabaseNamesOperation
 from ravendb.tests.test_base import TestBase
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.exceptions.exceptions import DatabaseDoesNotExistException
 
 
