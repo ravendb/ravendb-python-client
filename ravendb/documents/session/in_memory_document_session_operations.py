@@ -658,7 +658,7 @@ class InMemoryDocumentSessionOperations:
         self._assert_no_non_unique_instance(entity, value)
         raise ValueError(f"Document {value} doesn't exist in the session")
 
-    def is_loaded(self, key:str)->bool:
+    def is_loaded(self, key: str) -> bool:
         return self.is_loaded_or_deleted(key)
 
     def is_loaded_or_deleted(self, key: str) -> bool:
