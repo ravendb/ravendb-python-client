@@ -93,7 +93,7 @@ class LazyStartsWithOperation(LazyOperation):
 
         for document in get_documents_result.results:
             new_document_info = DocumentInfo.get_new_document_info(document)
-            self.__session_operations.documents_by_id.add(new_document_info)
+            self.__session_operations._documents_by_id.add(new_document_info)
 
             if new_document_info.key is None:
                 continue  # todo: is this possible?
@@ -102,7 +102,7 @@ class LazyStartsWithOperation(LazyOperation):
                 final_results[new_document_info.key] = None
                 continue
 
-            doc = self.__session_operations.documents_by_id.get_value(new_document_info.key)
+            doc = self.__session_operations._documents_by_id.get_value(new_document_info.key)
             if doc is not None:
                 final_results[new_document_info.key] = self.__session_operations.track_entity_document_info(
                     self.__object_type, doc

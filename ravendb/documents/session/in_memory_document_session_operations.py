@@ -455,19 +455,19 @@ class InMemoryDocumentSessionOperations:
         )
 
         self._known_missing_ids = CaseInsensitiveSet()
-        self.documents_by_id = DocumentsByIdHolder()
-        self.included_documents_by_id = CaseInsensitiveDict()
-        self.documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
+        self._documents_by_id = DocumentsByIdHolder()
+        self._included_documents_by_id = CaseInsensitiveDict()
+        self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
         self._counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
         self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
-        self.deleted_entities: Union[
+        self._deleted_entities: Union[
             Set[DeletedEntitiesHolder.DeletedEntitiesEnumeratorResult], DeletedEntitiesHolder
         ] = DeletedEntitiesHolder()
-        self.deferred_commands: List[CommandData] = []
-        self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = {}
-        self.ids_for_creating_forced_revisions: Dict[str, ForceRevisionStrategy] = CaseInsensitiveDict()
+        self._deferred_commands: List[CommandData] = []
+        self._deferred_commands_map: Dict[IdTypeAndName, CommandData] = {}
+        self._ids_for_creating_forced_revisions: Dict[str, ForceRevisionStrategy] = CaseInsensitiveDict()
         # todo: pendingLazyOperations, onEvaluateLazy
         self._generate_document_keys_on_store: bool = True
         self._save_changes_options: Union[None, BatchOptions] = None
@@ -648,7 +648,7 @@ class InMemoryDocumentSessionOperations:
         pass
 
     def _get_document_info(self, entity: object) -> DocumentInfo:
-        document_info = self.documents_by_entity.get(entity)
+        document_info = self._documents_by_entity.get(entity)
         if document_info:
             return document_info
 
@@ -658,13 +658,16 @@ class InMemoryDocumentSessionOperations:
         self._assert_no_non_unique_instance(entity, value)
         raise ValueError(f"Document {value} doesn't exist in the session")
 
+    def is_loaded(self, key:str)->bool:
+        return self.is_loaded_or_deleted(key)
+
     def is_loaded_or_deleted(self, key: str) -> bool:
-        document_info = self.documents_by_id.get(key)
+        document_info = self._documents_by_id.get(key)
         return (
             document_info is not None
             and (document_info.document is not None or document_info.entity is not None)
             or self.is_deleted(key)
-            or key in self.included_documents_by_id
+            or key in self._included_documents_by_id
         )
 
     def is_deleted(self, key: str) -> bool:
@@ -689,7 +692,7 @@ class InMemoryDocumentSessionOperations:
         if (not key) or key[-1] == "|" or key[-1] == self.conventions.identity_parts_separator:
             return
 
-        info = self.documents_by_id.get(key)
+        info = self._documents_by_id.get(key)
         if info is None or info.entity is entity:
             return
 
@@ -704,14 +707,14 @@ class InMemoryDocumentSessionOperations:
         if self.no_tracking:
             return
 
-        existing = self.documents_by_id.get_value(info.key)
+        existing = self._documents_by_id.get_value(info.key)
         if existing is not None:
             if existing.entity == info.entity:
                 return
 
             raise RuntimeError(f"The document {info.key} is already in the session with a different entity instance.")
 
-        existing_entity = self.documents_by_entity.get(info.entity)
+        existing_entity = self._documents_by_entity.get(info.entity)
         if existing_entity is not None:
             if existing_entity.key.lower() == info.key.lower():
                 return
@@ -721,9 +724,9 @@ class InMemoryDocumentSessionOperations:
                 f"but the entity instance already exists in the session with id: {existing_entity.key}"
             )
 
-        self.documents_by_entity[info.entity] = info
-        self.documents_by_id.add(info)
-        self.included_documents_by_id.pop(info.key)
+        self._documents_by_entity[info.entity] = info
+        self._documents_by_id.add(info)
+        self._included_documents_by_id.pop(info.key)
 
     def track_entity(
         self,
@@ -737,26 +740,26 @@ class InMemoryDocumentSessionOperations:
         if not key:
             return self.__deserialize_from_transformer(entity_type, None, document, False)
 
-        doc_info = self.documents_by_id.get(key)
+        doc_info = self._documents_by_id.get(key)
         if doc_info is not None:
             if doc_info.entity is None:
                 doc_info.entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
 
             if not no_tracking:
-                self.included_documents_by_id.pop(key, None)
-                self.documents_by_entity[doc_info.entity] = doc_info
+                self._included_documents_by_id.pop(key, None)
+                self._documents_by_entity[doc_info.entity] = doc_info
 
             return doc_info.entity
 
-        doc_info = self.included_documents_by_id.get(key)
+        doc_info = self._included_documents_by_id.get(key)
         if doc_info:
             if doc_info.entity is None:
                 doc_info.entity = self.entity_to_json.convert_to_entity(entity_type, key, document, not no_tracking)
 
             if not no_tracking:
-                self.included_documents_by_id.pop(key, None)
-                self.documents_by_id[doc_info.key] = doc_info
-                self.documents_by_entity[doc_info.entity] = doc_info
+                self._included_documents_by_id.pop(key, None)
+                self._documents_by_id[doc_info.key] = doc_info
+                self._documents_by_entity[doc_info.entity] = doc_info
 
             return doc_info.entity
 
@@ -770,8 +773,8 @@ class InMemoryDocumentSessionOperations:
             new_document_info = DocumentInfo(
                 key=key, document=document, metadata=metadata, entity=entity, change_vector=change_vector
             )
-            self.documents_by_id[new_document_info.key] = new_document_info
-            self.documents_by_entity[new_document_info.entity] = new_document_info
+            self._documents_by_id[new_document_info.key] = new_document_info
+            self._documents_by_entity[new_document_info.entity] = new_document_info
 
         return entity
 
@@ -781,7 +784,7 @@ class InMemoryDocumentSessionOperations:
             if key is None:
                 raise ValueError("Id cannot be None")
             change_vector = None
-            document_info = self.documents_by_id.get(key)
+            document_info = self._documents_by_id.get(key)
             if document_info is not None:
                 new_obj = self.entity_to_json.convert_entity_to_json(document_info.entity, document_info)
                 if document_info.entity is not None and self._entity_changed(new_obj, document_info, None):
@@ -790,8 +793,8 @@ class InMemoryDocumentSessionOperations:
                     )
 
                 if document_info.entity is not None:
-                    self.documents_by_entity.pop(document_info.entity, None)
-                self.documents_by_id.pop(key, None)
+                    self._documents_by_entity.pop(document_info.entity, None)
+                self._documents_by_id.pop(key, None)
                 change_vector = document_info.change_vector
 
             self._known_missing_ids.add(key)
@@ -805,14 +808,14 @@ class InMemoryDocumentSessionOperations:
         if entity is None:
             raise ValueError("Entity cannot be None")
 
-        value = self.documents_by_entity.get(entity)
+        value = self._documents_by_entity.get(entity)
         if value is None:
             raise InvalidOperationException(
                 f"{entity} is not associated with the session, cannot delete unknown entity instance."
             )
 
-        self.deleted_entities.add(entity)
-        self.included_documents_by_id.pop(value.key, None)
+        self._deleted_entities.add(entity)
+        self._included_documents_by_id.pop(value.key, None)
         if self._counters_by_doc_id:
             self._counters_by_doc_id.pop(value.key, None)
         self._known_missing_ids.add(value.key)
@@ -837,7 +840,7 @@ class InMemoryDocumentSessionOperations:
         if entity is None:
             raise ValueError("Entity cannot be None")
 
-        value = self.documents_by_entity.get(entity)
+        value = self._documents_by_entity.get(entity)
         if value is not None:
             value.change_vector = change_vector if change_vector else value.change_vector
             value.concurrency_check_mode = force_concurrency_check
@@ -851,13 +854,13 @@ class InMemoryDocumentSessionOperations:
         else:
             self.__generate_entity_id_on_client.try_set_identity(entity, key)
 
-        if IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None) in self.deferred_commands_map.keys():
+        if IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None) in self._deferred_commands_map.keys():
             raise InvalidOperationException(
                 f"Can't legacy document, there is a deferred command registered for this document in the session. "
                 f"Document id:{key}"
             )
 
-        if entity in self.deleted_entities:
+        if entity in self._deleted_entities:
             raise RuntimeError(f"Can't store object, it was already deleted in this session. Document id {key}")
 
         self._assert_no_non_unique_instance(entity, key)
@@ -900,25 +903,25 @@ class InMemoryDocumentSessionOperations:
             new_document=True,
             document=None,
         )
-        self.documents_by_entity[entity] = document_info
+        self._documents_by_entity[entity] = document_info
         if key:
-            self.documents_by_id[key] = document_info
+            self._documents_by_id[key] = document_info
 
     def prepare_for_save_changes(self) -> SaveChangesData:
         result = InMemoryDocumentSessionOperations.SaveChangesData(self)
-        deferred_commands_count = len(self.deferred_commands)
+        deferred_commands_count = len(self._deferred_commands)
 
         self.__prepare_for_entities_deletion(result, None)
         self.__prepare_for_entities_puts(result)
         self.__prepare_for_creating_revisions_from_ids(result)
         self.__prepare_compare_exchange_entities(result)
 
-        if len(self.deferred_commands) > deferred_commands_count:
+        if len(self._deferred_commands) > deferred_commands_count:
             # this allow on_before_store to call defer during the call to include
             # additional values during the same SaveChanges call
 
-            result.deferred_commands.extend(self.deferred_commands)
-            result.deferred_commands_map.update(self.deferred_commands_map)
+            result.deferred_commands.extend(self._deferred_commands)
+            result.deferred_commands_map.update(self._deferred_commands_map)
 
         for deferred_command in result.deferred_commands:
             if deferred_command.on_before_save_changes:
@@ -989,16 +992,16 @@ class InMemoryDocumentSessionOperations:
         return dirty
 
     def __prepare_for_creating_revisions_from_ids(self, result: SaveChangesData) -> None:
-        for id_entry in self.ids_for_creating_forced_revisions:
+        for id_entry in self._ids_for_creating_forced_revisions:
             result.session_commands.append(ForceRevisionCommandData(id_entry))
 
-        self.ids_for_creating_forced_revisions.clear()
+        self._ids_for_creating_forced_revisions.clear()
 
     def __prepare_for_entities_deletion(
         self, result: Union[None, SaveChangesData], changes: Union[None, Dict[str, List[DocumentsChanges]]]
     ) -> None:
-        for deleted_entity in self.deleted_entities:
-            document_info = self.documents_by_entity.get(deleted_entity.entity)
+        for deleted_entity in self._deleted_entities:
+            document_info = self._documents_by_entity.get(deleted_entity.entity)
             if document_info is None:
                 continue
             if changes is not None:
@@ -1014,7 +1017,7 @@ class InMemoryDocumentSessionOperations:
                     self.__throw_invalid_deleted_document_with_deferred_command(command)
 
                 change_vector = None
-                document_info = self.documents_by_id.get(document_info.key)
+                document_info = self._documents_by_id.get(document_info.key)
 
                 if document_info:
                     change_vector = document_info.change_vector
@@ -1034,7 +1037,7 @@ class InMemoryDocumentSessionOperations:
 
     def __prepare_for_entities_puts(self, result: SaveChangesData) -> None:
         should_ignore_entity_changes = self.conventions.should_ignore_entity_changes
-        for entity in self.documents_by_entity:
+        for entity in self._documents_by_entity:
             entity: DocumentsByEntityHolder.DocumentsByEntityEnumeratorResult
             if entity.value.ignore_changes:
                 continue
@@ -1088,9 +1091,9 @@ class InMemoryDocumentSessionOperations:
 
             force_revision_creation_strategy = ForceRevisionStrategy.NONE
             if entity.value.key is not None:
-                creation_strategy = self.ids_for_creating_forced_revisions.get(entity.value.key)
+                creation_strategy = self._ids_for_creating_forced_revisions.get(entity.value.key)
                 if creation_strategy is not None:
-                    self.ids_for_creating_forced_revisions.pop(entity.value.key, None)
+                    self._ids_for_creating_forced_revisions.pop(entity.value.key, None)
                     force_revision_creation_strategy = creation_strategy
 
             result.session_commands.append(
@@ -1125,13 +1128,13 @@ class InMemoryDocumentSessionOperations:
         return JsonOperation.entity_changed(new_obj, document_info, changes)
 
     def has_changes(self) -> bool:
-        for entity in self.documents_by_entity:
+        for entity in self._documents_by_entity:
             entity: DocumentsByEntityHolder.DocumentsByEntityEnumeratorResult
             document = self.entity_to_json.convert_entity_to_json(entity.key, entity.value)
             if self._entity_changed(document, entity.value, None):
                 return True
 
-        return not len(self.deleted_entities) == 0
+        return not len(self._deleted_entities) == 0
 
     def _what_changed(self) -> Dict[str, List[DocumentsChanges]]:
         changes = {}
@@ -1142,7 +1145,7 @@ class InMemoryDocumentSessionOperations:
         return changes
 
     def __get_all_entities_changes(self, changes: Dict[str, List[DocumentsChanges]]) -> None:
-        for key, value in self.documents_by_id.items():
+        for key, value in self._documents_by_id.items():
             self.__update_metadata_modifications(value)
             new_obj = self.entity_to_json.convert_entity_to_json(value.entity, value)
             self._entity_changed(new_obj, value, changes)
@@ -1151,7 +1154,7 @@ class InMemoryDocumentSessionOperations:
         self._get_document_info(entity).ignore_changes = True
 
     def _defer(self, *commands: CommandData) -> None:
-        self.deferred_commands.extend(commands)
+        self._deferred_commands.extend(commands)
         for command in commands:
             self.__defer_internal(command)
 
@@ -1164,8 +1167,8 @@ class InMemoryDocumentSessionOperations:
         self.__add_command(command, command.key, command.command_type, command.name)
 
     def __add_command(self, command: CommandData, key: str, command_type: CommandType, command_name: str) -> None:
-        self.deferred_commands_map.update({IdTypeAndName.create(key, command_type, command_name): command})
-        self.deferred_commands_map.update({IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None): command})
+        self._deferred_commands_map.update({IdTypeAndName.create(key, command_type, command_name): command})
+        self._deferred_commands_map.update({IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None): command})
 
         if not any(
             [
@@ -1178,7 +1181,7 @@ class InMemoryDocumentSessionOperations:
                 command.command_type == CommandType.COUNTERS,
             ]
         ):
-            self.deferred_commands_map.update(
+            self._deferred_commands_map.update(
                 {IdTypeAndName.create(key, CommandType.CLIENT_MODIFY_DOCUMENT_COMMAND, None): command}
             )
 
@@ -1211,7 +1214,7 @@ class InMemoryDocumentSessionOperations:
             new_document_info = DocumentInfo.get_new_document_info(object_node)
             if JsonExtensions.try_get_conflict(new_document_info.metadata):
                 continue
-            self.included_documents_by_id[new_document_info.key] = new_document_info
+            self._included_documents_by_id[new_document_info.key] = new_document_info
 
     def register_missing_includes(self, results, includes: dict, include_paths: List[str]):
         if self.no_tracking:
@@ -1642,9 +1645,9 @@ class InMemoryDocumentSessionOperations:
             if key in self._known_missing_ids:
                 continue
 
-            document_info = self.documents_by_id.get(key)
+            document_info = self._documents_by_id.get(key)
             if document_info is None:
-                document_info = self.included_documents_by_id.get(key)
+                document_info = self._included_documents_by_id.get(key)
                 if document_info is None:
                     return False
 
@@ -1690,7 +1693,7 @@ class InMemoryDocumentSessionOperations:
         except Error as e:
             raise RuntimeError(f"Unable to refresh entity: {e.args[0]}", e)
 
-        document_info_by_id = self.documents_by_id.get(document_info.key)
+        document_info_by_id = self._documents_by_id.get(document_info.key)
         if document_info_by_id is not None:
             document_info_by_id.entity = entity
         return entity
@@ -1790,8 +1793,8 @@ class InMemoryDocumentSessionOperations:
 
     class SaveChangesData:
         def __init__(self, session: InMemoryDocumentSessionOperations):
-            self.deferred_commands: List[CommandData] = session.deferred_commands
-            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session.deferred_commands_map
+            self.deferred_commands: List[CommandData] = session._deferred_commands
+            self.deferred_commands_map: Dict[IdTypeAndName, CommandData] = session._deferred_commands_map
             self.session_commands: List[CommandData] = []
             self.entities: List = []
             self.options = session._save_changes_options
@@ -1816,9 +1819,9 @@ class InMemoryDocumentSessionOperations:
 
             def clear_session_state_after_successful_save_changes(self):
                 for key in self.__documents_by_id_to_remove:
-                    self.__session.documents_by_id.pop(key)
+                    self.__session._documents_by_id.pop(key)
                 for key in self.__documents_by_entity_to_remove:
-                    self.__session.documents_by_entity.pop(key)
+                    self.__session._documents_by_entity.pop(key)
 
                 for document_info_dict_tuple in self.__document_infos_to_update:
                     info: DocumentInfo = document_info_dict_tuple[0]
@@ -1827,10 +1830,10 @@ class InMemoryDocumentSessionOperations:
                     info.document = document
 
                 if self.__clear_deleted_entities:
-                    self.__session.deleted_entities.clear()
+                    self.__session._deleted_entities.clear()
 
-                self.__session.deferred_commands.clear()
-                self.__session.deferred_commands_map.clear()
+                self.__session._deferred_commands.clear()
+                self.__session._deferred_commands_map.clear()
 
             def clear_deleted_entities(self) -> None:
                 self.__clear_deleted_entities = True

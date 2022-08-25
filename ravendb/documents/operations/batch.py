@@ -192,7 +192,7 @@ class BatchOperation:
                 return
 
             key = self.__get_string_field(batch_result, CommandType.PUT, "Id")
-            session_document_info = self.__session.documents_by_id.get(key)
+            session_document_info = self.__session._documents_by_id.get(key)
             if session_document_info == None:
                 return
 
@@ -220,15 +220,15 @@ class BatchOperation:
 
     def __handle_delete_internal(self, batch_result: dict, command_type: CommandType):
         key = self.__get_string_field(batch_result, command_type, "Id")
-        document_info = self.__session.documents_by_id.get(key)
+        document_info = self.__session._documents_by_id.get(key)
         if document_info is None:
             return
 
-        self.__session.documents_by_id.pop(key, None)
+        self.__session._documents_by_id.pop(key, None)
 
         if document_info.entity is not None:
-            self.__session.documents_by_entity.pop(document_info.entity, None)
-            self.__session.deleted_entities.discard(document_info.entity)
+            self.__session._documents_by_entity.pop(document_info.entity, None)
+            self.__session._deleted_entities.discard(document_info.entity)
 
     def __handle_force_revision_creation(self, batch_result: dict) -> None:
         if not self.__get_boolean_field(batch_result, CommandType.FORCE_REVISION_CREATION, "RevisionCreated"):
@@ -242,7 +242,7 @@ class BatchOperation:
             batch_result, CommandType.FORCE_REVISION_CREATION, constants.Documents.Metadata.CHANGE_VECTOR
         )
 
-        document_info = self.__session.documents_by_id.get(key)
+        document_info = self.__session._documents_by_id.get(key)
         if not document_info:
             return
 
@@ -257,7 +257,7 @@ class BatchOperation:
 
         if not is_deferred:
             entity = self.__entities[index]
-            document_info = self.__session.documents_by_entity.get(entity)
+            document_info = self.__session._documents_by_entity.get(entity)
             if document_info is None:
                 return
 
@@ -267,7 +267,7 @@ class BatchOperation:
         )
 
         if is_deferred:
-            session_document_info = self.__session.documents_by_id.get(key)
+            session_document_info = self.__session._documents_by_id.get(key)
             if session_document_info is None:
                 return
 
@@ -276,7 +276,7 @@ class BatchOperation:
 
         self.__handle_metadata_modifications(document_info, batch_result, key, change_vector)
 
-        self.__session.documents_by_id.update({document_info.key: document_info})
+        self.__session._documents_by_id.update({document_info.key: document_info})
 
         if entity:
             self.__session.generate_entity_id_on_the_client.try_set_identity(entity, key)
@@ -316,7 +316,7 @@ class BatchOperation:
 
         change_vector = self.__get_string_field(batch_result, CommandType.COUNTERS, "DocumentChangeVector", False)
         if change_vector is not None:
-            document_info = self.__session.documents_by_id.get(doc_id)
+            document_info = self.__session._documents_by_id.get(doc_id)
             if document_info is not None:
                 document_info.change_vector = change_vector
 
@@ -361,7 +361,7 @@ class BatchOperation:
     ) -> None:
         key = self.__get_string_field(batch_result, command_type, id_field_name)
 
-        session_document_info = self.__session.documents_by_id.get_value(key)
+        session_document_info = self.__session._documents_by_id.get_value(key)
         if session_document_info is None:
             return
 
@@ -399,7 +399,7 @@ class BatchOperation:
     ) -> None:
         key = self.__get_string_field(batch_result, command_type, id_field_name)
 
-        session_document_info = self.__session.documents_by_id.get_value(key)
+        session_document_info = self.__session._documents_by_id.get_value(key)
         if session_document_info is None:
             return
 
