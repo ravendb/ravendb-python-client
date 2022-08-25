@@ -1,4 +1,13 @@
+from typing import Callable
+
+from ravendb.documents.conventions import DocumentConventions
+
+
 class GenerateEntityIdOnTheClient(object):
+    def __init__(self, conventions: DocumentConventions, generate_id: Callable[[object], str]):
+        self._conventions = conventions
+        self._generate_id = generate_id
+
     @staticmethod
     def try_set_id_on_entity(entity, key):
         if hasattr(entity, "Id"):

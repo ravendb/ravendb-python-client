@@ -71,7 +71,7 @@ from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents.store.definition import DocumentStore
@@ -518,7 +518,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self.__session.is_loaded_or_deleted(key)
 
         def has_changed(self, entity: object) -> bool:
-            document_info = self.__session.documents_by_entity.get(entity)
+            document_info = self.__session._documents_by_entity.get(entity)
 
             if document_info is None:
                 return False
@@ -569,35 +569,35 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if entity is None:
                 return None
 
-            value = self.__session.documents_by_entity.get(entity)
+            value = self.__session._documents_by_entity.get(entity)
             return value.key if value is not None else None
 
         def evict(self, entity: object) -> None:
-            document_info = self.__session.documents_by_entity.get(entity)
+            document_info = self.__session._documents_by_entity.get(entity)
             if document_info is not None:
-                self.__session.documents_by_entity.evict(entity)
-                self.__session.documents_by_id.pop(document_info.key, None)
+                self.__session._documents_by_entity.evict(entity)
+                self.__session._documents_by_id.pop(document_info.key, None)
 
                 if self.__session._counters_by_doc_id:
                     self.__session._counters_by_doc_id.pop(document_info.key, None)
                 if self.__session._time_series_by_doc_id:
                     self.__session._time_series_by_doc_id.pop(document_info.key, None)
 
-            self.__session.deleted_entities.evict(entity)
+            self.__session._deleted_entities.evict(entity)
             self.__session.entity_to_json.remove_from_missing(entity)
 
         def defer(self, *commands: CommandData) -> None:
             self.__session._defer(*commands)
 
         def clear(self) -> None:
-            self.__session.documents_by_entity.clear()
-            self.__session.deleted_entities.clear()
-            self.__session.documents_by_id.clear()
+            self.__session._documents_by_entity.clear()
+            self.__session._deleted_entities.clear()
+            self.__session._documents_by_id.clear()
             self.__session._known_missing_ids.clear()
             if self.__session._counters_by_doc_id:
                 self.__session._counters_by_doc_id.clear()
-            self.__session.deferred_commands.clear()
-            self.__session.deferred_commands_map.clear()
+            self.__session._deferred_commands.clear()
+            self.__session._deferred_commands_map.clear()
             self.__session._clear_cluster_session()
             self.__session._pending_lazy_operations.clear()
             self.__session.entity_to_json.clear()
@@ -615,7 +615,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self.__session.document_query_from_index_type(index_type, object_type)
 
         def refresh(self, entity: object) -> object:
-            document_info = self.__session.documents_by_entity.get(entity)
+            document_info = self.__session._documents_by_entity.get(entity)
             if document_info is None:
                 raise ValueError("Cannot refresh a transient instance")
             self.__session.increment_requests_count()
@@ -644,7 +644,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if key in self.__session._known_missing_ids:
                 return False
 
-            if self.__session.documents_by_id.get(key) is not None:
+            if self.__session._documents_by_id.get(key) is not None:
                 return True
 
             command = HeadDocumentCommand(key, None)
@@ -764,13 +764,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.__load_internal_stream(keys, LoadOperation(self.__session), output)
 
         def __try_merge_patches(self, document_key: str, patch_request: PatchRequest) -> bool:
-            command = self.__session.deferred_commands_map.get(
+            command = self.__session._deferred_commands_map.get(
                 IdTypeAndName.create(document_key, CommandType.PATCH, None)
             )
             if command is None:
                 return False
 
-            self.__session.deferred_commands.remove(command)
+            self.__session._deferred_commands.remove(command)
             # We'll overwrite the deferredCommandsMap when calling Defer
             # No need to call deferredCommandsMap.remove((id, CommandType.PATCH, null));
 
@@ -990,7 +990,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             def __init__(self, session: DocumentSession):
                 self.__session = session
                 self.__store = session._document_store
-                self.__defer_commands = session.deferred_commands
+                self.__defer_commands = session._deferred_commands
 
             def _command_exists(self, document_id):
                 for command in self.__defer_commands:
@@ -1021,7 +1021,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
                 if not isinstance(entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
                     entity_or_document_id = entity.key
@@ -1033,29 +1033,29 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
-                ) in self.__session.deferred_commands_map:
+                ) in self.__session._deferred_commands_map:
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "delete")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "create")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "delete")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "legacy", "rename")
 
-                document_info = self.__session.documents_by_id.get_value(entity_or_document_id)
-                if document_info and document_info.entity in self.__session.deleted_entities:
+                document_info = self.__session._documents_by_id.get_value(entity_or_document_id)
+                if document_info and document_info.entity in self.__session._deleted_entities:
                     raise exceptions.InvalidOperationException(
                         "Can't store attachment "
                         + name
@@ -1070,7 +1070,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             def delete(self, entity_or_document_id, name):
                 if not isinstance(entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
                     entity_or_document_id = entity.metadata["@id"]
@@ -1082,25 +1082,25 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.DELETE, None)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                     or IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     return
 
-                document_info = self.__session.documents_by_id.get_value(entity_or_document_id)
-                if document_info and document_info.entity in self.__session.deleted_entities:
+                document_info = self.__session._documents_by_id.get_value(entity_or_document_id)
+                if document_info and document_info.entity in self.__session._deleted_entities:
                     return
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_PUT, name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "create")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "rename")
 
@@ -1119,7 +1119,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 #     operation = GetAttachmentsOperation(att_requests, AttachmentType.document)
                 # else:
                 if not isinstance(entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
                     entity_or_document_id = entity.metadata["@id"]
@@ -1135,13 +1135,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 destination_name: str,
             ) -> None:
                 if not isinstance(entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(entity_or_document_id)
                     entity_or_document_id = entity.key
 
                 if not isinstance(destination_entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(destination_entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(destination_entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(destination_entity_or_document_id)
                     destination_entity_or_document_id = entity.key
@@ -1161,8 +1161,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 ):
                     return  # no-op
 
-                source_document = self.__session.documents_by_id.get_value(entity_or_document_id)
-                if entity_or_document_id and source_document.entity in self.__session.deleted_entities:
+                source_document = self.__session._documents_by_id.get_value(entity_or_document_id)
+                if entity_or_document_id and source_document.entity in self.__session._deleted_entities:
                     self.__throw_document_already_deleted(
                         entity_or_document_id,
                         source_name,
@@ -1171,8 +1171,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                         entity_or_document_id,
                     )
 
-                destination_document = self.__session.documents_by_id.get_value(destination_entity_or_document_id)
-                if destination_document and destination_document.entity in self.__session.deleted_entities:
+                destination_document = self.__session._documents_by_id.get_value(destination_entity_or_document_id)
+                if destination_document and destination_document.entity in self.__session._deleted_entities:
                     self.__throw_document_already_deleted(
                         entity_or_document_id,
                         source_name,
@@ -1183,13 +1183,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "delete")
 
                 if (
                     IdTypeAndName.create(entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "rename")
 
@@ -1197,7 +1197,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_DELETE, destination_name
                     )
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "delete")
 
@@ -1205,7 +1205,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_MOVE, destination_name
                     )
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "rename")
 
@@ -1226,13 +1226,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 destination_name: str,
             ) -> None:
                 if not isinstance(source_entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(source_entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(source_entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(source_entity_or_document_id)
                     source_entity_or_document_id = entity.key
 
                 if not isinstance(destination_entity_or_document_id, str):
-                    entity = self.__session.documents_by_entity.get(destination_entity_or_document_id, None)
+                    entity = self.__session._documents_by_entity.get(destination_entity_or_document_id, None)
                     if not entity:
                         self.throw_not_in_session(destination_entity_or_document_id)
                     destination_entity_or_document_id = entity.key
@@ -1252,8 +1252,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 ):
                     return  # no-op
 
-                source_document = self.__session.documents_by_id.get_value(source_entity_or_document_id)
-                if source_document is not None and source_document.entity in self.__session.deleted_entities:
+                source_document = self.__session._documents_by_id.get_value(source_entity_or_document_id)
+                if source_document is not None and source_document.entity in self.__session._deleted_entities:
                     self.__throw_document_already_deleted(
                         source_entity_or_document_id,
                         source_name,
@@ -1262,8 +1262,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                         source_entity_or_document_id,
                     )
 
-                destination_document = self.__session.documents_by_id.get_value(destination_entity_or_document_id)
-                if destination_document is not None and destination_document.entity in self.__session.deleted_entities:
+                destination_document = self.__session._documents_by_id.get_value(destination_entity_or_document_id)
+                if destination_document is not None and destination_document.entity in self.__session._deleted_entities:
                     self.__throw_document_already_deleted(
                         source_entity_or_document_id,
                         source_name,
@@ -1274,7 +1274,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if (
                     IdTypeAndName.create(source_entity_or_document_id, CommandType.ATTACHMENT_DELETE, source_name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(
                         source_entity_or_document_id, source_name, "rename", "delete"
@@ -1282,7 +1282,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if (
                     IdTypeAndName.create(source_entity_or_document_id, CommandType.ATTACHMENT_MOVE, source_name)
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(
                         source_entity_or_document_id, source_name, "rename", "rename"
@@ -1292,7 +1292,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_DELETE, destination_name
                     )
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(
                         source_entity_or_document_id, destination_name, "rename", "delete"
@@ -1302,7 +1302,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     IdTypeAndName.create(
                         destination_entity_or_document_id, CommandType.ATTACHMENT_MOVE, destination_name
                     )
-                    in self.__session.deferred_commands_map
+                    in self.__session._deferred_commands_map
                 ):
                     self.__throw_other_deferred_command_exception(
                         source_entity_or_document_id, destination_name, "rename", "rename"
@@ -1327,7 +1327,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                         "get_names requires a tracked entity object, other types such as document id are not valid."
                     )
 
-                document = self.__session.documents_by_entity.get(entity)
+                document = self.__session._documents_by_entity.get(entity)
                 if document is None:
                     self.throw_not_in_session(entity)
 

@@ -1,4 +1,4 @@
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.exceptions.exceptions import DatabaseDoesNotExistException
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.http.server_node import ServerNode

@@ -48,7 +48,7 @@ _default_wildcards = {
     "\\",
 }
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class TimeUnit(Enum):
@@ -386,7 +386,7 @@ class Utils(object):
             return header[1 : len(header) - 2]
 
     @staticmethod
-    def import_class(name):
+    def import_class(name) -> Type:
         components = name.split(".")
         module_name = ".".join(name.split(".")[:-1])
         mod = None
@@ -786,6 +786,27 @@ class Utils(object):
         with open(pem_path, "rb") as pem_file:
             cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_file.read())
             return str(cert.digest("sha1"))
+
+    @staticmethod
+    def pem_to_crt_and_key(pem_path: str) -> Tuple[str, str]:
+        with open(pem_path, "rb") as file:
+            content = file.read()
+            if "BEGIN CERTIFICATE" not in content:
+                raise ValueError(
+                    f"Invalid file. File stored under the path '{pem_path}' isn't valid .pem certificate. "
+                    f"BEGIN CERTIFICATE header wasn't found."
+                )
+            if "BEGIN RSA PRIVATE KEY" not in content:
+                raise ValueError(
+                    f"Invalid file. File stored under the path '{pem_path}' isn't valid .pem certificate. "
+                    f"BEGIN RSA PRIVATE KEY header wasn't found."
+                )
+
+            content = content.decode("utf-8")
+            crt = content.split("-----BEGIN RSA PRIVATE KEY-----")[0]
+            key = content.split("-----END CERTIFICATE-----")[1]
+
+        return crt, key
 
     @staticmethod
     def index_of_any(text, any_of):

@@ -10,7 +10,7 @@ from ravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
     from ravendb.documents import DocumentStore
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class GenerateEntityIdOnTheClient:

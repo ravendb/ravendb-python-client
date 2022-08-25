@@ -1,14 +1,15 @@
+from __future__ import annotations
 import datetime
 from typing import Set, Tuple, Dict, Union, Optional
-from ravendb.documents.conventions import document_conventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 
 
 class IncludeBuilderBase:
-    def __init__(self, conventions: document_conventions):
+    def __init__(self, conventions: DocumentConventions):
         self._next_parameter_id: int = 1
-        self._conventions: document_conventions = conventions
+        self._conventions = conventions
         self._documents_to_include: Set[str] = set()
         self._alias: str = ""
         self._counters_to_include_by_source_path: Dict[str, Tuple[bool, Set[str]]] = CaseInsensitiveDict()
@@ -108,7 +109,7 @@ class IncludeBuilderBase:
 
 
 class IncludeBuilder(IncludeBuilderBase):
-    def __init__(self, conventions: document_conventions):
+    def __init__(self, conventions: DocumentConventions):
         super(IncludeBuilder, self).__init__(conventions)
 
     def include_documents(self, path: str) -> IncludeBuilderBase:

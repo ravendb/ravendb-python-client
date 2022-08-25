@@ -128,11 +128,11 @@ class LoadOperation:
         if self._session.is_deleted(key):
             return Utils.get_default_value(object_type)
 
-        doc = self._session.documents_by_id.get(key)
+        doc = self._session._documents_by_id.get(key)
         if doc is not None:
             return self._session.track_entity_document_info(object_type, doc)
 
-        doc = self._session.included_documents_by_id.get(key)
+        doc = self._session._included_documents_by_id.get(key)
         if doc is not None:
             return self._session.track_entity_document_info(object_type, doc)
 
@@ -197,10 +197,10 @@ class LoadOperation:
                 continue
 
             new_document_info = DocumentInfo.get_new_document_info(document)
-            self._session.documents_by_id.add(new_document_info)
+            self._session._documents_by_id.add(new_document_info)
 
         for key in self._keys:
-            value = self._session.documents_by_id.get(key, None)
+            value = self._session._documents_by_id.get(key, None)
             if value is None:
                 self._session.register_missing(key)
 

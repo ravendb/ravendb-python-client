@@ -148,10 +148,10 @@ class TestImports(TestBase):
         # from ravendb import SeedIdentityForOperation
         # from ravendb import IOperationProgress
         # from ravendb import IOperationResult
-        from ravendb import UpdateExternalReplicationOperation
+        # from ravendb import UpdateExternalReplicationOperation
 
         # from ravendb import PullReplicationDefinitionAndCurrentConnections
-        from ravendb import PutPullReplicationAsHubOperation
+        # from ravendb import PutPullReplicationAsHubOperation
 
         # from ravendb import DetailedReplicationHubAccess
         # from ravendb import GetReplicationHubAccessOperation

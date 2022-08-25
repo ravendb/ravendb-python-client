@@ -1,9 +1,10 @@
 import datetime
 import enum
+import json
 from typing import Dict
 
 from ravendb import constants
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.queries.query import ProjectionBehavior
 from ravendb.tools.utils import Utils
@@ -96,3 +97,11 @@ class JsonExtensions:
             return param.__class__.__dict__.get(constants.json_serialize_method_name)(param)
         else:
             return param
+
+    @staticmethod
+    def write_value_as_bytes(value: object) -> bytes:
+        return (
+            value.to_json()
+            if "to_json" in value.__dict__ and "__call__" in value.to_json.__dict__
+            else json.dumps(value)
+        ).encode("utf-8")

@@ -68,7 +68,7 @@ class LoadStartingWithOperation:
             if not document:
                 continue
             new_document_info = DocumentInfo.get_new_document_info(document)
-            self.__session.documents_by_id.add(new_document_info)
+            self.__session._documents_by_id.add(new_document_info)
             self.__returned_ids.append(new_document_info.key)
 
     def get_documents(self, object_type: Type[_T]) -> List[_T]:
@@ -98,7 +98,7 @@ class LoadStartingWithOperation:
         if self.__session.is_deleted(key):
             return None
 
-        doc = self.__session.documents_by_id.get(key)
+        doc = self.__session._documents_by_id.get(key)
         if doc:
             return self.__session.track_entity_document_info(object_type, doc)
 

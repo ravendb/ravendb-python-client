@@ -5,7 +5,7 @@ from typing import Union, Optional, Generic, TypeVar, Dict, TYPE_CHECKING, Type,
 import requests
 
 from ravendb import constants
-from ravendb.documents.conventions.document_conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeValue,
     CompareExchangeSessionValue,
@@ -111,7 +111,7 @@ class PutCompareExchangeValueOperation(IOperation[CompareExchangeResult], Generi
         def set_response(self, response: str, from_cache: bool) -> None:
             self.result = CompareExchangeResult.parse_from_string(type(self.__value), response, self.__conventions)
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -183,7 +183,7 @@ class DeleteCompareExchangeValueOperation(IOperation[CompareExchangeResult[_T]],
         def set_response(self, response: str, from_cache: bool) -> None:
             self.result = CompareExchangeResult.parse_from_string(self.__object_type, response, self.__conventions)
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 

@@ -16,7 +16,7 @@ from ravendb.tools.utils import CaseInsensitiveDict, Utils
 from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class SecurityClearance(enum.Enum):
@@ -200,7 +200,7 @@ class CreateClientCertificateOperation(ServerOperation[CertificateRawData]):
             except Exception as e:
                 self._throw_invalid_response(e)
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -376,7 +376,7 @@ class DeleteCertificateOperation(VoidServerOperation):
             url = f"{server_node.url}/admin/certificates?thumbprint={self.__thumbprint}"
             return requests.Request("DELETE", url)
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -433,7 +433,7 @@ class PutClientCertificateOperation(VoidServerOperation):
 
             return request
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -495,7 +495,7 @@ class EditClientCertificateOperation(VoidServerOperation):
 
             return request
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -547,5 +547,5 @@ class ReplaceClusterCertificateOperation(VoidServerOperation):
             request.data = json.loads(json.dumps({"Certificate": base64.b64encode(self.__cert_bytes).decode("utf-8")}))
             return request
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()

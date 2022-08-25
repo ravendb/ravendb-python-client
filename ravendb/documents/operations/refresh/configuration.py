@@ -9,7 +9,7 @@ from ravendb.util.util import RaftIdGenerator
 from ravendb.http.raven_command import RavenCommand
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions.document_conventions import DocumentConventions
+    from ravendb.documents.conventions import DocumentConventions
     from ravendb.http.server_node import ServerNode
 
 
@@ -60,5 +60,5 @@ class ConfigureRefreshOperation(MaintenanceOperation[ConfigureRefreshOperationRe
 
             self.result = ConfigureRefreshOperationResult.from_json(json.loads(response))
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()

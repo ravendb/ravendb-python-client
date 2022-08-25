@@ -39,10 +39,10 @@ class TestDocumentsByEntity(TestBase):
             self.assertEqual(test_data_store, test_data_load)
 
             # pop and get
-            self.assertIsNotNone(session.documents_by_entity.get(test_data_load))
-            self.assertIsNotNone(session.documents_by_entity.pop(test_data_load))
-            self.assertIsNone(session.documents_by_entity.get(test_data_load))
-            self.assertEqual(0, len(session.documents_by_entity))
+            self.assertIsNotNone(session._documents_by_entity.get(test_data_load))
+            self.assertIsNotNone(session._documents_by_entity.pop(test_data_load))
+            self.assertIsNone(session._documents_by_entity.get(test_data_load))
+            self.assertEqual(0, len(session._documents_by_entity))
 
             session.save_changes()
 
@@ -59,15 +59,15 @@ class TestDocumentsByEntity(TestBase):
         with self.store.open_session() as session:
             intel = session.load(["data/1", "data/2", "data/3"])
 
-            self.assertEqual(3, len(session.documents_by_entity))  # __len__
+            self.assertEqual(3, len(session._documents_by_entity))  # __len__
 
-            self.assertEqual(3, len([item for item in session.documents_by_entity]))  # __iter__
+            self.assertEqual(3, len([item for item in session._documents_by_entity]))  # __iter__
 
-            entities_keys = [e.value.key for e in session.documents_by_entity]
+            entities_keys = [e.value.key for e in session._documents_by_entity]
             for data in intel:  # __contains__
                 self.assertIn(data, entities_keys)
 
-            session.documents_by_entity.clear()  # clear
-            self.assertEqual(0, len(session.documents_by_entity))
+            session._documents_by_entity.clear()  # clear
+            self.assertEqual(0, len(session._documents_by_entity))
 
             session.save_changes()

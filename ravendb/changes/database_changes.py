@@ -10,7 +10,7 @@ from ravendb.changes.types import (
     OperationStatusChange,
     TopologyChange,
 )
-from ravendb.legacy.subscriptions.data import IncrementalJsonParser
+from ravendb.tools.parsers import IncrementalJsonParser
 import websocket
 from ravendb.exceptions.exceptions import NotSupportedException
 from ravendb.exceptions.exceptions import ChangeProcessingException
