@@ -242,10 +242,6 @@ from ravendb.http.topology import (
 # CompactSettings
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.json.result import BatchCommandResult
-from ravendb.legacy.raven_operations.maintenance_operations import (
-    UpdateExternalReplicationOperation,
-    PutPullReplicationAsHubOperation,
-)
 from ravendb.serverwide.commands import GetDatabaseTopologyCommand, GetClusterTopologyCommand
 from ravendb.serverwide.misc import DocumentsCompressionConfiguration, DeletionInProgressStatus
 

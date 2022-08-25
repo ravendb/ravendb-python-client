@@ -33,13 +33,10 @@ from ravendb.documents.session.misc import SessionOptions, DocumentQueryCustomiz
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
 from ravendb.http.topology import Topology
-from ravendb.legacy.raven_operations.counters_operations import GetCountersOperation, CounterOperation
 from ravendb.tools.utils import CaseInsensitiveDict
 from ravendb.documents.conventions import DocumentConventions
 
 T = TypeVar("T")
-
-from ravendb.documents.commands.batches import CommandType, CountersBatchCommandData
 
 if TYPE_CHECKING:
     from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask, IndexCreation

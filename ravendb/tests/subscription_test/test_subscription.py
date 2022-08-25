@@ -1,12 +1,6 @@
 import threading
 from functools import partial
 
-from ravendb.legacy.commands.raven_commands import GetSubscriptionsCommandOld
-from ravendb.legacy.subscriptions.data import (
-    SubscriptionCreationOptions,
-    SubscriptionWorkerOptions,
-    SubscriptionOpeningStrategy,
-)
 from ravendb.tests.test_base import TestBase
 from ravendb.exceptions.exceptions import (
     SubscriptionInUseException,
