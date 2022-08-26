@@ -2,9 +2,9 @@
 # Official Python client for RavenDB NoSQL Database 🐍
 
 ## Installation
-Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.org/project/ravendb/5.2.0b2/).
+Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.org/project/ravendb/5.2.0b3/).
 ```bash
-pip install ravendb==5.2.0b2
+pip install ravendb==5.2.0b3
 ````
 ## Introduction and changelog
 Python client API (v5.2) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
@@ -22,6 +22,24 @@ Although new API isn't compatible with the previous one, it comes with **many im
 ---
 
 ## What's new?
+
+###### 5.2.0b3
+- **New features**
+  - Conditional Load
+  - SelectFields & Facets
+  - Projections
+  - MoreLikeThis
+  - Suggestions
+
+
+- **Improvements**
+  - Compare exchange
+  - Querying
+  - DocumentConventions
+  - Patching
+  - Spatial queries
+  - Aggregations
+
 
 ###### 5.2.0b2
 
