@@ -165,3 +165,42 @@ class QueryIncludeBuilder(IncludeBuilderBase):
     def include_compare_exchange_value(self, path: str):
         self._include_compare_exchange_value(path)
         return self
+
+
+class SubscriptionIncludeBuilder(IncludeBuilderBase):
+    def __init__(self, conventions: DocumentConventions):
+        super(SubscriptionIncludeBuilder, self).__init__(conventions)
+
+    def include_documents(self, path: str) -> SubscriptionIncludeBuilder:
+        self._include_documents(path)
+        return self
+
+    def include_counter(self, name: str) -> SubscriptionIncludeBuilder:
+        self._include_counters("", name)
+        return self
+
+    def include_counters(self, *names: str) -> SubscriptionIncludeBuilder:
+        self._include_counters("", *names)
+        return self
+
+    def include_all_counters(self) -> SubscriptionIncludeBuilder:
+        self._include_all_counters("")
+        return self
+
+
+#   def include_time_series(
+#       self,
+#       name:str,
+#       ts_type: TimeSeriesRangeType,
+#       time: TimeValue
+#   ) -> SubscriptionIncludeBuilder:
+#        self._include_time_series_by_range_type_and_time("", name, ts_type, time)
+#        return self
+#
+#   def include_time_series_by_range_type_and_count(
+#       self,
+#       name:str,
+#       ts_type: TimeSeriesRangeType,
+#       time: TimeValue
+#   ) -> SubscriptionIncludeBuilder:
+#       self._include_time_series_by_range_type_and_count("", name, type, count)

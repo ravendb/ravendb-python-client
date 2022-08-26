@@ -5,6 +5,7 @@ from typing import Optional
 
 import requests
 
+from ravendb.documents.commands.subscriptions import TcpConnectionInfo
 from ravendb.http.misc import ClusterTopologyResponse
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
@@ -58,6 +59,41 @@ class GetClusterTopologyCommand(RavenCommand[ClusterTopologyResponse]):
             super()._throw_invalid_response()
 
         self.result: ClusterTopologyResponse = ClusterTopologyResponse.from_json(json.loads(response))
+
+    def is_read_request(self) -> bool:
+        return True
+
+
+class GetTcpInfoCommand(RavenCommand[TcpConnectionInfo]):
+    def __init__(self, tag: str, db_name: Optional[str] = None):
+        super(GetTcpInfoCommand, self).__init__(TcpConnectionInfo)
+        self._tag = tag
+        self._db_name = db_name
+        self._timeout = datetime.timedelta(seconds=15)
+        self._requested_node: Optional[ServerNode] = None
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        url = (
+            f"{node.url}/info/tcp?tcp={self._tag}"
+            if not self._db_name
+            else f"{node.url}/databases/{self._db_name}/info/tcp?tag={self._tag}"
+        )
+        self._requested_node = node
+        return requests.Request("GET", url)
+
+    @property
+    def requested_node(self) -> ServerNode:
+        return self._requested_node
+
+    @requested_node.setter
+    def requested_node(self, value: ServerNode):
+        self._requested_node = value
+
+    def set_response(self, response: Optional[str], from_cache: bool) -> None:
+        if response is None:
+            self._throw_invalid_response()
+
+        self.result = TcpConnectionInfo.from_json(json.loads(response))
 
     def is_read_request(self) -> bool:
         return True

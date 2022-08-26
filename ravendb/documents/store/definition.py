@@ -29,7 +29,8 @@ from ravendb.documents.session.event_args import (
 from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.session.document_session import DocumentSession
 from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from ravendb.documents.session.misc import SessionOptions, DocumentQueryCustomization
+from ravendb.documents.session.misc import SessionOptions
+from ravendb.documents.subscriptions.document_subscriptions import DocumentSubscriptions
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
 from ravendb.http.topology import Topology
@@ -308,6 +309,7 @@ class DocumentStoreBase:
 class DocumentStore(DocumentStoreBase):
     def __init__(self, urls: Optional[Union[str, List[str]]] = None, database: Optional[str] = None):
         super(DocumentStore, self).__init__()
+        self.__subscriptions = DocumentSubscriptions(self)
         self.__thread_pool_executor = ThreadPoolExecutor()
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
