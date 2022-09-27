@@ -336,6 +336,10 @@ class DocumentStore(DocumentStoreBase):
         return self.__thread_pool_executor
 
     @property
+    def subscriptions(self) -> DocumentSubscriptions:
+        return self.__subscriptions
+
+    @property
     def identifier(self) -> Union[None, str]:
         if self.__identifier is not None:
             return self.__identifier

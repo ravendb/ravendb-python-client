@@ -684,7 +684,7 @@ class Utils(object):
         return None
 
     @staticmethod
-    def timedelta_to_str(timedelta_obj):
+    def timedelta_to_str(timedelta_obj: timedelta):
         timedelta_str = None
         if isinstance(timedelta_obj, timedelta):
             timedelta_str = ""

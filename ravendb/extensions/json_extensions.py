@@ -101,7 +101,7 @@ class JsonExtensions:
     @staticmethod
     def write_value_as_bytes(value: object) -> bytes:
         return (
-            value.to_json()
-            if "to_json" in value.__dict__ and "__call__" in value.to_json.__dict__
+            json.dumps(value.to_json())
+            if getattr(value, "to_json", None) and getattr(value.to_json, "__call__", None)
             else json.dumps(value)
         ).encode("utf-8")

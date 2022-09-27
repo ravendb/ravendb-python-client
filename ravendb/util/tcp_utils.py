@@ -13,7 +13,7 @@ class TcpUtils:
         client_certificate_pem_path: Optional[str] = None,
         certificate_private_key_password: Optional[str] = None,
     ) -> socket.socket:
-        url = url_string.replace("tcp://", "")
+        hostname, port = url_string.replace("tcp://", "").split(":")
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         if server_certificate_pem_path and client_certificate_pem_path:
@@ -21,7 +21,8 @@ class TcpUtils:
             context.load_cert_chain(client_certificate_pem_path, password=certificate_private_key_password)
             context.load_verify_locations(server_certificate_pem_path)
             context.wrap_socket(s)
-        s.connect(url)
+        s.settimeout(.2)
+        s.connect((hostname, int(port)))
         return s
 
     @staticmethod
@@ -41,7 +42,7 @@ class TcpUtils:
                         certificate_private_key_password,
                     )
                     return s, url
-                except Exception:
+                except Exception as e:
                     # ignored
                     pass
 

@@ -35,7 +35,7 @@ class CreateSubscriptionCommand(RavenCommand[CreateSubscriptionResult], RaftComm
         self._key = key
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/databases/{node.database}/tools"
+        url = f"{node.url}/databases/{node.database}/subscriptions"
 
         if self._key is not None:
             url += "?id" + Utils.quote_key(self._key)
@@ -73,7 +73,11 @@ class TcpConnectionInfo:
     @classmethod
     def from_json(cls, json_dict: Dict) -> TcpConnectionInfo:
         return TcpConnectionInfo(
-            json_dict["Port"], json_dict["Url"], json_dict["Certificate"], json_dict["Urls"], json_dict["NodeTag"]
+            json_dict.get("Port", None),
+            json_dict.get("Url", None),
+            json_dict.get("Certificate", None),
+            json_dict.get("Urls", None),
+            json_dict.get("NodeTag", None),
         )
 
 
@@ -138,7 +142,7 @@ class GetSubscriptionsCommand(RavenCommand[List[SubscriptionState]]):
         self._page_size = page_size
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/databases/{node.database}/tools?start={self._start}&pageSize={self._page_size}"
+        url = f"{node.url}/databases/{node.database}/subscriptions?start={self._start}&pageSize={self._page_size}"
 
         return requests.Request("GET", url)
 
@@ -159,7 +163,7 @@ class DeleteSubscriptionCommand(VoidRavenCommand, RaftCommand):
         self._name = name
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/databases/{node.database}/tools?taskName={self._name}"
+        url = f"{node.url}/databases/{node.database}/subscriptions?taskName={self._name}"
 
         return requests.Request("DELETE", url)
 
@@ -176,7 +180,9 @@ class GetSubscriptionStateCommand(RavenCommand[SubscriptionState]):
         return True
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/databases/{node.database}/tools/state?name={Utils.quote_key(self._subscription_name)}"
+        url = (
+            f"{node.url}/databases/{node.database}/subscriptions/state?name={Utils.quote_key(self._subscription_name)}"
+        )
 
         return requests.Request("GET", url)
 
@@ -194,7 +200,7 @@ class DropSubscriptionConnectionCommand(VoidRavenCommand):
         path.append(node.url)
         path.append("/databases/")
         path.append(node.database)
-        path.append("/tools/drop")
+        path.append("/subscriptions/drop")
 
         if self._name and not self._name.isspace():
             path.append("?name=")
@@ -214,7 +220,7 @@ class UpdateSubscriptionCommand(RavenCommand[UpdateSubscriptionResult], RaftComm
         self._options = options
 
     def create_request(self, node: ServerNode) -> requests.Request:
-        url = f"{node.url}/databases/{node.database}/tools/update"
+        url = f"{node.url}/databases/{node.database}/subscriptions/update"
 
         request = requests.Request("POST", url)
         request.data = self._options.to_json()

@@ -8,6 +8,7 @@ import os
 import time
 from concurrent.futures import Future
 from enum import Enum
+from json import JSONDecoder
 from socket import socket
 from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_CHECKING
 
@@ -119,14 +120,16 @@ class SubscriptionConnectionServerMessage:
     def from_json(cls, json_dict: Dict) -> SubscriptionConnectionServerMessage:
         return cls(
             SubscriptionConnectionServerMessage.MessageType(json_dict["Type"]),
-            SubscriptionConnectionServerMessage.ConnectionStatus(json_dict["Status"]),
-            json_dict["Data"],
-            json_dict["Includes"],
-            json_dict["CounterIncludes"],
-            json_dict["IncludedCounterNames"],
-            json_dict["TimeSeriesIncludes"],
-            json_dict["Exception"],
-            json_dict["Message"],
+            SubscriptionConnectionServerMessage.ConnectionStatus(json_dict["Status"])
+            if "Status" in json_dict
+            else None,
+            json_dict["Data"] if "Data" in json_dict else None,
+            json_dict["Includes"] if "Includes" in json_dict else None,
+            json_dict["CounterIncludes"] if "CounterIncludes" in json_dict else None,
+            json_dict["IncludedCounterNames"] if "IncludedCounterNames" in json_dict else None,
+            json_dict["TimeSeriesIncludes"] if "TimeSeriesIncludes" in json_dict else None,
+            json_dict["Exception"] if "Exception" in json_dict else None,
+            json_dict["Message"] if "Message" in json_dict else None,
         )
 
 
@@ -160,7 +163,7 @@ class SubscriptionWorker(Generic[_T]):
             raise ValueError("SubscriptionConnectionOptions must specify the subscription name")
 
         self._store = document_store
-        self._db_name = db_name
+        self._db_name = self._store.get_effective_database(db_name)
         self._logger = logging.getLogger(SubscriptionWorker.__class__.__name__)
 
         self.after_acknowledgment = []
@@ -174,9 +177,9 @@ class SubscriptionWorker(Generic[_T]):
         self._subscription_task: Optional[Future[None]] = None
         self._forced_topology_update_attempts: int = 0
 
-        self._after_acknowledgment: Optional[List[Callable[[SubscriptionBatch[_T]], None]]] = None
-        self._on_subscription_connection_retry: Optional[List[Callable[[Exception], None]]] = None
-        self._on_unexpected_subscription_error: Optional[List[Callable[[Exception], None]]] = None
+        self._after_acknowledgment: List[Callable[[SubscriptionBatch[_T]], None]] = []
+        self._on_subscription_connection_retry: List[Callable[[Exception], None]] = []
+        self._on_unexpected_subscription_error: List[Callable[[Exception], None]] = []
 
         self._redirect_node: Optional[ServerNode] = None
         self._subscription_local_request_executor: Optional[RequestExecutor] = None
@@ -184,6 +187,9 @@ class SubscriptionWorker(Generic[_T]):
 
         self._last_connection_failure: Optional[datetime.datetime] = None
         self._supported_features: Optional[TcpConnectionHeaderMessage.SupportedFeatures] = None
+
+        self._json_decoder = JSONDecoder()
+        self._buffer = ""
 
     def __enter__(self):
         return self
@@ -370,7 +376,7 @@ class SubscriptionWorker(Generic[_T]):
         # python doesn't use parsers
         pass
 
-    def _read_server_response_and_get_version(self) -> int:
+    def _read_server_response_and_get_version(self, url: str) -> int:
         # reading reply from server
         self._ensure_parser()
         response = self._tcp_client.recv(self._options.receive_buffer_size)
@@ -509,7 +515,7 @@ class SubscriptionWorker(Generic[_T]):
                 while not self._processing_cts.get_token().is_cancellation_requested():
                     # start reading next batch from server on 1'st thread (can be before client started processing)
                     read_from_server = self._store.thread_pool_executor.submit(
-                        lambda: self._read_single_subscription_batch_from_server(tcp_client_copy, batch)
+                        self._read_single_subscription_batch_from_server, tcp_client_copy, batch
                     )
                     try:
                         notified_subscriber.result()
@@ -523,7 +529,9 @@ class SubscriptionWorker(Generic[_T]):
 
                         raise e
 
-                    incoming_batch = read_from_server.result()
+                    incoming_batch = read_from_server.result(
+                        self._options.time_to_wait_before_connection_retry.total_seconds()
+                    )
 
                     self._processing_cts.get_token().throw_if_cancellation_requested()
 
@@ -621,9 +629,17 @@ class SubscriptionWorker(Generic[_T]):
 
         if self._disposed:  # if we are disposed, nothing to do...
             return None
+        decoded_json = {}
+        while True:
+            if not self._buffer:
+                self._buffer += sock.recv(self._options.receive_buffer_size).decode("utf-8").strip("\r\n")
+            if not self._buffer or self._buffer.isspace():
+                continue
 
-        response = sock.recv(self._options.receive_buffer_size)
-        return SubscriptionConnectionServerMessage.from_json(json.loads(response.decode("utf-8")))
+            decoded_json, index = self._json_decoder.raw_decode(self._buffer)
+            self._buffer = self._buffer[index:]
+            break
+        return SubscriptionConnectionServerMessage.from_json(decoded_json)
 
     def _send_ack(self, last_received_change_vector: str, network_stream: socket) -> None:
         msg = SubscriptionConnectionClientMessage()
@@ -637,6 +653,7 @@ class SubscriptionWorker(Generic[_T]):
         def __run_async() -> None:
             while not self._processing_cts.get_token().is_cancellation_requested():
                 try:
+                    self._buffer = "" # clear the buffer in case if some error occured and try to get connection status
                     self._close_tcp_client()
                     self._logger.info(f"Subscription {self._options.subscription_name}. Connection to server...")
                     self._process_subscription()
@@ -874,6 +891,10 @@ class SubscriptionBatch(Generic[_T]):
     @property
     def items(self) -> List[Item[_T_Item]]:
         return self._items
+
+    @property
+    def number_of_items_in_batch(self) -> int:
+        return 0 if self.items is None else len(self.items)
 
     def open_session(self, options: Optional[SessionOptions]) -> DocumentSession:
         if not options:

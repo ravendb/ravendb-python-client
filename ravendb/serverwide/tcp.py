@@ -342,4 +342,8 @@ class TcpConnectionHeaderResponse:
 
     @classmethod
     def from_json(cls, json_dict: Dict) -> TcpConnectionHeaderResponse:
-        return cls(TcpConnectionStatus(json_dict["Status"]), json_dict["Message"], json_dict["Version"])
+        return cls(
+            TcpConnectionStatus(json_dict.get("Status", None)),
+            json_dict.get("Message", None),
+            json_dict.get("Version", None),
+        )

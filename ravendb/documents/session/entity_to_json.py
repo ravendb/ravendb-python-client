@@ -127,6 +127,8 @@ class EntityToJson:
     def convert_to_entity_by_key_static(
         entity_class: Type[_T], key: str, document: Dict, conventions: DocumentConventions
     ) -> _T:
+        if entity_class is None:
+            return document
         try:
             default_value = Utils.get_default_value(entity_class)
             entity = default_value

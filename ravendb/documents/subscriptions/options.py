@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Callable, Optional, Dict
 
 from ravendb.documents.session.loaders.include import SubscriptionIncludeBuilder
+from ravendb.tools.utils import Utils
 
 
 class SubscriptionOpeningStrategy(Enum):
@@ -60,6 +61,19 @@ class SubscriptionWorkerOptions:
         self.send_buffer_size = send_buffer_size
         self.ignore_subscriber_errors = ignore_subscriber_errors
         self.close_when_no_docs_left = close_when_no_docs_left
+
+    def to_json(self) -> Dict:
+        return {
+            "SubscriptionName": self.subscription_name,
+            "Strategy": self.strategy.value,
+            "MaxDocsPerBatch": self.max_docs_per_batch,
+            "TimeToWaitBeforeConnectionRetry": Utils.timedelta_to_str(self.time_to_wait_before_connection_retry),
+            "MaxErroneousPeriod": Utils.timedelta_to_str(self.max_erroneous_period),
+            "ReceiveBufferSize": self.receive_buffer_size,
+            "SendBufferSize": self.send_buffer_size,
+            "IgnoreSubscriberErrors": self.ignore_subscriber_errors,
+            "CloseWhenNoDocsLeft": self.close_when_no_docs_left,
+        }
 
 
 class SubscriptionUpdateOptions(SubscriptionCreationOptions):

@@ -44,7 +44,7 @@ class DocumentSubscriptions:
             raise ValueError("Cannot create a subscription if options is None")
 
         if options.query is None:
-            raise ValueError("Cannot create a tools if the script is None")
+            raise ValueError("Cannot create a subscriptions if the script is None")
 
         request_executor = self._store.get_request_executor(self._store.get_effective_database(database))
 
@@ -60,7 +60,7 @@ class DocumentSubscriptions:
         database: Optional[str] = None,
     ) -> str:
         options = options or SubscriptionCreationOptions()
-        return self.create_for_options(self.ensure_criteria(options, object_type, True), database)
+        return self.create_for_options(self.ensure_criteria(options, object_type, False), database)
 
     def ensure_criteria(self, criteria: SubscriptionCreationOptions, object_type: Type[_T], revisions: bool):
         if criteria is None:
