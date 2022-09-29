@@ -848,7 +848,7 @@ class SubscriptionBatch(Generic[_T]):
         def result(self) -> _T_Item:
             if self._exception_message is not None:
                 self._throw_item_process_exception()
-            return self.result
+            return self._result
 
         @result.setter
         def result(self, result: _T_Item):

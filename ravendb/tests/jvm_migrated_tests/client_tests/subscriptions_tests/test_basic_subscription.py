@@ -110,3 +110,41 @@ class TestBasicSubscription(TestBase):
         with self.assertRaises(RuntimeError):  # todo: Change for SubscriptionDoesNotExistException
             subscription_update_options = SubscriptionUpdateOptions(subs_id, key=key)
             self.store.subscriptions.update(subscription_update_options)
+
+    def test_should_stream_all_documents_after_subscription_creation(self):
+        with self.store.open_session() as session:
+            user1 = User(age=31)
+            session.store(user1, "users/1")
+
+            user2 = User(age=27)
+            session.store(user2, "users/12")
+
+            user3 = User(age=25)
+            session.store(user3, "users/3")
+
+            session.save_changes()
+
+        key = self.store.subscriptions.create_for_class(User)
+
+        with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
+            keys = []
+            ages = []
+            event = Event()
+
+            def __run(batch: SubscriptionBatch):
+                nonlocal keys
+                nonlocal ages
+                for item in batch.items:
+                    keys.append(item.key)
+                    ages.append(item.result.age)
+                event.set()
+
+            subscription.run(__run)
+            event.wait(self.reasonable_amount_of_time)
+            self.assertEqual("users/1", keys[0])
+            self.assertEqual("users/12", keys[1])
+            self.assertEqual("users/3", keys[2])
+
+            self.assertEqual(31, ages[0])
+            self.assertEqual(27, ages[1])
+            self.assertEqual(25, ages[2])
