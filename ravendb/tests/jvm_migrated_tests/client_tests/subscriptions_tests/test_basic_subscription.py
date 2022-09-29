@@ -148,3 +148,26 @@ class TestBasicSubscription(TestBase):
             self.assertEqual(31, ages[0])
             self.assertEqual(27, ages[1])
             self.assertEqual(25, ages[2])
+
+    def test_can_update_subscription_by_id(self):
+        subscription_creation_options = SubscriptionCreationOptions("Created", "from Users")
+        self.store.subscriptions.create_for_options(subscription_creation_options)
+        subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
+
+        state = subscriptions[0]
+
+        self.assertEqual(1, len(subscriptions))
+        self.assertEqual("Created", state.subscription_name)
+        self.assertEqual("from Users", state.query)
+
+        new_query = "from Users where age > 18"
+
+        subscription_update_options = SubscriptionUpdateOptions(key=state.subscription_id, query=new_query)
+        self.store.subscriptions.update(subscription_update_options)
+
+        new_subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
+        new_state = new_subscriptions[0]
+        self.assertEqual(1, len(new_subscriptions))
+        self.assertEqual(state.subscription_name, new_state.subscription_name)
+        self.assertEqual(new_query, new_state.query)
+        self.assertEqual(state.subscription_id, new_state.subscription_id)
