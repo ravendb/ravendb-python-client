@@ -171,3 +171,29 @@ class TestBasicSubscription(TestBase):
         self.assertEqual(state.subscription_name, new_state.subscription_name)
         self.assertEqual(new_query, new_state.query)
         self.assertEqual(state.subscription_id, new_state.subscription_id)
+
+    def test_should_respect_collection_criteria(self):
+        with self.store.open_session() as session:
+            for i in range(100):
+                session.store(Company())
+                session.store(User())
+
+            session.save_changes()
+
+        key = self.store.subscriptions.create_for_class(User)
+
+        options = SubscriptionWorkerOptions(key)
+        options.max_docs_per_batch = 31
+        with self.store.subscriptions.get_subscription_worker(options) as subscription:
+            semaphore = Semaphore(0)
+            atomic_integer = 0
+
+            def __run(batch: SubscriptionBatch):
+                nonlocal atomic_integer
+                atomic_integer += batch.number_of_items_in_batch
+
+                if atomic_integer == 100:
+                    semaphore.release()
+
+            subscription.run(__run)
+            self.assertTrue(semaphore.acquire(timeout=self.reasonable_amount_of_time))
