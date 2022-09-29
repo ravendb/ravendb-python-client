@@ -39,7 +39,7 @@ class DocumentSubscriptions:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def create_for_options(self, options: SubscriptionCreationOptions, database: Optional[str]) -> str:
+    def create_for_options(self, options: SubscriptionCreationOptions, database: Optional[str] = None) -> str:
         if options is None:
             raise ValueError("Cannot create a subscription if options is None")
 

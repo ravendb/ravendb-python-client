@@ -3,9 +3,10 @@ from ravendb.documents.subscriptions.options import (
     SubscriptionCreationOptions,
     SubscriptionWorkerOptions,
     SubscriptionOpeningStrategy,
+    SubscriptionUpdateOptions,
 )
 from ravendb.documents.subscriptions.worker import SubscriptionBatch
-from ravendb.exceptions.exceptions import SubscriptionInUseException
+from ravendb.exceptions.exceptions import SubscriptionInUseException, SubscriptionDoesNotExistException
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
@@ -15,6 +16,11 @@ class TestBasicSubscription(TestBase):
     def setUp(self):
         super(TestBasicSubscription, self).setUp()
         self.reasonable_amount_of_time = 60
+
+    def _put_user_doc(self):
+        with self.store.open_session() as session:
+            session.store(User())
+            session.save_changes()
 
     def test_can_release_subscription(self):
         subscription_worker = None
@@ -86,7 +92,21 @@ class TestBasicSubscription(TestBase):
             subscription_worker.run(__run)
             self.assertTrue(semaphore.acquire(True, self.reasonable_amount_of_time))
 
-    def _put_user_doc(self):
-        with self.store.open_session() as session:
-            session.store(User())
-            session.save_changes()
+    def test_update_non_existent_subscription_should_throw(self):
+        name = "Update"
+        key = 322
+
+        with self.assertRaises(RuntimeError):  # todo: Change for SubscriptionDoesNotExistException
+            subscription_update_options = SubscriptionUpdateOptions(name)
+            self.store.subscriptions.update(subscription_update_options)
+
+        with self.assertRaises(RuntimeError):  # todo: Change for SubscriptionDoesNotExistException
+            subscription_update_options = SubscriptionUpdateOptions(name, key=key)
+            self.store.subscriptions.update(subscription_update_options)
+
+        subscription_creation_options = SubscriptionCreationOptions("Created", "from Users")
+        subs_id = self.store.subscriptions.create_for_options(subscription_creation_options)
+
+        with self.assertRaises(RuntimeError):  # todo: Change for SubscriptionDoesNotExistException
+            subscription_update_options = SubscriptionUpdateOptions(subs_id, key=key)
+            self.store.subscriptions.update(subscription_update_options)

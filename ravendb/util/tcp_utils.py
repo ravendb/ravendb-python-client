@@ -21,7 +21,7 @@ class TcpUtils:
             context.load_cert_chain(client_certificate_pem_path, password=certificate_private_key_password)
             context.load_verify_locations(server_certificate_pem_path)
             context.wrap_socket(s)
-        s.settimeout(.2)
+        s.settimeout(0.2)
         s.connect((hostname, int(port)))
         return s
 

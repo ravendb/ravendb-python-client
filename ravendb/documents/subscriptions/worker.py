@@ -653,7 +653,7 @@ class SubscriptionWorker(Generic[_T]):
         def __run_async() -> None:
             while not self._processing_cts.get_token().is_cancellation_requested():
                 try:
-                    self._buffer = "" # clear the buffer in case if some error occured and try to get connection status
+                    self._buffer = ""  # clear the buffer in case if some error occured and try to get connection status
                     self._close_tcp_client()
                     self._logger.info(f"Subscription {self._options.subscription_name}. Connection to server...")
                     self._process_subscription()
