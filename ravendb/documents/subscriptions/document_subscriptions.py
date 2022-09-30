@@ -217,7 +217,7 @@ class DocumentSubscriptions:
         operation = ToggleOngoingTaskStateOperation(name, OngoingTaskType.SUBSCRIPTION, False)
         self._store.maintenance.for_database(self._store.get_effective_database(database)).send(operation)
 
-    def disable(self, name: str, database: Optional[str]) -> None:
+    def disable(self, name: str, database: Optional[str] = None) -> None:
         operation = ToggleOngoingTaskStateOperation(name, OngoingTaskType.SUBSCRIPTION, True)
         self._store.maintenance.for_database(self._store.get_effective_database(database)).send(operation)
 

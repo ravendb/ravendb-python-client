@@ -224,17 +224,27 @@ class TestBasicSubscription(TestBase):
         id1 = self.store.subscriptions.create_for_class(User)
         id2 = self.store.subscriptions.create_for_class(User)
 
-        subscriptions = self.store.subscriptions.get_subscriptions(0,5)
+        subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
         self.assertEqual(2, len(subscriptions))
 
         # test get_subscription_state as well
         subscription_state = self.store.subscriptions.get_subscription_state(id1)
         self.assertIsNone(subscription_state.change_vector_for_next_batch_starting_point)
 
-
         self.store.subscriptions.delete(id1)
         self.store.subscriptions.delete(id2)
 
-        subscriptions = self.store.subscriptions.get_subscriptions(0,5)
+        subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
 
         self.assertEqual(0, len(subscriptions))
+
+    def test_can_disable_subscription_via_api(self):
+        subscription = self.store.subscriptions.create_for_class(User)
+        self.store.subscriptions.disable(subscription)
+
+        subscriptions = self.store.subscriptions.get_subscriptions(0, 10)
+        self.assertTrue(subscriptions[0].disabled)
+
+        self.store.subscriptions.enable(subscription)
+        subscriptions = self.store.subscriptions.get_subscriptions(0, 10)
+        self.assertFalse(subscriptions[0].disabled)
