@@ -1,11 +1,15 @@
+import time
 from threading import Event, Semaphore
+from typing import Optional
+
+from ravendb.documents.session.event_args import BeforeRequestEventArgs
 from ravendb.documents.subscriptions.options import (
     SubscriptionCreationOptions,
     SubscriptionWorkerOptions,
     SubscriptionOpeningStrategy,
     SubscriptionUpdateOptions,
 )
-from ravendb.documents.subscriptions.worker import SubscriptionBatch
+from ravendb.documents.subscriptions.worker import SubscriptionBatch, SubscriptionWorker
 from ravendb.exceptions.exceptions import SubscriptionInUseException, SubscriptionDoesNotExistException
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
@@ -197,6 +201,40 @@ class TestBasicSubscription(TestBase):
 
             subscription.run(__run)
             self.assertTrue(semaphore.acquire(timeout=self.reasonable_amount_of_time))
+
+    def test_will_acknowledge_empty_batches(self):
+        subscription_documents = self.store.subscriptions.get_subscriptions(0, 10)
+        self.assertEqual(0, len(subscription_documents))
+
+        all_id = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+        with self.store.subscriptions.get_subscription_worker_by_name(subscription_name=all_id) as all_subscription:
+            all_semaphore = Semaphore(0)
+            all_counter = 0
+
+            filtered_options = SubscriptionCreationOptions(query="from 'Users' where age < 0")
+            filtered_users_id = self.store.subscriptions.create_for_options(filtered_options)
+
+            with self.store.subscriptions.get_subscription_worker(
+                SubscriptionWorkerOptions(filtered_users_id)
+            ) as filtered_subscription:
+                users_docs_semaphore = Semaphore(0)
+
+                with self.store.open_session() as session:
+                    for i in range(500):
+                        session.store(User(age=0), f"another/{i}")
+                    session.save_changes()
+
+                def __run(x: SubscriptionBatch):
+                    nonlocal all_counter
+                    all_counter += x.number_of_items_in_batch
+                    if all_counter >= 100:
+                        all_semaphore.release()
+
+                all_subscription.run(__run)
+                filtered_subscription.run(lambda x: users_docs_semaphore.release())
+
+                self.assertTrue(all_semaphore.acquire(timeout=self.reasonable_amount_of_time))
+                self.assertFalse(users_docs_semaphore.acquire(timeout=0.05))
 
     def test_can_update_subscription_by_name(self):
         subscription_creation_options = SubscriptionCreationOptions("Created", "from Users")

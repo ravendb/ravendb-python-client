@@ -53,6 +53,15 @@ class DocumentSubscriptions:
 
         return command.result.name
 
+    def create_for_options_autocomplete_query(
+        self,
+        object_type: Type[_T],
+        options: SubscriptionCreationOptions = SubscriptionCreationOptions(),
+        database: Optional[str] = None,
+    ) -> str:
+        options = self.ensure_criteria(options, object_type, False)
+        return self.create_for_options(options, database)
+
     def create_for_class(
         self,
         object_type: Type[_T],
@@ -160,8 +169,8 @@ class DocumentSubscriptions:
 
     def get_subscription_worker_by_name(
         self,
-        object_type: Optional[Type[_T]] = None,
         subscription_name: Optional[str] = None,
+        object_type: Optional[Type[_T]] = None,
         database: Optional[str] = None,
     ) -> SubscriptionWorker[_T]:
         return self.get_subscription_worker(SubscriptionWorkerOptions(subscription_name), object_type, database)

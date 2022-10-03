@@ -8,7 +8,6 @@ from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
 from ravendb import constants, exceptions
 from ravendb.changes.database_changes import DatabaseChanges
-from ravendb.documents.operations.counters.operation import CounterOperationType
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.session.event_args import (
@@ -212,10 +211,10 @@ class DocumentStoreBase:
     def remove_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
         self.__after_conversion_to_entity.remove(event)
 
-    def add_on_before_request(self, event: Callable[[], None]):
+    def add_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
         self.__on_before_request.append(event)
 
-    def remove_on_before_request(self, event: Callable[[], None]):
+    def remove_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
         self.__on_before_request.remove(event)
 
     def add_on_succeed_request(self, event: Callable[[SucceedRequestEventArgs], None]):

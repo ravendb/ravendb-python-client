@@ -8,7 +8,7 @@ import os
 import time
 from concurrent.futures import Future
 from enum import Enum
-from json import JSONDecoder
+from json import JSONDecoder, JSONDecodeError
 from socket import socket
 from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_CHECKING
 
@@ -630,13 +630,18 @@ class SubscriptionWorker(Generic[_T]):
         if self._disposed:  # if we are disposed, nothing to do...
             return None
         decoded_json = {}
+        fetch_flag = False
         while True:
-            if not self._buffer:
+            if fetch_flag or not self._buffer:
                 self._buffer += sock.recv(self._options.receive_buffer_size).decode("utf-8").strip("\r\n")
+                fetch_flag = False
             if not self._buffer or self._buffer.isspace():
                 continue
-
-            decoded_json, index = self._json_decoder.raw_decode(self._buffer)
+            try:
+                decoded_json, index = self._json_decoder.raw_decode(self._buffer)
+            except JSONDecodeError:
+                fetch_flag = True
+                continue
             self._buffer = self._buffer[index:]
             break
         return SubscriptionConnectionServerMessage.from_json(decoded_json)
