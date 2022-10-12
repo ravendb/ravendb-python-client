@@ -125,7 +125,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 if self.no_tracking:
                     raise RuntimeError("Cannot execute save_changes when entity tracking is disabled.")
 
-                # todo: rebuild request executor - WIP
                 self._request_executor.execute_command(command, self.session_info)
                 self.update_session_after_save_changes(command.result)
                 save_changes_operation.set_result(command.result)

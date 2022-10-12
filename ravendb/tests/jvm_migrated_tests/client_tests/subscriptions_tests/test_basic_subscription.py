@@ -1,6 +1,6 @@
 import time
 from threading import Event, Semaphore
-from typing import Optional
+from typing import Optional, List
 
 from ravendb.documents.session.event_args import BeforeRequestEventArgs
 from ravendb.documents.subscriptions.options import (
@@ -257,6 +257,31 @@ class TestBasicSubscription(TestBase):
         self.assertEqual(state.subscription_name, new_state.subscription_name)
         self.assertEqual(new_query, new_state.query)
         self.assertEqual(state.subscription_id, new_state.subscription_id)
+
+    def test_can_set_to_ignore_errors(self):
+        key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+        opt1 = SubscriptionWorkerOptions(key)
+        opt1.ignore_subscriber_errors = True
+        with self.store.subscriptions.get_subscription_worker(opt1, User) as subscription:
+            docs: List[User] = []
+            event = Event()
+
+            self._put_user_doc()
+            self._put_user_doc()
+
+            def __run(x: SubscriptionBatch):
+                docs.extend([item.result for item in x.items])
+                if not event.is_set():
+                    event.set()
+                raise RuntimeError("Fake error")
+
+            subscription_task = subscription.run(__run)
+
+            event.wait(self.reasonable_amount_of_time)
+            self.assertIsNotNone(docs.pop(0))
+            self.assertIsNotNone(docs.pop(0))
+            subscription.close()
+            self.assertIsNone(subscription_task.exception(self.reasonable_amount_of_time))
 
     def test_can_delete_subscription(self):
         id1 = self.store.subscriptions.create_for_class(User)
