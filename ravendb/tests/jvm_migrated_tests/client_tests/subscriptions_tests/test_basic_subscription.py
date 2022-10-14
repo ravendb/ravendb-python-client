@@ -326,6 +326,50 @@ class TestBasicSubscription(TestBase):
         self.assertEqual(state.query, new_state.query)
         self.assertEqual(state.subscription_id, new_state.subscription_id)
 
+    def test_should_send_all_new_and_modified_docs(self):
+        key = self.store.subscriptions.create_for_class(User)
+
+        with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key)) as subscription:
+            names = []
+
+            with self.store.open_session() as session:
+                user = User()
+                user.name = "James"
+                session.store(user, "users/1")
+                session.save_changes()
+
+            subscription.run(lambda batch: names.extend([x.result["name"] for x in batch.items]))
+
+            while not names:
+                time.sleep(0.05)
+
+            name = names.pop()
+            self.assertEqual("James", name)
+
+            with self.store.open_session() as session:
+                user = User()
+                user.name = "Adam"
+                session.store(user, "users/12")
+                session.save_changes()
+
+            while not names:
+                time.sleep(0.05)
+
+            name = names.pop()
+            self.assertEqual("Adam", name)
+
+            with self.store.open_session() as session:
+                user = User()
+                user.name = "David"
+                session.store(user, "users/1")
+                session.save_changes()
+
+            while not names:
+                time.sleep(0.05)
+
+            name = names.pop()
+            self.assertEqual("David", name)
+
     def test_can_disable_subscription_via_api(self):
         subscription = self.store.subscriptions.create_for_class(User)
         self.store.subscriptions.disable(subscription)
