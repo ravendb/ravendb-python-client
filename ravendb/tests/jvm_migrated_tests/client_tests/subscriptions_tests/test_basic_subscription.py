@@ -1,3 +1,4 @@
+import datetime
 import time
 from threading import Event, Semaphore
 from typing import Optional, List
@@ -10,7 +11,11 @@ from ravendb.documents.subscriptions.options import (
     SubscriptionUpdateOptions,
 )
 from ravendb.documents.subscriptions.worker import SubscriptionBatch, SubscriptionWorker
-from ravendb.exceptions.exceptions import SubscriptionInUseException, SubscriptionDoesNotExistException
+from ravendb.exceptions.exceptions import (
+    SubscriptionInUseException,
+    SubscriptionDoesNotExistException,
+    SubscriptionClosedException,
+)
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
@@ -300,6 +305,26 @@ class TestBasicSubscription(TestBase):
         subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
 
         self.assertEqual(0, len(subscriptions))
+
+    def test_update_subscription_should_return_not_modified(self):
+        update_options = SubscriptionUpdateOptions("Created", "from Users")
+        self.store.subscriptions.create_for_options(update_options)
+
+        subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
+        state = subscriptions[0]
+
+        self.assertEqual(1, len(subscriptions))
+        self.assertEqual("Created", state.subscription_name)
+        self.assertEqual("from Users", state.query)
+
+        self.store.subscriptions.update(update_options)
+
+        new_subscriptions = self.store.subscriptions.get_subscriptions(0, 5)
+        new_state = new_subscriptions[0]
+        self.assertEqual(1, len(new_subscriptions))
+        self.assertEqual(state.subscription_name, new_state.subscription_name)
+        self.assertEqual(state.query, new_state.query)
+        self.assertEqual(state.subscription_id, new_state.subscription_id)
 
     def test_can_disable_subscription_via_api(self):
         subscription = self.store.subscriptions.create_for_class(User)
