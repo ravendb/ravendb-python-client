@@ -353,7 +353,10 @@ class TestBasicSubscription(TestBase):
                 session.save_changes()
 
             while not names:
+                i += 1
                 time.sleep(0.05)
+                if i > 100:
+                    break
 
             name = names.pop()
             self.assertEqual("Adam", name)
@@ -364,11 +367,56 @@ class TestBasicSubscription(TestBase):
                 session.store(user, "users/1")
                 session.save_changes()
 
+            i = 0
             while not names:
+                i += 1
                 time.sleep(0.05)
+                if i > 100:
+                    break
 
             name = names.pop()
             self.assertEqual("David", name)
+
+    def test_should_deserialize_the_whole_documents_after_typed_subscription(self):
+        key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+        with self.store.subscriptions.get_subscription_worker_by_name(key, User) as subscription:
+            users = []
+
+            with self.store.open_session() as session:
+                user1 = User(age=31)
+                session.store(user1, "users/1")
+
+                user2 = User(age=27)
+                session.store(user2, "users/12")
+
+                user3 = User(age=25)
+                session.store(user3, "users/3")
+
+                session.save_changes()
+
+            subscription.run(lambda x: users.extend([i.result for i in x.items]))
+
+            i = 0
+            while not users:
+                i += 1
+                time.sleep(0.05)
+                if i > 100:
+                    break
+
+            user = users.pop(0)
+            self.assertIsNotNone(user)
+            self.assertEqual("users/1", user.Id)
+            self.assertEqual(31, user.age)
+
+            user = users.pop(0)
+            self.assertIsNotNone(user)
+            self.assertEqual("users/12", user.Id)
+            self.assertEqual(27, user.age)
+
+            user = users.pop(0)
+            self.assertIsNotNone(user)
+            self.assertEqual("users/3", user.Id)
+            self.assertEqual(25, user.age)
 
     def test_can_disable_subscription_via_api(self):
         subscription = self.store.subscriptions.create_for_class(User)
