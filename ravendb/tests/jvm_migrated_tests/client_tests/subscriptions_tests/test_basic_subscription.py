@@ -391,7 +391,6 @@ class TestBasicSubscription(TestBase):
             self.assertIsNotNone(user)
             self.assertEqual("users/2", user.Id)
 
-
             user = items2.get()
             self.assertIsNotNone(user)
             self.assertEqual("users/1", user.Id)
@@ -417,6 +416,31 @@ class TestBasicSubscription(TestBase):
         finally:
             subscription1.close()
             subscription2.close()
+
+    def test_dispose_subscription_worker_should_not_throw(self):
+        mre = Semaphore(0)
+        mre2 = Semaphore(0)
+
+        def __event(brea: BeforeRequestEventArgs):
+            if "info/remote-task/tcp?database=" in brea.url:
+                mre.release()
+                self.assertTrue(mre2.acquire(timeout=self.reasonable_amount_of_time))
+
+        self.store.get_request_executor().add_on_before_request(__event)
+
+        key = self.store.subscriptions.create_for_options_autocomplete_query(Company, SubscriptionCreationOptions())
+        worker_options = SubscriptionWorkerOptions(key)
+        worker_options.ignore_subscriber_errors = True
+        worker_options.strategy = SubscriptionOpeningStrategy.TAKE_OVER
+        worker = self.store.subscriptions.get_subscription_worker(worker_options, Company, self.store.database)
+        t = worker.run(lambda x: None)
+        self.assertTrue(mre.acquire(timeout=self.reasonable_amount_of_time))
+        worker.close(False)
+        mre2.release()
+
+        time.sleep(5)
+
+        self.assertIsNone(t.exception(self.reasonable_amount_of_time))
 
     def test_should_deserialize_the_whole_documents_after_typed_subscription(self):
         key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
