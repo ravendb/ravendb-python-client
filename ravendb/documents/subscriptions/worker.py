@@ -894,7 +894,7 @@ class SubscriptionBatch(Generic[_T]):
         self._time_series_includes: Optional[Dict] = None
 
     @property
-    def items(self) -> List[Item[_T_Item]]:
+    def items(self) -> List[Item[_T]]:
         return self._items
 
     @property

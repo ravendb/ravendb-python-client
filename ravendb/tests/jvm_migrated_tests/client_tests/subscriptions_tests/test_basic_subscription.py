@@ -1,4 +1,5 @@
 import datetime
+import queue
 import time
 from threading import Event, Semaphore
 from typing import Optional, List
@@ -330,7 +331,7 @@ class TestBasicSubscription(TestBase):
         key = self.store.subscriptions.create_for_class(User)
 
         with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key)) as subscription:
-            names = []
+            names = queue.Queue()
 
             with self.store.open_session() as session:
                 user = User()
@@ -338,12 +339,9 @@ class TestBasicSubscription(TestBase):
                 session.store(user, "users/1")
                 session.save_changes()
 
-            subscription.run(lambda batch: names.extend([x.result["name"] for x in batch.items]))
+            subscription.run(lambda batch: [names.put(x.result["name"]) for x in batch.items])
 
-            while not names:
-                time.sleep(0.05)
-
-            name = names.pop()
+            name = names.get(timeout=self.reasonable_amount_of_time)
             self.assertEqual("James", name)
 
             with self.store.open_session() as session:
@@ -352,13 +350,7 @@ class TestBasicSubscription(TestBase):
                 session.store(user, "users/12")
                 session.save_changes()
 
-            while not names:
-                i += 1
-                time.sleep(0.05)
-                if i > 100:
-                    break
-
-            name = names.pop()
+            name = names.get(timeout=self.reasonable_amount_of_time)
             self.assertEqual("Adam", name)
 
             with self.store.open_session() as session:
@@ -367,14 +359,7 @@ class TestBasicSubscription(TestBase):
                 session.store(user, "users/1")
                 session.save_changes()
 
-            i = 0
-            while not names:
-                i += 1
-                time.sleep(0.05)
-                if i > 100:
-                    break
-
-            name = names.pop()
+            name = names.get(timeout=self.reasonable_amount_of_time)
             self.assertEqual("David", name)
 
     def test_should_deserialize_the_whole_documents_after_typed_subscription(self):

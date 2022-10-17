@@ -142,3 +142,30 @@ class Order:
         self.ship_via = ship_via
         self.freight = freight
         self.lines = lines
+
+
+class Category:
+    def __init__(self, Id: str = None, name: str = None, description: str = None):
+        self.Id = Id
+        self.name = name
+        self.description = description
+
+
+class Supplier:
+    def __init__(
+        self,
+        Id: str = None,
+        contact: Contact = None,
+        name: str = None,
+        address: Address = None,
+        phone: str = None,
+        fax: str = None,
+        homepage: str = None,
+    ):
+        self.Id = Id
+        self.contact = contact
+        self.name = name
+        self.address = address
+        self.phone = phone
+        self.fax = fax
+        self.homepage = homepage
