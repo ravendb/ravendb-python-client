@@ -362,6 +362,62 @@ class TestBasicSubscription(TestBase):
             name = names.get(timeout=self.reasonable_amount_of_time)
             self.assertEqual("David", name)
 
+    def test_disposing_one_subscription_should_not_affect_on_notifications_of_others(self):
+        subscription1: Optional[SubscriptionWorker[User]] = None
+        subscription2: Optional[SubscriptionWorker[User]] = None
+
+        try:
+            id1 = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+            id2 = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+
+            with self.store.open_session() as session:
+                session.store(User(), "users/1")
+                session.store(User(), "users/2")
+                session.save_changes()
+
+            subscription1 = self.store.subscriptions.get_subscription_worker_by_name(id1, User)
+            items1 = queue.Queue()
+            subscription1.run(lambda x: [items1.put(i.result) for i in x.items])
+
+            subscription2 = self.store.subscriptions.get_subscription_worker_by_name(id2, User)
+            items2 = queue.Queue()
+            subscription2.run(lambda x: [items2.put(i.result) for i in x.items])
+
+            user = items1.get()
+            self.assertIsNotNone(user)
+            self.assertEqual("users/1", user.Id)
+
+            user = items1.get()
+            self.assertIsNotNone(user)
+            self.assertEqual("users/2", user.Id)
+
+
+            user = items2.get()
+            self.assertIsNotNone(user)
+            self.assertEqual("users/1", user.Id)
+
+            user = items2.get()
+            self.assertIsNotNone(user)
+            self.assertEqual("users/2", user.Id)
+
+            subscription1.close()
+
+            with self.store.open_session() as session:
+                session.store(User(), "users/3")
+                session.store(User(), "users/4")
+                session.save_changes()
+
+            user = items2.get()
+            self.assertIsNotNone(user)
+            self.assertEqual("users/3", user.Id)
+
+            user = items2.get()
+            self.assertIsNotNone(user)
+            self.assertEqual("users/4", user.Id)
+        finally:
+            subscription1.close()
+            subscription2.close()
+
     def test_should_deserialize_the_whole_documents_after_typed_subscription(self):
         key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
         with self.store.subscriptions.get_subscription_worker_by_name(key, User) as subscription:
