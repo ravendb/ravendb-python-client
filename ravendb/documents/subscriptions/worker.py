@@ -10,7 +10,7 @@ from concurrent.futures import Future
 from enum import Enum
 from json import JSONDecoder, JSONDecodeError
 from socket import socket
-from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_CHECKING
+from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_CHECKING, Any
 
 from ravendb import constants
 from ravendb.documents.session.entity_to_json import EntityToJson
@@ -253,7 +253,7 @@ class SubscriptionWorker(Generic[_T]):
             if self._on_closed is not None:
                 self._on_closed(self)
 
-    def run(self, process_documents: Optional[Callable[[SubscriptionBatch[_T]], None]]) -> Future[None]:
+    def run(self, process_documents: Optional[Callable[[SubscriptionBatch[_T]], Any]]) -> Future[None]:
         if process_documents is None:
             raise ValueError("process_documents cannot be None")
 
@@ -428,7 +428,7 @@ class SubscriptionWorker(Generic[_T]):
                 f"is {self._options.strategy}"
             )
         elif connection_status.status == SubscriptionConnectionServerMessage.ConnectionStatus.CLOSED:
-            can_reconnect = json.loads(connection_status.data.get("CanReconnect"))
+            can_reconnect = connection_status.data.get("CanReconnect")
             raise SubscriptionClosedException(
                 f"Subscription with id {self._options.subscription_name} was closed. " f"{connection_status.exception}",
                 can_reconnect=can_reconnect,
@@ -483,7 +483,7 @@ class SubscriptionWorker(Generic[_T]):
             with self._connect_to_server():
                 self._processing_cts.get_token().throw_if_cancellation_requested()
 
-                tcp_client_copy = self._tcp_client.dup()
+                tcp_client_copy = self._tcp_client
 
                 connection_status = self._read_next_object(tcp_client_copy)
                 if self._processing_cts.get_token().is_cancellation_requested():
@@ -512,6 +512,25 @@ class SubscriptionWorker(Generic[_T]):
                     self._object_type,
                 )
 
+                def __run_async():
+                    try:
+                        self._subscriber(batch)
+                    except Exception as ex:
+                        self._logger.debug(
+                            f"Subscription {self._options.subscription_name}. "
+                            f"Subscriber threw an exception on document batch",
+                            ex,
+                        )
+
+                        if not self._options.ignore_subscriber_errors:
+                            raise SubscriberErrorException(
+                                f"Subscriber threw an exception in subscription " f"{self._options.subscription_name}",
+                                ex,
+                            )
+
+                    if tcp_client_copy is not None:
+                        self._send_ack(last_received_change_vector, tcp_client_copy)
+
                 while not self._processing_cts.get_token().is_cancellation_requested():
                     # start reading next batch from server on 1'st thread (can be before client started processing)
                     read_from_server = self._store.thread_pool_executor.submit(
@@ -536,26 +555,6 @@ class SubscriptionWorker(Generic[_T]):
                     self._processing_cts.get_token().throw_if_cancellation_requested()
 
                     last_received_change_vector = batch.initialize(incoming_batch)
-
-                    def __run_async():
-                        try:
-                            self._subscriber(batch)
-                        except Exception as ex:
-                            self._logger.debug(
-                                f"Subscription {self._options.subscription_name}. "
-                                f"Subscriber threw an exception on document batch",
-                                ex,
-                            )
-
-                            if not self._options.ignore_subscriber_errors:
-                                raise SubscriberErrorException(
-                                    f"Subscriber threw an exception in subscription "
-                                    f"{self._options.subscription_name}",
-                                    ex,
-                                )
-
-                        if tcp_client_copy is not None:
-                            self._send_ack(last_received_change_vector, tcp_client_copy)
 
                     notified_subscriber = self._store.thread_pool_executor.submit(__run_async)
         except OperationCancelledException as e:
@@ -597,10 +596,8 @@ class SubscriptionWorker(Generic[_T]):
                 end_of_batch = True
             elif received_message.type_of_message == SubscriptionConnectionServerMessage.MessageType.CONFIRM:
                 self.invoke_after_acknowledgment(batch)
-
                 incoming_batch.clear()
                 batch.items.clear()
-                break
             elif received_message.type_of_message == SubscriptionConnectionServerMessage.MessageType.CONNECTION_STATUS:
                 self._assert_connection_state(received_message)
             elif received_message.type_of_message == SubscriptionConnectionServerMessage.MessageType.ERROR:
@@ -629,22 +626,20 @@ class SubscriptionWorker(Generic[_T]):
 
         if self._disposed:  # if we are disposed, nothing to do...
             return None
-        decoded_json = {}
-        fetch_flag = False
+
+        def receive_more_data():
+            return sock.recv(self._options.receive_buffer_size).decode("utf-8").strip("\r\n")
+
         while True:
-            if fetch_flag or not self._buffer:
-                self._buffer += sock.recv(self._options.receive_buffer_size).decode("utf-8").strip("\r\n")
-                fetch_flag = False
-            if not self._buffer or self._buffer.isspace():
-                continue
-            try:
-                decoded_json, index = self._json_decoder.raw_decode(self._buffer)
-            except JSONDecodeError:
-                fetch_flag = True
-                continue
-            self._buffer = self._buffer[index:]
-            break
-        return SubscriptionConnectionServerMessage.from_json(decoded_json)
+            if self._buffer and not self._buffer.isspace():
+                try:
+                    decoded_json, index = self._json_decoder.raw_decode(self._buffer)
+                    self._buffer = self._buffer[index:]
+                    return SubscriptionConnectionServerMessage.from_json(decoded_json)
+                except JSONDecodeError:
+                    self._buffer += receive_more_data()
+            else:
+                self._buffer += receive_more_data()
 
     def _send_ack(self, last_received_change_vector: str, network_stream: socket) -> None:
         msg = SubscriptionConnectionClientMessage()
@@ -658,7 +653,6 @@ class SubscriptionWorker(Generic[_T]):
         def __run_async() -> None:
             while not self._processing_cts.get_token().is_cancellation_requested():
                 try:
-                    self._buffer = ""  # clear the buffer in case if some error occured and try to get connection status
                     self._close_tcp_client()
                     self._logger.info(f"Subscription {self._options.subscription_name}. Connection to server...")
                     self._process_subscription()

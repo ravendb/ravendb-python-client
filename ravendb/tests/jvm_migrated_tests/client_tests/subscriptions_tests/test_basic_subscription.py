@@ -1,6 +1,8 @@
+import _queue
 import datetime
 import queue
 import time
+import unittest
 from threading import Event, Semaphore
 from typing import Optional, List
 
@@ -14,7 +16,6 @@ from ravendb.documents.subscriptions.options import (
 from ravendb.documents.subscriptions.worker import SubscriptionBatch, SubscriptionWorker
 from ravendb.exceptions.exceptions import (
     SubscriptionInUseException,
-    SubscriptionDoesNotExistException,
     SubscriptionClosedException,
 )
 from ravendb.infrastructure.entities import User
@@ -441,6 +442,40 @@ class TestBasicSubscription(TestBase):
         time.sleep(5)
 
         self.assertIsNone(t.exception(self.reasonable_amount_of_time))
+
+    def test_ravenDB_3452_should_stop_pulling_docs_if_released(self):
+        key = self.store.subscriptions.create_for_class(User)
+        options1 = SubscriptionWorkerOptions(key)
+        options1.time_to_wait_before_connection_retry = datetime.timedelta(seconds=1)
+        with self.store.subscriptions.get_subscription_worker(options1, User) as subscription:
+            with self.store.open_session() as session:
+                session.store(User(), "users/1")
+                session.store(User(), "users/2")
+                session.save_changes()
+
+            docs = queue.Queue()
+            subscribe = subscription.run(lambda x: [docs.put(item.result) for item in x.items])
+
+            self.assertIsNotNone(docs.get())
+            self.assertIsNotNone(docs.get())
+            self.store.subscriptions.drop_connection(key)
+            try:
+                # this can exit normally or throw on drop connection
+                # depending on exactly where the drop happens
+                subscribe.result(self.reasonable_amount_of_time)
+            except Exception as e:
+                self.assertIsInstance(e, SubscriptionClosedException)
+
+            with self.store.open_session() as session:
+                session.store(User(), "users/3")
+                session.store(User(), "users/4")
+                session.save_changes()
+
+        with self.assertRaises(_queue.Empty):
+            self.assertIsNone(docs.get(timeout=0.05))
+        with self.assertRaises(_queue.Empty):
+            self.assertIsNone(docs.get(timeout=0.05))
+        self.assertTrue(subscribe.done())
 
     def test_should_deserialize_the_whole_documents_after_typed_subscription(self):
         key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
