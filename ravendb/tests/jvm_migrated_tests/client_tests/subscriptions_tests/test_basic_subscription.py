@@ -528,3 +528,22 @@ class TestBasicSubscription(TestBase):
         self.store.subscriptions.enable(subscription)
         subscriptions = self.store.subscriptions.get_subscriptions(0, 10)
         self.assertFalse(subscriptions[0].disabled)
+
+    def test_should_throw_on_attempt_to_open_already_opened_subscription(self):
+        key = self.store.subscriptions.create_for_class(User)
+        with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key)) as subscription:
+            with self.store.open_session() as session:
+                session.store(User())
+                session.save_changes()
+
+            semaphore = Semaphore(0)
+            t = subscription.run(lambda x: semaphore.release())
+
+            semaphore.acquire(timeout=self.reasonable_amount_of_time)
+
+            options2 = SubscriptionWorkerOptions(key)
+            options2.strategy = SubscriptionOpeningStrategy.OPEN_IF_FREE
+            with self.store.subscriptions.get_subscription_worker(options2) as second_subscription:
+                with self.assertRaises(SubscriptionInUseException):
+                    task = second_subscription.run(lambda x: None)
+                    task.result(self.reasonable_amount_of_time)
