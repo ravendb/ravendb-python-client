@@ -726,7 +726,7 @@ class InMemoryDocumentSessionOperations:
 
         self._documents_by_entity[info.entity] = info
         self._documents_by_id.add(info)
-        self._included_documents_by_id.pop(info.key)
+        self._included_documents_by_id.remove(info.key)
 
     def track_entity(
         self,

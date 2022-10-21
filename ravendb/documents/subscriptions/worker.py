@@ -627,7 +627,7 @@ class SubscriptionWorker(Generic[_T]):
         if self._disposed:  # if we are disposed, nothing to do...
             return None
 
-        def receive_more_data():
+        def _receive_more_data():
             return sock.recv(self._options.receive_buffer_size).decode("utf-8").strip("\r\n")
 
         while True:
@@ -637,9 +637,9 @@ class SubscriptionWorker(Generic[_T]):
                     self._buffer = self._buffer[index:]
                     return SubscriptionConnectionServerMessage.from_json(decoded_json)
                 except JSONDecodeError:
-                    self._buffer += receive_more_data()
+                    self._buffer += _receive_more_data()
             else:
-                self._buffer += receive_more_data()
+                self._buffer += _receive_more_data()
 
     def _send_ack(self, last_received_change_vector: str, network_stream: socket) -> None:
         msg = SubscriptionConnectionClientMessage()
@@ -895,7 +895,7 @@ class SubscriptionBatch(Generic[_T]):
     def number_of_items_in_batch(self) -> int:
         return 0 if self.items is None else len(self.items)
 
-    def open_session(self, options: Optional[SessionOptions]) -> DocumentSession:
+    def open_session(self, options: Optional[SessionOptions] = None) -> DocumentSession:
         if not options:
             options = SessionOptions()
         else:
