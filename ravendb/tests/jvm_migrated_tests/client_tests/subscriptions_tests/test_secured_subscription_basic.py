@@ -56,3 +56,36 @@ class TestSecuredSubscriptionBasic(TestBase):
 
             age = ages.get(timeout=_reasonable_amount_of_time)
             self.assertEqual(age, 25)
+
+    def test_should_send_all_new_and_modified_docs(self):
+        with self.secured_document_store as store:
+            key = store.subscriptions.create_for_class(User)
+
+            with store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
+                names = Queue(20)
+
+                with store.open_session() as session:
+                    user = User(name="James")
+                    session.store(user, "users/1")
+                    session.save_changes()
+
+                subscription.run(lambda batch: [names.put(item.result.name) for item in batch.items])
+
+                name = names.get(timeout=_reasonable_amount_of_time)
+                self.assertEqual("James", name)
+
+                with store.open_session() as session:
+                    user = User(name="Adam")
+                    session.store(user, "users/12")
+                    session.save_changes()
+
+                name = names.get(timeout=_reasonable_amount_of_time)
+                self.assertEqual("Adam", name)
+
+                with store.open_session() as session:
+                    user = User(name="David")
+                    session.store(user, "users/1")
+                    session.save_changes()
+
+                name = names.get(timeout=_reasonable_amount_of_time)
+                self.assertEqual("David", name)
