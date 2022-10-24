@@ -1,5 +1,4 @@
 from ravendb.exceptions.exceptions import InvalidOperationException
-from ravendb.documents.commands.crud import PutDocumentCommand
 from ravendb.tests.test_base import TestBase
 from dataclasses import dataclass
 import unittest
@@ -75,16 +74,6 @@ class TestLoad(TestBase):
     def tearDown(self):
         super(TestLoad, self).tearDown()
 
-    # todo: discuss nested object types - pass into track entity?
-    @unittest.skip("Nested object types")
-    def test_can_handle_nested_values(self):
-        request_executor = self.store.get_request_executor()
-        put_command = PutDocumentCommand("testing/1", None, {"items": [{"name": "oren"}]})
-        request_executor.execute_command(put_command)
-        with self.store.open_session() as session:
-            i = session.load("testing/1", object_type=Box, nested_object_types={"items": Item})
-            self.assertEqual("oren", i.items[0].name)
-
     def test_load_success(self):
         with self.store.open_session() as session:
             product = session.load("products/101")
@@ -117,16 +106,6 @@ class TestLoad(TestBase):
         with self.store.open_session() as session:
             product = session.load("products/101", object_type=Product)
             self.assertTrue(isinstance(product, Product))
-
-    @unittest.skip("Nested object types")
-    def test_load_track_entity_with_object_type_and_nested_object(self):
-        with self.store.open_session() as session:
-            company = session.load(
-                "company/1",
-                object_type=Company,
-                nested_object_types={"product": Product},
-            )
-            self.assertTrue(isinstance(company, Company) and isinstance(company.product, Product))
 
     def test_load_track_entity_with_object_type_fail(self):
         with self.store.open_session() as session:
