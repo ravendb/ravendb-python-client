@@ -1,5 +1,7 @@
 from typing import List
 
+from ravendb import IndexFieldOptions, constants
+from ravendb.documents.indexes.definitions import FieldIndexing
 from ravendb.documents.indexes.index_creation import AbstractJavaScriptIndexCreationTask
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
@@ -51,6 +53,31 @@ class UsersAndProductsByName(AbstractJavaScriptIndexCreationTask):
         }
 
 
+class UsersByNameAndAnalyzedName(AbstractJavaScriptIndexCreationTask):
+    def __init__(self):
+        super(UsersByNameAndAnalyzedName, self).__init__()
+        self.maps = {
+            "map('Users', function (u){\n"
+            + "                                    return {\n"
+            + "                                        name: u.name,\n"
+            + "                                        _: {$value: u.name, $name:'analyzed_name', $options: { indexing: 'Search', storage: true}}\n"
+            + "                                    };\n"
+            + "                                })"
+        }
+
+        field_options = {}
+        self.fields = field_options
+
+        index_field_options = IndexFieldOptions()
+        index_field_options.indexing = FieldIndexing.SEARCH
+        index_field_options.analyzer = "StandardAnalyzer"
+        field_options[constants.Documents.Indexing.Fields.ALL_FIELDS] = index_field_options
+
+    class Result:
+        def __init__(self, analyzed_name: str):
+            self.analyzed_name = analyzed_name
+
+
 class TestJavaScriptIndex(TestBase):
     def setUp(self):
         super(TestJavaScriptIndex, self).setUp()
@@ -86,3 +113,17 @@ class TestJavaScriptIndex(TestBase):
             self.wait_for_indexing(self.store)
 
             session.query_index("UsersAndProductsByName", User).where_equals("name", "Brendan Eich").single()
+
+    def test_can_use_java_script_index_with_dynamic_fields(self):
+        self.store.execute_index(UsersByNameAndAnalyzedName())
+
+        with self.store.open_session() as session:
+            user = User(name="Brendan Eich")
+            session.store(user)
+            session.save_changes()
+
+            self.wait_for_indexing(self.store)
+
+            session.query_index("UsersByNameAndAnalyzedName", User).select_fields(
+                UsersByNameAndAnalyzedName.Result
+            ).search("analyzed_name", "Brendan").single()
