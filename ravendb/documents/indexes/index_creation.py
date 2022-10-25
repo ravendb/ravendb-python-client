@@ -18,6 +18,7 @@ from ravendb.documents.indexes.definitions import (
     AdditionalAssembly,
     SpatialOptions,
     IndexFieldOptions,
+    IndexType,
 )
 from ravendb.documents.operations.indexes import PutIndexesOperation
 
@@ -316,6 +317,80 @@ class AbstractIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition
 
 
 _T_AbstractIndexCreationTask = TypeVar("_T_AbstractIndexCreationTask", bound=AbstractIndexCreationTask)
+
+
+class AbstractJavaScriptIndexCreationTask(AbstractIndexCreationTaskBase[IndexDefinition]):
+    def __init__(self):
+        super().__init__()
+        self._definition = IndexDefinition()
+
+    @property
+    def maps(self) -> List[str]:
+        return self._definition.maps
+
+    @maps.setter
+    def maps(self, value: List[str]):
+        self._definition.maps = value
+
+    @property
+    def fields(self) -> Dict[str, IndexFieldOptions]:
+        return self._definition.fields
+
+    @fields.setter
+    def fields(self, value: Dict[str, IndexFieldOptions]):
+        self._definition.fields = value
+
+    @property
+    def reduce(self) -> str:
+        return self._definition.reduce
+
+    @reduce.setter
+    def reduce(self, value: str):
+        self._definition.reduce = value
+
+    @property
+    def output_reduce_to_collection(self) -> str:
+        return self._definition.output_reduce_to_collection
+
+    @output_reduce_to_collection.setter
+    def output_reduce_to_collection(self, value: str):
+        self._definition.output_reduce_to_collection = value
+
+    @property
+    def pattern_references_collection_name(self) -> str:
+        return self._definition.pattern_references_collection_name
+
+    @pattern_references_collection_name.setter
+    def pattern_references_collection_name(self, value: str):
+        self._definition.pattern_references_collection_name = value
+
+    @property
+    def pattern_for_output_reduce_to_collection_references(self) -> str:
+        return self._definition.pattern_for_output_reduce_to_collection_references
+
+    @pattern_for_output_reduce_to_collection_references.setter
+    def pattern_for_output_reduce_to_collection_references(self, value: str):
+        self._definition.pattern_for_output_reduce_to_collection_references = value
+
+    def create_index_definition(self) -> Union[IndexDefinition, _T_IndexDefinition]:
+        self._definition.name = self.index_name
+        self._definition.type = IndexType.JAVA_SCRIPT_MAP_REDUCE if self.is_map_reduce else IndexType.JAVA_SCRIPT_MAP
+        if self.additional_sources:
+            self._definition.additional_sources = self.additional_sources
+        else:
+            self._definition.additional_sources = {}
+
+        if self.additional_assemblies:
+            self._definition.additional_assemblies = self.additional_assemblies
+        else:
+            self._definition.additional_assemblies = {}
+
+        self._definition.configuration = self.configuration
+        self._definition.lock_mode = self.lock_mode
+        self._definition.priority = self.priority
+        self._definition.state = self.state
+        self._definition.deployment_mode = self.deployment_mode
+        return self._definition
 
 
 class AbstractMultiMapIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition]):
