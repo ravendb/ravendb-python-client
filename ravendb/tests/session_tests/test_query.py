@@ -130,8 +130,6 @@ class TestQuery(TestBase):
             query_results = list(session.query().where(name="test101", key=[4, 6, 90]))
             self.assertGreater(len(query_results), 0)
 
-    # todo : solve race condition
-    @unittest.skip("race")
     def test_query_success_with_index(self):
         with self.store.open_session() as session:
             keys = [4, 6, 90]
