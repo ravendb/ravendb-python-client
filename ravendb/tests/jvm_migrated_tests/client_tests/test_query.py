@@ -20,6 +20,12 @@ class ReduceResult:
         self.age = age
 
 
+class UserProjection:
+    def __init__(self, Id: str = None, name: str = None):
+        self.Id = Id
+        self.name = name
+
+
 class TestQuery(TestBase):
     class UsersByName(AbstractIndexCreationTask):
         def __init__(self):
@@ -128,3 +134,25 @@ class TestQuery(TestBase):
 
             self.assertEqual(2, results[1].age)
             self.assertEqual("Tarzan", results[1].name)
+
+    def test_query_with_projection(self):
+        self.__add_users()
+
+        with self.store.open_session() as session:
+            projections = list(session.query(object_type=User).select_fields(UserProjection))
+            self.assertEqual(3, len(projections))
+
+            for projection in projections:
+                self.assertIsNotNone(projection.Id)
+                self.assertIsNotNone(projection.name)
+
+    def test_query_with_projection_2(self):
+        self.__add_users()
+
+        with self.store.open_session() as session:
+            projections = list(session.query(object_type=User).select_fields(UserProjection, "last_name", "Id"))
+            self.assertEqual(3, len(projections))
+
+            for projection in projections:
+                self.assertIsNotNone(projection.Id)
+                self.assertIsNone(projection.name)
