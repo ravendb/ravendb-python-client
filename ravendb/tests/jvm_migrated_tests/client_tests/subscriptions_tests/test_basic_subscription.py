@@ -518,6 +518,25 @@ class TestBasicSubscription(TestBase):
             self.assertEqual("users/3", user.Id)
             self.assertEqual(25, user.age)
 
+    @unittest.removeResult  # cause emojis seem to corrupt the whole framework, lol
+    def test_can_use_emoji(self):
+        with self.store.open_session() as session:
+            user1 = User()
+            user1.name = "user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀"
+            session.store(user1, "users/1")
+            session.save_changes()
+            user = session.load("users/1", User)
+            self.assertEqual(user.name, "user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀")
+
+        creation_options = SubscriptionCreationOptions(name="user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀")
+        key = self.store.subscriptions.create_for_options_autocomplete_query(User, creation_options)
+        with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
+            keys = queue.Queue()
+            subscription.run(lambda batch: [keys.put(x.result.name) for x in batch.items])
+
+            key = keys.get(timeout=self.reasonable_amount_of_time)
+            self.assertEqual(user1.name, key)
+
     def test_can_disable_subscription_via_api(self):
         subscription = self.store.subscriptions.create_for_class(User)
         self.store.subscriptions.disable(subscription)
