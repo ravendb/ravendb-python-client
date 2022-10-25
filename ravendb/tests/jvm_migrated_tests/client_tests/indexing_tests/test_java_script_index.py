@@ -70,3 +70,19 @@ class TestJavaScriptIndex(TestBase):
             session.query_index("FanoutByNumberWithReduce", FanoutByNumberWithReduce.Result).where_equals(
                 "sum", 33
             ).single()
+
+    def test_can_use_java_script_multi_map_index(self):
+        self.store.execute_index(UsersAndProductsByName())
+
+        with self.store.open_session() as session:
+            user = User(name="Brendan Eich")
+            session.store(user)
+
+            product = Product("Shampoo", True)
+            session.store(product)
+
+            session.save_changes()
+
+            self.wait_for_indexing(self.store)
+
+            session.query_index("UsersAndProductsByName", User).where_equals("name", "Brendan Eich").single()
