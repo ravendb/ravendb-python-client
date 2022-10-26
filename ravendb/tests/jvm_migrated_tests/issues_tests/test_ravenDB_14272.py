@@ -63,3 +63,11 @@ class TestRavenDB14272(TestBase):
             self.assertEqual(1, len(result))
             self.assertEqual(2, len(result[0].user_defs))
             self.assertEqual(list(result[0].user_defs.keys()), list(user_talk.user_defs.keys()))
+
+    def test_select_fields_4(self):
+        user_talk = self._save_user_talk(self.store)
+
+        with self.store.open_session() as session:
+            result = list(session.query(object_type=UserTalk).select_fields(str, "name"))
+            self.assertEqual(1, len(result))
+            self.assertEqual(user_talk.name, result[0])

@@ -172,7 +172,9 @@ class QueryOperation:
 
             if object_type == str or object_type in Utils.primitives_and_collections or object_type == enum.Enum:
                 json_node = document.get(projection_field)
-                return Utils.initialize_object(json_node, object_type) or Utils.get_default_value(object_type)
+                if isinstance(json_node, object_type):
+                    return json_node
+                raise TypeError(f'The value under projection field "{projection_field}" isn\'t a "{object_type}"')
 
             # todo: time series
             # is_time_series_field = fields_to_fetch.projections[0].startswith(constants.TimeSeries.QUERY_FUNCTION)
