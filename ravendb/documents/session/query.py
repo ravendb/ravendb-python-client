@@ -926,9 +926,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 query_text.append(",")
             first = False
 
-            escaped_include = ""
-
-            required, include = IncludesUtil.requires_quotes(include)
+            required, escaped_include = IncludesUtil.requires_quotes(include)
             if required:
                 query_text.append("'")
                 query_text.append(escaped_include)
@@ -936,8 +934,9 @@ class AbstractDocumentQuery(Generic[_T]):
             else:
                 query_text.append(include)
 
-        # todo: first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
-        # todo: first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
+        # todo: counters & time series
+        # first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
+        # first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._compare_exchange_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._highlighting_tokens, first, query_text)
 
