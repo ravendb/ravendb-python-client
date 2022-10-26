@@ -42,3 +42,28 @@ class TestRavenDB14811(TestBase):
             self.assertIsNotNone(result)
             self.assertEqual(result.Id, user.age)
             self.assertEqual(user.name, result.name)
+
+    def test_can_project_id_field_in_class(self):
+        user = User()
+        user.name = "Grisha"
+        user.age = 34
+        with self.store.open_session() as session:
+            session.store(user)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            result = session.query(object_type=User).select_fields(UserProjectionId, "name").first()
+            self.assertIsNotNone(result)
+            self.assertIsNone(result.Id)
+            self.assertEqual(user.name, result.name)
+
+        with self.store.open_session() as session:
+            result = (
+                session.query(object_type=User)
+                .select_fields_query_data(UserProjectionId, QueryData(["Id"], ["name"]))
+                .first()
+            )
+
+            self.assertIsNotNone(result)
+            self.assertIsNone(result.Id)
+            self.assertEqual(user.Id, result.name)
