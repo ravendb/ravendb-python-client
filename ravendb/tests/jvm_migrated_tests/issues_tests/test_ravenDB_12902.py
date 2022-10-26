@@ -142,7 +142,6 @@ class TestRavenDB12902(TestBase):
             self.assertIsNotNone(stats)
             self.assertEqual(1, counter)
 
-
     def test_after_aggregation_query_executed_should_be_executed_only_once(self):
         self.store.execute_index(TestRavenDB12902.UsersByName())
 
@@ -171,3 +170,18 @@ class TestRavenDB12902(TestBase):
             self.assertEqual(0, len(result["name"].values))
             self.assertIsNotNone(stats)
             self.assertEqual(1, counter)
+
+    def test_can_get_valid_statistics_in_aggregation_query(self):
+        self.store.execute_index(TestRavenDB12902.UsersByName())
+
+        with self.store.open_session() as session:
+            stats: Optional[QueryStatistics] = None
+
+            def __stats_callback(statistics: QueryStatistics):
+                nonlocal stats
+                stats = statistics
+
+            session.query_index_type(TestRavenDB12902.UsersByName, User).statistics(__stats_callback).where_equals(
+                "name", "Doe"
+            ).aggregate_by(lambda x: x.by_field("name").sum_on("count")).execute()
+            self.assertIsNotNone(stats.index_name)
