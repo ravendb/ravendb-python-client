@@ -10,7 +10,7 @@ from ravendb.documents.session.tokens.query_tokens.definitions import ShapeToken
 
 
 class DynamicSpatialField(ABC):
-    def __init__(self, round_factor: float = None):
+    def __init__(self, round_factor: float = 0):
         self.__round_factor = round_factor
 
     @property
