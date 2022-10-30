@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from typing import Union, List
+from typing import Union, List, Dict
 
 from ravendb import constants
 
@@ -32,6 +32,15 @@ class FacetOptions:
             "TermSortMode": self.term_sort_mode,
             "IncludeRemainingTerms": self.include_remaining_terms,
         }
+
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> FacetOptions:
+        options = cls()
+        options.page_size = json_dict["PageSize"]
+        options.start = json_dict["Start"]
+        options.term_sort_mode = FacetTermSortMode(json_dict["TermSortMode"])
+        options.include_remaining_terms = json_dict["IncludeRemainingTerms"]
+        return options
 
 
 class FacetResult:

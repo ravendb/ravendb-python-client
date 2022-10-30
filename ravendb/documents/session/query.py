@@ -2027,6 +2027,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         query._page_size = self._page_size
         query._select_tokens = list(self._select_tokens)
         query._fields_to_fetch_token = self._fields_to_fetch_token
+        query._where_tokens = list(self._where_tokens)
         query._order_by_tokens = list(self._order_by_tokens)
         query._group_by_tokens = list(self._group_by_tokens)
         query._query_parameters = Parameters(self._query_parameters)

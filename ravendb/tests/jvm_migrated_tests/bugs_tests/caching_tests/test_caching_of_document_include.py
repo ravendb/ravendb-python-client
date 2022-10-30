@@ -50,11 +50,11 @@ class CachingOfDocumentsIncludeTest(TestBase):
         order = Order()
 
         order_line1 = OrderLine(product="products/1-A", product_name="phone")
-        order_line2 =  OrderLine(product="products/2-A", product_name="mouse")
+        order_line2 = OrderLine(product="products/2-A", product_name="mouse")
 
         order.lines = [order_line1, order_line2]
 
-        product1 = Product("products/1-A","phone")
+        product1 = Product("products/1-A", "phone")
         product2 = Product("products/2-A", "mouse")
 
         with self.store.open_session() as session:
@@ -82,5 +82,3 @@ class CachingOfDocumentsIncludeTest(TestBase):
 
             product = session.load(orders[0].lines[0]["product"])
             self.assertEqual(1, session.advanced.number_of_requests)
-
-
