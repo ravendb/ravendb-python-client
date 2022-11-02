@@ -8,7 +8,6 @@ from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
 from ravendb import constants, exceptions
 from ravendb.changes.database_changes import DatabaseChanges
-from ravendb.documents.operations.counters.operation import CounterOperationType
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.session.event_args import (
@@ -29,7 +28,8 @@ from ravendb.documents.session.event_args import (
 from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.session.document_session import DocumentSession
 from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
-from ravendb.documents.session.misc import SessionOptions, DocumentQueryCustomization
+from ravendb.documents.session.misc import SessionOptions
+from ravendb.documents.subscriptions.document_subscriptions import DocumentSubscriptions
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
 from ravendb.http.topology import Topology
@@ -211,10 +211,10 @@ class DocumentStoreBase:
     def remove_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
         self.__after_conversion_to_entity.remove(event)
 
-    def add_on_before_request(self, event: Callable[[], None]):
+    def add_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
         self.__on_before_request.append(event)
 
-    def remove_on_before_request(self, event: Callable[[], None]):
+    def remove_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
         self.__on_before_request.remove(event)
 
     def add_on_succeed_request(self, event: Callable[[SucceedRequestEventArgs], None]):
@@ -308,6 +308,7 @@ class DocumentStoreBase:
 class DocumentStore(DocumentStoreBase):
     def __init__(self, urls: Optional[Union[str, List[str]]] = None, database: Optional[str] = None):
         super(DocumentStore, self).__init__()
+        self.__subscriptions = DocumentSubscriptions(self)
         self.__thread_pool_executor = ThreadPoolExecutor()
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
@@ -332,6 +333,10 @@ class DocumentStore(DocumentStoreBase):
     @property
     def thread_pool_executor(self):
         return self.__thread_pool_executor
+
+    @property
+    def subscriptions(self) -> DocumentSubscriptions:
+        return self.__subscriptions
 
     @property
     def identifier(self) -> Union[None, str]:

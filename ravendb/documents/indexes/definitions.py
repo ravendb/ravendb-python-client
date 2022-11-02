@@ -59,12 +59,11 @@ class IndexDeploymentMode(Enum):
 
 
 class FieldStorage(Enum):
-    YES = " Yes"
+    YES = "Yes"
     NO = "No"
 
 
 class FieldIndexing(Enum):
-    YES = " Yes"
     NO = "No"
     SEARCH = "Search"
     EXACT = "Exact"
@@ -87,7 +86,7 @@ class AutoFieldIndexing(Enum):
 
 
 class FieldTermVector(Enum):
-    YES = " Yes"
+    YES = "Yes"
     NO = "No"
     WITH_POSITIONS = "WithPositions"
     WITH_OFFSETS = "WithOffsets"
@@ -158,7 +157,7 @@ class IndexFieldOptions:
             "Storage": self.storage,
             "Indexing": self.indexing,
             "TermVector": self.term_vector,
-            "Spatial": self.spatial,
+            "Spatial": self.spatial.to_json() if self.spatial else None,
             "Analyzer": self.analyzer,
             "Suggestions": self.suggestions,
         }

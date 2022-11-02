@@ -3,7 +3,6 @@ from datetime import datetime
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.tests.test_base import TestBase
-from ravendb.exceptions import exceptions
 import unittest
 
 
@@ -131,8 +130,6 @@ class TestQuery(TestBase):
             query_results = list(session.query().where(name="test101", key=[4, 6, 90]))
             self.assertGreater(len(query_results), 0)
 
-    # todo : solve race condition
-    @unittest.skip("race")
     def test_query_success_with_index(self):
         with self.store.open_session() as session:
             keys = [4, 6, 90]
@@ -187,50 +184,6 @@ class TestQuery(TestBase):
             list(session.query().wait_for_non_stale_results().where(key=92).include("product_id"))
             session.load("products/108")
         self.assertEqual(session.number_of_requests, 1)
-
-    @unittest.skip("Nested object types")
-    def test_query_with_nested_object(self):
-        with self.store.open_session() as session:
-            query_results = list(
-                session.query(object_type=Company, nested_object_types={"product": Product}).where_equals(
-                    "name", "withNesting"
-                )
-            )
-            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
-
-    @unittest.skip("Nested object types")
-    def test_query_with_raw_query(self):
-        with self.store.open_session() as session:
-            query_results = list(
-                session.query(object_type=Company, nested_object_types={"product": Product}).raw_query(
-                    "FROM Companies WHERE name='withNesting'"
-                )
-            )
-            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
-
-    @unittest.skip("Nested object types")
-    def test_raw_query_with_query_parameters(self):
-        with self.store.open_session() as session:
-            query_results = list(
-                session.query(object_type=Company, nested_object_types={"product": Product}).raw_query(
-                    "FROM Companies WHERE name= $p0",
-                    query_parameters={"p0": "withNesting"},
-                )
-            )
-            self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
-
-    @unittest.skip("Nested object types")
-    def test_fail_after_raw_query_add(self):
-        try:
-            with self.store.open_session() as session:
-                query_results = list(
-                    session.query(object_type=Company, nested_object_types={"product": Product})
-                    .raw_query("FROM Companies WHERE name='withNesting'")
-                    .where_starts_with("product", "p")
-                )
-                self.assertTrue(isinstance(query_results[0], Company) and isinstance(query_results[0].product, Product))
-        except exceptions.InvalidOperationException as e:
-            self.assertTrue("raw_query was called" in str(e))
 
 
 if __name__ == "__main__":

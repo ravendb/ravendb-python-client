@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import abstractmethod
-from typing import Generic, Optional, TypeVar, Union, Callable
+from typing import Generic, Optional, TypeVar, Union, Callable, Dict
 
 from ravendb.documents.queries.facets.definitions import GenericRangeFacet, Facet, FacetBase, FacetAggregationField
 from ravendb.documents.queries.facets.misc import FacetOptions, FacetAggregation
@@ -154,6 +154,30 @@ class RangeBuilder(Generic[_T]):
         self.__greater_set = False
 
         self.__path = path
+
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> RangeBuilder:
+        builder = cls(json_dict["Path"])
+
+        builder.__less_bound = json_dict["LessBound"]
+        builder.__greater_bound = json_dict["GreaterBound"]
+        builder.__less_inclusive = json_dict["LessInclusive"]
+        builder.__greater_inclusive = json_dict["GreaterInclusive"]
+        builder.__less_set = json_dict["LessSet"]
+        builder.__greater_set = json_dict["GreaterSet"]
+
+        return builder
+
+    def to_json(self) -> Dict:
+        return {
+            "Path": self.__path,
+            "LessBound": self.__less_bound,
+            "GreaterBound": self.__greater_bound,
+            "LessInclusive": self.__less_inclusive,
+            "GreaterInclusive": self.__greater_inclusive,
+            "LessSet": self.__less_set,
+            "GreaterSet": self.__greater_set,
+        }
 
     @classmethod
     def for_path(cls, path: str) -> RangeBuilder[_T]:

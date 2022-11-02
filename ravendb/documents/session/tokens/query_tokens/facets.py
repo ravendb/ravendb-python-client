@@ -104,7 +104,7 @@ class FacetToken(QueryToken):
         writer.append("facet(")
 
         if self._facet_setup_document_id is not None:
-            writer.append("id(")
+            writer.append("id('")
             writer.append(self._facet_setup_document_id)
             writer.append("'))")
             return

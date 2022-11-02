@@ -250,7 +250,10 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
     @property
     def secured_document_store(self) -> DocumentStore:
-        return self.get_document_store("test_db", True)
+        if self._secured_store:
+            return self._secured_store
+        self._secured_store = self.get_document_store("test_db", True)
+        return self._secured_store
 
     @property
     def test_client_certificate_url(self) -> str:
@@ -398,6 +401,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         self.default_urls = ["http://127.0.0.1:8080"]
         self.default_database = "NorthWindTest"
         self.store = self.get_document_store(self.default_database)
+        self._secured_store: Optional[DocumentStore] = None
         if conventions:
             self.store.conventions = conventions
         self.store.initialize()

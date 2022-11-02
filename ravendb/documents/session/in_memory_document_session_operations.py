@@ -726,7 +726,7 @@ class InMemoryDocumentSessionOperations:
 
         self._documents_by_entity[info.entity] = info
         self._documents_by_id.add(info)
-        self._included_documents_by_id.pop(info.key)
+        self._included_documents_by_id.remove(info.key)
 
     def track_entity(
         self,
@@ -1635,7 +1635,7 @@ class InMemoryDocumentSessionOperations:
     def __deserialize_from_transformer(
         self, object_type: Type[_T], key: Union[None, str], document: dict, track_entity: bool
     ) -> _T:
-        return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity, None)
+        return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity)
 
     def check_if_id_already_included(self, ids: List[str], includes: Union[List[List], List[str]]) -> bool:
         if includes and not isinstance(includes[0], str):

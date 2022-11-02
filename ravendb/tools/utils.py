@@ -181,6 +181,9 @@ class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):
     def pop(self, key, *args, **kwargs) -> Tuple[_TKey, _TVal]:
         return super(CaseInsensitiveDict, self).pop(self.__class__._k(key), *args, **kwargs)
 
+    def remove(self, key, *args, **kwargs) -> Optional[_TVal]:
+        return self.pop(key, *args, **kwargs) if key in self else None
+
     def get(self, key, *args, **kwargs) -> _TVal:
         return super(CaseInsensitiveDict, self).get(self.__class__._k(key), *args, **kwargs)
 
@@ -684,7 +687,7 @@ class Utils(object):
         return None
 
     @staticmethod
-    def timedelta_to_str(timedelta_obj):
+    def timedelta_to_str(timedelta_obj: timedelta):
         timedelta_str = None
         if isinstance(timedelta_obj, timedelta):
             timedelta_str = ""

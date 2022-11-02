@@ -19,6 +19,7 @@ class TestRavenDB13735(TestBase):
 
         store.maintenance.send(ConfigureRefreshOperation(config))
 
+    # todo: flaky test that fails around 12AM - known issue
     def test_refresh_will_update_document_change_vector(self):
         self._setup_refresh(self.store)
 

@@ -21,7 +21,7 @@ class Posts_ByTitleAndDesc(AbstractIndexCreationTask):
         super(Posts_ByTitleAndDesc, self).__init__()
         self.map = "from p in docs.Posts select new { p.title, p.desc }"
         self._index("title", FieldIndexing.SEARCH)
-        self._store("title", FieldIndexing.YES)
+        self._store("title", FieldStorage.YES)
         self._analyze("title", "Lucene.Net.Analysis.SimpleAnalyzer")
 
         self._index("desc", FieldIndexing.SEARCH)

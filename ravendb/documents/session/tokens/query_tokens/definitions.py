@@ -245,7 +245,7 @@ class OrderByToken(QueryToken):
         return cls(
             f"spatial.distance({field_name}), "
             f"spatial.wkt(${wkt_parameter_name})"
-            f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name + ')'}",
+            f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             False,
             OrderingType.STRING,
         )
@@ -262,7 +262,7 @@ class OrderByToken(QueryToken):
             f"spatial.distance({field_name}, "
             f"spatial.point(${latitude_parameter_name}, "
             f"${longitude_parameter_name})"
-            f"{'' if round_factor_parameter_name is None else ', $'+round_factor_parameter_name+')'}",
+            f"{'' if round_factor_parameter_name is None else ', $'+round_factor_parameter_name})",
             False,
             OrderingType.STRING,
         )
@@ -272,7 +272,7 @@ class OrderByToken(QueryToken):
         return cls(
             f"spatial.distance({field_name}, "
             f"spatial.wkt(${wkt_parameter_name})"
-            f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name + ')'}",
+            f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             True,
             OrderingType.STRING,
         )
@@ -286,10 +286,10 @@ class OrderByToken(QueryToken):
         round_factor_parameter_name: str,
     ) -> OrderByToken:
         return cls(
-            f"spatial.distance({field_name}), "
+            f"spatial.distance({field_name}, "
             f"spatial.point(${latitude_parameter_name}, "
             f"${longitude_parameter_name})"
-            f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name + ')'}",
+            f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             True,
             OrderingType.STRING,
         )

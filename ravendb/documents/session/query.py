@@ -851,6 +851,10 @@ class AbstractDocumentQuery(Generic[_T]):
         index_query.query_parameters = self._query_parameters
         index_query.disable_caching = self._disable_caching
         index_query.projection_behavior = self._projection_behavior
+
+        if self._page_size is not None:
+            index_query.page_size = self._page_size
+
         return index_query
 
     def _search(self, field_name: str, search_terms: str, operator: SearchOperator) -> None:
@@ -901,11 +905,11 @@ class AbstractDocumentQuery(Generic[_T]):
             query_text.append(os.linesep)
 
     def __build_pagination(self, query_text: List[str]) -> None:
-        if self._start is not None and self._start > 0 or self._page_size is not None:
+        if (self._start is not None and self._start > 0) or self._page_size is not None:
             query_text.append(" limit $")
-            query_text.append(self.__add_query_parameter(self._start))
+            query_text.append(self.__add_query_parameter(self._start or 0))
             query_text.append(", $")
-            query_text.append(self.__add_query_parameter(self._page_size))
+            query_text.append(self.__add_query_parameter(self._page_size or 0))
 
     def __build_include(self, query_text: List[str]) -> None:
         if (
@@ -926,9 +930,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 query_text.append(",")
             first = False
 
-            escaped_include = ""
-
-            required, include = IncludesUtil.requires_quotes(include)
+            required, escaped_include = IncludesUtil.requires_quotes(include)
             if required:
                 query_text.append("'")
                 query_text.append(escaped_include)
@@ -936,8 +938,9 @@ class AbstractDocumentQuery(Generic[_T]):
             else:
                 query_text.append(include)
 
-        # todo: first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
-        # todo: first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
+        # todo: counters & time series
+        # first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
+        # first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._compare_exchange_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._highlighting_tokens, first, query_text)
 
@@ -1710,7 +1713,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         return self
 
     def include_explanations(
-        self, options: Optional[ExplanationOptions], explanations_callback: Callable[[Explanations], None]
+        self, options: Optional[ExplanationOptions] = None, explanations_callback: Callable[[Explanations], None] = None
     ) -> DocumentQuery[_T]:
         self._include_explanations(options, explanations_callback)
         return self

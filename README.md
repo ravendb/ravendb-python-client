@@ -113,6 +113,39 @@ Although new API isn't compatible with the previous one, it comes with **many im
 The client is still in the **beta** phase.
 
 ----
+### Demo
+
+##### Working with secured server
+```python
+from ravendb import DocumentStore
+
+URLS = ["https://raven.server.url"]
+DB_NAME = "SecuredDemo"
+CERT_PATH = "path\\to\\cert.pem"
+
+
+class User:
+    def __init__(self, name: str, tag: str):
+        self.name = name
+        self.tag = tag
+
+
+store = DocumentStore(URLS, DB_NAME)
+store.certificate_pem_path = CERT_PATH
+store.initialize()
+user = User("Gracjan", "Admin")
+
+with store.open_session() as session:
+    session.store(user, "users/1")
+    session.save_changes()
+
+with store.open_session() as session:
+    user = session.load("users/1", User)
+    assert user.name == "Gracjan"
+    assert user.tag == "Admin"
+```
+
+---
 
 #### RavenDB Documentation
 https://ravendb.net/docs/article-page/5.3/python

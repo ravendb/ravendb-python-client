@@ -23,7 +23,6 @@ class TestGetTopology(TestBase):
         for _ in range(50):
             ex.execute_command(GetDatabaseNamesOperation(0, 20).get_command(DocumentConventions()))
 
-    @unittest.skip("Wait for request executor error handling")
     def test_throws_when_updating_topology_of_not_existing_db(self):
         executor = RequestExecutor.create(self.store.urls, self.store.database, self.store.conventions)
         server_node = ServerNode(self.store.urls[0], "no_such")

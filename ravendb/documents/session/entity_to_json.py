@@ -8,6 +8,8 @@ from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.event_args import (
     BeforeConversionToDocumentEventArgs,
     AfterConversionToDocumentEventArgs,
+    BeforeConversionToEntityEventArgs,
+    AfterConversionToEntityEventArgs,
 )
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import InvalidOperationException
@@ -71,11 +73,9 @@ class EntityToJson:
         return json_node
 
     # todo: refactor this method, make it more useful/simple and less ugly (like this return...[0])
-    def convert_to_entity(
-        self, entity_type: Type[_T], key: str, document: dict, track_entity: bool, nested_object_types=None
-    ) -> _T:
+    def convert_to_entity(self, entity_type: Type[_T], key: str, document: dict, track_entity: bool) -> _T:
         conventions = self._session.conventions
-        return self.convert_to_entity_static(document, entity_type, conventions, nested_object_types)
+        return self.convert_to_entity_static(document, entity_type, conventions, self._session)
 
     @staticmethod
     def populate_entity_static(entity, document: dict) -> None:
@@ -127,6 +127,8 @@ class EntityToJson:
     def convert_to_entity_by_key_static(
         entity_class: Type[_T], key: str, document: Dict, conventions: DocumentConventions
     ) -> _T:
+        if entity_class is None:
+            return document
         try:
             default_value = Utils.get_default_value(entity_class)
             entity = default_value
@@ -146,17 +148,25 @@ class EntityToJson:
 
     @staticmethod
     def convert_to_entity_static(
-        document: dict, object_type: [_T], conventions: "DocumentConventions", nested_object_types=None
+        document: dict,
+        object_type: [_T],
+        conventions: "DocumentConventions",
+        session_hook: Optional["InMemoryDocumentSessionOperations"] = None,
     ) -> _T:
         metadata = document.pop("@metadata")
         document_deepcopy = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         is_inherit = False
-        # todo: events
-        # events.before_conversion_to_entity(document, metadata, type_from_metadata)
+        key = metadata.get(constants.Documents.Metadata.ID, None)
+        if session_hook:
+            session_hook.before_conversion_to_entity_invoke(
+                BeforeConversionToEntityEventArgs(session_hook, key, object_type, document_deepcopy)
+            )
 
         if object_type == dict or type_from_metadata == "builtins.dict":
-            # events.after_conversion_to_entity(document, document, metadata)
+            session_hook.after_conversion_to_entity_invoke(
+                AfterConversionToEntityEventArgs(session_hook, key, document_deepcopy, document_deepcopy)
+            )
             return document_deepcopy
 
         if type_from_metadata is None:
@@ -164,7 +174,10 @@ class EntityToJson:
                 metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
             else:  # no type defined on document or during load, return a dict
                 dyn = _DynamicStructure(**document_deepcopy)
-                # events.after_conversion_to_entity(dyn, document, metadata)
+                if session_hook:
+                    session_hook.after_conversion_to_entity_invoke(
+                        AfterConversionToEntityEventArgs(session_hook, key, document_deepcopy, dyn)
+                    )
                 return dyn
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
@@ -185,8 +198,9 @@ class EntityToJson:
         if "from_json" in object_type.__dict__ and inspect.ismethod(object_type.from_json):
             entity = object_type.from_json(document_deepcopy)
 
-        elif nested_object_types is None and is_inherit:
+        elif is_inherit:
             entity = Utils.convert_json_dict_to_object(document_deepcopy, object_type)
+
         else:
             entity = _DynamicStructure(**document_deepcopy)
             entity.__class__ = object_type
@@ -195,33 +209,12 @@ class EntityToJson:
             except TypeError as e:
                 raise InvalidOperationException("Probably projection error", e)
 
-            if nested_object_types:
-                for key in nested_object_types:
-                    attr = getattr(entity, key)
-                    if attr:
-                        try:
-                            if isinstance(attr, list):
-                                nested_list = []
-                                for attribute in attr:
-                                    nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
-                                setattr(entity, key, nested_list)
-                            elif nested_object_types[key] is datetime:
-                                setattr(entity, key, Utils.string_to_datetime(attr))
-                            elif nested_object_types[key] is timedelta:
-                                setattr(entity, key, Utils.string_to_timedelta(attr))
-                            else:
-                                setattr(
-                                    entity,
-                                    key,
-                                    Utils.initialize_object(attr, nested_object_types[key]),
-                                )
-                        except TypeError as e:
-                            print(e)
-                            pass
-
         if "Id" in entity.__dict__:
             entity.Id = metadata.get("@id", None)
-        # events.after_conversion_to_entity(entity, document, metadata)
+        if session_hook:
+            session_hook.after_conversion_to_entity_invoke(
+                AfterConversionToEntityEventArgs(session_hook, key, document_deepcopy, entity)
+            )
         return entity
 
     def remove_from_missing(self, entity):
