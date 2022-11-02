@@ -34,7 +34,7 @@ class SpatialUnits:
 
 
 class SpatialOptions:
-    DEFAULT_GEOHASH_LEVEL = -9
+    DEFAULT_GEOHASH_LEVEL = 9
     DEFAULT_QUAD_TREE_LEVEL = 23
 
     def __init__(
