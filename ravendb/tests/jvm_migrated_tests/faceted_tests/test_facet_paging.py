@@ -108,7 +108,7 @@ class TestFacetPaging(TestBase):
                 camera_counts[d.manufacturer] += 1
 
             cameras_by_hits = list(
-                map(lambda x: x[0].lower(), sorted(camera_counts.items(), key=lambda item:(-item[1],item[0]))[2:])
+                map(lambda x: x[0].lower(), sorted(camera_counts.items(), key=lambda item: (-item[1], item[0]))[2:])
             )
 
             self.assertEqual(3, len(facet_results["manufacturer"].values))
@@ -147,7 +147,7 @@ class TestFacetPaging(TestBase):
                 camera_counts[d.manufacturer] += 1
 
             cameras_by_hits = list(
-                map(lambda x: x[0].lower(), sorted(camera_counts.items(), key=lambda item:(-item[1],item[0]))[2:])
+                map(lambda x: x[0].lower(), sorted(camera_counts.items(), key=lambda item: (-item[1], item[0]))[2:])
             )
 
             self.assertEqual(2, len(facet_results.get("manufacturer").values))
