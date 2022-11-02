@@ -273,7 +273,9 @@ class TestRavenDB12748(TestBase):
             self.assertIsNone(range2.min_)
 
             range1 = list(filter(lambda x: x.range_ == "total < 100" and x.name == "quantity", facet_result.values))[0]
-            range2 = list(filter(lambda x: x.range_ == "total >= 1500" and x.name == "quantity", facet_result.values))[0]
+            range2 = list(filter(lambda x: x.range_ == "total >= 1500" and x.name == "quantity", facet_result.values))[
+                0
+            ]
 
             self.assertEqual(2, range1.count_)
             self.assertEqual(1, range2.count_)
@@ -286,23 +288,22 @@ class TestRavenDB12748(TestBase):
             self.assertIsNone(range1.min_)
             self.assertIsNone(range2.min_)
 
-
         with self.store.open_session() as session:
             range = RangeBuilder.for_path("total")
             r = (
                 session.query_index("Orders/All", Order)
-                    .aggregate_by(
+                .aggregate_by(
                     lambda f: f.by_ranges(
                         range.is_less_than(100),
                         range.is_greater_than_or_equal_to(100).is_less_than(500),
                         range.is_greater_than_or_equal_to(500).is_less_than(1500),
                         range.is_greater_than_or_equal_to(1500),
                     )
-                        .sum_on("total", "T1")
-                        .average_on("total", "T1")
-                        .sum_on("quantity", "Q1")
+                    .sum_on("total", "T1")
+                    .average_on("total", "T1")
+                    .sum_on("quantity", "Q1")
                 )
-                    .execute()
+                .execute()
             )
 
             facet_result = r.get("total")
@@ -340,19 +341,19 @@ class TestRavenDB12748(TestBase):
             range = RangeBuilder.for_path("total")
             r = (
                 session.query_index("Orders/All", Order)
-                    .aggregate_by(
+                .aggregate_by(
                     lambda f: f.by_ranges(
                         range.is_less_than(100),
                         range.is_greater_than_or_equal_to(100).is_less_than(500),
                         range.is_greater_than_or_equal_to(500).is_less_than(1500),
                         range.is_greater_than_or_equal_to(1500),
                     )
-                        .sum_on("total", "T1")
-                        .sum_on("total", "T2")
-                        .average_on("total", "T2")
-                        .sum_on("quantity", "Q1")
+                    .sum_on("total", "T1")
+                    .sum_on("total", "T2")
+                    .average_on("total", "T2")
+                    .sum_on("quantity", "Q1")
                 )
-                    .execute()
+                .execute()
             )
 
             facet_result = r.get("total")
@@ -371,7 +372,6 @@ class TestRavenDB12748(TestBase):
             self.assertIsNone(range1.min_)
             self.assertIsNone(range2.min_)
 
-
             range1 = list(filter(lambda x: x.range_ == "total < 100" and x.name == "T2", facet_result.values))[0]
             range2 = list(filter(lambda x: x.range_ == "total >= 1500" and x.name == "T2", facet_result.values))[0]
 
@@ -379,17 +379,15 @@ class TestRavenDB12748(TestBase):
             self.assertEqual(1, range2.count_)
             self.assertEqual(12, range1.sum_)
             self.assertEqual(3333, range2.sum_)
-            self.assertEqual(6,range1.average_)
-            self.assertEqual(3333,range2.average_)
+            self.assertEqual(6, range1.average_)
+            self.assertEqual(3333, range2.average_)
             self.assertIsNone(range1.max_)
             self.assertIsNone(range2.max_)
             self.assertIsNone(range1.min_)
             self.assertIsNone(range2.min_)
 
-
             range1 = list(filter(lambda x: x.range_ == "total < 100" and x.name == "Q1", facet_result.values))[0]
             range2 = list(filter(lambda x: x.range_ == "total >= 1500" and x.name == "Q1", facet_result.values))[0]
-
 
             self.assertEqual(2, range1.count_)
             self.assertEqual(1, range2.count_)
