@@ -31,7 +31,7 @@ class SubscriptionCreationOptions:
         return {
             "Name": self.name,
             "Query": self.query,
-            "Includes": dict(),  # todo: make sure it works
+            "Includes": dict(),
             "ChangeVector": self.change_vector,
             "MentorNode": self.mentor_node,
         }

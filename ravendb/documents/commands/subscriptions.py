@@ -51,7 +51,7 @@ class CreateSubscriptionCommand(RavenCommand[CreateSubscriptionResult], RaftComm
     def is_read_request(self) -> bool:
         return False
 
-    def get_raft_unique_request_id(self) -> str:  # todo: change to get_raft_unique_request_id
+    def get_raft_unique_request_id(self) -> str:
         return RaftIdGenerator.new_id()
 
 
