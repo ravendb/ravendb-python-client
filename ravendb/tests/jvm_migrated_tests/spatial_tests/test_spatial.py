@@ -115,3 +115,32 @@ class TestSpatial(TestBase):
 
             self.assertEqual(0, statistics.total_results)
             self.assertEqual(0, len(result))
+
+    def test_match_spatial_results(self):
+        with self.store.open_session() as session:
+            my_document = MyDocument("Firts")
+            my_document_item = MyDocumentItem(datetime.datetime.now(), 10.0, 10.0)
+            my_document.items = [my_document_item]
+            session.store(my_document)
+            session.save_changes()
+
+        MyIndex().execute(self.store)
+
+        with self.store.open_session() as session:
+            query_stats: Optional[QueryStatistics] = None
+
+            def _stats_callback(stats: QueryStatistics):
+                nonlocal query_stats
+                query_stats = stats
+
+            result = list(
+                session.advanced.document_query_from_index_type(MyIndex, MyDocument)
+                .wait_for_non_stale_results()
+                .within_radius_of("coordinates", 1, 10, 10)
+                .statistics(_stats_callback)
+                .select_fields(MyProjection, "Id", "latitude", "longitude")
+                .take(50)
+            )
+
+            self.assertEqual(1, query_stats.total_results)
+            self.assertEqual(1, len(result))

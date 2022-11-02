@@ -4,6 +4,7 @@ from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional, List,
 
 from ravendb import constants
 from ravendb.documents.conventions import DocumentConventions
+from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactory
 from ravendb.documents.store.definition import DocumentStore, DocumentStoreBase
 from ravendb.documents.indexes.definitions import (
     IndexDefinition,
@@ -105,9 +106,8 @@ class AbstractGenericIndexCreationTask(
     def _index(self, field: str, indexing: FieldIndexing) -> None:
         self._indexes_strings[field] = indexing
 
-    # todo: def _spatial(self, field:str, indexing:Callable[[SpatialOptionsFactory],SpatialOptions]) -> None
-    def _spatial(self, field: str, indexing: Callable) -> None:
-        pass
+    def _spatial(self, field: str, indexing: Callable[[SpatialOptionsFactory], SpatialOptions]) -> None:
+        self._spatial_options_strings[field] = indexing(SpatialOptionsFactory())
 
     def _store_all_fields(self, storage: FieldStorage) -> None:
         self._stores_strings[constants.Documents.Indexing.Fields.ALL_FIELDS] = storage
