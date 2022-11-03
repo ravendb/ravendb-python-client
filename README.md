@@ -118,13 +118,10 @@ Although new API isn't compatible with the previous one, it comes with **many im
   
 
 ### **Coming soon, work in progress**
-  - Counters, Time Series
-  - Streams and Subscriptions
-  - Select fields
-  - Task related commands (crud for replication, subscriptions, etl) + connection strings
+  - Bulk Insert
+  - Counters & Time Series
+  - Replication & ETL Commands
 
-
-The client is still in the **beta** phase.
 
 ----
 ### Demo
