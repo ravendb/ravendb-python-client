@@ -136,10 +136,10 @@ class DocumentStoreBase:
                     f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
                     f"BEGIN CERTIFICATE header wasn't found."
                 )
-            if "BEGIN RSA PRIVATE KEY" not in content:
+            if "PRIVATE KEY" not in content:
                 raise ValueError(
                     f"Invalid file. File stored under the path '{value}' isn't valid .pem certificate. "
-                    f"BEGIN RSA PRIVATE KEY header wasn't found."
+                    f"PRIVATE KEY header wasn't found."
                 )
         self.__certificate_pem_path = value
 
