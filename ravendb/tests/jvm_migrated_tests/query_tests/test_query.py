@@ -221,7 +221,7 @@ class TestQuery(TestBase):
         with self.store.open_session() as session:
             first = session.query(object_type=UserWithId).first()
             self.assertIsNotNone(first)
-            self.assertIsNotNone(session.query(object_type=UserWithId).where_equals("name", "Tarzan").single())
+            self.assertIsNotNone(session.query(object_type=UserWithId).where_equals("name", "Tarzan").first())
             self.assertIsNotNone(first)
             with self.assertRaises(ValueError):
                 session.query(object_type=UserWithId).single()

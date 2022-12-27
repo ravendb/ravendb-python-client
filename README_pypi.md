@@ -119,7 +119,6 @@ Although new API isn't compatible with the previous one, it comes with **many im
   - Task related commands (crud for replication, subscriptions, etl) + connection strings
 
 
-The client is still in the **beta** phase.
 
 ----
 ### Demo
