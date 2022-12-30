@@ -219,7 +219,10 @@ class DocumentConventions(object):
         elif isinstance(o, (int, float)):
             return str(o)
         else:
-            raise TypeError(repr(o) + " is not JSON serializable (Try add a json default method to convention)")
+            raise TypeError(
+                repr(o) + " is not JSON serializable (Try add a json default method to convention"
+                " or try to add methods - to_json & classmethod from_json - to object class)"
+            )
 
     @staticmethod
     def default_transform_plural(name):

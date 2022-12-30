@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import inspect
 import json
 import logging
 import os
@@ -579,33 +580,21 @@ class RequestExecutor:
         session_info: SessionInfo,
         request: requests.Request,
         url: str,
-    ) -> requests.Response:
+    ) -> Optional[requests.Response]:
         try:
             self.number_of_server_requests += 1
             timeout = command.timeout if command.timeout else self.__default_timeout
-            if timeout:
-                try:
-                    # todo: create Task from lines below and call it
-                    # AggressiveCacheOptions callingTheadAggressiveCaching = aggressiveCaching.get();
-                    # CompletableFuture<CloseableHttpResponse> sendTask = CompletableFuture.supplyAsync(() ->
-                    # AggressiveCacheOptions aggressiveCacheOptionsToRestore = aggressiveCaching.get();
-                    try:
-                        return self.__send(chosen_node, command, session_info, request)
-                    except IOError:
-                        # throw ExceptionsUtils.unwrapException(e);
-                        raise
-                    # finally aggressiveCaching.set(aggressiveCacheOptionsToRestore);
-                except requests.Timeout as t:
-                    # request.abort()
-                    # net.ravendb.client.exceptions.TimeoutException timeoutException =
-                    # new net.ravendb.client.exceptions.TimeoutException(
-                    # "The request for " + request.getURI() + " failed with timeout after " +
-                    # TimeUtils.durationToTimeSpan(timeout), e);
 
+            if not timeout:
+                return self.__send(chosen_node, command, session_info, request)
+
+            else:
+                try:
+                    return self.__send(chosen_node, command, session_info, request)
+                except requests.Timeout as t:
                     if not should_retry:
                         if command.failed_nodes is None:
                             command.failed_nodes = {}
-
                         command.failed_nodes[chosen_node] = t
                         raise t
 
@@ -615,10 +604,6 @@ class RequestExecutor:
                         self.__throw_failed_to_contact_all_nodes(command, request)
 
                     return None
-                except IOError as e:
-                    raise e
-            else:
-                return self.__send(chosen_node, command, session_info, request)
         except IOError as e:
             if not should_retry:
                 raise
@@ -633,7 +618,7 @@ class RequestExecutor:
     def __send(
         self, chosen_node: ServerNode, command: RavenCommand, session_info: SessionInfo, request: requests.Request
     ) -> requests.Response:
-        response: requests.Response = None
+        response: Optional[requests.Response] = None
 
         if self.should_execute_on_all(chosen_node, command):
             response = self.__execute_on_all_to_figure_out_the_fastest(chosen_node, command)
@@ -891,7 +876,8 @@ class RequestExecutor:
 
     def __create_request(self, node: ServerNode, command: RavenCommand) -> requests.Request:
         request = command.create_request(node)
-        if request.data and not isinstance(request.data, str):
+        # todo: optimize that if - look for the way to make less ifs each time
+        if request.data and not isinstance(request.data, str) and not inspect.isgenerator(request.data):
             request.data = json.dumps(request.data, default=self.conventions.json_default_method)
 
         # todo: 1117 - 1133
@@ -1125,10 +1111,10 @@ class RequestExecutor:
         self,
         url: str,
         chosen_node: ServerNode,
-        node_index: int,
+        node_index: Optional[int],
         command: RavenCommand,
         request: requests.Request,
-        response: requests.Response,
+        response: Optional[requests.Response],
         e: Exception,
         session_info: SessionInfo,
         should_retry: bool,
