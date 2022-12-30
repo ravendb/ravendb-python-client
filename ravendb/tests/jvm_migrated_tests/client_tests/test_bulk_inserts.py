@@ -41,3 +41,13 @@ class TestBulkInserts(TestBase):
             self.assertEqual("Jane Doe", doc2.name)
             self.assertEqual("Mega John", doc3.name)
             self.assertEqual("Mega Jane", doc4.name)
+
+    def test_should_not_acept_ids_ending_with_pipe_line(self):
+        with self.store.bulk_insert() as bulk_insert:
+            self.assertRaisesWithMessage(
+                bulk_insert.store,
+                RuntimeError,
+                "Document ids cannot end with '|', but was called with foobars|",
+                FooBar(),
+                "foobars|",
+            )
