@@ -10,7 +10,6 @@ from ravendb.tests.driver.raven_server_runner import RavenServerRunner
 
 
 class RavenTestDriver:
-
     debug = False
 
     def __init__(self):

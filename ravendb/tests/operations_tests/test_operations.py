@@ -113,7 +113,6 @@ class TestOperations(TestBase):
                 raise ErrorResponseException("Got empty or None response from the server")
 
     def test_delete_by_index(self):
-
         ind = IndexDefinition(name="Users")
         ind.maps = ["from doc in docs.Users select new {name=doc.name}"]
         self.store.maintenance.send(PutIndexesOperation(ind))
