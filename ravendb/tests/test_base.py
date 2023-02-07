@@ -139,7 +139,6 @@ class Patch(object):
 
 
 class TestBase(unittest.TestCase, RavenTestDriver):
-
     __global_server: Union[None, DocumentStore] = None
     __global_server_process: Union[None, Popen] = None
 

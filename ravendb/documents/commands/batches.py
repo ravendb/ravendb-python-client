@@ -136,7 +136,6 @@ class SingleNodeBatchCommand(RavenCommand):
         files = {"main": None}
         for command in self.__commands:
             if command.command_type == CommandType.ATTACHMENT_PUT:
-
                 command: PutAttachmentCommandData
                 files[command.name] = (
                     command.name,

@@ -76,7 +76,7 @@ class IncrementalJsonParser:
     def create_array(self, gen):
         arr = []
 
-        for (token, val) in gen:
+        for token, val in gen:
             if token == "end_array":
                 return arr
             arr.append(self.get_value_from_token(gen, token, val))
@@ -100,7 +100,7 @@ class IncrementalJsonParser:
     def create_object(self, gen):
         obj = {}
 
-        for (token, val) in gen:
+        for token, val in gen:
             if token == "end_map":
                 return obj
             if token == "map_key":
@@ -109,7 +109,6 @@ class IncrementalJsonParser:
         raise ParseError("End object expected, but the generator ended before we got it")
 
     def next_object(self):
-
         try:
             (_, text) = next(self.lexer)
             if IS_WEBSOCKET and text == ",":

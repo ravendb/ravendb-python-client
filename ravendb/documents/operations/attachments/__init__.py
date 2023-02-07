@@ -274,7 +274,6 @@ class DeleteAttachmentOperation(VoidOperation):
             self.__change_vector = change_vector
 
         def create_request(self, server_node):
-
             request = requests.Request(
                 "DELETE",
                 f"{server_node.url}/databases/{server_node.database}/attachments?id={Utils.quote_key(self.__document_id)}&name={Utils.quote_key(self.__name)}",
