@@ -2,6 +2,7 @@ import datetime
 import time
 
 from ravendb import MetadataAsDictionary, constants
+from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException
 from ravendb.tests.test_base import TestBase
 
 
@@ -65,3 +66,12 @@ class TestBulkInserts(TestBase):
             entity = session.load("FooBars/1-A", FooBar)
             metadata_expiration_date = session.advanced.get_metadata_for(entity)[constants.Documents.Metadata.EXPIRES]
             self.assertEqual(expiration_date, metadata_expiration_date)
+
+    def test_killed_to_early(self):
+        with self.assertRaises(BulkInsertAbortedException):
+            with self.store.bulk_insert() as bulk_insert:
+                bulk_insert.store_by_entity(FooBar())
+                time.sleep(0.1)  # todo: wait for operation to be created first, then try to kill it
+                bulk_insert.abort()
+                bulk_insert.store_by_entity(FooBar())
+
