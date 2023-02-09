@@ -24,8 +24,6 @@ class TestBulkInserts(TestBase):
             bulk_insert.store_by_entity(foo_bar3)
             bulk_insert.store_by_entity(foo_bar4)
 
-        time.sleep(5)
-
         with self.store.open_session() as session:
             doc1 = session.load("FooBars/1-A", FooBar)
             doc2 = session.load("FooBars/2-A", FooBar)

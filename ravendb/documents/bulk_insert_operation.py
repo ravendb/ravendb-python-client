@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import _queue
 import json
 from concurrent.futures import Future
 from queue import Queue
@@ -27,31 +29,34 @@ class BulkInsertOperation:
     class _BufferExposer:
         def __init__(self):
             self._data = {}
-            self._done = Future()
+            self._ongoing_operation = Future()  # todo: is there any reason to use Futures? (look at error handling)
             self._yield_buffer_semaphore = Semaphore(1)
-            self._flushed_buffers_queue = Queue()
+            self._buffers_to_flush_queue = Queue()
             self.output_stream = Future()
             self.running = True
 
-        def enqueue_buffer(self, buffer: bytearray):
-            self._flushed_buffers_queue.put(buffer)
+        def enqueue_buffer_for_flush(self, buffer: bytearray):
+            self._buffers_to_flush_queue.put(buffer)
 
         # todo: blocking semaphore acquired and released on enter and exit from bulk insert operation context manager
         def send_data(self):
             while self.running:
                 try:
-                    yield self._flushed_buffers_queue.get(timeout=2)
+                    buffer_to_flush = self._buffers_to_flush_queue.get(timeout=0.05)  # todo: adjust this pooling time
+                    yield buffer_to_flush
                 except Exception as e:
-                    break  # expected Empty exception coming from queue
+                    if not isinstance(e, _queue.Empty) or self.is_operation_finished():
+                        break
+                    continue  # expected Empty exception coming from queue, operation isn't finished yet
 
-        def is_done(self) -> bool:
-            return self._done.done()
+        def is_operation_finished(self) -> bool:
+            return self._ongoing_operation.done()
 
-        def done(self):
-            self._done.set_result(None)
+        def finish_operation(self):
+            self._ongoing_operation.set_result(None)
 
         def error_on_processing_request(self, exception: Exception):
-            self._done.set_exception(exception)
+            self._ongoing_operation.set_exception(exception)
 
         def error_on_request_start(self, exception: Exception):
             self.output_stream.set_exception(exception)
@@ -86,7 +91,7 @@ class BulkInsertOperation:
     def __init__(self, database: str = None, store: "DocumentStore" = None):
         self.use_compression = False
 
-        self._bulk_insert_execute_task: Optional[Future] = None
+        self._ongoing_bulk_insert_execute_task: Optional[Future] = None
         self._first = True
         self._in_progress_command: Optional[CommandType] = None
         self._operation_id = -1
@@ -100,8 +105,8 @@ class BulkInsertOperation:
             self._throw_no_database()
         self._request_executor = store.get_request_executor(database)
 
-        self._async_write = Future()
-        self._async_write.set_result(None)
+        self._enqueue_current_buffer_async = Future()
+        self._enqueue_current_buffer_async.set_result(None)
 
         self._max_size_in_buffer = 1024 * 1024
 
@@ -123,28 +128,28 @@ class BulkInsertOperation:
 
         flush_ex = None
 
-        if self._buffer_exposer.is_done():
+        if self._buffer_exposer.is_operation_finished():
             return
 
+        # process the leftovers and finish the stream
         if self._current_data_buffer:
             try:
-                self._current_data_buffer += bytearray("]", encoding="utf-8")
-                self._async_write.result()
-
+                self._write_misc("]")
+                self._enqueue_current_buffer_async.result()  # wait for enqueue
                 buffer = self._current_data_buffer
-                self._buffer_exposer.enqueue_buffer(buffer)
+                self._buffer_exposer.enqueue_buffer_for_flush(buffer)
             except Exception as e:
                 flush_ex = e
 
-        self._buffer_exposer.done()
+        self._buffer_exposer.finish_operation()
 
         if self._operation_id == -1:
             # closing without calling a single store
             return
 
-        if self._bulk_insert_execute_task is not None:
+        if self._ongoing_bulk_insert_execute_task is not None:
             try:
-                self._bulk_insert_execute_task.result()
+                self._ongoing_bulk_insert_execute_task.result()
             except Exception as e:
                 self._throw_bulk_insert_aborted(e, flush_ex)
 
@@ -167,7 +172,7 @@ class BulkInsertOperation:
             "default database can be defined using 'DocumentStore.database' property."
         )
 
-    def _wait_for_id(self):
+    def _get_bulk_insert_operation_id(self):
         if self._operation_id != -1:
             return
 
@@ -176,6 +181,19 @@ class BulkInsertOperation:
         self._operation_id = bulk_insert_get_id_request.result
         self._node_tag = bulk_insert_get_id_request._node_tag
 
+    def _fill_metadata_if_needed(self, entity: object, metadata: MetadataAsDictionary):
+        # add collection name to metadata if needed
+        if constants.Documents.Metadata.COLLECTION not in metadata:
+            collection = self._request_executor.conventions.get_collection_name(entity)
+            if collection is not None:
+                metadata[constants.Documents.Metadata.COLLECTION] = collection
+
+        # add type path to metadata if needed
+        if constants.Documents.Metadata.RAVEN_PYTHON_TYPE not in metadata:
+            python_type = self._request_executor.conventions.get_python_class_name(entity.__class__)
+            if python_type is not None:
+                metadata[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
+
     def store_by_entity(self, entity: object, metadata: Optional[MetadataAsDictionary] = None) -> str:
         key = (
             self._get_id(entity)
@@ -183,29 +201,19 @@ class BulkInsertOperation:
             else metadata[constants.Documents.Metadata.ID]
         )
 
-        self.store(entity, key, metadata)
+        self.store(entity, key, metadata or MetadataAsDictionary())
         return key
 
-    def store(self, entity: object, key: str, metadata: Optional[MetadataAsDictionary] = None) -> None:
+    def store(
+        self, entity: object, key: str, metadata: Optional[MetadataAsDictionary] = MetadataAsDictionary()
+    ) -> None:
         try:
-            check = self._concurrency_check()
-            self._verify_valid_id(key)
+            self._concurrency_check()
+            self._verify_valid_key(key)
+            self._ensure_ongoing_operation()
 
-            self._execute_before_store()
-            if metadata is None:
-                metadata = MetadataAsDictionary()
-
-            if constants.Documents.Metadata.COLLECTION not in metadata:
-                collection = self._request_executor.conventions.get_collection_name(entity)
-                if collection is not None:
-                    metadata[constants.Documents.Metadata.COLLECTION] = collection
-
-            if constants.Documents.Metadata.RAVEN_PYTHON_TYPE not in metadata:
-                python_type = self._request_executor.conventions.get_python_class_name(entity.__class__)
-                if python_type is not None:
-                    metadata[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
-
-            self._end_previous_command_if_needed()
+            self._fill_metadata_if_needed(entity, metadata)
+            self._end_previous_command_if_needed()  # counters & time series commands shall end before pushing docs
 
             try:
                 if not self._first:
@@ -213,19 +221,15 @@ class BulkInsertOperation:
 
                 self._first = False
                 self._in_progress_command = CommandType.NONE
-                self._current_data_buffer += bytearray('{"Id":"', encoding="utf-8")
-                self._write_string(key)
-                self._current_data_buffer += bytearray('","Type":"PUT","Document":', encoding="utf-8")
 
-                # self._flush_if_needed()
+                self._write_misc('{"Id":"')
+                self._write_key(key)
+                self._write_misc('","Type":"PUT","Document":')
 
-                document_info = DocumentInfo(metadata_instance=metadata)
-                json_dict = EntityToJson.convert_entity_to_json_internal_static(
-                    entity, self._conventions, document_info, True
-                )
+                # self._flush_if_needed() # why?
 
-                self._current_data_buffer += bytearray(json.dumps(json_dict), encoding="utf-8")
-                self._current_data_buffer += bytearray("}", encoding="utf-8")
+                self._write_document(entity, metadata)
+                self._write_misc("}")
             except Exception as e:
                 self._handle_errors(key, e)
         finally:
@@ -253,18 +257,18 @@ class BulkInsertOperation:
         return __return_func
 
     def _flush_if_needed(self) -> None:
-        if len(self._current_data_buffer) > self._max_size_in_buffer or self._async_write.done():
-            self._async_write.result()
+        if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
+            self._enqueue_current_buffer_async.result()
 
             buffer = self._current_data_buffer
             self._current_data_buffer.clear()
 
-            # todo: check if it's better to create a new bytearray of max size or clear it (possible dealloc)
+            # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
 
-            def __async_write():
-                self._buffer_exposer.enqueue_buffer(buffer)
+            def __enqueue_buffer_for_flush():
+                self._buffer_exposer.enqueue_buffer_for_flush(buffer)
 
-            self._async_write = self._thread_pool_executor.submit(__async_write)
+            self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush)
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
@@ -272,7 +276,7 @@ class BulkInsertOperation:
         elif self._in_progress_command == CommandType.TIME_SERIES:
             pass  # todo: time series
 
-    def _write_string(self, input_string: str) -> None:
+    def _write_key(self, input_string: str) -> None:
         for i in range(len(input_string)):
             c = input_string[i]
             if '"' == c:
@@ -284,21 +288,29 @@ class BulkInsertOperation:
     def _write_comma(self) -> None:
         self._current_data_buffer += bytearray(",", encoding="utf-8")
 
-    def _execute_before_store(self) -> None:
-        if self._bulk_insert_execute_task is None:  # todo: check if it's valid way
-            self._wait_for_id()
-            self._ensure_execute_task()
+    def _write_misc(self, data: str) -> None:
+        self._current_data_buffer += bytearray(data, encoding="utf-8")
+
+    def _write_document(self, entity: object, metadata: MetadataAsDictionary):
+        document_info = DocumentInfo(metadata_instance=metadata)
+        json_dict = EntityToJson.convert_entity_to_json_internal_static(entity, self._conventions, document_info, True)
+        self._current_data_buffer += bytearray(json.dumps(json_dict), encoding="utf-8")
+
+    def _ensure_ongoing_operation(self) -> None:
+        if self._ongoing_bulk_insert_execute_task is None:
+            self._get_bulk_insert_operation_id()
+            self._start_executing_bulk_insert_command()
 
         if (
-            self._bulk_insert_execute_task.done() and self._bulk_insert_execute_task.exception()
+            self._ongoing_bulk_insert_execute_task.done() and self._ongoing_bulk_insert_execute_task.exception()
         ):  # todo: check if isCompletedExceptionally returns false if task isn't finished
             try:
-                self._bulk_insert_execute_task.result()
+                self._ongoing_bulk_insert_execute_task.result()
             except Exception as e:
                 self._throw_bulk_insert_aborted(e, None)
 
     @staticmethod
-    def _verify_valid_id(key: str) -> None:
+    def _verify_valid_key(key: str) -> None:
         if not key or key.isspace():
             raise ValueError("Document id must have a non empty value")
 
@@ -319,18 +331,19 @@ class BulkInsertOperation:
 
         return None
 
-    def _ensure_execute_task(self) -> None:
+    def _start_executing_bulk_insert_command(self) -> None:
         try:
             bulk_command = BulkInsertOperation._BulkInsertCommand(
                 self._operation_id, self._buffer_exposer, self._node_tag
             )
             bulk_command.use_compression = self.use_compression
 
-            def __core_async():
+            def __execute_bulk_insert_raven_command():
                 self._request_executor.execute_command(bulk_command)
-                return None
 
-            self._bulk_insert_execute_task = self._thread_pool_executor.submit(__core_async)
+            self._ongoing_bulk_insert_execute_task = self._thread_pool_executor.submit(
+                __execute_bulk_insert_raven_command
+            )
             self._current_data_buffer += bytearray("[", encoding="utf-8")
 
         except Exception as e:
@@ -345,7 +358,7 @@ class BulkInsertOperation:
         if self._operation_id == -1:
             return  # nothing was done, nothing to kill
 
-        self._wait_for_id()
+        self._get_bulk_insert_operation_id()
 
         try:
             self._request_executor.execute_command(KillOperationCommand(self._operation_id, self._node_tag))
