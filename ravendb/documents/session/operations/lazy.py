@@ -20,7 +20,7 @@ from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.documents.queries.query import QueryResult
 from ravendb.extensions.json_extensions import JsonExtensions
-from ravendb.documents.commands.crud import GetDocumentsResult, ConditionalGetDocumentsCommand
+from ravendb.documents.commands.crud import GetDocumentsResult, ConditionalGetDocumentsCommand, ConditionalGetResult
 from ravendb.documents.session.operations.load_operation import LoadOperation
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
@@ -166,7 +166,7 @@ class LazyConditionalLoadOperation(LazyOperation):
             if response.result is not None:
                 etag = response.headers.get(constants.Headers.ETAG)
 
-                res = ConditionalGetDocumentsCommand.ConditionalGetResult.from_json(json.loads(response.result))
+                res = ConditionalGetResult.from_json(json.loads(response.result))
                 document_info = DocumentInfo.get_new_document_info(res.results[0])
                 r = self.__session.track_entity_document_info(self.__object_type, document_info)
 
@@ -227,7 +227,7 @@ class LazySessionOperations:
     def conditional_load(
         self, key: str, change_vector: str, object_type: Type[_T] = None
     ) -> Lazy[ConditionalLoadResult[_T]]:
-        if not key.isspace():
+        if not key or key.isspace():
             raise ValueError("key cannot be None or whitespace")
 
         if self._delegate.is_loaded(key):
@@ -236,7 +236,7 @@ class LazySessionOperations:
                 entity = self._delegate.load(key, object_type)
                 if entity is None:
                     return ConditionalLoadResult.create(None, None)
-                cv = self._delegate.get_change_vector_for(entity)
+                cv = self._delegate.advanced.get_change_vector_for(entity)
                 return ConditionalLoadResult.create(entity, cv)
 
             return Lazy(__lazy_factory)

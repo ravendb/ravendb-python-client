@@ -74,4 +74,3 @@ class TestBulkInserts(TestBase):
                 time.sleep(0.1)  # todo: wait for operation to be created first, then try to kill it
                 bulk_insert.abort()
                 bulk_insert.store_by_entity(FooBar())
-

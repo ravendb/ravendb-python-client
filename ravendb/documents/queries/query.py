@@ -80,6 +80,10 @@ class QueryData:
         self.project_into: Union[None, bool] = None
         self.projection_behavior: Union[None, ProjectionBehavior] = None
 
+    @classmethod
+    def custom_function(cls, alias: str, func: str) -> QueryData:
+        return cls([func], [], alias, None, None, True)
+
 
 class QueryResultBase(Generic[_TResult, _TIncludes]):
     @abstractmethod

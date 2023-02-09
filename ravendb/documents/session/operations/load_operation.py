@@ -99,8 +99,8 @@ class LoadOperation:
             self._time_series_to_include = time_series
         return self
 
-    def by_keys(self, keys: List[str]):
-        distinct = CaseInsensitiveSet(filter(lambda key: key and key.strip(), keys))
+    def by_keys(self, keys: List[Optional[str]]):
+        distinct = CaseInsensitiveSet(filter(lambda x: x and not x.isspace(), keys))
         self._keys = list(distinct)
         return self
 
