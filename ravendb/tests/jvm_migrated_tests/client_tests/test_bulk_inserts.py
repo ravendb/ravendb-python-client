@@ -1,5 +1,7 @@
+import datetime
 import time
 
+from ravendb import MetadataAsDictionary, constants
 from ravendb.tests.test_base import TestBase
 
 
@@ -40,7 +42,7 @@ class TestBulkInserts(TestBase):
             self.assertEqual("Mega John", doc3.name)
             self.assertEqual("Mega Jane", doc4.name)
 
-    def test_should_not_acept_ids_ending_with_pipe_line(self):
+    def test_should_not_accept_ids_ending_with_pipe_line(self):
         with self.store.bulk_insert() as bulk_insert:
             self.assertRaisesWithMessage(
                 bulk_insert.store,
@@ -49,3 +51,17 @@ class TestBulkInserts(TestBase):
                 FooBar(),
                 "foobars|",
             )
+
+    def test_can_modify_metadata_with_bulk_insert(self):
+        expiration_date = (datetime.datetime.utcnow() + datetime.timedelta(days=365)).isoformat() + "0Z"  # add one year
+
+        with self.store.bulk_insert() as bulk_insert:
+            foobar = FooBar("Jon Snow")
+            metadata = MetadataAsDictionary()
+            metadata[constants.Documents.Metadata.EXPIRES] = expiration_date
+            bulk_insert.store_by_entity(foobar, metadata)
+
+        with self.store.open_session() as session:
+            entity = session.load("FooBars/1-A", FooBar)
+            metadata_expiration_date = session.advanced.get_metadata_for(entity)[constants.Documents.Metadata.EXPIRES]
+            self.assertEqual(expiration_date, metadata_expiration_date)
