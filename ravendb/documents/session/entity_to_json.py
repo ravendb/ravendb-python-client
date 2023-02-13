@@ -54,7 +54,7 @@ class EntityToJson:
         json_node = Utils.entity_to_dict(entity, conventions.json_default_method)
         EntityToJson.write_metadata(json_node, document_info)
         if remove_identity_property:
-            EntityToJson.try_remove_identity_property(entity)
+            EntityToJson.try_remove_identity_property_json(json_node)
         return json_node
 
     @staticmethod
@@ -69,7 +69,7 @@ class EntityToJson:
         json_node = Utils.entity_to_dict(entity, self._session.conventions.json_default_method)
         self.write_metadata(json_node, document_info)
         if remove_identity_property:
-            self.try_remove_identity_property(json_node)
+            self.try_remove_identity_property_json(json_node)
         return json_node
 
     # todo: refactor this method, make it more useful/simple and less ugly (like this return...[0])
@@ -98,6 +98,14 @@ class EntityToJson:
             del document.Id
             return True
         except AttributeError:
+            return False
+
+    @staticmethod
+    def try_remove_identity_property_json(document: Dict) -> bool:
+        try:
+            del document["Id"]
+            return True
+        except KeyError:
             return False
 
     @staticmethod
@@ -153,7 +161,7 @@ class EntityToJson:
         conventions: "DocumentConventions",
         session_hook: Optional["InMemoryDocumentSessionOperations"] = None,
     ) -> _T:
-        metadata = document.pop("@metadata")
+        metadata = document.get("@metadata")
         document_deepcopy = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         is_inherit = False

@@ -50,7 +50,9 @@ class JsonOperation:
 
         new_fields = new_json_props - old_json_props
         removed_fields = old_json_props - new_json_props
-        removed_fields.discard("Id")  # todo: Discuss about that condition - add/del Id causes changes
+
+        # todo: Discuss about that condition - add/del Id causes changes
+        removed_fields.discard("Id")
 
         for field in removed_fields:
             if changes is None:
@@ -64,7 +66,7 @@ class JsonOperation:
                 prop == constants.Documents.Metadata.LAST_MODIFIED
                 or prop == constants.Documents.Metadata.COLLECTION
                 or prop == constants.Documents.Metadata.CHANGE_VECTOR
-                or prop == constants.Documents.Metadata.KEY
+                or prop == constants.Documents.Metadata.ID
             ):
                 continue
 
