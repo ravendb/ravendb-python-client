@@ -196,7 +196,7 @@ class TestChanges(TestBase):
         self.assertEqual(index.index_name, index_change.name)
         close_action()
 
-    def test_can_can_notification_about_documents_starting_with(self):
+    def test_can_notification_about_documents_starting_with(self):
         event = Event()
         document_changes: List[DocumentChange] = []
 

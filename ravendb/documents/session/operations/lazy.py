@@ -682,7 +682,6 @@ class LazyGetCompareExchangeValuesOperation(LazyOperation[_T], Generic[_T]):
 
         try:
             if response.result is not None:
-
                 if self.__cluster_session.session.no_tracking:
                     result = CaseInsensitiveDict()
                     for key, value in CompareExchangeValueResultParser.get_values(

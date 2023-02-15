@@ -21,7 +21,6 @@ class ClusterTopologyResponse:
 
     @classmethod
     def from_json(cls, json_dict: dict) -> ClusterTopologyResponse:
-
         return cls(
             json_dict["Leader"],
             json_dict["NodeTag"],

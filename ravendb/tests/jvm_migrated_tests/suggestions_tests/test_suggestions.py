@@ -87,7 +87,6 @@ class TestSuggestions(TestBase):
         self.set_up(self.store)
 
         with self.store.open_session() as s:
-
             options = SuggestionOptions(accuracy=0.4, distance=StringDistanceTypes.LEVENSHTEIN)
 
             suggestion_query_result = (

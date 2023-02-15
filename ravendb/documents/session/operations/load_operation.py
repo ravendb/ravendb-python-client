@@ -14,7 +14,6 @@ _T = TypeVar("_T")
 
 
 class LoadOperation:
-
     logger = logging.getLogger("load_operation")
 
     def __init__(
