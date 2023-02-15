@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import _queue
+import concurrent
 import json
 from concurrent.futures import Future
 from queue import Queue
@@ -28,19 +29,17 @@ if TYPE_CHECKING:
 class BulkInsertOperation:
     class _BufferExposer:
         def __init__(self):
-            self._data = {}
             self._ongoing_operation = Future()  # todo: is there any reason to use Futures? (look at error handling)
             self._yield_buffer_semaphore = Semaphore(1)
             self._buffers_to_flush_queue = Queue()
-            self.output_stream = Future()
-            self.running = True
+            self.output_stream_mock = Future()
 
         def enqueue_buffer_for_flush(self, buffer: bytearray):
             self._buffers_to_flush_queue.put(buffer)
 
         # todo: blocking semaphore acquired and released on enter and exit from bulk insert operation context manager
         def send_data(self):
-            while self.running:
+            while True:
                 try:
                     buffer_to_flush = self._buffers_to_flush_queue.get(timeout=0.05)  # todo: adjust this pooling time
                     yield buffer_to_flush
@@ -59,7 +58,7 @@ class BulkInsertOperation:
             self._ongoing_operation.set_exception(exception)
 
         def error_on_request_start(self, exception: Exception):
-            self.output_stream.set_exception(exception)
+            self.output_stream_mock.set_exception(exception)
 
     class _BulkInsertCommand(RavenCommand[requests.Response]):
         def __init__(self, key: int, buffer_exposer: BulkInsertOperation._BufferExposer, node_tag: str):
@@ -96,7 +95,7 @@ class BulkInsertOperation:
         self._in_progress_command: Optional[CommandType] = None
         self._operation_id = -1
         self._node_tag = None
-        self._concurrent_check = 0
+        self._concurrent_check_flag = 0
         self._concurrent_check_lock = Lock()
 
         self._thread_pool_executor = store.thread_pool_executor
@@ -234,7 +233,7 @@ class BulkInsertOperation:
                 self._handle_errors(key, e)
         finally:
             with self._concurrent_check_lock:
-                self._concurrent_check = 0
+                self._concurrent_check_flag = 0
 
     def _handle_errors(self, document_id: str, e: Exception) -> None:
         error = self._get_exception_from_operation()
@@ -245,14 +244,14 @@ class BulkInsertOperation:
 
     def _concurrency_check(self):
         with self._concurrent_check_lock:
-            if not self._concurrent_check == 0:
+            if not self._concurrent_check_flag == 0:
                 raise RuntimeError("Bulk Insert store methods cannot be executed concurrently.")
-            self._concurrent_check = 1
+            self._concurrent_check_flag = 1
 
         def __return_func():
             with self._concurrent_check_lock:
-                if self._concurrent_check == 1:
-                    self._concurrent_check = 0
+                if self._concurrent_check_flag == 1:
+                    self._concurrent_check_flag = 0
 
         return __return_func
 
@@ -344,6 +343,13 @@ class BulkInsertOperation:
             self._ongoing_bulk_insert_execute_task = self._thread_pool_executor.submit(
                 __execute_bulk_insert_raven_command
             )
+
+            try:
+                self._buffer_exposer.output_stream_mock.result(timeout=0.01)
+            except Exception as e:
+                if not isinstance(e, concurrent.futures._base.TimeoutError):
+                    raise e
+
             self._current_data_buffer += bytearray("[", encoding="utf-8")
 
         except Exception as e:
