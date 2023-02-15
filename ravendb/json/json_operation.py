@@ -48,11 +48,14 @@ class JsonOperation:
         old_json_props = set(original_json.keys())
         new_json_props = set(new_json.keys())
 
+        # todo: Discuss about that condition - add/del Id causes changes
+        if "Id" in old_json_props:
+            old_json_props.remove("Id")
+        if "Id" in new_json_props:
+            new_json_props.remove("Id")
+
         new_fields = new_json_props - old_json_props
         removed_fields = old_json_props - new_json_props
-
-        # todo: Discuss about that condition - add/del Id causes changes
-        removed_fields.discard("Id")
 
         for field in removed_fields:
             if changes is None:
