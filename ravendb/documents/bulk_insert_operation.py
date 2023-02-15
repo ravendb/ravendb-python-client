@@ -119,6 +119,8 @@ class BulkInsertOperation:
             lambda entity: self._request_executor.conventions.generate_document_id(database, entity),
         )
 
+        self._attachments_operation = BulkInsertOperation.AttachmentsBulkInsertOperation(self)
+
     def __enter__(self):
         return self
 
@@ -133,7 +135,7 @@ class BulkInsertOperation:
         # process the leftovers and finish the stream
         if self._current_data_buffer:
             try:
-                self._write_misc("]")
+                self._write_string_no_escape("]")
                 self._enqueue_current_buffer_async.result()  # wait for enqueue
                 buffer = self._current_data_buffer
                 self._buffer_exposer.enqueue_buffer_for_flush(buffer)
@@ -221,14 +223,14 @@ class BulkInsertOperation:
                 self._first = False
                 self._in_progress_command = CommandType.NONE
 
-                self._write_misc('{"Id":"')
-                self._write_key(key)
-                self._write_misc('","Type":"PUT","Document":')
+                self._write_string_no_escape('{"Id":"')
+                self._write_string(key)
+                self._write_string_no_escape('","Type":"PUT","Document":')
 
-                # self._flush_if_needed() # why?
+                self._flush_if_needed()
 
                 self._write_document(entity, metadata)
-                self._write_misc("}")
+                self._write_string_no_escape("}")
             except Exception as e:
                 self._handle_errors(key, e)
         finally:
@@ -256,18 +258,19 @@ class BulkInsertOperation:
         return __return_func
 
     def _flush_if_needed(self) -> None:
-        if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
-            self._enqueue_current_buffer_async.result()
-
-            buffer = self._current_data_buffer
-            self._current_data_buffer.clear()
-
-            # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
-
-            def __enqueue_buffer_for_flush():
-                self._buffer_exposer.enqueue_buffer_for_flush(buffer)
-
-            self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush)
+        pass
+        # if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
+        #     self._enqueue_current_buffer_async.result()
+        #
+        #     buffer = self._current_data_buffer
+        #     self._current_data_buffer.clear()
+        #
+        #     # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
+        #
+        #     def __enqueue_buffer_for_flush():
+        #         self._buffer_exposer.enqueue_buffer_for_flush(buffer)
+        #
+        #     self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush)
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
@@ -275,7 +278,7 @@ class BulkInsertOperation:
         elif self._in_progress_command == CommandType.TIME_SERIES:
             pass  # todo: time series
 
-    def _write_key(self, input_string: str) -> None:
+    def _write_string(self, input_string: str) -> None:
         for i in range(len(input_string)):
             c = input_string[i]
             if '"' == c:
@@ -287,7 +290,7 @@ class BulkInsertOperation:
     def _write_comma(self) -> None:
         self._current_data_buffer += bytearray(",", encoding="utf-8")
 
-    def _write_misc(self, data: str) -> None:
+    def _write_string_no_escape(self, data: str) -> None:
         self._current_data_buffer += bytearray(data, encoding="utf-8")
 
     def _write_document(self, entity: object, metadata: MetadataAsDictionary):
@@ -383,12 +386,58 @@ class BulkInsertOperation:
         self._generate_entity_id_on_the_client.try_set_identity(entity, key)
         return key
 
-    # todo: attachments_for
     # todo: time_series_for
     # todo: CountersBulkInsert
     # todo: CountersBulkInsertOperation
     # todo: TimeSeriesBulkInsertBase
     # todo: TimeSeriesBulkInsert
     # todo: TypedTimeSeriesBulkInsert
-    # todo: AttachmentsBulkInsert
-    # todo: AttachmentsBulkInsertOperation
+
+    class AttachmentsBulkInsert:
+        def __init__(self, operation: BulkInsertOperation, key: str):
+            self.operation = operation
+            self.key = key
+
+        def store(self, name: str, attachment_bytes: bytes, content_type: Optional[str] = None) -> None:
+            self.operation._attachments_operation.store(self.key, name, attachment_bytes, content_type)
+
+    class AttachmentsBulkInsertOperation:
+        def __init__(self, operation: BulkInsertOperation):
+            self.operation = operation
+
+        def store(self, key: str, name: str, attachment_bytes: bytes, content_type: Optional[str] = None):
+            self.operation._concurrency_check()
+            self.operation._end_previous_command_if_needed()
+            self.operation._ensure_ongoing_operation()
+
+            try:
+                if not self.operation._first:
+                    self.operation._write_comma()
+
+                self.operation._write_string_no_escape('{"Id":"')
+                self.operation._write_string(key)
+                self.operation._write_string_no_escape('","Type":"AttachmentPUT","Name":"')
+                self.operation._write_string(name)
+
+                if content_type:
+                    self.operation._write_string_no_escape('","ContentType:"')
+                    self.operation._write_string(content_type)
+
+                self.operation._write_string_no_escape('","ContentLength":')
+                self.operation._write_string_no_escape(str(len(attachment_bytes)))
+                self.operation._write_string_no_escape("}")
+
+                self.operation._flush_if_needed()
+
+                self.operation._current_data_buffer += bytearray(attachment_bytes)
+
+                self.operation._flush_if_needed()
+
+            except Exception as e:
+                self.operation._handle_errors(key, e)
+
+    def attachments_for(self, key: str) -> BulkInsertOperation.AttachmentsBulkInsert:
+        if not key or key.isspace():
+            raise ValueError("Document id cannot be None or empty.")
+
+        return BulkInsertOperation.AttachmentsBulkInsert(self, key)

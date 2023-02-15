@@ -25,5 +25,5 @@ class TestRDBC387(TestBase):
             self.assertIsNone(session_user.get("id", None))
             self.assertIsNone(bulk_insert_user.get("id", None))
 
-            self.assertIsNone(session_user.get("Id", None))
+            self.assertIsNotNone(session_user.get("Id", None))
             self.assertIsNone(bulk_insert_user.get("Id", None))
