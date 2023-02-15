@@ -571,9 +571,9 @@ class TestBasicSubscription(TestBase):
         key = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
         with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
             with self.store.bulk_insert() as bulk_insert:
-                bulk_insert.store_by_entity(User())
-                bulk_insert.store_by_entity(User())
-                bulk_insert.store_by_entity(User())
+                bulk_insert.store(User())
+                bulk_insert.store(User())
+                bulk_insert.store(User())
 
             users: List[User] = []
             third_user_processed = Event()

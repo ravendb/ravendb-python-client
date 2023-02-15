@@ -19,7 +19,7 @@ class TestRavenDB16301(TestBase):
         # Store 100 companies using bulk insert - it won't store identity property on the server
         with self.store.bulk_insert() as bulk_insert:
             for i in range(100):
-                bulk_insert.store_by_entity(Company())
+                bulk_insert.store(Company())
 
         conditional_loads: List[Lazy[ConditionalLoadResult[Company]]] = []
 

@@ -22,10 +22,10 @@ class TestBulkInserts(TestBase):
         foo_bar4 = FooBar("Mega Jane")
 
         with self.store.bulk_insert() as bulk_insert:
-            bulk_insert.store_by_entity(foo_bar1)
-            bulk_insert.store_by_entity(foo_bar2)
-            bulk_insert.store_by_entity(foo_bar3)
-            bulk_insert.store_by_entity(foo_bar4)
+            bulk_insert.store(foo_bar1)
+            bulk_insert.store(foo_bar2)
+            bulk_insert.store(foo_bar3)
+            bulk_insert.store(foo_bar4)
 
         with self.store.open_session() as session:
             doc1 = session.load("FooBars/1-A", FooBar)
@@ -46,7 +46,7 @@ class TestBulkInserts(TestBase):
     def test_should_not_accept_ids_ending_with_pipe_line(self):
         with self.store.bulk_insert() as bulk_insert:
             self.assertRaisesWithMessage(
-                bulk_insert.store,
+                bulk_insert.store_as,
                 RuntimeError,
                 "Document ids cannot end with '|', but was called with foobars|",
                 FooBar(),
@@ -60,7 +60,7 @@ class TestBulkInserts(TestBase):
             foobar = FooBar("Jon Snow")
             metadata = MetadataAsDictionary()
             metadata[constants.Documents.Metadata.EXPIRES] = expiration_date
-            bulk_insert.store_by_entity(foobar, metadata)
+            bulk_insert.store(foobar, metadata)
 
         with self.store.open_session() as session:
             entity = session.load("FooBars/1-A", FooBar)
@@ -70,7 +70,7 @@ class TestBulkInserts(TestBase):
     def test_killed_to_early(self):
         with self.assertRaises(BulkInsertAbortedException):
             with self.store.bulk_insert() as bulk_insert:
-                bulk_insert.store_by_entity(FooBar())
+                bulk_insert.store(FooBar())
                 time.sleep(0.1)  # todo: wait for operation to be created first, then try to kill it
                 bulk_insert.abort()
-                bulk_insert.store_by_entity(FooBar())
+                bulk_insert.store(FooBar())

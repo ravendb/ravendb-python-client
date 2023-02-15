@@ -194,17 +194,17 @@ class BulkInsertOperation:
             if python_type is not None:
                 metadata[constants.Documents.Metadata.RAVEN_PYTHON_TYPE] = python_type
 
-    def store_by_entity(self, entity: object, metadata: Optional[MetadataAsDictionary] = None) -> str:
+    def store(self, entity: object, metadata: Optional[MetadataAsDictionary] = None) -> str:
         key = (
             self._get_id(entity)
             if metadata is None or constants.Documents.Metadata.ID not in metadata
             else metadata[constants.Documents.Metadata.ID]
         )
 
-        self.store(entity, key, metadata or MetadataAsDictionary())
+        self.store_as(entity, key, metadata or MetadataAsDictionary())
         return key
 
-    def store(
+    def store_as(
         self, entity: object, key: str, metadata: Optional[MetadataAsDictionary] = MetadataAsDictionary()
     ) -> None:
         try:
