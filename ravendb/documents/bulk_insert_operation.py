@@ -4,6 +4,7 @@ import _queue
 import concurrent
 import json
 from concurrent.futures import Future
+from copy import deepcopy
 from queue import Queue
 from threading import Lock, Semaphore
 from typing import Optional, TYPE_CHECKING
@@ -258,19 +259,18 @@ class BulkInsertOperation:
         return __return_func
 
     def _flush_if_needed(self) -> None:
-        pass
-        # if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
-        #     self._enqueue_current_buffer_async.result()
-        #
-        #     buffer = self._current_data_buffer
-        #     self._current_data_buffer.clear()
-        #
-        #     # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
-        #
-        #     def __enqueue_buffer_for_flush():
-        #         self._buffer_exposer.enqueue_buffer_for_flush(buffer)
-        #
-        #     self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush)
+        if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
+            self._enqueue_current_buffer_async.result()  # wait
+
+            buffer = deepcopy(self._current_data_buffer)
+            self._current_data_buffer.clear()
+
+            # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
+
+            def __enqueue_buffer_for_flush(flushed_buffer: bytearray):
+                self._buffer_exposer.enqueue_buffer_for_flush(flushed_buffer)
+
+            self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush, buffer)
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
