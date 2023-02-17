@@ -527,7 +527,7 @@ class Utils(object):
     ) -> Union[_T, _DynamicStructure]:
         if document is None:
             return None
-        metadata = document.pop("@metadata")
+        metadata = document.get("@metadata")
         original_document = deepcopy(document)
         type_from_metadata = conventions.try_get_type_from_metadata(metadata)
         mapper = conventions.mappers.get(object_type, None)

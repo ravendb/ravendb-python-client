@@ -566,3 +566,22 @@ class TestBasicSubscription(TestBase):
                 with self.assertRaises(SubscriptionInUseException):
                     task = second_subscription.run(lambda x: None)
                     task.result(self.reasonable_amount_of_time)
+
+    def test_should_pull_documents_after_bulk_insert(self):
+        key = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
+        with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
+            with self.store.bulk_insert() as bulk_insert:
+                bulk_insert.store(User())
+                bulk_insert.store(User())
+                bulk_insert.store(User())
+
+            users: List[User] = []
+            third_user_processed = Event()
+
+            def __subscription_callback(x: SubscriptionBatch):
+                users.extend([item.result for item in x.items])
+                if len(users) == 3 and all([user is not None for user in users]):
+                    third_user_processed.set()
+
+            subscription.run(__subscription_callback)
+            third_user_processed.wait(timeout=5)

@@ -8,6 +8,7 @@ from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
 from ravendb import constants, exceptions
 from ravendb.changes.database_changes import DatabaseChanges
+from ravendb.documents.bulk_insert_operation import BulkInsertOperation
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.session.event_args import (
@@ -163,13 +164,9 @@ class DocumentStoreBase:
     def operations(self) -> OperationExecutor:
         pass
 
-    # todo: changes
-
     # todo: aggressive_caching
 
     # todo: time_series
-
-    # todo: bulk_insert
 
     @abstractmethod
     def open_session(self, database: Optional[str] = None, session_options: Optional = None):
@@ -294,26 +291,25 @@ class DocumentStoreBase:
         if database is None:
             database = store.database
 
-        if not database.isspace():
+        if database and not database.isspace():
             return database
 
         raise ValueError(
             "Cannot determine database to operate on. "
             "Please either specify 'database' directly as an action parameter "
-            "or set the default database to operate on using 'DocumentStore.setDatabase' method. "
+            "or set the default database to operate on using 'DocumentStore.database'. "
             "Did you forget to pass 'database' parameter?"
         )
 
 
 class DocumentStore(DocumentStoreBase):
-    def __init__(self, urls: Optional[Union[str, List[str]]] = None, database: Optional[str] = None):
+    def __init__(self, urls: Union[str, List[str]] = None, database: Optional[str] = None):
         super(DocumentStore, self).__init__()
         self.__subscriptions = DocumentSubscriptions(self)
         self.__thread_pool_executor = ThreadPoolExecutor()
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
         self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
-        # todo: database changes
         # todo: aggressive cache
         self.__maintenance_operation_executor: Union[None, MaintenanceOperationExecutor] = None
         self.__operation_executor: Union[None, OperationExecutor] = None
@@ -518,6 +514,10 @@ class DocumentStore(DocumentStoreBase):
         return self
 
     # todo: aggressively cache
+
+    def bulk_insert(self, database_name: Optional[str] = None) -> BulkInsertOperation:
+        self.assert_initialized()
+        return BulkInsertOperation(self.get_effective_database(database_name), self)
 
     def _assert_valid_configuration(self) -> None:
         if not self.urls:
