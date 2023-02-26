@@ -32,8 +32,8 @@ class TestRavenDB14006(TestBase):
             session.save_changes()
 
         with self.store.open_session(session_options=session_options) as session:
-            results = session.advanced.cluster_transaction.get_compare_exchange_values(
-                StartingWithOptions("comp"), Company
+            results = session.advanced.cluster_transaction.get_compare_exchange_values_starting_with(
+                "comp", object_type=Company
             )
             self.assertEqual(10, len(results))
             self.assertTrue(all(map(lambda x: x is not None, results)))

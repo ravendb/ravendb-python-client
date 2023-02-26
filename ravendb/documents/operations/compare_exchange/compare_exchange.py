@@ -89,8 +89,10 @@ class CompareExchangeSessionValue(Generic[_T]):
                         raise RavenException(
                             f"Unable to read compare exchange value: {self.__original_value.value}", ex
                         )
-                else:
+                elif isinstance(self.__original_value.value, dict):
                     entity = Utils.convert_json_dict_to_object(self.__original_value.value, object_type)
+                else:
+                    entity = self.__original_value.value
 
                 value = CompareExchangeValue(self._key, self._index, entity)
                 self.__value = value
