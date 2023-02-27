@@ -6,9 +6,10 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar
+from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Iterable
 
 from ravendb import constants
+from ravendb.constants import MAX_INT
 from ravendb.documents.session.conditional_load import ConditionalLoadResult
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import InvalidOperationException

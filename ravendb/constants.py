@@ -1,4 +1,4 @@
-int_max = 0x7FFFFFF
+MAX_INT = 0x7FFFFFF
 json_serialize_method_name = "to_json"
 
 

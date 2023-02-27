@@ -11,7 +11,7 @@ _T = TypeVar("_T")
 
 class IndexQueryBase(Generic[_T]):
     def __init__(self):
-        self.__page_size = constants.int_max
+        self.__page_size = constants.MAX_INT
         self.__page_size_set = False
         self.query: Union[None, str] = None
         self.query_parameters: Union[None, Parameters] = None

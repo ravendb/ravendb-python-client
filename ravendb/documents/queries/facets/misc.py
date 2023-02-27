@@ -20,7 +20,7 @@ class FacetOptions:
         return cls()
 
     def __init__(self):
-        self.page_size: int = constants.int_max
+        self.page_size: int = constants.MAX_INT
         self.start: Union[None, int] = None
         self.term_sort_mode: FacetTermSortMode = FacetTermSortMode.VALUE_ASC
         self.include_remaining_terms: bool = False
