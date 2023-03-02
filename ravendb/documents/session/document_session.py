@@ -924,7 +924,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             patch_command_data.create_if_missing = new_instance
             self.defer(patch_command_data)
 
-        def stream(self, query_or_raw_query: AbstractDocumentQuery) -> Iterator:
+        def stream(self, query_or_raw_query: AbstractDocumentQuery[_T]) -> Iterator[StreamResult[_T]]:
             stream_operation = StreamOperation(self.__session)
             command = stream_operation.create_request(query_or_raw_query.index_query)
 
@@ -935,8 +935,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self._yield_result(query_or_raw_query, result)
 
         def stream_with_statistics(
-            self, query_or_raw_query: AbstractDocumentQuery
-        ) -> Tuple[Iterator, StreamQueryStatistics]:
+            self, query_or_raw_query: AbstractDocumentQuery[_T]
+        ) -> Tuple[Iterator[StreamResult[_T]], StreamQueryStatistics]:
             stats = StreamQueryStatistics()
             stream_operation = StreamOperation(self.__session, stats)
             command = stream_operation.create_request(query_or_raw_query.index_query)
@@ -1032,6 +1032,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 query._fields_to_fetch_token,
                 query.is_project_into,
                 query.invoke_after_stream_executed,
+                object_type=query.query_class,
             )
 
         def stream_into(self):  # query: Union[DocumentQuery, RawDocumentQuery], output: iter):

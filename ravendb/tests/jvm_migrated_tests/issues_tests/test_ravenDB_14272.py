@@ -71,3 +71,15 @@ class TestRavenDB14272(TestBase):
             result = list(session.query(object_type=UserTalk).select_fields(str, "name"))
             self.assertEqual(1, len(result))
             self.assertEqual(user_talk.name, result[0])
+
+    def test_streaming_document_query_projection(self):
+        user_talk = self._save_user_talk(self.store)
+        with self.store.open_session() as session:
+            query = session.advanced.document_query(object_type=UserTalk).select_fields(TalkUserIds, "user_defs")
+            stream = session.advanced.stream(query)
+            for result in stream:
+                projection = result.document
+                self.assertIsNotNone(projection)
+                self.assertIsNotNone(projection.user_defs)
+                self.assertEqual(2, len(projection.user_defs))
+                self.assertSequenceContainsElements(user_talk.user_defs.keys(), *projection.user_defs.keys())

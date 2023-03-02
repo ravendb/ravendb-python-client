@@ -173,7 +173,7 @@ class AbstractDocumentQuery(Generic[_T]):
         return self._query_operation
 
     @property
-    def query_class(self) -> type:
+    def query_class(self) -> Type[_T]:
         return self._object_type
 
     @property
