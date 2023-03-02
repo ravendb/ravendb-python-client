@@ -1,3 +1,6 @@
+import json
+from typing import Iterator, Optional, Dict
+
 import ijson
 from _elementtree import ParseError
 from socket import timeout
@@ -238,3 +241,33 @@ class IncrementalJsonParser:
                 result += esc
             start = pos + 1
         return result
+
+
+class JSONLRavenStreamParser:
+    def __init__(self, stream: Iterator):
+        self._stream = stream
+        self._unused_buffer: Optional[Dict] = None
+
+    def _get_next_json_dict(self) -> Dict:
+        return (
+            self._unused_buffer
+            if self._unused_buffer is not None
+            else json.loads(self._stream.__next__().decode("utf-8"))
+        )
+
+    def purge_cache(self) -> None:
+        self._unused_buffer = None
+
+    def next_query_statistics(self) -> Dict:
+        json_dict = self._get_next_json_dict()
+        if "Stats" not in json_dict:
+            self._unused_buffer = json_dict
+            raise RuntimeError(f"Expected key 'Stats' in received JSON, got {json_dict.keys()}. Cached the dict.")
+        return json_dict["Stats"]
+
+    def next_item(self) -> Dict:
+        json_dict = self._get_next_json_dict()
+        if "Item" not in json_dict:
+            self._unused_buffer = json_dict
+            raise RuntimeError(f"Expected key 'Item' in received JSON, got {json_dict.keys()}. Cached the dict.")
+        return json_dict["Item"]

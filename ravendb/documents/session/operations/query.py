@@ -147,25 +147,25 @@ class QueryOperation:
         key: str,
         document: dict,
         metadata: dict,
-        fields_to_fetch: FieldsToFetchToken,
+        fields_to_fetch_token: FieldsToFetchToken,
         disable_entities_tracking: bool,
         session: "InMemoryDocumentSessionOperations",
         is_project_into: bool,
-    ):
+    ) -> _T:
         projection = metadata.get("@projection")
         if not projection:
             return session.track_entity(object_type, key, document, metadata, disable_entities_tracking)
 
         if (
-            fields_to_fetch is not None
-            and fields_to_fetch.projections is not None
-            and len(fields_to_fetch.projections) == 1
+            fields_to_fetch_token is not None
+            and fields_to_fetch_token.projections is not None
+            and len(fields_to_fetch_token.projections) == 1
         ):
-            projection_field = fields_to_fetch.projections[0]
+            projection_field = fields_to_fetch_token.projections[0]
 
-            if fields_to_fetch.source_alias is not None:
-                if projection_field.startswith(fields_to_fetch.source_alias):
-                    projection_field = projection_field[len(fields_to_fetch.source_alias) + 1 :]
+            if fields_to_fetch_token.source_alias is not None:
+                if projection_field.startswith(fields_to_fetch_token.source_alias):
+                    projection_field = projection_field[len(fields_to_fetch_token.source_alias) + 1 :]
 
                 if projection_field.startswith("'"):
                     projection_field = projection_field[1:-1]
@@ -185,8 +185,8 @@ class QueryOperation:
                     return Utils.get_default_value(object_type)
 
                 if (
-                    fields_to_fetch.fields_to_fetch is not None
-                    and fields_to_fetch.fields_to_fetch[0] == fields_to_fetch.projections[0]
+                    fields_to_fetch_token.fields_to_fetch is not None
+                    and fields_to_fetch_token.fields_to_fetch[0] == fields_to_fetch_token.projections[0]
                 ):
                     document = inner
 

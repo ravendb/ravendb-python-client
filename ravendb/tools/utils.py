@@ -333,7 +333,7 @@ class Utils(object):
 
         for item in items:
             if Utils.check_if_collection_but_not_str(item):
-                results.extend(Utils.__unpack_collection(item))
+                results.extend(Utils.unpack_collection(item))
                 continue
             results.append(item)
 
