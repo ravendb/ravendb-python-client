@@ -65,7 +65,7 @@ class StreamOperation:
     #     return StreamCommand("".join(sb))
 
     def set_result(self, response: StreamResultResponse) -> Iterator[Dict]:
-        if response.stream_iterator is None:
+        if response is None or response.stream_iterator is None:
             raise IndexDoesNotExistException("The index does not exists, failed to stream results")
 
         parser = JSONLRavenStreamParser(response.stream_iterator)
