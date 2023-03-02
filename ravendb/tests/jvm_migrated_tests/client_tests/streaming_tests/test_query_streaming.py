@@ -40,3 +40,25 @@ class TestQueryStreaming(TestBase):
                 self.assertIsNotNone(user)
 
         self.assertEqual(200, count)
+
+    def test_can_stream_raw_query_results(self):
+        Users_ByName().execute(self.store)
+
+        with self.store.open_session() as session:
+            for i in range(200):
+                session.store(User())
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        count = 0
+
+        with self.store.open_session() as session:
+            query = session.advanced.raw_query(f"from index '{Users_ByName().index_name}'")
+            stream = session.advanced.stream(query)
+            for user in stream:
+                count += 1
+                self.assertIsNotNone(user)
+
+        self.assertEqual(200, count)
