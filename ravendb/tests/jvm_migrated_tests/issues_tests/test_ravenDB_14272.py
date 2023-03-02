@@ -83,3 +83,15 @@ class TestRavenDB14272(TestBase):
                 self.assertIsNotNone(projection.user_defs)
                 self.assertEqual(2, len(projection.user_defs))
                 self.assertSequenceContainsElements(user_talk.user_defs.keys(), *projection.user_defs.keys())
+
+    def test_streaming_query_projection(self):
+        user_talk = self._save_user_talk(self.store)
+        with self.store.open_session() as session:
+            query = session.query(object_type=UserTalk).select_fields(TalkUserIds)
+            stream = session.advanced.stream(query)
+            for result in stream:
+                projection = result.document
+                self.assertIsNotNone(projection)
+                self.assertIsNotNone(projection.user_defs)
+                self.assertEqual(2, len(projection.user_defs))
+                self.assertSequenceContainsElements(user_talk.user_defs.keys(), *projection.user_defs.keys())
