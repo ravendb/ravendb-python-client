@@ -83,3 +83,24 @@ class TestQueryStreaming(TestBase):
             self.assertEqual("Users/ByName", stats.index_name)
             self.assertEqual(100, stats.total_results)
             self.assertEqual(datetime.now().year, stats.index_timestamp.year)
+
+    def test_can_stream_raw_query_results_with_query_statistics(self):
+        Users_ByName().execute(self.store)
+
+        with self.store.open_session() as session:
+            for i in range(100):
+                session.store(User())
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            query = session.advanced.raw_query(f"from index '{Users_ByName().index_name}'")
+            stream, stats = session.advanced.stream_with_statistics(query)
+            for user in stream:
+                self.assertIsNotNone(user)
+
+            self.assertEqual("Users/ByName", stats.index_name)
+            self.assertEqual(100, stats.total_results)
+            self.assertEqual(datetime.now().year, stats.index_timestamp.year)
