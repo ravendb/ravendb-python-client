@@ -19,8 +19,14 @@ Although new API isn't compatible with the previous one, it comes with **many im
 ## What's new?
 
 
+###### 5.2.2
+- New feature - **[Bulk insert](https://github.com/ravendb/ravendb-python-client/pull/161)**
+- Bugfixes - Cluster-wide operations ([here](https://github.com/ravendb/ravendb-python-client/pull/166))
 
-###### 5.2.0 (stable)
+###### 5.2.1
+- Bugfixes - Serialization while loading/querying ([here](https://github.com/ravendb/ravendb-python-client/pull/163))
+
+###### 5.2.0
 - **Subscriptions**
   - Document streams
   - Secured subscriptions
@@ -113,14 +119,12 @@ Although new API isn't compatible with the previous one, it comes with **many im
 -----
 
 ### **Coming soon, work in progress**
-  - Counters, Time Series
-  - Streams and Subscriptions
-  - Select fields
-  - Task related commands (crud for replication, subscriptions, etl) + connection strings
-
-
+- Counters & Time Series
+- Replication & ETL Commands
+- Streaming (ready, will be merged on v5.4 - https://github.com/ravendb/ravendb-python-client/pull/168)
 
 ----
+
 ### Demo
 
 ##### Working with secured server
