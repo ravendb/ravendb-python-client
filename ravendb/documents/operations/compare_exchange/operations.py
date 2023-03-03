@@ -190,31 +190,30 @@ class DeleteCompareExchangeValueOperation(IOperation[CompareExchangeResult[_T]],
 class GetCompareExchangeValuesOperation(IOperation[Dict[str, CompareExchangeValue[_T]]], Generic[_T]):
     def __init__(
         self,
-        keys_or_start_with: Union[Collection[str], StartingWithOptions],
-        object_type: Optional[Type[_T]],
+        keys: Optional[Collection[str]] = None,
+        object_type: Optional[Type[_T]] = None,
         materialize_metadata: Optional[bool] = True,
-    ):  # todo: starting with
-        start_with = isinstance(keys_or_start_with, StartingWithOptions)
-        if not materialize_metadata and start_with:
-            raise ValueError(
-                f"Cannot set materialize_metadata to False while "
-                f"collecting cmpxchg values starting with '{keys_or_start_with.starts_with}'"
-            )
-
+    ):
+        self._materialize_metadata = materialize_metadata
+        self._keys = keys
         self._object_type = object_type
+        self._start = None
+        self._page_size = None
+        self._start_with = None
 
-        if start_with:
-            self._keys = None
-            self._materialize_metadata = True  # todo: documentation - tell the user that it'll be set to True anyway
-            self._start = keys_or_start_with.start
-            self._page_size = keys_or_start_with.page_size
-            self._start_with = keys_or_start_with.starts_with
-        else:
-            self._materialize_metadata = materialize_metadata
-            self._keys = keys_or_start_with
-            self._start = None
-            self._page_size = None
-            self._start_with = None
+    @classmethod
+    def create_for_start_with(
+        cls,
+        start_with: str,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        object_type: Optional[Type[_T]] = None,
+    ) -> GetCompareExchangeValuesOperation:
+        operation = cls(None, object_type, True)
+        operation._starts_with = start_with
+        operation._start = start
+        operation._page_size = page_size
+        return operation
 
     def get_command(self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache) -> RavenCommand[_T]:
         return self.GetCompareExchangeValuesCommand(self, self._materialize_metadata, conventions)

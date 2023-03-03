@@ -144,31 +144,9 @@ class ClusterTransactionOperationsBase(IClusterTransactionOperationsBase):
         return None
 
     def _get_compare_exchange_values_internal(
-        self, keys_or_start_with_options: Union[List[str], StartingWithOptions], object_type: Optional[Type[_T]]
+        self, keys: List[str], object_type: Optional[Type[_T]]
     ) -> Dict[str, Optional[CompareExchangeValue[_T]]]:
-        start_with = isinstance(keys_or_start_with_options, StartingWithOptions)
-        if start_with:
-            self._session.increment_requests_count()
-            values = self._session.operations.send(
-                GetCompareExchangeValuesOperation(keys_or_start_with_options, dict), self.session.session_info
-            )
-
-            results = {}
-
-            for key, value in values.items():
-                if value is None:
-                    self.register_missing_compare_exchange_value(key)
-                    results[key] = None
-                    continue
-
-                session_value = self.register_compare_exchange_value(value)
-                results[key] = session_value.get_value(object_type, self.session.conventions)
-
-            return results
-
-        results, not_tracked_keys = self.get_compare_exchange_values_from_session_internal(
-            keys_or_start_with_options, object_type
-        )
+        results, not_tracked_keys = self.get_compare_exchange_values_from_session_internal(keys, object_type)
 
         if not not_tracked_keys:
             return results
@@ -188,6 +166,32 @@ class ClusterTransactionOperationsBase(IClusterTransactionOperationsBase):
 
             session_value = self.register_compare_exchange_value(value)
             results[value.key] = session_value.get_value(object_type, self.session.conventions)
+
+        return results
+
+    def _get_compare_exchange_values_starting_with_internal(
+        self,
+        start_with: str,
+        start: Optional[int] = None,
+        page_size: Optional[int] = None,
+        object_type: Optional[Type[_T]] = None,
+    ) -> Dict[str, Optional[CompareExchangeValue[_T]]]:
+        self._session.increment_requests_count()
+        values = self._session.operations.send(
+            GetCompareExchangeValuesOperation.create_for_start_with(start_with, start, page_size, object_type),
+            self.session.session_info,
+        )
+
+        results = {}
+
+        for key, value in values.items():
+            if value is None:
+                self.register_missing_compare_exchange_value(key)
+                results[key] = None
+                continue
+
+            session_value = self.register_compare_exchange_value(value)
+            results[key] = session_value.get_value(object_type, self.session.conventions)
 
         return results
 
@@ -299,9 +303,7 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase, IClusterTra
         page_size: Optional[int] = None,
         object_type: Optional[Type[_T]] = None,
     ):
-        return self._get_compare_exchange_values_internal(
-            StartingWithOptions(starts_with, start, page_size), object_type
-        )
+        return self._get_compare_exchange_values_starting_with_internal(starts_with, start, page_size, object_type)
 
 
 # this class helps to expose better typehints without tons of methods and fields from ClusterTransactionOperationsBase

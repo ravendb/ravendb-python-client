@@ -12,7 +12,6 @@ from ravendb.documents.operations.compare_exchange.operations import (
 from ravendb.documents.operations.statistics import GetDetailedStatisticsOperation, DetailedDatabaseStatistics
 from ravendb.documents.session.misc import TransactionMode
 from ravendb.tests.test_base import TestBase, User
-from ravendb.util.util import StartingWithOptions
 
 
 class TestUniqueValues(TestBase):
@@ -101,7 +100,7 @@ class TestUniqueValues(TestBase):
         self.assertTrue(res2.successful)
 
         values: Dict[str, CompareExchangeValue[User]] = self.store.operations.send(
-            GetCompareExchangeValuesOperation(StartingWithOptions("test"), User)
+            GetCompareExchangeValuesOperation.create_for_start_with("test", object_type=User)
         )
         self.assertEqual(2, len(values))
 
