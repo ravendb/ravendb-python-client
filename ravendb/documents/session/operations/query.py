@@ -14,6 +14,7 @@ from ravendb.tools.utils import Stopwatch, Utils
 
 if TYPE_CHECKING:
     from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session import DocumentSession
 
 
 class QueryOperation:
@@ -23,7 +24,7 @@ class QueryOperation:
     # __facet_result_fields =
     def __init__(
         self,
-        session: "InMemoryDocumentSessionOperations",
+        session: "DocumentSession",
         index_name: str,
         index_query: IndexQuery,
         fields_to_fetch: FieldsToFetchToken,
@@ -74,7 +75,7 @@ class QueryOperation:
         self.__sp = Stopwatch().start()
 
     def log_query(self) -> None:
-        self.__logger.info(
+        self.__logger.debug(
             f"Executing query {self.__index_query.query} "
             f"on index {self.__index_name} "
             f"in {self.__session.advanced.store_identifier}"
@@ -248,7 +249,7 @@ class QueryOperation:
 
             parameters.append(") ")
 
-        self.__logger.info(
+        self.__logger.debug(
             f"Query {self.__index_query.query} {''.join(list(map(str,parameters)))}returned "
             f"{len(result.results)}{is_stale}results (total index results: {result.total_results})"
         )
