@@ -34,7 +34,7 @@ class CounterOperation:
             raise ValueError("Missing counter_name property")
         if not counter_operation_type:
             raise ValueError(f"Missing counter_operation_type property in counter {counter_name}")
-        if delta is None and counter_operation_type == CounterOperationType.increment:
+        if delta is None and counter_operation_type == CounterOperationType.INCREMENT:
             raise ValueError(f"Missing delta property in counter {counter_name} of type {counter_operation_type}")
         self.counter_name = counter_name
         self.delta = delta
@@ -125,13 +125,17 @@ class CounterDetail:
         }
 
     @classmethod
-    def from_json(cls, json_dict: Dict) -> CounterDetail:
-        return cls(
-            json_dict["DocumentId"],
-            json_dict["CounterName"],
-            json_dict["TotalValue"],
-            json_dict.get("Etag", None),
-            json_dict["CounterValues"],
+    def from_json(cls, json_dict: Dict) -> Optional[CounterDetail]:
+        return (
+            cls(
+                json_dict["DocumentId"],
+                json_dict["CounterName"],
+                json_dict["TotalValue"],
+                json_dict.get("Etag", None),
+                json_dict["CounterValues"],
+            )
+            if json_dict is not None
+            else None
         )
 
 
