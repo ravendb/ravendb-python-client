@@ -37,7 +37,7 @@ class OperationExecutor:
             return self
         return OperationExecutor(self.__store, database_name)
 
-    def send(self, operation: Union[IOperation, VoidOperation], session_info: SessionInfo = None):
+    def send(self, operation: IOperation[_Operation_T], session_info: SessionInfo = None) -> _Operation_T:
         command = operation.get_command(
             self.__store, self.__request_executor.conventions, self.__request_executor.cache
         )

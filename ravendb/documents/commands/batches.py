@@ -8,7 +8,7 @@ from typing import Callable, Union, Optional, TYPE_CHECKING, List, Set, Dict
 
 import requests
 
-from ravendb.documents.operations.counters.operation import (
+from ravendb.documents.operations.counters import (
     CounterOperation,
     DocumentCountersOperation,
     CounterOperationType,
