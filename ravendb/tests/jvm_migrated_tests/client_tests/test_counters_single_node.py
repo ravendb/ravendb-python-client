@@ -110,3 +110,31 @@ class TestCountersSingleNode(TestBase):
         counters_detail = self.store.operations.send(GetCountersOperation("users/1-A", ["likes"]))
         self.assertEqual(1, len(counters_detail.counters))
         self.assertIsNone(counters_detail.counters[0])
+
+    def test_get_counter_value(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user)
+            session.save_changes()
+
+        document_counters_operation = DocumentCountersOperation("users/1-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT,5)])
+
+        counter_batch = CounterBatch(documents=[document_counters_operation])
+
+        a = self.store.operations.send(CounterBatchOperation(counter_batch))
+
+        document_counters_operation = DocumentCountersOperation("users/1-A", operations=[CounterOperation.create("likes", CounterOperationType.INCREMENT,10)])
+
+        counter_batch = CounterBatch(documents=[document_counters_operation])
+
+        b = self.store.operations.send(CounterBatchOperation(counter_batch))
+
+        details = self.store.operations.send(GetCountersOperation("users/1-A", ["likes"]))
+        val = details.counters[0].total_value
+
+        self.assertEqual(15, val)
+
+
+
+
+
