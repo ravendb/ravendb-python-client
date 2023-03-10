@@ -117,13 +117,17 @@ class TestCountersSingleNode(TestBase):
             session.store(user)
             session.save_changes()
 
-        document_counters_operation = DocumentCountersOperation("users/1-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT,5)])
+        document_counters_operation = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT, 5)]
+        )
 
         counter_batch = CounterBatch(documents=[document_counters_operation])
 
         a = self.store.operations.send(CounterBatchOperation(counter_batch))
 
-        document_counters_operation = DocumentCountersOperation("users/1-A", operations=[CounterOperation.create("likes", CounterOperationType.INCREMENT,10)])
+        document_counters_operation = DocumentCountersOperation(
+            "users/1-A", operations=[CounterOperation.create("likes", CounterOperationType.INCREMENT, 10)]
+        )
 
         counter_batch = CounterBatch(documents=[document_counters_operation])
 
@@ -134,7 +138,25 @@ class TestCountersSingleNode(TestBase):
 
         self.assertEqual(15, val)
 
+    def test_multi_get(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user, "users/1-A")
+            session.save_changes()
 
+        document_counters_operation1 = DocumentCountersOperation(
+            "users/1-A",
+            [
+                CounterOperation.create("likes", CounterOperationType.INCREMENT, 5),
+                CounterOperation.create("dislikes", CounterOperationType.INCREMENT, 10),
+            ],
+        )
 
+        counter_batch = CounterBatch(documents=[document_counters_operation1])
+        self.store.operations.send(CounterBatchOperation(counter_batch))
 
+        counters = self.store.operations.send(GetCountersOperation("users/1-A", ["likes", "dislikes"])).counters
+        self.assertEqual(2, len(counters))
 
+        self.assertEqual(5, list(filter(lambda x: x.counter_name == "likes", counters))[0].total_value)
+        self.assertEqual(10, list(filter(lambda x: x.counter_name == "dislikes", counters))[0].total_value)

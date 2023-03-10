@@ -261,7 +261,7 @@ class GetCountersOperation(IOperation[CountersDetail]):
                 batch.reply_with_all_nodes_values = self._return_full_results
 
                 request.data = batch.to_json()
-                return request
+            return request
 
         def set_response(self, response: Optional[str], from_cache: bool) -> None:
             if response is None:
