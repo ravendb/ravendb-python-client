@@ -116,10 +116,10 @@ class BatchOperation:
                 self.__handle_attachment_move(batch_result)
             elif command_type == CommandType.ATTACHMENT_COPY:
                 self.__handle_attachment_copy(batch_result)
-            elif (
-                command_type == CommandType.COMPARE_EXCHANGE_PUT
-                or CommandType.COMPARE_EXCHANGE_DELETE
-                or CommandType.FORCE_REVISION_CREATION
+            elif command_type in (
+                CommandType.COMPARE_EXCHANGE_PUT,
+                CommandType.COMPARE_EXCHANGE_DELETE,
+                CommandType.FORCE_REVISION_CREATION,
             ):
                 pass
             elif command_type == CommandType.COUNTERS:
@@ -301,31 +301,30 @@ class BatchOperation:
 
     def __handle_counters(self, batch_result: dict) -> None:
         doc_id = self.__get_string_field(batch_result, CommandType.COUNTERS, "Id")
-        counters_detail: dict = batch_result.get("CountersDetail")
+        counters_detail: dict = batch_result.get("CountersDetail", None)
         if counters_detail is None:
             self.__throw_missing_field(CommandType.COUNTERS, "CountersDetail")
 
-        counters = counters_detail.get("Counters")
+        counters = counters_detail.get("Counters", None)
         if counters is None:
             self.__throw_missing_field(CommandType.COUNTERS, "Counters")
 
-        cache = self.__session.counters_by_doc_id[doc_id]
+        cache = self.__session.counters_by_doc_id.get(doc_id, None)
         if cache is None:
             cache = [False, CaseInsensitiveDict()]
             self.__session.counters_by_doc_id[doc_id] = cache
 
         change_vector = self.__get_string_field(batch_result, CommandType.COUNTERS, "DocumentChangeVector", False)
         if change_vector is not None:
-            document_info = self.__session._documents_by_id.get(doc_id)
+            document_info = self.__session._documents_by_id.get(doc_id, None)
             if document_info is not None:
                 document_info.change_vector = change_vector
 
         for counter in counters:
-            counter: dict
-            name = counter.get("CounterName")
-            value = counter.get("TotalValue")
+            name = counter.get("CounterName", None)
+            value = counter.get("TotalValue", None)
 
-            if not name and not value:
+            if name is not None and value is not None:
                 cache[1][name] = value
 
     def __handle_attachment_put(self, batch_result: dict) -> None:

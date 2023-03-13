@@ -188,3 +188,17 @@ class TestSessionCounters(TestBase):
                 self.assertEqual(1000, val)
         finally:
             self.store.maintenance.server.send(DeleteDatabaseOperation(db_name, True))
+
+    def test_should_throw(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            session.counters_for_entity(user).increment("likes", 100)
+            session.save_changes()
+
+            self.assertEqual(100, session.counters_for(user).get("likes"))
