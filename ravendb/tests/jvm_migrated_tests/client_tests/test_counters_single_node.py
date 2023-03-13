@@ -204,3 +204,56 @@ class TestCountersSingleNode(TestBase):
         counters_detail = self.store.operations.send(GetCountersOperation("users/2-A", ["likes"]))
         self.assertEqual(1, len(counters_detail.counters))
         self.assertIsNone(counters_detail.counters[0])
+
+    def test_multi_set_and_get_via_batch(self):
+        with self.store.open_session() as session:
+            user1 = User(name="Aviv")
+            user2 = User(name="Aviv2")
+
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.save_changes()
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A",
+            [
+                CounterOperation.create("likes", CounterOperationType.INCREMENT, 5),
+                CounterOperation.create("dislikes", CounterOperationType.INCREMENT, 10),
+            ],
+        )
+        document_counters_operation_2 = DocumentCountersOperation(
+            "users/2-A", [CounterOperation.create("rank", CounterOperationType.INCREMENT, 20)]
+        )
+
+        set_batch = CounterBatch(documents=[document_counters_operation_1, document_counters_operation_2])
+
+        self.store.operations.send(CounterBatchOperation(set_batch))
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A",
+            [
+                CounterOperation.create("likes", CounterOperationType.GET),
+                CounterOperation.create("dislikes", CounterOperationType.GET),
+            ],
+        )
+        document_counters_operation_2 = DocumentCountersOperation(
+            "users/2-A", [CounterOperation.create("rank", CounterOperationType.GET)]
+        )
+
+        get_batch = CounterBatch(documents=[document_counters_operation_1, document_counters_operation_2])
+
+        counters_detail = self.store.operations.send(CounterBatchOperation(get_batch))
+
+        self.assertEqual(3, len(counters_detail.counters))
+
+        self.assertEqual("likes", counters_detail.counters[0].counter_name)
+        self.assertEqual("users/1-A", counters_detail.counters[0].document_id)
+        self.assertEqual(5, counters_detail.counters[0].total_value)
+
+        self.assertEqual("dislikes", counters_detail.counters[1].counter_name)
+        self.assertEqual("users/1-A", counters_detail.counters[1].document_id)
+        self.assertEqual(10, counters_detail.counters[1].total_value)
+
+        self.assertEqual("rank", counters_detail.counters[2].counter_name)
+        self.assertEqual("users/2-A", counters_detail.counters[2].document_id)
+        self.assertEqual(20, counters_detail.counters[2].total_value)
