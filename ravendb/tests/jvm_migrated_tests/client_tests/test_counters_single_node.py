@@ -1,3 +1,4 @@
+from ravendb import constants
 from ravendb.documents.operations.counters import (
     DocumentCountersOperation,
     CounterOperation,
@@ -257,3 +258,69 @@ class TestCountersSingleNode(TestBase):
         self.assertEqual("rank", counters_detail.counters[2].counter_name)
         self.assertEqual("users/2-A", counters_detail.counters[2].document_id)
         self.assertEqual(20, counters_detail.counters[2].total_value)
+
+    def test_increment_and_delete_should_change_document_metadata(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user, "users/1-A")
+            session.save_changes()
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT, 10)]
+        )
+
+        batch = CounterBatch(documents=[document_counters_operation_1])
+        self.store.operations.send(CounterBatchOperation(batch))
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            metadata = session.advanced.get_metadata_for(user)
+
+            counters = metadata.get(constants.Documents.Metadata.COUNTERS)
+            self.assertEqual(1, len(counters))
+            self.assertIn("likes", counters)
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("votes", CounterOperationType.INCREMENT, 50)]
+        )
+
+        batch = CounterBatch(documents=[document_counters_operation_1])
+        self.store.operations.send(CounterBatchOperation(batch))
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            metadata = session.advanced.get_metadata_for(user)
+
+            counters = metadata[constants.Documents.Metadata.COUNTERS]
+            self.assertEqual(2, len(counters))
+            self.assertIn("likes", counters)
+            self.assertIn("votes", counters)
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("likes", CounterOperationType.DELETE)]
+        )
+
+        batch = CounterBatch(documents=[document_counters_operation_1])
+        self.store.operations.send(CounterBatchOperation(batch))
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            metadata = session.advanced.get_metadata_for(user)
+
+            counters = metadata[constants.Documents.Metadata.COUNTERS]
+            self.assertEqual(1, len(counters))
+            self.assertIn("votes", counters)
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("votes", CounterOperationType.DELETE)]
+        )
+
+        batch = CounterBatch(documents=[document_counters_operation_1])
+        self.store.operations.send(CounterBatchOperation(batch))
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            metadata = session.advanced.get_metadata_for(user)
+
+            counters = metadata.get(constants.Documents.Metadata.COUNTERS, None)
+            self.assertIsNone(counters)
