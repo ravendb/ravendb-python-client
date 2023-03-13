@@ -160,3 +160,47 @@ class TestCountersSingleNode(TestBase):
 
         self.assertEqual(5, list(filter(lambda x: x.counter_name == "likes", counters))[0].total_value)
         self.assertEqual(10, list(filter(lambda x: x.counter_name == "dislikes", counters))[0].total_value)
+
+    def test_delete_counter(self):
+        with self.store.open_session() as session:
+            user1 = User(name="Aviv1")
+            user2 = User(name="Aviv2")
+
+            session.store(user1)
+            session.store(user2)
+
+            session.save_changes()
+
+        document_counters_operation_1 = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT, 10)]
+        )
+        document_counters_operation_2 = DocumentCountersOperation(
+            "users/2-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT, 20)]
+        )
+
+        counter_batch = CounterBatch(documents=[document_counters_operation_1, document_counters_operation_2])
+        self.store.operations.send(CounterBatchOperation(counter_batch))
+
+        delete_counter = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create("likes", CounterOperationType.DELETE)]
+        )
+
+        counter_batch = CounterBatch(documents=[delete_counter])
+
+        self.store.operations.send(CounterBatchOperation(counter_batch))
+
+        counters_detail = self.store.operations.send(GetCountersOperation("users/1-A", ["likes"]))
+        self.assertEqual(1, len(counters_detail.counters))
+        self.assertIsNone(counters_detail.counters[0])
+
+        delete_counter = DocumentCountersOperation(
+            "users/2-A", [CounterOperation.create("likes", CounterOperationType.DELETE)]
+        )
+
+        counter_batch = CounterBatch(documents=[delete_counter])
+
+        self.store.operations.send(CounterBatchOperation(counter_batch))
+
+        counters_detail = self.store.operations.send(GetCountersOperation("users/2-A", ["likes"]))
+        self.assertEqual(1, len(counters_detail.counters))
+        self.assertIsNone(counters_detail.counters[0])
