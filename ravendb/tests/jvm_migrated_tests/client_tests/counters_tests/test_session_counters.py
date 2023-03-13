@@ -342,3 +342,23 @@ class TestSessionCounters(TestBase):
             val = user_counters.get("dislikes")
             self.assertEqual(4, session.advanced.number_of_requests)
             self.assertIsNone(val)
+
+    def test_session_should_remove_counter_from_cache_after_counter_deletion(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(100, val)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            session.counters_for("users/1-A").delete("likes")
+            session.save_changes()
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertIsNone(val)
+            self.assertEqual(3, session.advanced.number_of_requests)
