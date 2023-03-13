@@ -1,3 +1,4 @@
+from ravendb.documents.operations.counters import GetCountersOperation
 from ravendb.tests.test_base import TestBase, User
 
 
@@ -58,3 +59,38 @@ class TestSessionCounters(TestBase):
             self.assertIsNone(val)
 
             self.assertEqual(3, session.advanced.number_of_requests)
+
+    def test_session_delete_counter(self):
+        with self.store.open_session() as session:
+            user1 = User("Aviv1")
+            user2 = User("Aviv2")
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("downloads", 500)
+            session.counters_for("users/2-A").increment("votes", 1000)
+
+            session.save_changes()
+
+        counters = self.store.operations.send(GetCountersOperation("users/1-A", ["likes", "downloads"])).counters
+        self.assertEqual(2, len(counters))
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").delete("likes")
+            session.counters_for("users/1-A").delete("downloads")
+            session.counters_for("users/2-A").delete("votes")
+
+            session.save_changes()
+
+        counters = self.store.operations.send(GetCountersOperation("users/1-A", ["likes", "downloads"])).counters
+
+        self.assertEqual(2, len(counters))
+        self.assertIsNone(counters[0])
+        self.assertIsNone(counters[1])
+
+        counters = self.store.operations.send(GetCountersOperation("users/2-A", ["votes"])).counters
+        self.assertEqual(1, len(counters))
+        self.assertIsNone(counters[0])
