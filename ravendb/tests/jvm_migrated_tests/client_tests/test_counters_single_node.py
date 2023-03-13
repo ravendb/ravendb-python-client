@@ -324,3 +324,23 @@ class TestCountersSingleNode(TestBase):
 
             counters = metadata.get(constants.Documents.Metadata.COUNTERS, None)
             self.assertIsNone(counters)
+
+    def test_get_counter_value_using_post(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user, "users/1-A")
+            session.save_changes()
+
+        long_counter_name = "a" * 500
+        document_counters_operation = DocumentCountersOperation(
+            "users/1-A", [CounterOperation.create(long_counter_name, CounterOperationType.INCREMENT, 5)]
+        )
+
+        counter_batch = CounterBatch(documents=[document_counters_operation])
+
+        self.store.operations.send(CounterBatchOperation(counter_batch))
+
+        with self.store.open_session() as session:
+            dic = session.counters_for("users/1-A").get_many([long_counter_name, "no_such"])
+            self.assertEqual(1, len(dic))
+            self.assertIn((long_counter_name, 5), dic.items())
