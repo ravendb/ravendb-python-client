@@ -1,3 +1,7 @@
+import uuid
+
+from ravendb.serverwide.database_record import DatabaseRecord
+from ravendb.serverwide.operations.common import CreateDatabaseOperation, DeleteDatabaseOperation
 from ravendb.documents.operations.counters import GetCountersOperation
 from ravendb.tests.test_base import TestBase, User
 
@@ -153,3 +157,34 @@ class TestSessionCounters(TestBase):
 
             val = session.counters_for("users/2-A").get("votes")
             self.assertEqual(400, val)
+
+    def test_session_get_counters_with_non_default_database(self):
+        db_name = f"db-{uuid.uuid4().__str__()}"
+        self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(db_name)))
+        try:
+            with self.store.open_session(db_name) as session:
+                user1 = User("Aviv1")
+                user2 = User("Aviv2")
+                session.store(user1, "users/1-A")
+                session.store(user2, "users/2-A")
+                session.save_changes()
+
+            with self.store.open_session(db_name) as session:
+                session.counters_for("users/1-A").increment("likes", 100)
+                session.counters_for("users/1-A").increment("downloads", 500)
+                session.counters_for("users/2-A").increment("votes", 1000)
+
+                session.save_changes()
+
+            with self.store.open_session(db_name) as session:
+                dic = session.counters_for("users/1-A").get_all()
+
+                self.assertEqual(2, len(dic))
+                self.assertIn(("likes", 100), dic.items())
+                self.assertIn(("downloads", 500), dic.items())
+
+                x = session.counters_for("users/2-A").get_all()
+                val = session.counters_for("users/2-A").get("votes")
+                self.assertEqual(1000, val)
+        finally:
+            self.store.maintenance.server.send(DeleteDatabaseOperation(db_name, True))
