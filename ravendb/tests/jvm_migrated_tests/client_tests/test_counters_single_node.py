@@ -344,3 +344,20 @@ class TestCountersSingleNode(TestBase):
             dic = session.counters_for("users/1-A").get_many([long_counter_name, "no_such"])
             self.assertEqual(1, len(dic))
             self.assertIn((long_counter_name, 5), dic.items())
+
+    def test_counter_name_should_preserve_case(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user, "users/1-A")
+
+            session.counters_for("users/1-A").increment("Likes", 10)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            val = session.counters_for(user).get("Likes")
+            self.assertEqual(10, val)
+
+            counters = session.advanced.get_counters_for(user)
+            self.assertEqual(1, len(counters))
+            self.assertIn("Likes", counters)

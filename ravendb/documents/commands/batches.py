@@ -492,7 +492,7 @@ class CountersBatchCommandData(CommandData):
 
         super().__init__(key=document_id, command_type=CommandType.COUNTERS, change_vector=change_vector)
         self._from_etl = from_etl
-        self._counters = DocumentCountersOperation(self.key, *counter_operations)
+        self._counters = DocumentCountersOperation(self.key, counter_operations)
 
     def has_increment(self, counter_name):
         self.has_operation_of_type(CounterOperationType.INCREMENT, counter_name)
@@ -517,7 +517,7 @@ class CountersBatchCommandData(CommandData):
         json_dict = {
             "Id": self.key,
             "Counters": self.counters.to_json(),
-            "Type": self.type,
+            "Type": self.command_type,
         }
         if self._from_etl:
             json_dict["FromEtl"] = self._from_etl

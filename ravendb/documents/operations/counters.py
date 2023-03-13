@@ -60,7 +60,7 @@ class DocumentCountersOperation:
             raise ValueError("Missing document_id property")
 
         self._document_id = document_id
-        self._operations = list(operations)
+        self._operations = operations
 
     def add_operations(self, operation: CounterOperation):
         if self._operations is None:
