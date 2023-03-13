@@ -459,7 +459,7 @@ class InMemoryDocumentSessionOperations:
         self._included_documents_by_id = CaseInsensitiveDict()
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
-        self._counters_by_doc_id: Dict[str, List[bool, Dict[str, int]]] = {}
+        self._counters_by_doc_id: Dict[str, Tuple[bool, Dict[str, int]]] = {}
         self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
         self._deleted_entities: Union[
@@ -592,7 +592,7 @@ class InMemoryDocumentSessionOperations:
             event(before_query_event_args)
 
     @property
-    def operation_executor(self) -> OperationExecutor:
+    def operations(self) -> OperationExecutor:
         return self._operation_executor
 
     @property
@@ -801,7 +801,7 @@ class InMemoryDocumentSessionOperations:
             change_vector = change_vector if self.__use_optimistic_concurrency else None
             if self._counters_by_doc_id:
                 self._counters_by_doc_id.pop(key, None)
-            self._defer(DeleteCommandData(key, expected_change_vector if expected_change_vector else change_vector))
+            self.defer(DeleteCommandData(key, expected_change_vector if expected_change_vector else change_vector))
             return
 
         entity = key_or_entity
@@ -1153,12 +1153,12 @@ class InMemoryDocumentSessionOperations:
     def ignore_changes_for(self, entity: object) -> None:
         self._get_document_info(entity).ignore_changes = True
 
-    def _defer(self, *commands: CommandData) -> None:
+    def defer(self, *commands: CommandData) -> None:
         self._deferred_commands.extend(commands)
         for command in commands:
-            self.__defer_internal(command)
+            self._defer_internal(command)
 
-    def __defer_internal(self, command: CommandData) -> None:
+    def _defer_internal(self, command: CommandData) -> None:
         if command.command_type is CommandType.BATCH_PATCH:
             command: BatchPatchCommandData
             for kvp in command.ids:

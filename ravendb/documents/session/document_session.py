@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import datetime
 import http
 import json
@@ -9,6 +10,7 @@ import uuid
 from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar
 
 from ravendb import constants
+from ravendb.documents.operations.counters import CounterOperation, CounterOperationType, GetCountersOperation
 from ravendb.documents.session.conditional_load import ConditionalLoadResult
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import InvalidOperationException
@@ -46,7 +48,7 @@ from ravendb.documents.session.misc import (
 from ravendb.documents.session.query import DocumentQuery, RawDocumentQuery
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.operations.load_operation import LoadOperation
-from ravendb.tools.utils import Utils, Stopwatch
+from ravendb.tools.utils import Utils, Stopwatch, CaseInsensitiveDict
 from ravendb.documents.commands.batches import (
     PatchCommandData,
     CommandType,
@@ -58,6 +60,7 @@ from ravendb.documents.commands.batches import (
     CommandData,
     IndexBatchOptions,
     ReplicationBatchOptions,
+    CountersBatchCommandData,
 )
 from ravendb.documents.commands.crud import (
     HeadDocumentCommand,
@@ -426,6 +429,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         if index_type is None or not isinstance(index_type, AbstractCommonApiForIndexes):
             return self.query(Query.from_index_type(index_type), object_type)
 
+    def counters_for(self, document_id: str) -> SessionDocumentCounters:
+        return SessionDocumentCounters(self, document_id)
+
+    def counters_for_entity(self, entity: object) -> SessionDocumentCounters:
+        return SessionDocumentCounters(self, entity)
+
     class _EagerSessionOperations:
         def __init__(self, session: DocumentSession):
             self.__session = session
@@ -586,7 +595,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__session.entity_to_json.remove_from_missing(entity)
 
         def defer(self, *commands: CommandData) -> None:
-            self.__session._defer(*commands)
+            self.__session.defer(*commands)
 
         def clear(self) -> None:
             self.__session._documents_by_entity.clear()
@@ -1063,7 +1072,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                         + ", the document was already deleted in this session."
                     )
 
-                self.__session._defer(
+                self.__session.defer(
                     PutAttachmentCommandData(entity_or_document_id, name, stream, content_type, change_vector)
                 )
 
@@ -1103,7 +1112,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, name, "delete", "rename")
 
-                self.__session._defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
+                self.__session.defer(DeleteAttachmentCommandData(entity_or_document_id, name, None))
 
             def get(
                 self,
@@ -1208,7 +1217,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 ):
                     self.__throw_other_deferred_command_exception(entity_or_document_id, source_name, "copy", "rename")
 
-                self.__session._defer(
+                self.__session.defer(
                     CopyAttachmentCommandData(
                         entity_or_document_id, source_name, destination_entity_or_document_id, destination_name, None
                     )
@@ -1307,7 +1316,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                         source_entity_or_document_id, destination_name, "rename", "rename"
                     )
 
-                self.__session._defer(
+                self.__session.defer(
                     MoveAttachmentCommandData(
                         source_entity_or_document_id,
                         source_name,
@@ -1399,3 +1408,231 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             )
             index_name = index_name_and_collection[0]
             collection_name = index_name_and_collection[1]
+
+
+class SessionCountersBase:
+    def __init__(self, session: InMemoryDocumentSessionOperations, document_id_or_entity: Union[str, object]):
+        if isinstance(document_id_or_entity, str):
+            if not document_id_or_entity or document_id_or_entity.isspace():
+                raise ValueError("Document id cannot be empty")
+
+            self.doc_id = document_id_or_entity
+            self.session = session
+        else:
+            document = session._documents_by_entity.get(document_id_or_entity)
+            if document is None:
+                self._throw_entity_not_in_session(document_id_or_entity)
+                return
+            self.doc_id = document.key
+            self.session = session
+
+    def increment(self, counter: str, delta: int = 1) -> None:
+        if not counter or counter.isspace():
+            raise ValueError("Counter name cannot be empty")
+
+        counter_op = CounterOperation(counter, CounterOperationType.INCREMENT, delta)
+        document_info = self.session._documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session._deleted_entities:
+            self._throw_document_already_deleted_in_session(self.doc_id, counter)
+
+        command = self.session._deferred_commands_map.get(
+            IdTypeAndName.create(self.doc_id, CommandType.COUNTERS, None), None
+        )
+        if command is not None:
+            counters_batch_command_data: CountersBatchCommandData = command
+            if counters_batch_command_data.has_delete(counter):
+                self._throw_increment_counter_after_delete_attempt(self.doc_id, counter)
+
+            counters_batch_command_data.counters.operations.append(counter_op)
+        else:
+            self.session.defer(CountersBatchCommandData(self.doc_id, counter_op))
+
+    def delete(self, counter: str) -> None:
+        if not counter or counter.isspace():
+            raise ValueError("Counter name is required")
+
+        if IdTypeAndName.create(self.doc_id, CommandType.DELETE, None) in self.session._deferred_commands_map:
+            return  # no-op
+
+        document_info = self.session._documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session._deleted_entities:
+            return  # no-op
+
+        counter_op = CounterOperation(counter, CounterOperationType.DELETE)
+
+        command = self.session._deferred_commands_map.get(
+            IdTypeAndName.create(self.doc_id, CommandType.COUNTERS, None), None
+        )
+        if command is not None:
+            counters_batch_command_data: CountersBatchCommandData = command
+            if counters_batch_command_data.has_increment(counter):
+                self._throw_delete_counter_after_increment_attempt(self.doc_id, counter)
+
+            counters_batch_command_data.counters.operations.append(counter_op)
+        else:
+            self.session.defer(CountersBatchCommandData(self.doc_id, counter_op))
+
+        cache = self.session.counters_by_doc_id.get(self.doc_id, None)
+        if cache is not None:
+            del cache[1][counter]
+
+    def _throw_entity_not_in_session(self, entity) -> None:
+        raise ValueError(
+            "Entity is not associated with the session, cannot add counter to it. "
+            "Use document_id instead of track the entity in the session."
+        )
+
+    @staticmethod
+    def _throw_increment_counter_after_delete_attempt(document_id: str, counter: str) -> None:
+        raise ValueError(
+            f"Can't increment counter {counter} of document {document_id}, "
+            f"there is a deferred command registered to delete a counter with the same name."
+        )
+
+    @staticmethod
+    def _throw_delete_counter_after_increment_attempt(document_id: str, counter: str) -> None:
+        raise ValueError(
+            f"Can't delete counter {counter} of document {document_id}, "
+            f"there is a deferred command registered to increment a counter with the same name."
+        )
+
+    @staticmethod
+    def _throw_document_already_deleted_in_session(document_id: str, counter: str) -> None:
+        raise ValueError(
+            f"Can't increment counter {counter} of document {document_id}, "
+            f"the document was already deleted in this session"
+        )
+
+
+class SessionDocumentCounters(SessionCountersBase):
+    def get_all(self) -> Dict[str, int]:
+        cache = self.session.counters_by_doc_id.get(self.doc_id, None)
+
+        if cache is None:
+            cache = (False, CaseInsensitiveDict())
+
+        missing_counters = not cache[0]
+
+        document = self.session._documents_by_id.get_value(self.doc_id)
+        if document is not None:
+            metadata_counters: Dict = document.metadata.get(constants.Documents.Metadata.COUNTERS, None)
+            if metadata_counters is None:
+                missing_counters = False
+            elif len(cache[1]) >= len(metadata_counters):
+                missing_counters = False
+
+                for c in metadata_counters:
+                    if c in cache[1]:
+                        continue
+                    missing_counters = True
+                    break
+
+        if missing_counters:
+            # we either don't have the document in session and got_all = False,
+            # or we do and cache doesn't contain all metadata counters
+
+            self.session.increment_requests_count()
+
+            details = self.session.operations.send(GetCountersOperation(self.doc_id), self.session.session_info)
+            cache[1].clear()
+
+            for counter_detail in details.counters:
+                cache[1][counter_detail.counter_name] = counter_detail.total_value
+
+        cache[0] = True
+
+        if not self.session.no_tracking:
+            self.session.counters_by_doc_id[self.doc_id] = cache
+
+        return cache[1]
+
+    def get(self, counter) -> int:
+        value = None
+
+        cache = self.session.counters_by_doc_id.get(self.doc_id, None)
+        if cache is not None:
+            value = cache[1].get(counter, None)
+            if counter in cache[1]:
+                return value
+        else:
+            cache = (False, CaseInsensitiveDict())
+
+        document = self.session._documents_by_id.get_value(self.doc_id)
+        metadata_has_counter_name = False
+        if document is not None:
+            metadata_counters = document.metadata.get(constants.Documents.Metadata.COUNTERS, None)
+            if metadata_counters is not None:
+                for node in metadata_counters:
+                    if node.lower() == counter.lower():
+                        metadata_has_counter_name = True
+
+        if (document is None and not cache[0]) or metadata_has_counter_name:
+            # we either don't have the document in session and got_all = False,
+            # or we do and it's metadata contains the counter name
+
+            self.session.increment_requests_count()
+
+            details = self.session.operations.send(
+                GetCountersOperation(self.doc_id, counter), self.session.session_info
+            )
+            if details.counters:
+                counter_detail = details.counters[0]
+                value = counter_detail.total_value if counter_detail is not None else None
+
+        cache[1][counter] = value
+        if not self.session.no_tracking:
+            self.session.counters_by_doc_id[self.doc_id] = cache
+
+        return value
+
+    def get_many(self, counters: List[str]) -> Dict[str, int]:
+        cache = self.session.counters_by_doc_id.get(self.doc_id, None)
+        if cache is None:
+            cache = (False, CaseInsensitiveDict())
+
+        metadata_counters = None
+        document = self.session._documents_by_id.get_value(self.doc_id)
+        if document is not None:
+            metadata_counters = document.metadata.get(constants.Documents.Metadata.COUNTERS, None)
+
+        result = {}
+
+        for counter in counters:
+            has_counter = counter in cache[1]
+            val = cache[1].get(counter, None)
+            not_in_metadata = True
+
+            if document is not None and metadata_counters is not None:
+                for metadata_counter in metadata_counters:
+                    if metadata_counter.lower() == counter.lower():
+                        not_in_metadata = False
+
+            if has_counter or cache[0] or (document is not None and not_in_metadata):
+                # we either have value in cache
+                # or we have the metadata and the counter is not there,
+                # or got_all
+
+                result[counter] = val
+                continue
+
+            result.clear()
+
+            self.session.increment_requests_count()
+
+            details = self.session.operations.send(
+                GetCountersOperation(self.doc_id, copy.deepcopy(counters), self.session.session_info)
+            )
+
+            for counter_detail in details.counters:
+                if counter_detail is None:
+                    continue
+
+                cache[1][counter_detail.counter_name] = counter_detail.total_value
+                result[counter_detail.counter_name] = counter_detail.total_value
+
+            break
+
+        if self.session.no_tracking:
+            self.session.counters_by_doc_id[self.doc_id] = cache
+
+        return result
