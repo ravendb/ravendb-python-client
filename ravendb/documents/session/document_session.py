@@ -1509,7 +1509,7 @@ class SessionDocumentCounters(SessionCountersBase):
         cache = self.session.counters_by_doc_id.get(self.doc_id, None)
 
         if cache is None:
-            cache = (False, CaseInsensitiveDict())
+            cache = [False, CaseInsensitiveDict()]
 
         missing_counters = not cache[0]
 
@@ -1555,7 +1555,7 @@ class SessionDocumentCounters(SessionCountersBase):
             if counter in cache[1]:
                 return value
         else:
-            cache = (False, CaseInsensitiveDict())
+            cache = [False, CaseInsensitiveDict()]
 
         document = self.session._documents_by_id.get_value(self.doc_id)
         metadata_has_counter_name = False
@@ -1588,7 +1588,7 @@ class SessionDocumentCounters(SessionCountersBase):
     def get_many(self, counters: List[str]) -> Dict[str, int]:
         cache = self.session.counters_by_doc_id.get(self.doc_id, None)
         if cache is None:
-            cache = (False, CaseInsensitiveDict())
+            cache = [False, CaseInsensitiveDict()]
 
         metadata_counters = None
         document = self.session._documents_by_id.get_value(self.doc_id)

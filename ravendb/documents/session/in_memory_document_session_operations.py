@@ -459,7 +459,7 @@ class InMemoryDocumentSessionOperations:
         self._included_documents_by_id = CaseInsensitiveDict()
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
-        self._counters_by_doc_id: Dict[str, Tuple[bool, Dict[str, int]]] = {}
+        self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = {}
         self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
         self._deleted_entities: Union[
