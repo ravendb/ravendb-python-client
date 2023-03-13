@@ -121,3 +121,35 @@ class TestSessionCounters(TestBase):
             val = session.counters_for("users/1-A").get("votes")
             self.assertEqual(1, session.advanced.number_of_requests)
             self.assertIsNone(val)
+
+    def test_different_types_of_counters_operations_in_one_session(self):
+        with self.store.open_session() as session:
+            user1 = User("Aviv1")
+            user2 = User("Aviv2")
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("downloads", 100)
+            session.counters_for("users/2-A").increment("votes", 1000)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").delete("downloads")
+            session.counters_for("users/2-A").increment("votes", -600)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(200, val)
+
+            val = session.counters_for("users/1-A").get("downloads")
+            self.assertIsNone(val)
+
+            val = session.counters_for("users/2-A").get("votes")
+            self.assertEqual(400, val)
