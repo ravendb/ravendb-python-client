@@ -218,3 +218,37 @@ class TestSessionCounters(TestBase):
 
             session.counters_for("users/1-A").get("likes")
             self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_clear_should_clear_counters_cache(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+            session.counters_for("users/1-A").increment("downloads", 300)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user_counters = session.counters_for("users/1-A")
+            dic = user_counters.get_all()
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            with self.store.open_session() as session2:
+                session2.counters_for("users/1-A").increment("likes")
+                session2.counters_for("users/1-A").delete("dislikes")
+                session2.counters_for("users/1-A").increment("score", 1000)  # new counter
+                session2.save_changes()
+
+            session.advanced.clear()  # should clear counters cache
+
+            dic = user_counters.get_all()  # should go ot server again
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 101), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+            self.assertIn(("score", 1000), dic.items())
