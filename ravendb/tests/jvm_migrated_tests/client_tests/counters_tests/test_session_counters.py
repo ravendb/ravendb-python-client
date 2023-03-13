@@ -202,3 +202,19 @@ class TestSessionCounters(TestBase):
             session.save_changes()
 
             self.assertEqual(100, session.counters_for(user).get("likes"))
+
+    def test_should_track_counters(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            self.assertEqual(0, session.advanced.number_of_requests)
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(100, val)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            session.counters_for("users/1-A").get("likes")
+            self.assertEqual(1, session.advanced.number_of_requests)
