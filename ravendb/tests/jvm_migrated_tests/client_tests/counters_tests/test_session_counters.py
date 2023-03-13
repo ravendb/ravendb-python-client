@@ -252,3 +252,39 @@ class TestSessionCounters(TestBase):
             self.assertIn(("likes", 101), dic.items())
             self.assertIn(("downloads", 300), dic.items())
             self.assertIn(("score", 1000), dic.items())
+
+    def test_session_get_counters(self):
+        with self.store.open_session() as session:
+            user1 = User("Aviv1")
+            user2 = User("Aviv2")
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("downloads", 500)
+            session.counters_for("users/2-A").increment("votes", 1000)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            dic = session.counters_for("users/1-A").get_all()
+
+            self.assertEqual(2, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("downloads", 500), dic.items())
+
+            val = session.counters_for("users/2-A").get("votes")
+            self.assertEqual(1000, val)
+
+        with self.store.open_session() as session:
+            dic = session.counters_for("users/1-A").get_many(["likes", "downloads"])
+            self.assertEqual(2, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("downloads", 500), dic.items())
+
+        with self.store.open_session() as session:
+            dic = session.counters_for("users/1-A").get_many(["likes"])
+            self.assertEqual(1, len(dic))
+            self.assertIn(("likes", 100), dic.items())
