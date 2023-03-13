@@ -94,3 +94,30 @@ class TestSessionCounters(TestBase):
         counters = self.store.operations.send(GetCountersOperation("users/2-A", ["votes"])).counters
         self.assertEqual(1, len(counters))
         self.assertIsNone(counters[0])
+
+    def test_session_should_always_loads_counters_from_cache_after_get_all(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+            session.counters_for("users/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            dic = session.counters_for("users/1-A").get_all()
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            # should not go to server after get_all request
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(1, session.advanced.number_of_requests)
+            self.assertEqual(100, val)
+
+            val = session.counters_for("users/1-A").get("votes")
+            self.assertEqual(1, session.advanced.number_of_requests)
+            self.assertIsNone(val)
