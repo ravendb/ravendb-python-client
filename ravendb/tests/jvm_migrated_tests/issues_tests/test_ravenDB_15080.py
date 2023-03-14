@@ -215,3 +215,21 @@ class TestRavenDB15080(TestBase):
             self.assertEqual(3, session.advanced.number_of_requests)
             self.assertIsNotNone(counter)
             self.assertEqual(999, counter)
+
+    def test_get_counters_for_document_should_return_names_in_their_original_casing(self):
+        with self.store.open_session() as session:
+            session.store(User(), "users/1")
+            counters_for = session.counters_for("users/1")
+            counters_for.increment("AviV")
+            counters_for.increment("Karmel")
+            counters_for.increment("PAWEL")
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            # get_all should return counter names in their original casing
+            all_counters = session.counters_for("users/1").get_all()
+            self.assertEqual(3, len(all_counters))
+
+            keys = all_counters.keys()
+            self.assertSequenceContainsElements(keys, "AviV", "Karmel", "PAWEL")
