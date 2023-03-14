@@ -386,3 +386,54 @@ class TestSessionCounters(TestBase):
         counters = self.store.operations.send(GetCountersOperation("users/2-A", ["votes"])).counters
         self.assertEqual(1, len(counters))
         self.assertEqual(1000, list(filter(lambda x: x.counter_name == "votes", counters))[0].total_value)
+
+    def test_session_should_update_missing_counters_in_cache_and_remove_deleted_counters__after_load_from_server(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+            session.counters_for("users/1-A").increment("downloads", 300)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user_counters = session.counters_for("users/1-A")
+            dic = user_counters.get_all()
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            with self.store.open_session() as session2:
+                session2.counters_for("users/1-A").increment("likes")
+                session2.counters_for("users/1-A").delete("dislikes")
+                session2.counters_for("users/1-A").increment("score", 1000)  # new counter
+                session2.save_changes()
+
+            user = session.load("users/1-A", User)
+
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            # Refresh updated the document in session,
+            # cache should know that it's missing 'score' by looking
+            # at the document's metadata and go to server again to get all.
+            # this should override the cache entirely and therefore
+            # 'dislikes' won't be in cache anymore
+
+            dic = user_counters.get_all()
+            self.assertEqual(3, session.advanced.number_of_requests)
+
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 101), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+            self.assertIn(("score", 1000), dic.items())
+
+            # cache should know that it got all and not go to server,
+            # and it shouldn't have 'dislikes' entry anymore
+
+            val = user_counters.get("dislikes")
+            self.assertEqual(3, session.advanced.number_of_requests)
+            self.assertIsNone(val)
