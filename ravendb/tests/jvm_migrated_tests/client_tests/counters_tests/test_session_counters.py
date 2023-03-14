@@ -604,3 +604,40 @@ class TestSessionCounters(TestBase):
 
             self.assertEqual(3, session.advanced.number_of_requests)  # null values should be in cache
             self.assertIsNone(val)
+
+    def test_get_counters_for(self):
+        with self.store.open_session() as session:
+            user1 = User("Aviv1")
+            session.store(user1, "users/1-A")
+
+            user2 = User("Aviv2")
+            session.store(user2, "users/2-A")
+
+            user3 = User("Aviv3")
+            session.store(user3, "users/3-A")
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("downloads", 100)
+            session.counters_for("users/2-A").increment("votes", 1000)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            counters = session.advanced.get_counters_for(user)
+
+            self.assertEqual(2, len(counters))
+            self.assertSequenceContainsElements(counters, "downloads", "likes")
+
+            user = session.load("users/2-A", User)
+            counters = session.advanced.get_counters_for(user)
+
+            self.assertEqual(1, len(counters))
+            self.assertEqual(["votes"], counters)
+
+            user = session.load("users/3-A", User)
+            counters = session.advanced.get_counters_for(user)
+            self.assertIsNone(counters)
