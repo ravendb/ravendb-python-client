@@ -477,7 +477,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     class _Advanced:
         def __init__(self, session: DocumentSession):
-            self.__session = session
+            self._session = session
             self.__vals_count = 0
             self.__custom_count = 0
             self.__attachment = None
@@ -486,58 +486,58 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         @property
         def request_executor(self) -> RequestExecutor:
-            return self.__session._request_executor
+            return self._session._request_executor
 
         @property
         def document_store(self) -> DocumentStore:
-            return self.__session._document_store
+            return self._session._document_store
 
         @property
         def session_info(self) -> SessionInfo:
-            return self.__session.session_info
+            return self._session.session_info
 
         @property
         def attachments(self):
             if not self.__attachment:
-                self.__attachment = self._Attachment(self.__session)
+                self.__attachment = self._Attachment(self._session)
             return self.__attachment
 
         @property
         def cluster_transaction(self) -> IClusterTransactionOperations:
-            return self.__session.cluster_transaction
+            return self._session.cluster_transaction
 
         @property
         def number_of_requests(self) -> int:
-            return self.__session.number_of_requests
+            return self._session.number_of_requests
 
         @property
         def store_identifier(self) -> str:
-            return self.__session._store_identifier
+            return self._session._store_identifier
 
         @property
         def transaction_mode(self) -> TransactionMode:
-            return self.__session.transaction_mode
+            return self._session.transaction_mode
 
         @transaction_mode.setter
         def transaction_mode(self, value: TransactionMode):
-            self.__session.transaction_mode = value
+            self._session.transaction_mode = value
 
         def is_loaded(self, key: str) -> bool:
-            return self.__session.is_loaded_or_deleted(key)
+            return self._session.is_loaded_or_deleted(key)
 
         def has_changed(self, entity: object) -> bool:
-            document_info = self.__session._documents_by_entity.get(entity)
+            document_info = self._session._documents_by_entity.get(entity)
 
             if document_info is None:
                 return False
 
-            document = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
-            return self.__session._entity_changed(document, document_info, None)
+            document = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
+            return self._session._entity_changed(document, document_info, None)
 
         def get_metadata_for(self, entity: object) -> MetadataAsDictionary:
             if entity is None:
                 raise ValueError("Entity cannot be None")
-            document_info = self.__session._get_document_info(entity)
+            document_info = self._session._get_document_info(entity)
             if document_info.metadata_instance:
                 return document_info.metadata_instance
             metadata_as_json = document_info.metadata
@@ -548,7 +548,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def get_counters_for(self, entity: object) -> List[str]:
             if entity is None:
                 raise ValueError("Entity cannot be None")
-            document_info = self.__session._get_document_info(entity)
+            document_info = self._session._get_document_info(entity)
 
             counters_array = document_info.metadata.get(constants.Documents.Metadata.COUNTERS)
             return counters_array if counters_array else None
@@ -556,19 +556,19 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def get_time_series_for(self, entity: object) -> List[str]:
             if not entity:
                 raise ValueError("Instance cannot be None")
-            document_info = self.__session._get_document_info(entity)
+            document_info = self._session._get_document_info(entity)
             array = document_info.metadata.get(constants.Documents.Metadata.TIME_SERIES)
             return list(map(str, array)) if array else []
 
         def get_change_vector_for(self, entity: object) -> str:
             if not entity:
                 raise ValueError("Entity cannot be None")
-            return self.__session._get_document_info(entity).metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
+            return self._session._get_document_info(entity).metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
 
         def get_last_modified_for(self, entity: object) -> datetime.datetime:
             if entity is None:
                 raise ValueError("Entity cannot be None")
-            document_info = self.__session._get_document_info(entity)
+            document_info = self._session._get_document_info(entity)
             last_modified = document_info.metadata.get(constants.Documents.Metadata.LAST_MODIFIED)
             if last_modified is not None and last_modified is not None:
                 return Utils.string_to_datetime(last_modified)
@@ -577,38 +577,38 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if entity is None:
                 return None
 
-            value = self.__session._documents_by_entity.get(entity)
+            value = self._session._documents_by_entity.get(entity)
             return value.key if value is not None else None
 
         def evict(self, entity: object) -> None:
-            document_info = self.__session._documents_by_entity.get(entity)
+            document_info = self._session._documents_by_entity.get(entity)
             if document_info is not None:
-                self.__session._documents_by_entity.evict(entity)
-                self.__session._documents_by_id.pop(document_info.key, None)
+                self._session._documents_by_entity.evict(entity)
+                self._session._documents_by_id.pop(document_info.key, None)
 
-                if self.__session._counters_by_doc_id:
-                    self.__session._counters_by_doc_id.pop(document_info.key, None)
-                if self.__session._time_series_by_doc_id:
-                    self.__session._time_series_by_doc_id.pop(document_info.key, None)
+                if self._session._counters_by_doc_id:
+                    self._session._counters_by_doc_id.pop(document_info.key, None)
+                if self._session._time_series_by_doc_id:
+                    self._session._time_series_by_doc_id.pop(document_info.key, None)
 
-            self.__session._deleted_entities.evict(entity)
-            self.__session.entity_to_json.remove_from_missing(entity)
+            self._session._deleted_entities.evict(entity)
+            self._session.entity_to_json.remove_from_missing(entity)
 
         def defer(self, *commands: CommandData) -> None:
-            self.__session.defer(*commands)
+            self._session.defer(*commands)
 
         def clear(self) -> None:
-            self.__session._documents_by_entity.clear()
-            self.__session._deleted_entities.clear()
-            self.__session._documents_by_id.clear()
-            self.__session._known_missing_ids.clear()
-            if self.__session._counters_by_doc_id:
-                self.__session._counters_by_doc_id.clear()
-            self.__session._deferred_commands.clear()
-            self.__session._deferred_commands_map.clear()
-            self.__session._clear_cluster_session()
-            self.__session._pending_lazy_operations.clear()
-            self.__session.entity_to_json.clear()
+            self._session._documents_by_entity.clear()
+            self._session._deleted_entities.clear()
+            self._session._documents_by_id.clear()
+            self._session._known_missing_ids.clear()
+            if self._session._counters_by_doc_id:
+                self._session._counters_by_doc_id.clear()
+            self._session._deferred_commands.clear()
+            self._session._deferred_commands_map.clear()
+            self._session._clear_cluster_session()
+            self._session._pending_lazy_operations.clear()
+            self._session.entity_to_json.clear()
 
         def document_query(
             self,
@@ -617,46 +617,46 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             object_type: Type[_T] = None,
             is_map_reduce: bool = False,
         ) -> DocumentQuery[_T]:
-            return self.__session.document_query(index_name, collection_name, object_type, is_map_reduce)
+            return self._session.document_query(index_name, collection_name, object_type, is_map_reduce)
 
         def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
-            return self.__session.document_query_from_index_type(index_type, object_type)
+            return self._session.document_query_from_index_type(index_type, object_type)
 
         def refresh(self, entity: object) -> object:
-            document_info = self.__session._documents_by_entity.get(entity)
+            document_info = self._session._documents_by_entity.get(entity)
             if document_info is None:
                 raise ValueError("Cannot refresh a transient instance")
-            self.__session.increment_requests_count()
+            self._session.increment_requests_count()
 
             command = GetDocumentsCommand.from_single_id(document_info.key, None, False)
-            self.__session._request_executor.execute_command(command, self.__session.session_info)
-            entity = self.__session._refresh_internal(entity, command, document_info)
+            self._session._request_executor.execute_command(command, self._session.session_info)
+            entity = self._session._refresh_internal(entity, command, document_info)
             return entity
 
         def raw_query(self, query: str, object_type: Optional[Type[_T]] = None) -> RawDocumentQuery[_T]:
-            return RawDocumentQuery(object_type, self.__session, query)
+            return RawDocumentQuery(object_type, self._session, query)
 
         @property
         def lazily(self) -> LazySessionOperations:
-            return self.__session._lazily
+            return self._session._lazily
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
             pass
 
         def what_changed(self) -> Dict[str, List[DocumentsChanges]]:
-            return self.__session._what_changed()
+            return self._session._what_changed()
 
         def exists(self, key: str) -> bool:
             if key is None:
                 raise ValueError("Key cannot be None")
-            if key in self.__session._known_missing_ids:
+            if key in self._session._known_missing_ids:
                 return False
 
-            if self.__session._documents_by_id.get(key) is not None:
+            if self._session._documents_by_id.get(key) is not None:
                 return True
 
             command = HeadDocumentCommand(key, None)
-            self.__session._request_executor.execute_command(command, self.__session.session_info)
+            self._session._request_executor.execute_command(command, self._session.session_info)
             return command.result is not None
 
         def wait_for_replication_after_save_changes(
@@ -665,7 +665,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 [InMemoryDocumentSessionOperations.ReplicationWaitOptsBuilder], None
             ] = lambda options: None,
         ) -> None:
-            builder = self.__session.ReplicationWaitOptsBuilder(self.__session)
+            builder = self._session.ReplicationWaitOptsBuilder(self._session)
             options(builder)
 
             builder_options = builder.get_options()
@@ -675,7 +675,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             if replication_options.wait_for_replicas_timeout is None:
                 replication_options.wait_for_replicas_timeout = (
-                    self.__session.conventions.wait_for_replication_after_save_changes_timeout
+                    self._session.conventions.wait_for_replication_after_save_changes_timeout
                 )
             replication_options.wait_for_replicas = True
 
@@ -683,7 +683,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self,
             options: Callable[[InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder], None] = lambda options: None,
         ):
-            builder = InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder(self.__session)
+            builder = InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder(self._session)
             options(builder)
 
             builder_options = builder.get_options()
@@ -694,7 +694,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             if index_options.wait_for_indexes_timeout is None:
                 index_options.wait_for_indexes_timeout = (
-                    self.__session.conventions.wait_for_indexes_after_save_changes_timeout
+                    self._session.conventions.wait_for_indexes_after_save_changes_timeout
                 )
 
             index_options.wait_for_indexes = True
@@ -713,7 +713,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
             command = operation.create_request()
             if command is not None:
-                self.__session._request_executor.execute(command, self.__session.session_info)
+                self._session._request_executor.execute(command, self._session.session_info)
                 if stream:
                     try:
                         result = command.result
@@ -735,7 +735,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             exclude: str,
             start_after: str,
         ) -> object:
-            load_starting_with_operation = LoadStartingWithOperation(self.__session)
+            load_starting_with_operation = LoadStartingWithOperation(self._session)
             self.__load_starting_with_internal(
                 id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
             )
@@ -756,7 +756,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 raise ValueError("Id prefix cannot be None")
             self.__load_starting_with_internal(
                 id_prefix,
-                LoadStartingWithOperation(self.__session),
+                LoadStartingWithOperation(self._session),
                 output,
                 matches,
                 start,
@@ -769,16 +769,16 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if keys is None:
                 raise ValueError("Keys cannot be None")
 
-            self.__session.__load_internal_stream(keys, LoadOperation(self.__session), output)
+            self._session.__load_internal_stream(keys, LoadOperation(self._session), output)
 
         def __try_merge_patches(self, document_key: str, patch_request: PatchRequest) -> bool:
-            command = self.__session._deferred_commands_map.get(
+            command = self._session._deferred_commands_map.get(
                 IdTypeAndName.create(document_key, CommandType.PATCH, None)
             )
             if command is None:
                 return False
 
-            self.__session._deferred_commands.remove(command)
+            self._session._deferred_commands.remove(command)
             # We'll overwrite the deferredCommandsMap when calling Defer
             # No need to call deferredCommandsMap.remove((id, CommandType.PATCH, null));
 
@@ -864,8 +864,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             patch_request.script = f"this.{path_to_object} = args.val_{self.__vals_count}"
             patch_request.values = {f"val_{self.__vals_count}": value}
 
-            collection_name = self.__session._request_executor.conventions.get_collection_name(entity)
-            python_type = self.__session._request_executor.conventions.get_python_class_name(type(entity))
+            collection_name = self._session._request_executor.conventions.get_collection_name(entity)
+            python_type = self._session._request_executor.conventions.get_python_class_name(type(entity))
 
             metadata_as_dictionary = MetadataAsDictionary()
             metadata_as_dictionary[constants.Documents.Metadata.COLLECTION] = collection_name
@@ -873,7 +873,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             document_info = DocumentInfo(key, collection=collection_name, metadata_instance=metadata_as_dictionary)
 
-            new_instance = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
+            new_instance = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
 
             self.__vals_count += 1
 
@@ -893,8 +893,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             patch_request.script = script_array.script
             patch_request.values = script_array.parameters
 
-            collection_name = self.__session._request_executor.conventions.get_collection_name(entity)
-            python_type = self.__session._request_executor.conventions.get_python_class_name(type(entity))
+            collection_name = self._session._request_executor.conventions.get_collection_name(entity)
+            python_type = self._session._request_executor.conventions.get_python_class_name(type(entity))
 
             metadata_as_dictionary = MetadataAsDictionary()
             metadata_as_dictionary[constants.Documents.Metadata.COLLECTION] = collection_name
@@ -902,7 +902,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             document_info = DocumentInfo(key, collection=collection_name, metadata_instance=metadata_as_dictionary)
 
-            new_instance = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
+            new_instance = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
 
             self.__vals_count += 1
 
@@ -918,8 +918,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             patch_request.script = f"{variable} = {variable} ? {variable} + {value} : {value}"
             patch_request.values = {f"val_{self.__vals_count}": val_to_add}
 
-            collection_name = self.__session._request_executor.conventions.get_collection_name(entity)
-            python_type = self.__session._request_executor.conventions.find_python_class_name(entity.__class__)
+            collection_name = self._session._request_executor.conventions.get_collection_name(entity)
+            python_type = self._session._request_executor.conventions.find_python_class_name(entity.__class__)
 
             metadata_as_dictionary = MetadataAsDictionary()
             metadata_as_dictionary[constants.Documents.Metadata.COLLECTION] = collection_name
@@ -927,7 +927,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             document_info = DocumentInfo(key, collection=collection_name, metadata_instance=metadata_as_dictionary)
 
-            new_instance = self.__session.entity_to_json.convert_entity_to_json(entity, document_info)
+            new_instance = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
 
             self.__vals_count += 1
 
@@ -963,7 +963,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 raise ValueError("Key cannot be None")
 
             if self.is_loaded(key):
-                entity = self.__session.load(key, object_type)
+                entity = self._session.load(key, object_type)
                 if entity is None:
                     return ConditionalLoadResult.create(None, None)
 
@@ -976,20 +976,20 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     f"and could not conditional load when change_vector is None or empty."
                 )
 
-            self.__session.increment_requests_count()
+            self._session.increment_requests_count()
 
             cmd = ConditionalGetDocumentsCommand(key, change_vector)
-            self.__session._request_executor.execute_command(cmd)
+            self._session._request_executor.execute_command(cmd)
 
             if cmd.status_code == http.HTTPStatus.NOT_MODIFIED:
                 return ConditionalLoadResult.create(None, change_vector)  # value not changed
 
             elif cmd.status_code == http.HTTPStatus.NOT_FOUND:
-                self.__session.register_missing(key)
+                self._session.register_missing(key)
                 return ConditionalLoadResult.create(None, None)  # value is missing
 
             document_info = DocumentInfo.get_new_document_info(cmd.result.results[0])
-            r = self.__session.track_entity_document_info(object_type, document_info)
+            r = self._session.track_entity_document_info(object_type, document_info)
             return ConditionalLoadResult.create(r, cmd.result.change_vector)
 
             # todo: stream, query and fors like timeseriesrollupfor, conditional load

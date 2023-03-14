@@ -393,7 +393,7 @@ class DeletedEntitiesHolder(MutableSet):
     def evict(self, entity) -> None:
         if self.__prepare_entities_deleted:
             raise RuntimeError("Cannot evict entity during OnBeforeDelete")
-        self.__deleted_entities.remove(RefEq(entity))
+        self.__deleted_entities.discard(RefEq(entity))
 
     class DeletedEntitiesEnumeratorResult:
         def __init__(self, entity: object, execute_on_before_delete: bool):
