@@ -1,4 +1,4 @@
-from ravendb.tests.test_base import TestBase, Company
+from ravendb.tests.test_base import TestBase, Company, User
 
 
 class TestRavenDB15080(TestBase):
@@ -45,3 +45,25 @@ class TestRavenDB15080(TestBase):
             counter = session.counters_for_entity(company).get("Likes")
             self.assertIsNotNone(counter)
             self.assertEqual(1, counter)
+
+    def test_can_split_lower_cased_and_upper_cased_counter_names(self):
+        with self.store.open_session() as session:
+            user = User("Aviv1")
+            session.store(user, "users/1")
+
+            counters_for = session.counters_for("users/1")
+
+            for i in range(500):
+                string = f"abc{i}"
+                counters_for.increment(string)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            counters_for = session.counters_for("users/1")
+
+            for i in range(500):
+                string = f"Xyz{i}"
+                counters_for.increment(string)
+
+            session.save_changes()
