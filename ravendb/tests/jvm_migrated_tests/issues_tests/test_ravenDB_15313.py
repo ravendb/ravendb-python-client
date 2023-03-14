@@ -49,3 +49,31 @@ class TestRavenDB15313(TestBase):
             self.assertEqual(
                 next(filter(lambda c: c.counter_name == name, vals.counters)).total_value, expected_vals[i]
             )
+
+    def test_get_counters_operation_should_filter_duplicate_names(self):
+        doc_id = "users/1"
+        names = ["likes", "dislikes", "likes", "downloads", "likes", "downloads"]
+
+        with self.store.open_session() as session:
+            session.store(User(), doc_id)
+            cf = session.counters_for(doc_id)
+
+            for i in range(len(names)):
+                cf.increment(names[i], i)
+
+            session.save_changes()
+
+        vals = self.store.operations.send(GetCountersOperation(doc_id, names))
+
+        self.assertEqual(3, len(vals.counters))
+
+        list.sort(vals.counters, key=lambda x: x.total_value)
+
+        expected = 1  # dislikes
+        self.assertEqual(expected, vals.counters[0].total_value)
+
+        expected = 6  # likes
+        self.assertEqual(expected, vals.counters[1].total_value)
+
+        expected = 8
+        self.assertEqual(expected, vals.counters[2].total_value)
