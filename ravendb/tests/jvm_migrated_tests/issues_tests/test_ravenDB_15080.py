@@ -183,3 +183,35 @@ class TestRavenDB15080(TestBase):
             doc = session.load("users/1", User)
             counter_names = session.advanced.get_counters_for(doc)
             self.assertIsNone(counter_names)
+
+    def test_counter_session_cache_should_be_case_insensitive_to_counter_name(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1")
+            session.counters_for(company).increment("Likes", 333)
+            session.counters_for(company).increment("Cats", 999)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+
+            # the document is now tracked by the session
+            # so now counters-cache has access to '@counters' from metadata
+
+            # searching for the counter's name in '@counters' should be done in a case insensitive manner
+            # counter name should be found in '@counters' => go to server
+
+            counter = session.counters_for_entity(company).get("liKes")
+            self.assertEqual(2, session.advanced.number_of_requests)
+            self.assertIsNotNone(counter)
+            self.assertEqual(333, counter)
+
+            counter = session.counters_for_entity(company).get("cats")
+            self.assertEqual(3, session.advanced.number_of_requests)
+            self.assertIsNotNone(counter)
+            self.assertEqual(999, counter)
+
+            counter = session.counters_for_entity(company).get("caTS")
+            self.assertEqual(3, session.advanced.number_of_requests)
+            self.assertIsNotNone(counter)
+            self.assertEqual(999, counter)
