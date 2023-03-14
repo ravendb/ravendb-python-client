@@ -362,3 +362,27 @@ class TestSessionCounters(TestBase):
             val = session.counters_for("users/1-A").get("likes")
             self.assertIsNone(val)
             self.assertEqual(3, session.advanced.number_of_requests)
+
+    def test_session_increment_counter(self):
+        with self.store.open_session() as session:
+            user1 = User("Aviv1")
+            user2 = User("Aviv2")
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("downloads", 500)
+            session.counters_for("users/2-A").increment("votes", 1000)
+
+            session.save_changes()
+
+        counters = self.store.operations.send(GetCountersOperation("users/1-A", ["likes", "downloads"])).counters
+        self.assertEqual(2, len(counters))
+        self.assertEqual(100, list(filter(lambda x: x.counter_name == "likes", counters))[0].total_value)
+        self.assertEqual(500, list(filter(lambda x: x.counter_name == "downloads", counters))[0].total_value)
+
+        counters = self.store.operations.send(GetCountersOperation("users/2-A", ["votes"])).counters
+        self.assertEqual(1, len(counters))
+        self.assertEqual(1000, list(filter(lambda x: x.counter_name == "votes", counters))[0].total_value)
