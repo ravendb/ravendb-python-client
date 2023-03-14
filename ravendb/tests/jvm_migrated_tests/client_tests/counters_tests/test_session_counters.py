@@ -2,7 +2,14 @@ import uuid
 
 from ravendb.serverwide.database_record import DatabaseRecord
 from ravendb.serverwide.operations.common import CreateDatabaseOperation, DeleteDatabaseOperation
-from ravendb.documents.operations.counters import GetCountersOperation
+from ravendb.documents.operations.counters import (
+    GetCountersOperation,
+    DocumentCountersOperation,
+    CounterOperation,
+    CounterOperationType,
+    CounterBatch,
+    CounterBatchOperation,
+)
 from ravendb.tests.test_base import TestBase, User
 
 
@@ -559,3 +566,41 @@ class TestSessionCounters(TestBase):
             self.assertIn(("likes", 101), dic.items())
             self.assertIn(("downloads", 300), dic.items())
             self.assertIn(("score", 1000), dic.items())
+
+    def test_session_should_override_existing_counter_values_in_cache_after_get_all(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+            session.counters_for("users/1-A").increment("downloads", 300)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(1, session.advanced.number_of_requests)
+            self.assertEqual(100, val)
+
+            val = session.counters_for("users/1-A").get("score")
+            self.assertEqual(2, session.advanced.number_of_requests)
+            self.assertIsNone(val)
+
+            operation = DocumentCountersOperation(
+                "users/1-A", [CounterOperation.create("likes", CounterOperationType.INCREMENT, 400)]
+            )
+
+            counter_batch = CounterBatch(documents=[operation])
+            self.store.operations.send(CounterBatchOperation(counter_batch))
+
+            dic = session.counters_for("users/1-A").get_all()
+            self.assertEqual(3, session.advanced.number_of_requests)
+            self.assertEqual(3, len(dic))
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+            self.assertIn(("likes", 500), dic.items())
+
+            val = session.counters_for("users/1-A").get("score")
+
+            self.assertEqual(3, session.advanced.number_of_requests)  # null values should be in cache
+            self.assertIsNone(val)
