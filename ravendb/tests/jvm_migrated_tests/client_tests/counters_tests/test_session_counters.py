@@ -437,3 +437,47 @@ class TestSessionCounters(TestBase):
             val = user_counters.get("dislikes")
             self.assertEqual(3, session.advanced.number_of_requests)
             self.assertIsNone(val)
+
+    def test_session_increment_counter_should_update_counter_value_after_save_changes(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 300)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(100, val)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            session.counters_for("users/1-A").increment("likes", 50)  # should not increment the counter value in cache
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(val, 100)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            session.counters_for("users/1-A").increment("dislikes", 200)  # should not add the counter to cache
+            val = session.counters_for("users/1-A").get("dislikes")  # should go to server
+            self.assertEqual(300, val)
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            session.counters_for("users/1-A").increment("score", 1000)  # should not add the counter to cache
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            # save_changes should updated counters values in cache
+            # according to increment result
+            session.save_changes()
+            self.assertEqual(3, session.advanced.number_of_requests)
+
+            # should not go to server for these
+            val = session.counters_for("users/1-A").get("likes")
+            self.assertEqual(150, val)
+
+            val = session.counters_for("users/1-A").get("dislikes")
+            self.assertEqual(500, val)
+
+            val = session.counters_for("users/1-A").get("score")
+            self.assertEqual(1000, val)
+
+            self.assertEqual(3, session.advanced.number_of_requests)
