@@ -67,3 +67,22 @@ class TestRavenDB15080(TestBase):
                 counters_for.increment(string)
 
             session.save_changes()
+
+    def test_counters_should_be_case_insensitive(self):
+        # RavenDB-14753
+
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1")
+            session.counters_for_entity(company).increment("Likes", 999)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            session.counters_for_entity(company).delete("lIkEs")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            counters = session.counters_for_entity(company).get_all()
+            self.assertEqual(0, len(counters))
