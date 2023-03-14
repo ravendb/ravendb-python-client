@@ -481,3 +481,43 @@ class TestSessionCounters(TestBase):
             self.assertEqual(1000, val)
 
             self.assertEqual(3, session.advanced.number_of_requests)
+
+    def test_session_should_know_when_it_has_all_counters_in_cache_and_avoid_trip_to_server__when_using_entity(self):
+        with self.store.open_session() as session:
+            user = User("Aviv")
+            session.store(user, "users/1-A")
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+            session.counters_for("users/1-A").increment("downloads", 300)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            user_counters = session.counters_for_entity(user)
+
+            val = user_counters.get("likes")
+            self.assertEqual(2, session.advanced.number_of_requests)
+            self.assertEqual(100, val)
+
+            val = user_counters.get("dislikes")
+            self.assertEqual(3, session.advanced.number_of_requests)
+            self.assertEqual(200, val)
+
+            val = user_counters.get("downloads")
+            # session should know at this point that it has all counters
+
+            self.assertEqual(4, session.advanced.number_of_requests)
+            self.assertEqual(300, val)
+
+            dic = user_counters.get_all()  # should not go to server
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            val = user_counters.get("score")  # should not go to server
+            self.assertEqual(4, session.advanced.number_of_requests)
+            self.assertIsNone(val)
