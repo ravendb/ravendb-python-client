@@ -10,7 +10,7 @@ from ravendb.documents.operations.counters import (
     CounterBatch,
     CounterBatchOperation,
 )
-from ravendb.tests.test_base import TestBase, User
+from ravendb.tests.test_base import TestBase, User, Company, Order
 
 
 class TestSessionCounters(TestBase):
@@ -641,3 +641,23 @@ class TestSessionCounters(TestBase):
             user = session.load("users/3-A", User)
             counters = session.advanced.get_counters_for(user)
             self.assertIsNone(counters)
+
+    def test_session_include_single_counter_after_include_all_counters_should_throw(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1-A")
+            order = Order(company="companies/1-A")
+            session.store(order, "orders/1-A")
+
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            with self.assertRaises(RuntimeError):
+                session.load(
+                    "orders/1-A",
+                    Order,
+                    lambda i: i.include_documents("company").include_all_counters().include_counter("likes"),
+                )

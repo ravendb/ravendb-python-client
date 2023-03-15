@@ -1,6 +1,6 @@
 from __future__ import annotations
 import datetime
-from typing import Set, Tuple, Dict, Union, Optional
+from typing import Set, Tuple, Dict, Union, Optional, List
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
@@ -50,7 +50,7 @@ class IncludeBuilderBase:
             self._documents_to_include = set()
         self._documents_to_include.add(path)
 
-    def _include_counters(self, path: str, *names: str):
+    def _include_counters(self, path: str, names: List[str]):
         if not names:
             raise ValueError("Expected at least one name")
 
@@ -58,9 +58,6 @@ class IncludeBuilderBase:
         for name in names:
             if name.isspace():
                 raise ValueError("Counters(names): 'names' should not contain null or whitespace elements")
-            if isinstance(name, list):
-                self._include_counters(path, *name)
-                continue
             self._counters_to_include_by_source_path.get(path)[1].add(name)
 
     def _include_all_counters_with_alias(self, path: str):
@@ -79,7 +76,7 @@ class IncludeBuilderBase:
         if self._counters_to_include_by_source_path is not None:
             val = self._counters_to_include_by_source_path.get(path, None)
             if val is not None and val[0]:
-                raise ValueError("You cannot use counters(*names) after using all_counters()")
+                raise RuntimeError("You cannot use counters(*names) after using all_counters()")
 
         if self._counters_to_include_by_source_path is None:
             self._counters_to_include_by_source_path = CaseInsensitiveDict()
