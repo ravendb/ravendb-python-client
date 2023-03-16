@@ -157,38 +157,48 @@ class Size:
         return cls(json_dict["SizeInBytes"], json_dict["HumaneSize"])
 
 
+# todo: https://issues.hibernatingrhinos.com/issue/RDBC-686
 class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):
     @classmethod
-    def _k(cls, key):
+    def _lower_if_str(cls, key):
         return key.lower() if isinstance(key, str) else key
 
     def __init__(self, *args, **kwargs):
         super(CaseInsensitiveDict, self).__init__(*args, **kwargs)
+        self._original_values: Dict[_TKey, _TKey] = {}
         self._convert_keys()
 
-    def __getitem__(self, key) -> Tuple[_TKey, _TVal]:
-        return super(CaseInsensitiveDict, self).__getitem__(self.__class__._k(key))
+    def _convert_key_back(self, lowered_key: _TKey) -> _TKey:
+        return self._original_values[lowered_key]
+
+    def _convert_item_back(self, item: Tuple[_TKey, _TVal]) -> Tuple[_TKey, _TVal]:
+        return self._convert_key_back(item[0]), item[1]
+
+    def __getitem__(self, key) -> _TVal:
+        return super(CaseInsensitiveDict, self).__getitem__(self.__class__._lower_if_str(key))
 
     def __setitem__(self, key, value):
-        super(CaseInsensitiveDict, self).__setitem__(self.__class__._k(key), value)
+        adjusted_key = self.__class__._lower_if_str(key)
+        self._original_values[adjusted_key] = key
+        super(CaseInsensitiveDict, self).__setitem__(adjusted_key, value)
 
     def __delitem__(self, key):
-        return super(CaseInsensitiveDict, self).__delitem__(self.__class__._k(key))
+        return super(CaseInsensitiveDict, self).__delitem__(self.__class__._lower_if_str(key))
 
     def __contains__(self, key):
-        return super(CaseInsensitiveDict, self).__contains__(self.__class__._k(key))
+        return super(CaseInsensitiveDict, self).__contains__(self.__class__._lower_if_str(key))
 
-    def pop(self, key, *args, **kwargs) -> Tuple[_TKey, _TVal]:
-        return super(CaseInsensitiveDict, self).pop(self.__class__._k(key), *args, **kwargs)
+    def pop(self, key, *args, **kwargs) -> _TVal:
+        return super(CaseInsensitiveDict, self).pop(self.__class__._lower_if_str(key), *args, **kwargs)
 
     def remove(self, key, *args, **kwargs) -> Optional[_TVal]:
         return self.pop(key, *args, **kwargs) if key in self else None
 
     def get(self, key, *args, **kwargs) -> _TVal:
-        return super(CaseInsensitiveDict, self).get(self.__class__._k(key), *args, **kwargs)
+        return super(CaseInsensitiveDict, self).get(self.__class__._lower_if_str(key), *args, **kwargs)
 
     def setdefault(self, key, *args, **kwargs):
-        return super(CaseInsensitiveDict, self).setdefault(self.__class__._k(key), *args, **kwargs)
+        return super(CaseInsensitiveDict, self).setdefault(self.__class__._lower_if_str(key), *args, **kwargs)
 
     def update(self, e=None, **f):
         super(CaseInsensitiveDict, self).update(self.__class__(e))
@@ -198,6 +208,9 @@ class CaseInsensitiveDict(dict, Generic[_TKey, _TVal]):
         for k in list(self):
             v = super(CaseInsensitiveDict, self).pop(k)
             self.__setitem__(k, v)
+
+    def keys(self) -> List[_TKey]:
+        return list(self._original_values.values())
 
 
 class CaseInsensitiveSet(set):
