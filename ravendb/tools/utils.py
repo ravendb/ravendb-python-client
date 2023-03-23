@@ -354,7 +354,7 @@ class Utils(object):
 
     @staticmethod
     def quote_key(key, reserved_slash=False, reserved_at=False) -> str:
-        reserved = "%:=&?~#+!$,;'*[]"
+        reserved = ""
         if reserved_slash:
             reserved += "/"
         if reserved_at:
