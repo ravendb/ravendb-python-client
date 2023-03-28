@@ -1,5 +1,6 @@
 import uuid
 
+from ravendb.infrastructure.orders import Company, Order
 from ravendb.serverwide.database_record import DatabaseRecord
 from ravendb.serverwide.operations.common import CreateDatabaseOperation, DeleteDatabaseOperation
 from ravendb.documents.operations.counters import (
@@ -641,6 +642,26 @@ class TestSessionCounters(TestBase):
             user = session.load("users/3-A", User)
             counters = session.advanced.get_counters_for(user)
             self.assertIsNone(counters)
+
+    def test_session_chained_include_counter(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load("orders/1-A", Order, lambda i: i.include_counter("likes").include_counter("dislikes"))
+            self.assertEqual(1, session.number_of_requests)
+
+            counter = session.counters_for_entity(order).get("likes")
+            self.assertEqual(100, counter)
+
+            counter = session.counters_for_entity(order).get("dislikes")
+            self.assertEqual(200, counter)
+
+            self.assertEqual(1, session.number_of_requests)
 
     def test_session_include_single_counter_after_include_all_counters_should_throw(self):
         with self.store.open_session() as session:

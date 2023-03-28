@@ -181,7 +181,7 @@ class LoadOperation:
         self._session.register_includes(result.includes)
 
         if self._include_all_counters or self._counters_to_include:
-            self._session.register_counters(
+            self._session.register_counters_ids_list(
                 result.counter_includes, self._keys, self._counters_to_include, self._include_all_counters
             )
 
