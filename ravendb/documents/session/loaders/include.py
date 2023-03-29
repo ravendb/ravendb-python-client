@@ -69,7 +69,7 @@ class IncludeBuilderBase:
             self._counters_to_include_by_source_path = CaseInsensitiveDict()
         val = self._counters_to_include_by_source_path.get(source_path)
         if val is not None and val[1] is not None:
-            raise ValueError("You cannot use all_counters() after using counters(*names)")
+            raise RuntimeError("You cannot use all_counters() after using counters(*names)")
         self._counters_to_include_by_source_path[source_path] = (True, None)
 
     def _assert_not_all_and_add_new_entry_if_needed(self, path: str):

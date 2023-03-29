@@ -741,3 +741,20 @@ class TestSessionCounters(TestBase):
             self.assertEqual(100, counter)
 
             self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_all_counters_after_include_single_counter_should_throw(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            with self.assertRaises(RuntimeError):
+                session.load(
+                    "orders/1-A",
+                    Order,
+                    lambda i: i.include_documents("company").include_counter("likes").include_all_counters(),
+                )
