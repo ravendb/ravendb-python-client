@@ -781,3 +781,39 @@ class TestSessionCounters(TestBase):
             self.assertIn(("downloads", 300), dic.items())
 
             self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_counters_should_register_missing_counters(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_counters(["likes", "downloads", "dances"])
+                .include_counter("dislikes")
+                .include_counter("cats"),
+            )
+
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+
+            # should not go to server
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(5, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+            self.assertIsNone(dic.get("dances"))
+            self.assertIsNone(dic.get("cats"))
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+

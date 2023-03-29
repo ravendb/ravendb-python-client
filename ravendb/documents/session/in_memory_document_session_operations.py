@@ -459,7 +459,7 @@ class InMemoryDocumentSessionOperations:
         self._included_documents_by_id = CaseInsensitiveDict()
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
-        self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = {}
+        self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = CaseInsensitiveDict()
         self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
         self._deleted_entities: Union[
@@ -1367,8 +1367,8 @@ class InMemoryDocumentSessionOperations:
 
         for counter in counters_to_include:
             for key in keys:
-                cache = self._counters_by_doc_id.get(key)
-                if not cache:
+                cache = self._counters_by_doc_id.get(key, None)
+                if cache is None:
                     cache = [False, CaseInsensitiveDict()]
                     self._counters_by_doc_id[key] = cache
 
