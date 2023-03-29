@@ -1,6 +1,6 @@
 import uuid
 
-from ravendb.infrastructure.orders import Company, Order
+from ravendb.infrastructure.orders import Company, Order, Employee
 from ravendb.serverwide.database_record import DatabaseRecord
 from ravendb.serverwide.operations.common import CreateDatabaseOperation, DeleteDatabaseOperation
 from ravendb.documents.operations.counters import (
@@ -817,3 +817,43 @@ class TestSessionCounters(TestBase):
 
             self.assertEqual(1, session.advanced.number_of_requests)
 
+    def test_session_chained_include_and_include_counter(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1-A")
+
+            employee = Employee(first_name="Aviv")
+            session.store(employee, "employees/1-A")
+
+            order = Order(company="companies/1-A", employee="employees/1-A")
+            session.store(order, "orders/1-A")
+
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                "orders/1-A",
+                Order,
+                lambda i: i.include_counter("likes")
+                .include_documents("company")
+                .include_counter("dislikes")
+                .include_counter("downloads")
+                .include_documents("employee"),
+            )
+
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+
+            employee = session.load(order.employee, Employee)
+            self.assertEqual("Aviv", employee.first_name)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            self.assertEqual(1, session.advanced.number_of_requests)
