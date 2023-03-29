@@ -114,7 +114,7 @@ class IncludeBuilder(IncludeBuilderBase):
         return self
 
     def include_counter(self, *names: str) -> IncludeBuilderBase:
-        self._include_counters("", *names)
+        self._include_counters("", [names] if isinstance(names, str) else names)
         return self
 
     def include_all_counters(self) -> IncludeBuilderBase:

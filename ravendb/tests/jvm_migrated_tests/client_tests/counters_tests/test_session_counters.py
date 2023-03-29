@@ -722,3 +722,22 @@ class TestSessionCounters(TestBase):
             self.assertIn(("downloads", 400), dic.items())
 
             self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_single_counter(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user, "users/1-A")
+
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User, lambda i: i.include_counter("likes"))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            counter = session.counters_for_entity(user).get("likes")
+            self.assertEqual(100, counter)
+
+            self.assertEqual(1, session.advanced.number_of_requests)
