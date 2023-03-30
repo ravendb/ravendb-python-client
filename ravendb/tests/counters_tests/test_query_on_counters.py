@@ -4,6 +4,13 @@ from typing import Callable, Union, Dict
 from ravendb.tests.test_base import TestBase, Order, Employee, Company, User
 
 
+class CounterResult4:
+    def __init__(self, downloads: int, name: str, likes: Dict[str, int]):
+        self.downloads = downloads
+        self.name = name
+        self.likes = likes
+
+
 class TestQueryOnCounters(TestBase):
     def setUp(self):
         super(TestQueryOnCounters, self).setUp()
@@ -603,3 +610,48 @@ class TestQueryOnCounters(TestBase):
             self.assertSequenceContainsElements(names, "Jerry", "Bob", "Pigpen")
             self.assertSequenceContainsElements(downloads, 100, 300, None)
             self.assertSequenceContainsElements(likes, 200, 400, 500)
+
+    def test_raw_query_js_projection_with_counter_raw_values(self):
+        with self.store.open_session() as session:
+            user1 = User("Jerry")
+            user2 = User("Bob")
+            user3 = User("Pigpen")
+
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.store(user3, "users/3-A")
+
+            session.counters_for("users/1-A").increment("downloads", 100)
+            session.counters_for("users/1-A").increment("likes", 200)
+
+            session.counters_for("users/2-A").increment("downloads", 300)
+            session.counters_for("users/2-A").increment("likes", 400)
+
+            session.counters_for("users/3-A").increment("likes", 500)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = list(
+                session.advanced.raw_query(
+                    "from Users as u select { "
+                    "name: u.name, "
+                    "downloads: counter(u, 'downloads'), "
+                    "likes: counterRaw(u, 'likes') "
+                    "}",
+                    CounterResult4,
+                )
+            )
+
+            self.assertEqual(3, len(query))
+            self.assertEqual("Jerry", query[0].name)
+            self.assertEqual(100, query[0].downloads)
+            self.assertEqual(200, query[0].likes.values().__iter__().__next__())
+
+            self.assertEqual("Bob", query[1].name)
+            self.assertEqual(300, query[1].downloads)
+            self.assertEqual(400, query[1].likes.values().__iter__().__next__())
+
+            self.assertEqual("Pigpen", query[2].name)
+            self.assertEqual(500, query[2].likes.values().__iter__().__next__())
+            self.assertIsNone(query[2].downloads)
