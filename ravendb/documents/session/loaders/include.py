@@ -1,6 +1,6 @@
 from __future__ import annotations
 import datetime
-from typing import Set, Tuple, Dict, Union, Optional
+from typing import Set, Tuple, Dict, Union, Optional, List
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
@@ -43,14 +43,14 @@ class IncludeBuilderBase:
 
     def _include_counter_with_alias(self, path: str, *names: str) -> None:
         self._with_alias()
-        self._include_counters(path, *names)
+        self._include_counters(path, list(names) if isinstance(names, tuple) else [names])
 
     def _include_documents(self, path: str):
         if not self._documents_to_include:
             self._documents_to_include = set()
         self._documents_to_include.add(path)
 
-    def _include_counters(self, path: str, *names: str):
+    def _include_counters(self, path: str, names: List[str]):
         if not names:
             raise ValueError("Expected at least one name")
 
@@ -58,9 +58,6 @@ class IncludeBuilderBase:
         for name in names:
             if name.isspace():
                 raise ValueError("Counters(names): 'names' should not contain null or whitespace elements")
-            if isinstance(name, list):
-                self._include_counters(path, *name)
-                continue
             self._counters_to_include_by_source_path.get(path)[1].add(name)
 
     def _include_all_counters_with_alias(self, path: str):
@@ -72,14 +69,14 @@ class IncludeBuilderBase:
             self._counters_to_include_by_source_path = CaseInsensitiveDict()
         val = self._counters_to_include_by_source_path.get(source_path)
         if val is not None and val[1] is not None:
-            raise ValueError("You cannot use all_counters() after using counters(*names)")
+            raise RuntimeError("You cannot use all_counters() after using counters(*names)")
         self._counters_to_include_by_source_path[source_path] = (True, None)
 
     def _assert_not_all_and_add_new_entry_if_needed(self, path: str):
         if self._counters_to_include_by_source_path is not None:
             val = self._counters_to_include_by_source_path.get(path, None)
             if val is not None and val[0]:
-                raise ValueError("You cannot use counters(*names) after using all_counters()")
+                raise RuntimeError("You cannot use counters(*names) after using all_counters()")
 
         if self._counters_to_include_by_source_path is None:
             self._counters_to_include_by_source_path = CaseInsensitiveDict()
@@ -116,8 +113,13 @@ class IncludeBuilder(IncludeBuilderBase):
         self._include_documents(path)
         return self
 
-    def include_counter(self, *names: str) -> IncludeBuilderBase:
-        self._include_counters("", *names)
+    def include_counter(self, name: str) -> IncludeBuilderBase:
+        self._include_counters("", [name])
+        return self
+
+    def include_counters(self, *names: str) -> IncludeBuilderBase:
+        for name in names:
+            self.include_counter(name)
         return self
 
     def include_all_counters(self) -> IncludeBuilderBase:
@@ -140,8 +142,12 @@ class IncludeBuilder(IncludeBuilderBase):
 
 
 class QueryIncludeBuilder(IncludeBuilderBase):
+    def include_counter(self, name: str, path: Optional[str] = ""):
+        self._include_counter_with_alias(path, name)
+        return self
+
     def include_counters(self, *names: str, path: Optional[str] = ""):
-        self._include_counter_with_alias(path, *names)
+        self._include_counter_with_alias(path, *names if isinstance(names, tuple) else names)
         return self
 
     def include_all_counters(self, path: Optional[str] = ""):

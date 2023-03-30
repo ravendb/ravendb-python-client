@@ -1,5 +1,6 @@
 import uuid
 
+from ravendb.infrastructure.orders import Company, Order, Employee
 from ravendb.serverwide.database_record import DatabaseRecord
 from ravendb.serverwide.operations.common import CreateDatabaseOperation, DeleteDatabaseOperation
 from ravendb.documents.operations.counters import (
@@ -10,7 +11,7 @@ from ravendb.documents.operations.counters import (
     CounterBatch,
     CounterBatchOperation,
 )
-from ravendb.tests.test_base import TestBase, User
+from ravendb.tests.test_base import TestBase, User, Company, Order
 
 
 class TestSessionCounters(TestBase):
@@ -641,3 +642,242 @@ class TestSessionCounters(TestBase):
             user = session.load("users/3-A", User)
             counters = session.advanced.get_counters_for(user)
             self.assertIsNone(counters)
+
+    def test_session_chained_include_counter(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load("orders/1-A", Order, lambda i: i.include_counter("likes").include_counter("dislikes"))
+            self.assertEqual(1, session.number_of_requests)
+
+            counter = session.counters_for_entity(order).get("likes")
+            self.assertEqual(100, counter)
+
+            counter = session.counters_for_entity(order).get("dislikes")
+            self.assertEqual(200, counter)
+
+            self.assertEqual(1, session.number_of_requests)
+
+    def test_session_include_single_counter_after_include_all_counters_should_throw(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1-A")
+            order = Order(company="companies/1-A")
+            session.store(order, "orders/1-A")
+
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            with self.assertRaises(RuntimeError):
+                session.load(
+                    "orders/1-A",
+                    Order,
+                    lambda i: i.include_documents("company").include_all_counters().include_counter("likes"),
+                )
+
+    def test_session_include_counters_multiple_loads(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.store(Company(name="HP"), "companies/2-A")
+            session.store(Order(company="companies/2-A"), "orders/2-A")
+
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+
+            session.counters_for("orders/2-A").increment("score", 300)
+            session.counters_for("orders/2-A").increment("downloads", 400)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            orders = session.load(
+                ["orders/1-A", "orders/2-A"], Order, lambda i: i.include_documents("company").include_all_counters()
+            )
+
+            order = orders.get("orders/1-A")
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(2, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+
+            order = orders.get("orders/2-A")
+            company = session.load(order.company, Company)
+            self.assertEqual("HP", company.name)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(2, len(dic))
+            self.assertIn(("score", 300), dic.items())
+            self.assertIn(("downloads", 400), dic.items())
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_single_counter(self):
+        with self.store.open_session() as session:
+            user = User(name="Aviv")
+            session.store(user, "users/1-A")
+
+            session.counters_for("users/1-A").increment("likes", 100)
+            session.counters_for("users/1-A").increment("dislikes", 200)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User, lambda i: i.include_counter("likes"))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            counter = session.counters_for_entity(user).get("likes")
+            self.assertEqual(100, counter)
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_all_counters_after_include_single_counter_should_throw(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            with self.assertRaises(RuntimeError):
+                session.load(
+                    "orders/1-A",
+                    Order,
+                    lambda i: i.include_documents("company").include_counter("likes").include_all_counters(),
+                )
+
+    def test_session_include_all_counters(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load("orders/1-A", Order, lambda i: i.include_documents("company").include_all_counters())
+
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+            dic = session.counters_for_entity(order).get_all()
+
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_counters_should_register_missing_counters(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_counters("likes", "downloads", "dances")
+                .include_counter("dislikes")
+                .include_counter("cats"),
+            )
+
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+
+            # should not go to server
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(5, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+            self.assertIsNone(dic.get("dances"))
+            self.assertIsNone(dic.get("cats"))
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_chained_include_and_include_counter(self):
+        with self.store.open_session() as session:
+            company = Company(name="HR")
+            session.store(company, "companies/1-A")
+
+            employee = Employee(first_name="Aviv")
+            session.store(employee, "employees/1-A")
+
+            order = Order(company="companies/1-A", employee="employees/1-A")
+            session.store(order, "orders/1-A")
+
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+            session.counters_for("orders/1-A").increment("downloads", 300)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                "orders/1-A",
+                Order,
+                lambda i: i.include_counter("likes")
+                .include_documents("company")
+                .include_counter("dislikes")
+                .include_counter("downloads")
+                .include_documents("employee"),
+            )
+
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+
+            employee = session.load(order.employee, Employee)
+            self.assertEqual("Aviv", employee.first_name)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(3, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+            self.assertIn(("downloads", 300), dic.items())
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_session_include_counters(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), "companies/1-A")
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+
+            session.counters_for("orders/1-A").increment("likes", 100)
+            session.counters_for("orders/1-A").increment("dislikes", 200)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                "orders/1-A", Order, lambda i: i.include_documents("company").include_counters("likes", "dislikes")
+            )
+            company = session.load(order.company, Company)
+            self.assertEqual("HR", company.name)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(2, len(dic))
+            self.assertIn(("likes", 100), dic.items())
+            self.assertIn(("dislikes", 200), dic.items())
+
+            self.assertEqual(1, session.advanced.number_of_requests)

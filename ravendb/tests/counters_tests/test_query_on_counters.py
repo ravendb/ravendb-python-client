@@ -4,7 +4,13 @@ from typing import Callable, Union, Dict
 from ravendb.tests.test_base import TestBase, Order, Employee, Company, User
 
 
-@unittest.skip("Counters")
+class CounterResult4:
+    def __init__(self, downloads: int, name: str, likes: Dict[str, int]):
+        self.downloads = downloads
+        self.name = name
+        self.likes = likes
+
+
 class TestQueryOnCounters(TestBase):
     def setUp(self):
         super(TestQueryOnCounters, self).setUp()
@@ -20,7 +26,7 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            list(session.query(object_type=Order).include(builder=lambda i: i.include_counters("downloads")))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(100, counter_value)
 
@@ -28,7 +34,7 @@ class TestQueryOnCounters(TestBase):
                 write_session.counters_for("orders/1-A").increment("downloads", 200)
                 write_session.save_changes()
 
-            list(session.query(object_type=Order).include(builder=lambda i: i.include_counters("downloads")))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(300, counter_value)
             session.save_changes()
@@ -59,10 +65,10 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(object_type=Order).include(builder=lambda x: x.include_counters("downloads"))
-            self.assertEqual("FROM Orders include counters('downloads')", str(query))
+            query = session.query(object_type=Order).include(lambda x: x.include_counters("downloads"))
+            self.assertEqual("from 'Orders' include counters('downloads')", query._to_string())
             query_result = list(query.order_by("company"))
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
             order = query_result[0]
             self.assertEqual("orders/1-A", order.Id)
@@ -80,7 +86,7 @@ class TestQueryOnCounters(TestBase):
             val = session.counters_for(order).get("downloads")
             self.assertEqual(300, val)
 
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
     def test_session_query_include_multiple_counters(self):
         with self.store.open_session() as session:
@@ -102,16 +108,16 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(object_type=Order).include(builder=lambda x: x.include_counters("downloads", "likes"))
+            query = session.query(object_type=Order).include(lambda x: x.include_counters("downloads", "likes"))
             self.assertIn(
-                str(query),
+                query._to_string(),
                 [
-                    "FROM Orders include counters('downloads'),counters('likes')",
-                    "FROM Orders include counters('likes'),counters('downloads')",
+                    "from 'Orders' include counters('downloads'),counters('likes')",
+                    "from 'Orders' include counters('likes'),counters('downloads')",
                 ],
             )
             query_result = list(query.order_by("company"))
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
             order = query_result[0]
             self.assertEqual("orders/1-A", order.Id)
@@ -134,7 +140,7 @@ class TestQueryOnCounters(TestBase):
             val = session.counters_for(order).get("likes")
             self.assertIsNone(val)
 
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
     def test_session_query_include_counter_of_related_document(self):
         with self.store.open_session() as session:
@@ -151,10 +157,8 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(object_type=Order).include(
-                builder=lambda i: i.include_counters("downloads", path="employee")
-            )
-            self.assertEqual("FROM Orders include counters(employee, 'downloads')", str(query))
+            query = session.query(object_type=Order).include(lambda i: i.include_counters("downloads", path="employee"))
+            self.assertEqual("from 'Orders' include counters(employee, 'downloads')", query._to_string())
 
     def test_session_query_include_counters_of_related_document(self):
         with self.store.open_session() as session:
@@ -173,14 +177,14 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = session.query(object_type=Order).include(
-                builder=lambda i: i.include_counters("downloads", "likes", path="employee")
+                lambda i: i.include_counters("downloads", "likes", path="employee")
             )
 
             self.assertIn(
-                str(query),
+                query._to_string(),
                 [
-                    "FROM Orders include counters(employee, 'downloads'),counters(employee, 'likes')",
-                    "FROM Orders include counters(employee, 'likes'),counters(employee, 'downloads')",
+                    "from 'Orders' include counters(employee, 'downloads'),counters(employee, 'likes')",
+                    "from 'Orders' include counters(employee, 'likes'),counters(employee, 'downloads')",
                 ],
             )
 
@@ -202,12 +206,14 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = session.query(object_type=Order).include(
-                builder=lambda i: i.include_counters("likes").include_counters("downloads", path="employee")
+                lambda i: i.include_counters("likes").include_counters("downloads", path="employee")
             )
-            self.assertEqual("FROM Orders include counters('likes'),counters(employee, 'downloads')", str(query))
+            self.assertEqual(
+                "from 'Orders' include counters('likes'),counters(employee, 'downloads')", query._to_string()
+            )
 
             orders = list(query.order_by("employee"))
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
             order = orders[0]
             self.assertEqual("orders/1-A", order.Id)
             val = session.counters_for(order).get("likes")
@@ -243,10 +249,10 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(Order).include(builder=lambda i: i.include_all_counters())
-            self.assertEqual("FROM Orders include counters()", str(query))
+            query = session.query(object_type=Order).include(lambda i: i.include_all_counters())
+            self.assertEqual("from 'Orders' include counters()", query._to_string())
             query_result = list(query.order_by("company"))
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
             order = query_result[0]
             self.assertEqual("orders/1-A", order.Id)
@@ -293,13 +299,13 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(Order).include(
-                builder=lambda i: i.include_counters("downloads").include_documents(path="company")
+            query = session.query(object_type=Order).include(
+                lambda i: i.include_counter("downloads").include_documents(path="company")
             )
-            self.assertEqual("FROM Orders include company,counters('downloads')", str(query))
+            self.assertEqual("from 'Orders' include company,counters('downloads')", query._to_string())
 
             query_result = list(query.order_by("company"))
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
             session.load(["companies/1-A", "companies/2-A", "companies/3-A"], Company)
 
@@ -318,7 +324,7 @@ class TestQueryOnCounters(TestBase):
             val = session.counters_for(order).get("downloads")
             self.assertEqual(300, val)
 
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
     def test_session_query_include_all_counters_of_document_and_of_related_document(self):
         with self.store.open_session() as session:
@@ -346,11 +352,11 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = session.query(object_type=Order).include(
-                builder=lambda i: i.include_all_counters().include_all_counters(path="employee")
+                lambda i: i.include_all_counters().include_all_counters(path="employee")
             )
-            self.assertEqual("FROM Orders include counters(),counters(employee)", str(query))
+            self.assertEqual("from 'Orders' include counters(),counters(employee)", query._to_string())
             orders = list(query.order_by("employee"))
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
             order = orders[0]
             self.assertEqual("orders/1-A", order.Id)
@@ -382,7 +388,7 @@ class TestQueryOnCounters(TestBase):
             self.assertEqual(2, len(dic))
             self.assertSequenceContainsElements(dic.items(), ("likes", 300), ("cats", 5))
 
-            self.assertEqual(1, session.advanced.number_of_requests_in_session())
+            self.assertEqual(1, session.advanced.number_of_requests)
 
     def test_counters_should_be_cached_on_all_docs_collection(self):
         with self.store.open_session() as session:
@@ -391,19 +397,19 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            list(session.raw_query("from @all_docs include counters($p0)")._add_parameter("p0", ["downloads"]))
+            list(session.advanced.raw_query("from @all_docs include counters($p0)").add_parameter("p0", ["downloads"]))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(100, counter_value)
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.raw_query("from @all_docs include counters()"))
+            list(session.advanced.raw_query("from @all_docs include counters()"))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(300, counter_value)
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.raw_query("from @all_docs include counters($p0)")._add_parameter("p0", ["downloads"]))
+            list(session.advanced.raw_query("from @all_docs include counters($p0)").add_parameter("p0", ["downloads"]))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(500, counter_value)
 
@@ -414,14 +420,14 @@ class TestQueryOnCounters(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            list(session.query(object_type=Order).include(builder=lambda i: i.include_counters("downloads")))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(100, counter_value)
 
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.query(object_type=Order).include(builder=lambda i: i.include_counters(["downloads"])))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
 
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(300, counter_value)
@@ -429,7 +435,7 @@ class TestQueryOnCounters(TestBase):
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.query(object_type=Order).include(builder=lambda i: i.include_counters("downloads")))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
 
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(500, counter_value)
@@ -440,32 +446,26 @@ class TestQueryOnCounters(TestBase):
     def test_counters_caching_should_handle_deletion__include_counters(self):
         self._counters_caching_should_handle_deletion(
             lambda session: list(
-                session.query(object_type=Order).include(
-                    builder=lambda i: i.include_counters(["downloads", "uploads", "bugs"])
-                )
+                session.query(object_type=Order).include(lambda i: i.include_counters("downloads", "uploads", "bugs"))
             ),
             None,
         )
 
     def test_counters_caching_should_handle_deletion__include_counter_upload(self):
         self._counters_caching_should_handle_deletion(
-            lambda session: list(
-                session.query(object_type=Order).include(builder=lambda i: i.include_counters("uploads"))
-            ),
+            lambda session: list(session.query(object_type=Order).include(lambda i: i.include_counters("uploads"))),
             300,
         )
 
     def test_counters_caching_should_handle_deletion__include_counter_download(self):
         self._counters_caching_should_handle_deletion(
-            lambda session: list(
-                session.query(object_type=Order).include(builder=lambda i: i.include_counters("downloads"))
-            ),
+            lambda session: list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads"))),
             None,
         )
 
     def test_counters_caching_should_handle_deletion__include_all_counters(self):
         self._counters_caching_should_handle_deletion(
-            lambda session: list(session.query(object_type=Order).include(builder=lambda i: i.include_all_counters())),
+            lambda session: list(session.query(object_type=Order).include(lambda i: i.include_all_counters())),
             None,
         )
 
@@ -495,7 +495,7 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = list(
-                session.raw_query(
+                session.advanced.raw_query(
                     'from users select counter("downloads") as downloads', object_type=self.__CounterResult
                 )
             )
@@ -519,7 +519,7 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = list(
-                session.raw_query(
+                session.advanced.raw_query(
                     'from users as u select counter(u, "downloads") as downloads', object_type=self.__CounterResult
                 )
             )
@@ -544,7 +544,7 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = list(
-                session.raw_query(
+                session.advanced.raw_query(
                     'from users select counter("downloads"), counter("likes")', object_type=self.__CounterResult
                 )
             )
@@ -570,7 +570,9 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = list(
-                session.raw_query("from users select name, counter('downloads')", object_type=self.__CounterResult)
+                session.advanced.raw_query(
+                    "from users select name, counter('downloads')", object_type=self.__CounterResult
+                )
             )
             self.assertEqual(3, len(query))
             downloads = list(map(lambda r: r.downloads, query))
@@ -594,8 +596,8 @@ class TestQueryOnCounters(TestBase):
 
         with self.store.open_session() as session:
             query = list(
-                session.raw_query(
-                    "from Users as u "
+                session.advanced.raw_query(
+                    "from 'Users' as u "
                     "select { name: u.name, downloads: counter(u, 'downloads'), likes: counterRaw(u, 'likes') }",
                     object_type=self.__CounterResult4,
                 )
@@ -608,3 +610,48 @@ class TestQueryOnCounters(TestBase):
             self.assertSequenceContainsElements(names, "Jerry", "Bob", "Pigpen")
             self.assertSequenceContainsElements(downloads, 100, 300, None)
             self.assertSequenceContainsElements(likes, 200, 400, 500)
+
+    def test_raw_query_js_projection_with_counter_raw_values(self):
+        with self.store.open_session() as session:
+            user1 = User("Jerry")
+            user2 = User("Bob")
+            user3 = User("Pigpen")
+
+            session.store(user1, "users/1-A")
+            session.store(user2, "users/2-A")
+            session.store(user3, "users/3-A")
+
+            session.counters_for("users/1-A").increment("downloads", 100)
+            session.counters_for("users/1-A").increment("likes", 200)
+
+            session.counters_for("users/2-A").increment("downloads", 300)
+            session.counters_for("users/2-A").increment("likes", 400)
+
+            session.counters_for("users/3-A").increment("likes", 500)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = list(
+                session.advanced.raw_query(
+                    "from Users as u select { "
+                    "name: u.name, "
+                    "downloads: counter(u, 'downloads'), "
+                    "likes: counterRaw(u, 'likes') "
+                    "}",
+                    CounterResult4,
+                )
+            )
+
+            self.assertEqual(3, len(query))
+            self.assertEqual("Jerry", query[0].name)
+            self.assertEqual(100, query[0].downloads)
+            self.assertEqual(200, query[0].likes.values().__iter__().__next__())
+
+            self.assertEqual("Bob", query[1].name)
+            self.assertEqual(300, query[1].downloads)
+            self.assertEqual(400, query[1].likes.values().__iter__().__next__())
+
+            self.assertEqual("Pigpen", query[2].name)
+            self.assertEqual(500, query[2].likes.values().__iter__().__next__())
+            self.assertIsNone(query[2].downloads)

@@ -459,7 +459,7 @@ class InMemoryDocumentSessionOperations:
         self._included_documents_by_id = CaseInsensitiveDict()
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
-        self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = {}
+        self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = CaseInsensitiveDict()
         self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
 
         self._deleted_entities: Union[
@@ -1244,38 +1244,44 @@ class InMemoryDocumentSessionOperations:
                     continue
                 IncludesUtil.include(result, include, __include)
 
+    def register_counters_ids_list(
+        self, result_counters: dict, keys: List[str], counters_to_include: List[str], got_all: bool
+    ) -> None:
+        if self.no_tracking:
+            return
+
+        if not result_counters:
+            if got_all:
+                for key in keys:
+                    self.__set_got_all_counters_for_document(key)
+
+                return
+        else:
+            self._register_counters_internal(result_counters, None, False, got_all)
+
+        self.__register_missing_counters_for_keys(keys, counters_to_include)
+
     def register_counters(
         self,
         result_counters: dict,
-        counters_to_include: Union[Dict[str, List[str]], List[str]],
-        keys: List[str] = None,
-        got_all: bool = None,
-    ):
-        keys_case = keys is not None and got_all is not None
+        counters_to_include: Dict[str, List[str]],
+    ) -> None:
         if self.no_tracking:
             return
-        if not result_counters:
-            if keys_case:
-                if got_all:
-                    for key in keys:
-                        self.__set_got_all_counters_for_document(key)
-                    return
-            else:
-                self.__set_got_all_in_cache_if_needed(counters_to_include)
-        else:
-            self._register_counters_internal(
-                result_counters,
-                {} if keys_case else counters_to_include,
-                not keys_case,
-                got_all if keys_case else False,
-            )
 
-        self.__register_missing_counters_for_keys(
-            keys, counters_to_include
-        ) if keys_case else self.__register_missing_counters(counters_to_include)
+        if not result_counters:
+            self.__set_got_all_in_cache_if_needed(counters_to_include)
+        else:
+            self._register_counters_internal(result_counters, counters_to_include, True, False)
+
+        self.__register_missing_counters(counters_to_include)
 
     def _register_counters_internal(
-        self, result_counters: dict, counters_to_include: Dict[str, List[str]], from_query_result: bool, got_all: bool
+        self,
+        result_counters: dict,
+        counters_to_include: Optional[Dict[str, List[str]]],
+        from_query_result: bool,
+        got_all: bool,
     ):
         for key, result_counters in result_counters.items():
             if not result_counters:
@@ -1361,8 +1367,8 @@ class InMemoryDocumentSessionOperations:
 
         for counter in counters_to_include:
             for key in keys:
-                cache = self._counters_by_doc_id.get(key)
-                if not cache:
+                cache = self._counters_by_doc_id.get(key, None)
+                if cache is None:
                     cache = [False, CaseInsensitiveDict()]
                     self._counters_by_doc_id[key] = cache
 
