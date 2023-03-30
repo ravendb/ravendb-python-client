@@ -142,7 +142,7 @@ class IncludeBuilder(IncludeBuilderBase):
 
 
 class QueryIncludeBuilder(IncludeBuilderBase):
-    def include_counter(self, name:str, path: Optional[str] = ""):
+    def include_counter(self, name: str, path: Optional[str] = ""):
         self._include_counter_with_alias(path, name)
         return self
 

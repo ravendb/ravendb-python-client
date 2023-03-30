@@ -1,5 +1,11 @@
-from ravendb.documents.operations.counters import DocumentCountersOperation, CounterOperation, CounterOperationType, \
-    CounterBatch, CounterBatchOperation, GetCountersOperation
+from ravendb.documents.operations.counters import (
+    DocumentCountersOperation,
+    CounterOperation,
+    CounterOperationType,
+    CounterBatch,
+    CounterBatchOperation,
+    GetCountersOperation,
+)
 from ravendb.tests.test_base import *
 import unittest
 
@@ -36,9 +42,7 @@ class TestCountersOperations(TestBase):
             document_counter.increment("Shares", delta=120)
             session.save_changes()
 
-        details = self.store.operations.send(
-            GetCountersOperation("users/1-A", counters=["Likes", "Shares"])
-        )
+        details = self.store.operations.send(GetCountersOperation("users/1-A", counters=["Likes", "Shares"]))
         self.assertIsNotNone(details.counters)
         counters = details.counters
         self.assertEqual(len(counters), 2)

@@ -439,18 +439,14 @@ class TestQueryOnCounters(TestBase):
     def test_counters_caching_should_handle_deletion__include_counters(self):
         self._counters_caching_should_handle_deletion(
             lambda session: list(
-                session.query(object_type=Order).include(
-                    lambda i: i.include_counters("downloads", "uploads", "bugs")
-                )
+                session.query(object_type=Order).include(lambda i: i.include_counters("downloads", "uploads", "bugs"))
             ),
             None,
         )
 
     def test_counters_caching_should_handle_deletion__include_counter_upload(self):
         self._counters_caching_should_handle_deletion(
-            lambda session: list(
-                session.query(object_type=Order).include(lambda i: i.include_counters("uploads"))
-            ),
+            lambda session: list(session.query(object_type=Order).include(lambda i: i.include_counters("uploads"))),
             300,
         )
 
