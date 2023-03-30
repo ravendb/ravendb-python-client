@@ -796,7 +796,7 @@ class TestSessionCounters(TestBase):
                 "orders/1-A",
                 Order,
                 lambda i: i.include_documents("company")
-                .include_counters(["likes", "downloads", "dances"])
+                .include_counters("likes", "downloads", "dances")
                 .include_counter("dislikes")
                 .include_counter("cats"),
             )
@@ -870,7 +870,7 @@ class TestSessionCounters(TestBase):
 
         with self.store.open_session() as session:
             order = session.load(
-                "orders/1-A", Order, lambda i: i.include_documents("company").include_counters(["likes", "dislikes"])
+                "orders/1-A", Order, lambda i: i.include_documents("company").include_counters("likes", "dislikes")
             )
             company = session.load(order.company, Company)
             self.assertEqual("HR", company.name)

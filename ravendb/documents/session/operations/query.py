@@ -130,10 +130,10 @@ class QueryOperation:
                 query_result.results, query_result.includes, query_result.included_paths
             )
 
-            # todo: counters and timeseries
             if query_result.counter_includes is not None:
-                raise NotImplementedError()
+                self.__session.register_counters(query_result.counter_includes, query_result.included_counter_names)
 
+            # todo: timeseries
             if query_result.time_series_includes is not None:
                 raise NotImplementedError()
 

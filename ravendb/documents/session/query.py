@@ -82,6 +82,7 @@ from ravendb.documents.session.tokens.query_tokens.definitions import (
     DistinctToken,
     ShapeToken,
     SuggestToken,
+    CounterIncludesToken,
 )
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.documents.session.utils.includes_util import IncludesUtil
@@ -101,11 +102,11 @@ class AbstractDocumentQuery(Generic[_T]):
         self,
         object_type: Type[_T],
         session: "InMemoryDocumentSessionOperations",
-        index_name: Union[None, str],
-        collection_name: Union[None, str],
+        index_name: Optional[str],
+        collection_name: Optional[str],
         is_group_by: bool,
-        declare_tokens: Union[None, List[DeclareToken]],
-        load_tokens: Union[None, List[LoadToken]],
+        declare_tokens: Optional[List[DeclareToken]],
+        load_tokens: Optional[List[LoadToken]],
         from_alias: Optional[str] = None,
         is_project_into: Optional[bool] = False,
     ):
@@ -121,21 +122,21 @@ class AbstractDocumentQuery(Generic[_T]):
         self.__conventions = DocumentConventions() if session is None else session.conventions
         self.is_project_into = is_project_into if is_project_into is not None else False
 
-        self._is_intersect: Union[None, bool] = None
-        self.__is_in_more_like_this: Union[None, bool] = None
-        self._includes_alias: Union[None, str] = None
-        self._negate: Union[None, bool] = None
-        self._query_raw: Union[None, str] = None
+        self._is_intersect: Optional[bool] = None
+        self.__is_in_more_like_this: Optional[bool] = None
+        self._includes_alias: Optional[str] = None
+        self._negate: Optional[bool] = None
+        self._query_raw: Optional[str] = None
         self._query_parameters: Dict[str, object] = {}
         self.__alias_to_group_by_field_name: Dict[str, str] = {}
 
         self._document_includes: Set[str] = set()
-        self._page_size: Union[None, int] = None
-        self._start: Union[None, int] = None
+        self._page_size: Optional[int] = None
+        self._start: Optional[int] = None
         self.__current_clause_depth: int = 0
 
         self._select_tokens: List[QueryToken] = []
-        self._fields_to_fetch_token: Union[None, FieldsToFetchToken] = None
+        self._fields_to_fetch_token: Optional[FieldsToFetchToken] = None
         self._where_tokens: List[QueryToken] = []
         self._group_by_tokens: List[QueryToken] = []
         self._order_by_tokens: List[QueryToken] = []
@@ -143,8 +144,9 @@ class AbstractDocumentQuery(Generic[_T]):
         self._compare_exchange_includes_tokens: List[CompareExchangeValueIncludesToken] = []
         self._highlighting_tokens: List[HighlightingToken] = []
         self._query_highlightings: QueryHighlightings = QueryHighlightings()
-        self._explanation_token: Union[None, ExplanationToken] = None
-        self._explanations: Union[None, Explanations] = None
+        self._explanation_token: Optional[ExplanationToken] = None
+        self._explanations: Optional[Explanations] = None
+        self._counter_includes_tokens: Optional[List[CounterIncludesToken]] = None
 
         self._before_query_executed_callback: List[Callable[[IndexQuery], None]] = []
         self._after_query_executed_callback: List[Callable[[QueryResult], None]] = [
@@ -153,16 +155,16 @@ class AbstractDocumentQuery(Generic[_T]):
         self._after_stream_executed_callback: List[Callable[[Dict], None]] = []
 
         self._query_stats = QueryStatistics()
-        self._disable_entities_tracking: Union[None, bool] = None
-        self._disable_caching: Union[None, bool] = None
-        self._projection_behavior: Union[None, ProjectionBehavior] = None
+        self._disable_entities_tracking: Optional[bool] = None
+        self._disable_caching: Optional[bool] = None
+        self._projection_behavior: Optional[ProjectionBehavior] = None
         self.parameter_prefix = "p"
-        self._query_timings: Union[None, QueryTimings] = None
+        self._query_timings: Optional[QueryTimings] = None
         self._default_operator = QueryOperator.AND
-        self._the_wait_for_non_stale_results: Union[None, bool] = None
-        self._timeout: Union[None, datetime.timedelta] = None
+        self._the_wait_for_non_stale_results: Optional[bool] = None
+        self._timeout: Optional[datetime.timedelta] = None
 
-        self._query_operation: Union[None, QueryOperation] = None
+        self._query_operation: Optional[QueryOperation] = None
 
     @property
     def conventions(self) -> DocumentConventions:
@@ -211,7 +213,7 @@ class AbstractDocumentQuery(Generic[_T]):
 
         self._default_operator = operator
 
-    def _wait_for_non_stale_results(self, wait_timeout: Union[None, datetime.timedelta]) -> None:
+    def _wait_for_non_stale_results(self, wait_timeout: Optional[datetime.timedelta]) -> None:
         # Graph queries may set this property multiple times
         if self._the_wait_for_non_stale_results:
             if self._timeout is None or (wait_timeout is not None and self._timeout.seconds < wait_timeout.seconds):
@@ -367,7 +369,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 self._document_includes.update(includes._documents_to_include)
 
             # todo: counters and time series includes
-            # self._include_counters(includes.alias, includes.counters_to_include_by_source_path)
+            self._include_counters(includes._alias, includes._counters_to_include_by_source_path)
             # if includes.time_series_to_include_by_source_alias is not None:
             #     self._include_time_series(includes.alias, includes.time_series_to_include_by_source_alias)
             if includes._compare_exchange_values_to_include is not None:
@@ -461,7 +463,7 @@ class AbstractDocumentQuery(Generic[_T]):
             for arg in mc.args:
                 args.append(self.__add_query_parameter(arg))
 
-            token: Union[None, WhereToken] = None
+            token: Optional[WhereToken] = None
             object_type = type(mc)
             if object_type == CmpXchg:
                 token = WhereToken.create(
@@ -918,7 +920,7 @@ class AbstractDocumentQuery(Generic[_T]):
             and self._explanation_token is None
             and self._query_timings is None
             and not self._compare_exchange_includes_tokens
-            # todo: and self._counter_includes_tokens is None
+            and self._counter_includes_tokens is None
             # todo: and self._time_series_includes_tokens is None
         ):
             return
@@ -939,7 +941,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 query_text.append(include)
 
         # todo: counters & time series
-        # first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
+        first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
         # first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._compare_exchange_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._highlighting_tokens, first, query_text)
@@ -1167,7 +1169,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 result.append(self.__transform_value(nested_where_params))
         return result
 
-    def __negate_if_needed(self, tokens: List[QueryToken], field_name: Union[None, str]) -> None:
+    def __negate_if_needed(self, tokens: List[QueryToken], field_name: Optional[str]) -> None:
         if not self._negate:
             return
 
@@ -1260,12 +1262,15 @@ class AbstractDocumentQuery(Generic[_T]):
             from_alias = self._includes_alias
             self.add_from_alias_to_where_tokens(from_alias)
 
-        # todo: counter and time series tokens
+        if self._counter_includes_tokens is not None:
+            for counter_includes_token in self._counter_includes_tokens:
+                counter_includes_token.add_alias_to_path(from_alias)
+        # todo: time series tokens
 
         return from_alias
 
     @staticmethod
-    def _get_source_alias_if_exists(object_type: type, query_data: QueryData, fields: List[str]) -> Union[None, str]:
+    def _get_source_alias_if_exists(object_type: type, query_data: QueryData, fields: List[str]) -> Optional[str]:
         if len(fields) != 1 or fields[0] is None:
             return None
         try:
@@ -1556,7 +1561,7 @@ class AbstractDocumentQuery(Generic[_T]):
     def __iter__(self) -> Iterator[_T]:
         return self.__execute_query_operation(None).__iter__()
 
-    def __execute_query_operation(self, take: Union[None, int]) -> List[_T]:
+    def __execute_query_operation(self, take: Optional[int]) -> List[_T]:
         self.__execute_query_operation_internal(take)
 
         return self._query_operation.complete(self._object_type)
@@ -1603,7 +1608,7 @@ class AbstractDocumentQuery(Generic[_T]):
         self._the_session: "DocumentSession"
         return self._the_session.add_lazy_count_operation(self.lazy_query_operation)
 
-    def _suggest_using(self, suggestion: Union[None, SuggestionBase]) -> None:
+    def _suggest_using(self, suggestion: Optional[SuggestionBase]) -> None:
         if suggestion is None:
             raise ValueError("suggestion cannot be None")
 
@@ -1664,9 +1669,25 @@ class AbstractDocumentQuery(Generic[_T]):
         self._explanations = Explanations()
         explanations_callback(self._explanations)
 
-    # todo: counters
-    def _include_counters(self, alias: str, counter_to_include_by_doc_id: Dict[str, Tuple[bool, Set[str]]]) -> None:
-        raise NotImplementedError()
+    def _include_counters(
+        self, alias: str, counter_to_include_by_doc_id: Optional[Dict[str, Tuple[bool, Set[str]]]]
+    ) -> None:
+        if not counter_to_include_by_doc_id:
+            return
+
+        self._counter_includes_tokens = []
+        self._includes_alias = alias
+
+        for key, value in counter_to_include_by_doc_id.items():
+            if value[0]:
+                self._counter_includes_tokens.append(CounterIncludesToken.all(key))
+                continue
+
+            if not value[1]:
+                continue
+
+            for name in value[1]:
+                self._counter_includes_tokens.append(CounterIncludesToken.create(key, name))
 
     # todo: time series
     # def _include_time_series(self, alias:str, time_series_to_include:Dict[str,Set[AbstractTimeSeriesRange]]) -> None:
@@ -2041,7 +2062,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         query._the_wait_for_non_stale_results = self._the_wait_for_non_stale_results
         query._negate = self._negate
         query._document_includes = self._document_includes
-        # todo: self._counter_includes_tokens = self._counter_includes_tokens
+        query._counter_includes_tokens = self._counter_includes_tokens
         # todo: self._time_series_includes_tokens = self._time_series_includes_tokens
         query._compare_exchange_includes_tokens = self._compare_exchange_includes_tokens
         query._root_types = {self._object_type}
@@ -2346,9 +2367,9 @@ class WhereParams:
         self.nested_path = False
         self.allow_wildcards = False
 
-        self.field_name: Union[None, str] = None
-        self.value: Union[None, object] = None
-        self.exact: Union[None, bool] = None
+        self.field_name: Optional[str] = None
+        self.value: Optional[object] = None
+        self.exact: Optional[bool] = None
 
 
 class QueryStatistics:

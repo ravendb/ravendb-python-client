@@ -43,7 +43,7 @@ class IncludeBuilderBase:
 
     def _include_counter_with_alias(self, path: str, *names: str) -> None:
         self._with_alias()
-        self._include_counters(path, *names)
+        self._include_counters(path, list(names) if isinstance(names, tuple) else [names])
 
     def _include_documents(self, path: str):
         if not self._documents_to_include:
@@ -113,12 +113,13 @@ class IncludeBuilder(IncludeBuilderBase):
         self._include_documents(path)
         return self
 
-    def include_counter(self, *names: str) -> IncludeBuilderBase:
-        self._include_counters("", [names] if isinstance(names, str) else names)
+    def include_counter(self, name: str) -> IncludeBuilderBase:
+        self._include_counters("", [name])
         return self
 
-    def include_counters(self, names: List[str]) -> IncludeBuilderBase:
-        self.include_counter(*names)
+    def include_counters(self, *names: str) -> IncludeBuilderBase:
+        for name in names:
+            self.include_counter(name)
         return self
 
     def include_all_counters(self) -> IncludeBuilderBase:
@@ -141,8 +142,12 @@ class IncludeBuilder(IncludeBuilderBase):
 
 
 class QueryIncludeBuilder(IncludeBuilderBase):
+    def include_counter(self, name:str, path: Optional[str] = ""):
+        self._include_counter_with_alias(path, name)
+        return self
+
     def include_counters(self, *names: str, path: Optional[str] = ""):
-        self._include_counter_with_alias(path, *names)
+        self._include_counter_with_alias(path, *names if isinstance(names, tuple) else names)
         return self
 
     def include_all_counters(self, path: Optional[str] = ""):
