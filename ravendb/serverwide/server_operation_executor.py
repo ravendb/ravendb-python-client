@@ -41,9 +41,8 @@ class ServerOperationExecutor:
         self.__node_tag = None
         self.__cache = CaseInsensitiveDict()
 
-        # todo: register events
-
-        # todo: if node tag is null add after_close_listener
+        store.register_events_for_request_executor(self.__request_executor)
+        store.add_after_close(self.close)
 
     def send(self, operation: ServerOperation[_T_OperationResult]) -> Optional[None, _T_OperationResult]:
         command = operation.get_command(self.__request_executor.conventions)
