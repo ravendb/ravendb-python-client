@@ -15,6 +15,7 @@ class TestPut(TestBase):
         request_executor.execute_command(command)
         response = command.result
         self.assertEqual(response.results[0]["@metadata"]["@id"], "testing/1")
+        request_executor.close()
 
     @unittest.skip("Exception Dispatcher")
     def test_put_fail(self):
