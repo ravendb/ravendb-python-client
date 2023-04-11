@@ -364,6 +364,8 @@ class DocumentStore(DocumentStoreBase):
         self.__before_close.remove(event)
 
     def close(self):
+        if self._disposed:
+            return
         for event in self.__before_close:
             event()
 
@@ -377,8 +379,10 @@ class DocumentStore(DocumentStoreBase):
                 self.__multi_db_hilo.return_unused_range()
             except Exception:
                 pass  # ignore
-        # todo: clear subscriptions
-        self._disposed = True
+
+        if self.subscriptions is not None:
+            self.subscriptions.close()
+
         for event in self.__after_close:
             event()
 
@@ -389,6 +393,7 @@ class DocumentStore(DocumentStoreBase):
             lazy.value.close()
 
         self.__thread_pool_executor.shutdown()
+        self._disposed = True
 
     def open_session(
         self, database: Optional[str] = None, session_options: Optional[SessionOptions] = None

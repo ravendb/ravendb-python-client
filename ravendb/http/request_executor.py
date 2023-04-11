@@ -128,6 +128,7 @@ class RequestExecutor:
             self.__update_topology_timer.cancel()
 
         self._dispose_all_failed_nodes_timers()
+        self.__http_session.close()
 
     @property
     def certificate_path(self) -> str:

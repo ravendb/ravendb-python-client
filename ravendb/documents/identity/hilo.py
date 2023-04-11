@@ -18,11 +18,11 @@ class GenerateEntityIdOnTheClient:
         self.__conventions = conventions
         self.__generate_id = generate_id
 
-    def try_get_id_from_instance(self, entity: object) -> Tuple[bool, Union[str, None]]:
+    def try_get_id_from_instance(self, entity: Union[object, dict]) -> Tuple[bool, Union[str, None]]:
         if not entity:
             raise ValueError("Entity cannot be None")
         identity_property = "Id"  # todo: make sure it's ok, create get_identity_property within conventions if not
-        value = entity.__dict__.get(identity_property, None)
+        value = (entity if isinstance(entity, dict) else entity.__dict__).get(identity_property, None)
         if isinstance(value, str):
             return True, value
         return False, None

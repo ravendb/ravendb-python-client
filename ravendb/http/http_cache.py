@@ -91,7 +91,7 @@ class HttpCache:
         self.__items[url] = http_cache_item
 
     def get(self, url: str) -> (ReleaseCacheItem, str, str):
-        item = self.__items.get(url, None)
+        item = self.__items.get(url, None) if self.__items else None
         if item is not None:
             change_vector = item.change_vector
             response = item.payload

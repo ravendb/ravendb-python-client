@@ -222,9 +222,9 @@ class DeleteDatabaseOperation(ServerOperation[DeleteDatabaseResult]):
         )
 
     def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DeleteDatabaseResult]:
-        return self.__DeleteDatabaseCommand(conventions, self.__parameters)
+        return self._DeleteDatabaseCommand(conventions, self.__parameters)
 
-    class __DeleteDatabaseCommand(RavenCommand[DeleteDatabaseResult], RaftCommand):
+    class _DeleteDatabaseCommand(RavenCommand[DeleteDatabaseResult], RaftCommand):
         def __init__(self, conventions: DocumentConventions, parameters: DeleteDatabaseOperation.Parameters):
             super().__init__(DeleteDatabaseResult)
 

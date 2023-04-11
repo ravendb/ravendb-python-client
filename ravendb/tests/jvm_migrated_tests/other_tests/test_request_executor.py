@@ -17,11 +17,13 @@ class TestGetTopology(TestBase):
         command = database_names_operation.get_command(DocumentConventions())
         executor.execute_command(command)
         self.assertTrue(self.store.database in command.result)
+        executor.close()
 
     def test_can_issue_many_requests(self):
         ex = RequestExecutor.create(self.store.urls, self.store.database, self.store.conventions)
         for _ in range(50):
             ex.execute_command(GetDatabaseNamesOperation(0, 20).get_command(DocumentConventions()))
+        ex.close()
 
     def test_throws_when_updating_topology_of_not_existing_db(self):
         executor = RequestExecutor.create(self.store.urls, self.store.database, self.store.conventions)
