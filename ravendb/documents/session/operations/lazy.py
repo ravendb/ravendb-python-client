@@ -210,8 +210,8 @@ class LazySessionOperations:
 
     def load_starting_with(
         self,
-        object_type: Type[_T],
         id_prefix: str,
+        object_type: Optional[Type[_T]],
         matches: str = None,
         start: int = 0,
         page_size: int = 25,

@@ -82,7 +82,7 @@ class TestOperations(TestBase):
         )
         operation.wait_for_completion()
         with self.store.open_session() as session:
-            result = session.load_starting_with(Patch, "patches")
+            result = session.load_starting_with("patches", Patch)
             values = list(map(lambda patch: patch.patched, result))
             self.assertEqual(3, len(result))
             self.assertEqual(3, len(values))
@@ -135,7 +135,7 @@ class TestOperations(TestBase):
         )
         operation.wait_for_completion()
         with self.store.open_session() as session:
-            result = session.load_starting_with(User, "users")
+            result = session.load_starting_with("users", User)
             self.assertEqual(1, len(result))
             self.assertNotEqual("delete", result[0].name)
 
@@ -159,7 +159,7 @@ class TestOperations(TestBase):
         )
         operation.wait_for_completion()
         with self.store.open_session() as session:
-            result = session.load_starting_with(Patch, "patches")
+            result = session.load_starting_with("patches", Patch)
             values = map(lambda patch: patch.patched, result)
 
             for v in values:
@@ -167,7 +167,7 @@ class TestOperations(TestBase):
 
     def test_delete_by_collection_(self):
         with self.store.open_session() as session:
-            self.assertEqual(1, len(session.load_starting_with(User, "users")))
+            self.assertEqual(1, len(session.load_starting_with("users", User)))
         index_query = IndexQuery("From Users")
         operation = DeleteByQueryOperation(query_to_delete=index_query)
         result = self.store.operations.send(operation)
@@ -180,7 +180,7 @@ class TestOperations(TestBase):
         )
         op.wait_for_completion()
         with self.store.open_session() as session:
-            self.assertEqual(0, len(session.load_starting_with(User, "users")))
+            self.assertEqual(0, len(session.load_starting_with("users", User)))
 
 
 if __name__ == "__main__":

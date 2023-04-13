@@ -692,12 +692,12 @@ class TestQueryOnCounters(TestBase):
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.query(object_type=Order).include(lambda i: i.include_counters(["downloads"])))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
             self.assertEqual(300, session.counters_for("orders/1-A").get("downloads"))
             session.counters_for("orders/1-A").increment("downloads", 200)
             session.save_changes()
 
-            list(session.query(object_type=Order).include(lambda i: i.include_counters(["downloads"])))
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
             self.assertEqual(500, session.counters_for("orders/1-A").get("downloads"))
 
         with self.store.open_session() as session:
