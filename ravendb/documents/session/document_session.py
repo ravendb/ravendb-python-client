@@ -346,8 +346,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     def load_starting_with(
         self,
-        object_type: Type[_T],
         id_prefix: str,
+        object_type: Optional[Type[_T]] = None,
         matches: Optional[str] = None,
         start: Optional[int] = None,
         page_size: Optional[int] = None,
@@ -727,17 +727,16 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         def load_starting_with(
             self,
-            object_type: type,
             id_prefix: str,
-            matches: str,
-            start: int,
-            page_size: int,
-            exclude: str,
-            start_after: str,
-        ) -> object:
-            load_starting_with_operation = LoadStartingWithOperation(self._session)
-            self.__load_starting_with_internal(
-                id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
+            object_type: Optional[Type[_T]] = None,
+            matches: Optional[str] = None,
+            start: Optional[int] = None,
+            page_size: Optional[int] = None,
+            exclude: Optional[str] = None,
+            start_after: Optional[str] = None,
+        ) -> List[_T]:
+            return self._session.load_starting_with(
+                id_prefix, object_type, matches, start, page_size, exclude, start_after
             )
 
         def load_starting_with_into_stream(

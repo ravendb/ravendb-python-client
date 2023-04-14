@@ -326,6 +326,60 @@ class TestQueryOnCounters(TestBase):
 
             self.assertEqual(1, session.advanced.number_of_requests)
 
+    def test_session_query_include_all_counters(self):
+        with self.store.open_session() as session:
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.store(Order(company="companies/2-A"), "orders/2-A")
+            session.store(Order(company="companies/3-A"), "orders/3-A")
+
+            session.counters_for("orders/1-A").increment("Downloads", 100)
+            session.counters_for("orders/2-A").increment("Downloads", 200)
+            session.counters_for("orders/3-A").increment("Downloads", 300)
+
+            session.counters_for("orders/1-A").increment("Likes", 1000)
+            session.counters_for("orders/2-A").increment("Likes", 2000)
+
+            session.counters_for("orders/1-A").increment("Votes", 10000)
+            session.counters_for("orders/3-A").increment("Cats", 5)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = session.query(object_type=Order).include(lambda i: i.include_all_counters())
+
+            self.assertEqual("from 'Orders' include counters()", query._to_string())
+
+            query_result = list(query)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            # included counters should be in cache
+            order = query_result[0]
+            self.assertEqual("orders/1-A", order.Id)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(3, len(dic))
+            self.assertIn(("downloads", 100), dic.items())
+            self.assertIn(("likes", 1000), dic.items())
+            self.assertIn(("votes", 10000), dic.items())
+
+            order = query_result[1]
+            self.assertEqual("orders/2-A", order.Id)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(2, len(dic))
+            self.assertIn(("downloads", 200), dic.items())
+            self.assertIn(("likes", 2000), dic.items())
+
+            order = query_result[2]
+            self.assertEqual("orders/3-A", order.Id)
+
+            dic = session.counters_for_entity(order).get_all()
+            self.assertEqual(2, len(dic))
+            self.assertIn(("downloads", 300), dic.items())
+            self.assertIn(("cats", 5), dic.items())
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
     def test_session_query_include_all_counters_of_document_and_of_related_document(self):
         with self.store.open_session() as session:
             session.store(Order(employee="employees/1-A"), "orders/1-A")
@@ -412,36 +466,6 @@ class TestQueryOnCounters(TestBase):
             list(session.advanced.raw_query("from @all_docs include counters($p0)").add_parameter("p0", ["downloads"]))
             counter_value = session.counters_for("orders/1-A").get("downloads")
             self.assertEqual(500, counter_value)
-
-    def test_counters_should_be_cached_on_collection(self):
-        with self.store.open_session() as session:
-            session.store(Order(company="companies/1-A"), "orders/1-A")
-            session.counters_for("orders/1-A").increment("downloads", 100)
-            session.save_changes()
-
-        with self.store.open_session() as session:
-            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
-            counter_value = session.counters_for("orders/1-A").get("downloads")
-            self.assertEqual(100, counter_value)
-
-            session.counters_for("orders/1-A").increment("downloads", 200)
-            session.save_changes()
-
-            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
-
-            counter_value = session.counters_for("orders/1-A").get("downloads")
-            self.assertEqual(300, counter_value)
-
-            session.counters_for("orders/1-A").increment("downloads", 200)
-            session.save_changes()
-
-            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
-
-            counter_value = session.counters_for("orders/1-A").get("downloads")
-            self.assertEqual(500, counter_value)
-
-        with self.store.open_session() as session:
-            session.load("orders/1-A", Order)
 
     def test_counters_caching_should_handle_deletion__include_counters(self):
         self._counters_caching_should_handle_deletion(
@@ -655,3 +679,35 @@ class TestQueryOnCounters(TestBase):
             self.assertEqual("Pigpen", query[2].name)
             self.assertEqual(500, query[2].likes.values().__iter__().__next__())
             self.assertIsNone(query[2].downloads)
+
+    def test_counters_should_be_cached_on_collection(self):
+        with self.store.open_session() as session:
+            session.store(Order(company="companies/1-A"), "orders/1-A")
+            session.counters_for("orders/1-A").increment("downloads", 100)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            list(session.query(object_type=Order).include(lambda i: i.include_counter("downloads")))
+            self.assertEqual(100, session.counters_for("orders/1-A").get("downloads"))
+            session.counters_for("orders/1-A").increment("downloads", 200)
+            session.save_changes()
+
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
+            self.assertEqual(300, session.counters_for("orders/1-A").get("downloads"))
+            session.counters_for("orders/1-A").increment("downloads", 200)
+            session.save_changes()
+
+            list(session.query(object_type=Order).include(lambda i: i.include_counters("downloads")))
+            self.assertEqual(500, session.counters_for("orders/1-A").get("downloads"))
+
+        with self.store.open_session() as session:
+            session.load("orders/1-A", Order, lambda i: i.include_counter("downloads"))
+            counter_value = session.counters_for("orders/1-A").get("downloads")
+            self.assertEqual(500, counter_value)
+
+            session.counters_for("orders/1-A").increment("downloads", 200)
+            session.save_changes()
+
+            session.load("order/1-A", Order, lambda i: i.include_counter("downloads"))
+            counter_value = session.counters_for("orders/1-A").get("downloads")
+            self.assertEqual(700, counter_value)

@@ -25,7 +25,7 @@ class TestLoadAllStartingWith(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            test_classes = session.advanced.lazily.load_starting_with(Abc, "abc/")
+            test_classes = session.advanced.lazily.load_starting_with("abc/", Abc)
 
             test2_classes = session.query(object_type=Xyz).wait_for_non_stale_results().lazily().value
             self.assertEqual(1, len(test_classes.value))
