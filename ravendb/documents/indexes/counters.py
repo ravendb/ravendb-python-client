@@ -117,3 +117,5 @@ class AbstractCountersIndexCreationTask(AbstractGenericCountersIndexCreationTask
         index_definition_builder.priority = self.priority
         index_definition_builder.state = self.state
         index_definition_builder.deployment_mode = self.deployment_mode
+
+        return index_definition_builder.to_index_definition(self.conventions)
