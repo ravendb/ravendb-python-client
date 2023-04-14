@@ -5,10 +5,10 @@ from ravendb.infrastructure.orders import Company, Address
 from ravendb.tests.test_base import TestBase
 
 
-class MyCounterIndex(AbstractJavaScriptCountersIndexCreationTask):
+class MyCountersIndex(AbstractJavaScriptCountersIndexCreationTask):
     def __init__(self):
-        super(MyCounterIndex, self).__init__()
-        self._maps = [
+        super(MyCountersIndex, self).__init__()
+        self.maps = [
             "counters.map('Companies', 'HeartRate', function (counter) {\n return {\n heartBeat: counter.Value,\nname: counter.Name,\nuser: counter.DocumentId\n};\n})"
         ]
 
@@ -146,3 +146,61 @@ class TestBasicCountersIndexes_JavaScript(TestBase):
         terms = self.store.maintenance.send(GetTermsOperation(index_name, "city", None))
         self.assertEqual(1, len(terms))
         self.assertIn("ny", terms)
+
+    def test_basic_map_index(self):
+        with self.store.open_session() as session:
+            company = Company()
+            session.store(company, "companies/1")
+            session.counters_for_entity(company).increment("heartRate", 7)
+            session.save_changes()
+
+        time_series_index = MyCountersIndex()
+        index_definition = time_series_index.create_index_definition()
+
+        time_series_index.execute(self.store)
+        self.wait_for_indexing(self.store)
+
+        terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "heartBeat", None))
+        self.assertEqual(1, len(terms))
+        self.assertIn("7", terms)
+
+        terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "user", None))
+        self.assertEqual(1, len(terms))
+        self.assertIn("companies/1", terms)
+
+        terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "name", None))
+        self.assertEqual(1, len(terms))
+        self.assertIn("heartrate", terms)
+
+        with self.store.open_session() as session:
+            company1 = session.load("companies/1", Company)
+            session.counters_for_entity(company1).increment("heartRate", 3)
+            company2 = Company()
+            session.store(company2, "companies/2")
+            session.counters_for_entity(company2).increment("heartRate", 4)
+            company3 = Company()
+            session.store(company3, "companies/3")
+            session.counters_for_entity(company3).increment("heartRate", 6)
+            company999 = Company()
+            session.store(company999, "companies/999")
+            session.counters_for_entity(company999).increment("heartRate_Different", 999)
+
+            session.save_changes()
+
+        self.wait_for_indexing(self.store)
+
+        terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "heartBeat", None))
+        self.assertEqual(3, len(terms))
+        self.assertIn("10", terms)
+        self.assertIn("4", terms)
+        self.assertIn("6", terms)
+
+        terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "user", None))
+        self.assertEqual(3, len(terms))
+        self.assertIn("companies/1", terms)
+        self.assertIn("companies/2", terms)
+        self.assertIn("companies/3", terms)
+
+        terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "name", None))
+        self.assertEqual(1, len(terms))
+        self.assertIn("heartrate", terms)
