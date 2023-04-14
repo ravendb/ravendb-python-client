@@ -13,6 +13,14 @@ class MyCountersIndex(AbstractJavaScriptCountersIndexCreationTask):
         ]
 
 
+class MyCounterIndex_AllCounters(AbstractJavaScriptCountersIndexCreationTask):
+    def __init__(self):
+        super(MyCounterIndex_AllCounters, self).__init__()
+        self.maps = [
+            "counters.map('Companies', function (counter) {\nreturn {\nheartBeat: counter.Value,\nname: counter.Name,\nuser: counter.DocumentId\n};\n})"
+        ]
+
+
 class MyMultiMapCounterIndex(AbstractJavaScriptCountersIndexCreationTask):
     class Result:
         def __init__(self, heart_beat: float = None, name: str = None, user: str = None):
@@ -204,3 +212,32 @@ class TestBasicCountersIndexes_JavaScript(TestBase):
         terms = self.store.maintenance.send(GetTermsOperation("MyCountersIndex", "name", None))
         self.assertEqual(1, len(terms))
         self.assertIn("heartrate", terms)
+
+    def test_can_map_all_counters_from_collection(self):
+        with self.store.open_session() as session:
+            company = Company()
+            session.store(company, "companies/1")
+            session.counters_for_entity(company).increment("heartRate", 7)
+            session.counters_for_entity(company).increment("likes", 3)
+            session.save_changes()
+
+        time_series_index = MyCounterIndex_AllCounters()
+        index_name = time_series_index.index_name
+        index_definition = time_series_index.create_index_definition()
+
+        time_series_index.execute(self.store)
+        self.wait_for_indexing(self.store)
+
+        terms = self.store.maintenance.send(GetTermsOperation(index_name, "heartBeat", None))
+        self.assertEqual(2, len(terms))
+        self.assertIn("7", terms)
+        self.assertIn("3", terms)
+
+        terms = self.store.maintenance.send(GetTermsOperation(index_name, "user", None))
+        self.assertEqual(1, len(terms))
+        self.assertIn("companies/1", terms)
+
+        terms = self.store.maintenance.send(GetTermsOperation(index_name, "name", None))
+        self.assertEqual(2, len(terms))
+        self.assertIn("heartrate", terms)
+        self.assertIn("likes", terms)
