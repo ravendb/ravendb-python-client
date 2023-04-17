@@ -28,6 +28,10 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 ## What's new?
 
+###### 5.2.3
+- **Counters**
+- Counters indexes
+
 ###### 5.2.2
 - New feature - **[Bulk insert](https://github.com/ravendb/ravendb-python-client/pull/161)**
 - Bugfixes - Cluster-wide operations ([here](https://github.com/ravendb/ravendb-python-client/pull/166))
