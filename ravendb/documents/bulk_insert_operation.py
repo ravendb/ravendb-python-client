@@ -62,17 +62,25 @@ class BulkInsertOperation:
             self.output_stream_mock.set_exception(exception)
 
     class _BulkInsertCommand(RavenCommand[requests.Response]):
-        def __init__(self, key: int, buffer_exposer: BulkInsertOperation._BufferExposer, node_tag: str):
+        def __init__(
+            self,
+            key: int,
+            buffer_exposer: BulkInsertOperation._BufferExposer,
+            node_tag: str,
+            skip_overwrite_if_unchanged: bool,
+        ):
             super().__init__(requests.Response)
             self._buffer_exposer = buffer_exposer
             self._key = key
             self._selected_node_tag = node_tag
             self.use_compression = False
+            self._skip_overwrite_if_unchanged = skip_overwrite_if_unchanged
 
         def create_request(self, node: ServerNode) -> requests.Request:
             return requests.Request(
                 "POST",
-                f"{node.url}/databases/{node.database}/bulk_insert?id={self._key}",
+                f"{node.url}/databases/{node.database}/bulk_insert?id={self._key}"
+                f"&skipOverwriteIfUnchanged={'true' if self._skip_overwrite_if_unchanged else 'false'}",
                 data=self._buffer_exposer.send_data(),
             )
 
@@ -88,7 +96,7 @@ class BulkInsertOperation:
             except Exception as e:
                 self._buffer_exposer.error_on_request_start(e)
 
-    def __init__(self, database: str = None, store: "DocumentStore" = None):
+    def __init__(self, database: str = None, store: "DocumentStore" = None, options: BulkInsertOptions = None):
         self.use_compression = False
 
         self._ongoing_bulk_insert_execute_task: Optional[Future] = None
@@ -103,6 +111,9 @@ class BulkInsertOperation:
         self._conventions = store.conventions
         if not database or database.isspace():
             self._throw_no_database()
+
+        self._use_compression = options.use_compression if options else False
+        self._options = options or BulkInsertOptions()
         self._request_executor = store.get_request_executor(database)
 
         self._enqueue_current_buffer_async = Future()
@@ -232,6 +243,7 @@ class BulkInsertOperation:
 
                 self._write_document(entity, metadata)
                 self._write_string_no_escape("}")
+                # todo: self._flush_if_needed() - causes error - https://issues.hibernatingrhinos.com/issue/RDBC-701
             except Exception as e:
                 self._handle_errors(key, e)
         finally:
@@ -336,7 +348,7 @@ class BulkInsertOperation:
     def _start_executing_bulk_insert_command(self) -> None:
         try:
             bulk_command = BulkInsertOperation._BulkInsertCommand(
-                self._operation_id, self._buffer_exposer, self._node_tag
+                self._operation_id, self._buffer_exposer, self._node_tag, self._options.skip_overwrite_if_unchanged
             )
             bulk_command.use_compression = self.use_compression
 
@@ -441,3 +453,9 @@ class BulkInsertOperation:
             raise ValueError("Document id cannot be None or empty.")
 
         return BulkInsertOperation.AttachmentsBulkInsert(self, key)
+
+
+class BulkInsertOptions:
+    def __init__(self, use_compression: bool = None, skip_overwrite_if_unchanged: bool = None):
+        self.use_compression = use_compression
+        self.skip_overwrite_if_unchanged = skip_overwrite_if_unchanged
