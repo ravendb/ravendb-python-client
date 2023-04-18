@@ -403,12 +403,13 @@ class DocumentStore(DocumentStoreBase):
     def open_session(
         self, database: Optional[str] = None, session_options: Optional[SessionOptions] = None
     ) -> DocumentSession:
-        if not database and not session_options:
+        if not session_options:
             session_options = SessionOptions()
-        if not ((session_options is not None) ^ (database is not None)):
-            raise ValueError("Pass either database str or session_options object")
-        if database:
-            session_options = SessionOptions(database=database)
+            session_options.database = database
+            session_options.disable_atomic_document_writes_in_cluster_wide_transaction = (
+                self.conventions.disable_atomic_document_writes_in_cluster_wide_transaction
+            )
+
         self.assert_initialized()
         self._ensure_not_closed()
 

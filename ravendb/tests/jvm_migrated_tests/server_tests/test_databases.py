@@ -31,7 +31,7 @@ class DatabasesTest(TestBase):
         auto_index_definition = record.auto_indexes.get("Auto/Genres/Byname")
         self.assertIsNotNone(auto_index_definition)
 
-        self.assertEqual(IndexType.AUTO_MAP, auto_index_definition.type)
+        self.assertEqual(IndexType.AUTO_MAP, auto_index_definition.index_type)
         self.assertEqual("Auto/Genres/Byname", auto_index_definition.name)
         self.assertEqual(IndexPriority.NORMAL, auto_index_definition.priority)
         self.assertEqual("Genres", auto_index_definition.collection)

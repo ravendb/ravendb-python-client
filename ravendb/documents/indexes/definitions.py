@@ -163,26 +163,49 @@ class IndexFieldOptions:
         }
 
 
-class IndexDefinition:
-    def __init__(self, **kwargs):
-        self.name: Union[None, str] = None
-        self.priority: Union[None, IndexPriority] = None
-        self.state: Union[None, IndexState] = None
-        self.lock_mode: Union[None, IndexLockMode] = None
-        self.additional_sources: Dict[str, str] = {}
-        self.additional_assemblies: Set[AdditionalAssembly] = set()
-        self.__maps: Union[None, Set[str]] = None
-        self.fields: Union[None, Dict[str, IndexFieldOptions]] = {}
-        self.reduce: Union[None, str] = None
-        self.configuration: Dict[str, str] = {}
-        self.__index_source_type: Union[None, IndexSourceType] = None
-        self.__index_type: Union[None, IndexType] = None
-        self.output_reduce_to_collection: Union[None, str] = None
-        self.reduce_output_index: Union[None, int] = None
-        self.pattern_for_output_reduce_to_collection_references: Union[None, str] = None
-        self.pattern_references_collection_name: Union[None, str] = None
-        self.deployment_mode: Union[None, IndexDeploymentMode] = None
-        self.__dict__.update(kwargs)
+class IndexDefinitionBase:
+    def __init__(self, name: str = None, priority: IndexPriority = None, state: IndexState = None):
+        self.name = name
+        self.priority = priority
+        self.state = state
+
+
+class IndexDefinition(IndexDefinitionBase):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        priority: Optional[str] = None,
+        state: Optional[str] = None,
+        lock_mode: Optional[IndexLockMode] = None,
+        additional_sources: Optional[Dict[str, str]] = None,
+        additional_assemblies: Optional[Set[AdditionalAssembly]] = None,
+        maps: Optional[Set[str]] = None,
+        fields: Optional[Dict[str, IndexFieldOptions]] = None,
+        reduce: Optional[str] = None,
+        configuration: Optional[Dict[str, str]] = None,
+        index_source_type: Optional[IndexSourceType] = None,
+        index_type: Optional[IndexType] = None,
+        output_reduce_to_collection: Optional[str] = None,
+        reduce_output_index: Optional[int] = None,
+        pattern_for_output_reduce_to_collection_references: Optional[str] = None,
+        pattern_references_collection_name: Optional[str] = None,
+        deployment_mode: Optional[IndexDeploymentMode] = None,
+    ):
+        super(IndexDefinition, self).__init__(name, priority, state)
+        self.lock_mode = lock_mode
+        self.additional_sources = additional_sources
+        self.additional_assemblies = additional_assemblies
+        self.__maps = maps or set()
+        self.fields = fields or {}
+        self.reduce = reduce
+        self.configuration = configuration or {}
+        self.__index_source_type = index_source_type
+        self.__index_type = index_type
+        self.output_reduce_to_collection = output_reduce_to_collection
+        self.reduce_output_index = reduce_output_index
+        self.pattern_for_output_reduce_to_collection_references = pattern_for_output_reduce_to_collection_references
+        self.pattern_references_collection_name = pattern_references_collection_name
+        self.deployment_mode = deployment_mode
 
     @classmethod
     def from_json(cls, json_dict: dict) -> IndexDefinition:
@@ -297,10 +320,10 @@ class IndexDefinition:
         return None  # todo: IndexDefinitionHelper.detect_Static_index_type(first_map, self.reduce)
 
 
-class AutoIndexDefinition:
+class AutoIndexDefinition(IndexDefinitionBase):
     def __init__(
         self,
-        type: Optional[IndexType] = None,
+        index_type: Optional[IndexType] = None,
         name: Optional[str] = None,
         priority: Optional[IndexPriority] = None,
         state: Optional[IndexState] = None,
@@ -308,10 +331,8 @@ class AutoIndexDefinition:
         map_fields: Optional[Dict[str, AutoIndexFieldOptions]] = None,
         group_by_fields: Optional[Dict[str, AutoIndexFieldOptions]] = None,
     ):
-        self.type = type
-        self.name = name
-        self.priority = priority
-        self.state = state
+        super(AutoIndexDefinition, self).__init__(name, priority, state)
+        self.index_type = index_type
         self.collection = collection
         self.map_fields = map_fields
         self.group_by_fields = group_by_fields
@@ -330,7 +351,7 @@ class AutoIndexDefinition:
 
     def to_json(self) -> Dict:
         return {
-            "Type": self.type.value,
+            "Type": self.index_type.value,
             "Name": self.name,
             "Priority": self.priority.value,
             "State": self.state.value if self.state is not None else None,
@@ -451,9 +472,9 @@ class AdditionalAssembly:
 
 class AbstractCommonApiForIndexes(ABC):
     def __init__(self):
-        self.__additional_sources: Union[None, Dict[str, str]] = None
-        self.__additional_assemblies: Union[None, Set[AdditionalAssembly]] = None
-        self.__configuration: Union[None, Dict[str, str]] = None
+        self.__additional_sources: Optional[Dict[str, str]] = None
+        self.__additional_assemblies: Optional[Set[AdditionalAssembly]] = None
+        self.__configuration: Optional[Dict[str, str]] = None
 
     @property
     def is_map_reduce(self) -> bool:

@@ -784,7 +784,7 @@ class InMemoryDocumentSessionOperations:
             if key is None:
                 raise ValueError("Id cannot be None")
             change_vector = None
-            document_info = self._documents_by_id.get(key)
+            document_info = self._documents_by_id.get_value(key)
             if document_info is not None:
                 new_obj = self.entity_to_json.convert_entity_to_json(document_info.entity, document_info)
                 if document_info.entity is not None and self._entity_changed(new_obj, document_info, None):
@@ -801,7 +801,13 @@ class InMemoryDocumentSessionOperations:
             change_vector = change_vector if self.__use_optimistic_concurrency else None
             if self._counters_by_doc_id:
                 self._counters_by_doc_id.pop(key, None)
-            self.defer(DeleteCommandData(key, expected_change_vector if expected_change_vector else change_vector))
+            self.defer(
+                DeleteCommandData(
+                    key,
+                    expected_change_vector or change_vector,
+                    expected_change_vector or (document_info.change_vector if document_info is not None else None),
+                )
+            )
             return
 
         entity = key_or_entity
@@ -1030,7 +1036,9 @@ class InMemoryDocumentSessionOperations:
 
                 change_vector = change_vector if self.__use_optimistic_concurrency else None
                 self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
-                result.session_commands.append(DeleteCommandData(document_info.key, document_info.change_vector))
+                result.session_commands.append(
+                    DeleteCommandData(document_info.key, change_vector, document_info.change_vector)
+                )
 
             if changes is None:
                 result.on_success.clear_deleted_entities()
