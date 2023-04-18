@@ -22,10 +22,9 @@ from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 from ravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
     CompareExchangeValueResultParser,
 )
-from ravendb.util.util import StartingWithOptions
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from ravendb.documents.session.document_session import DocumentSession
     from ravendb import Lazy
 

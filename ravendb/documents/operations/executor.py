@@ -14,7 +14,7 @@ from ravendb.documents.session.misc import SessionInfo
 from ravendb.serverwide.server_operation_executor import ServerOperationExecutor
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents import DocumentStore
 

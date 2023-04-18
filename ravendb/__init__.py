@@ -177,7 +177,7 @@ from ravendb.documents.session.cluster_transaction_operation import ClusterTrans
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.document_session import DocumentSession
 from ravendb.documents.session.entity_to_json import EntityToJson
-from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from ravendb.documents.session.loaders.include import IncludeBuilder, IncludeBuilderBase, QueryIncludeBuilder
 from ravendb.documents.session.loaders.loaders import (
     LoaderWithInclude,

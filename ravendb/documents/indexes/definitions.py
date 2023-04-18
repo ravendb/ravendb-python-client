@@ -519,8 +519,11 @@ class RollingIndexState(Enum):
 
 
 class RollingIndex:
-    def __init__(self, active_deployments: Optional[Dict[str, RollingIndexDeployment]]):
+    def __init__(
+        self, active_deployments: Optional[Dict[str, RollingIndexDeployment]], raft_command_index: Optional[int] = None
+    ):
         self.active_deployments = active_deployments
+        self.raft_command_index = raft_command_index
 
 
 class RollingIndexDeployment:

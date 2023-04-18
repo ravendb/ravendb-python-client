@@ -23,7 +23,7 @@ from ravendb.util.util import RaftIdGenerator
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.patch import PatchRequest
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class CommandType(Enum):

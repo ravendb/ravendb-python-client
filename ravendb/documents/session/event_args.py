@@ -6,7 +6,7 @@ from ravendb.documents.session.misc import DocumentQueryCustomization
 from ravendb.http.topology import Topology
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 class EventArgs:

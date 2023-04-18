@@ -20,7 +20,7 @@ from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.documents.queries.query import QueryResult
 from ravendb.extensions.json_extensions import JsonExtensions
-from ravendb.documents.commands.crud import GetDocumentsResult, ConditionalGetDocumentsCommand, ConditionalGetResult
+from ravendb.documents.commands.crud import GetDocumentsResult, ConditionalGetResult
 from ravendb.documents.session.operations.load_operation import LoadOperation
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
@@ -28,7 +28,7 @@ from ravendb.documents.commands.multi_get import Content, GetRequest, GetRespons
 
 if TYPE_CHECKING:
     from ravendb.documents.session.operations.query import QueryOperation
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from ravendb.documents.session.document_session import DocumentSession
     from ravendb.documents.session.cluster_transaction_operation import (
         ClusterTransactionOperationsBase,

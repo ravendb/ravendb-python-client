@@ -1,6 +1,5 @@
 import inspect
 from copy import deepcopy
-from datetime import datetime, timedelta
 from typing import Optional, TYPE_CHECKING, Union, Type, TypeVar, Dict
 
 from ravendb import constants
@@ -17,7 +16,7 @@ from ravendb.tools.utils import Utils, _DynamicStructure
 from ravendb.documents.conventions import DocumentConventions
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 
 
 _T = TypeVar("_T")

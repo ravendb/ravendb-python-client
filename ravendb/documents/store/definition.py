@@ -6,7 +6,6 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
-from ravendb import constants, exceptions
 from ravendb.changes.database_changes import DatabaseChanges
 from ravendb.documents.bulk_insert_operation import BulkInsertOperation, BulkInsertOptions
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
@@ -28,7 +27,7 @@ from ravendb.documents.session.event_args import (
 )
 from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.session.document_session import DocumentSession
-from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from ravendb.documents.session.misc import SessionOptions
 from ravendb.documents.subscriptions.document_subscriptions import DocumentSubscriptions
 from ravendb.http.request_executor import RequestExecutor

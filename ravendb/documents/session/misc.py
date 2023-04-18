@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents.session.query import Query
     from ravendb.documents.session.operations.query import QueryOperation
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
     from ravendb.documents import DocumentStore
 
 

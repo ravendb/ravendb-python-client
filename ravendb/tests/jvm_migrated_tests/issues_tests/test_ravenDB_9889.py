@@ -2,7 +2,6 @@ from ravendb.documents.session.event_args import (
     BeforeConversionToDocumentEventArgs,
     AfterConversionToDocumentEventArgs,
 )
-from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from ravendb.tests.test_base import TestBase
 
 

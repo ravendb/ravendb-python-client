@@ -6,6 +6,7 @@ import json
 from abc import abstractmethod
 
 from ravendb.documents.operations.executor import OperationExecutor
+from ravendb.documents.session.document_session_operations.misc import _update_metadata_modifications
 from ravendb.documents.session.misc import (
     SessionOptions,
     TransactionMode,
@@ -985,18 +986,6 @@ class InMemoryDocumentSessionOperations:
     def cluster_transaction(self) -> ClusterTransactionOperationsBase:
         raise RuntimeError(f"{self.__class__.__name__} must override the cluster_session property method")
 
-    @staticmethod
-    def __update_metadata_modifications(document_info: DocumentInfo) -> bool:
-        dirty = False
-        if document_info.metadata_instance is not None:
-            if document_info.metadata_instance.is_dirty:
-                dirty = True
-            for key, value in document_info.metadata_instance.items():
-                if value is None or isinstance(value, MetadataAsDictionary) and value.is_dirty is True:
-                    dirty = True
-                document_info.metadata[key] = json.loads(json.dumps(value, default=Utils.json_default))
-        return dirty
-
     def __prepare_for_creating_revisions_from_ids(self, result: SaveChangesData) -> None:
         for id_entry in self._ids_for_creating_forced_revisions:
             result.session_commands.append(ForceRevisionCommandData(id_entry))
@@ -1056,7 +1045,7 @@ class InMemoryDocumentSessionOperations:
             if self.is_deleted(entity.value.key):
                 continue
 
-            dirty_metadata = self.__update_metadata_modifications(entity.value)
+            dirty_metadata = _update_metadata_modifications(entity.value.metadata_instance, entity.value.metadata)
 
             document = self.entity_to_json.convert_entity_to_json(entity.key, entity.value)
 
@@ -1075,7 +1064,7 @@ class InMemoryDocumentSessionOperations:
                 self.before_store_invoke(before_store_event_args)
 
                 if before_store_event_args.is_metadata_accessed:
-                    self.__update_metadata_modifications(entity.value)
+                    _update_metadata_modifications(entity.value.metadata_instance, entity.value.metadata)
 
                 if before_store_event_args.is_metadata_accessed or self._entity_changed(document, entity.value, None):
                     document = self.entity_to_json.convert_entity_to_json(entity.key, entity.value)
@@ -1154,7 +1143,7 @@ class InMemoryDocumentSessionOperations:
 
     def __get_all_entities_changes(self, changes: Dict[str, List[DocumentsChanges]]) -> None:
         for key, value in self._documents_by_id.items():
-            self.__update_metadata_modifications(value)
+            _update_metadata_modifications(value.metadata_instance, value.metadata)
             new_obj = self.entity_to_json.convert_entity_to_json(value.entity, value)
             self._entity_changed(new_obj, value, changes)
 

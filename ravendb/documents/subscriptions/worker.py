@@ -15,7 +15,7 @@ from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_
 from ravendb import constants
 from ravendb.documents.session.entity_to_json import EntityToJson
 from ravendb.documents.commands.subscriptions import GetTcpInfoForRemoteTaskCommand
-from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.misc import SessionOptions, TransactionMode
 from ravendb.documents.subscriptions.revision import Revision
