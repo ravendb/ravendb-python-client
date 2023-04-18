@@ -16,3 +16,7 @@ class QueryToken:
         writer.append(field)
         if key_word:
             writer.append("'")
+
+    @staticmethod
+    def is_keyword(field: str) -> bool:
+        return field in QueryToken.RQL_KEYWORDS

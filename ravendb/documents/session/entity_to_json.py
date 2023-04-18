@@ -16,7 +16,9 @@ from ravendb.tools.utils import Utils, _DynamicStructure
 from ravendb.documents.conventions import DocumentConventions
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
 
 
 _T = TypeVar("_T")

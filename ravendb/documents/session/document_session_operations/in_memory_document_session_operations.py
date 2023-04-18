@@ -1021,7 +1021,7 @@ class InMemoryDocumentSessionOperations:
                         result.on_success.remove_document_by_entity(document_info.entity)
                         result.entities.append(document_info.entity)
 
-                    result.on_success.remove_document_by_entity(document_info.key)
+                    result.on_success.remove_document_by_id(document_info.key)
 
                 change_vector = change_vector if self.__use_optimistic_concurrency else None
                 self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
@@ -1131,7 +1131,7 @@ class InMemoryDocumentSessionOperations:
             if self._entity_changed(document, entity.value, None):
                 return True
 
-        return not len(self._deleted_entities) == 0
+        return not self._deleted_entities or not self._deferred_commands
 
     def _what_changed(self) -> Dict[str, List[DocumentsChanges]]:
         changes = {}

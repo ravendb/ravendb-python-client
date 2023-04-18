@@ -12,7 +12,9 @@ from ravendb.json.result import BatchCommandResult
 from ravendb.tools.utils import CaseInsensitiveDict
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
 
 
 class BatchOperation:

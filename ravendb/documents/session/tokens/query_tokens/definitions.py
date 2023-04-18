@@ -362,12 +362,13 @@ class GroupByKeyToken(QueryToken):
         if self.__projected_name is None or self.__projected_name == self.__field_name:
             return
 
-        writer.append(" as ")
+        writer.append(" as '")
         writer.append(self.__projected_name)
+        writer.append("'")
 
 
 class GroupBySumToken(QueryToken):
-    def __init__(self, field_name: str, projected_name: str):
+    def __init__(self, field_name: str, praojected_name: str):
         if field_name is None:
             raise ValueError("field_name cannot be None")
 

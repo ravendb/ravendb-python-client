@@ -165,9 +165,7 @@ class CompareExchangeSessionValue(Generic[_T]):
                     metadata = self.prepare_metadata_for_put(self._key, self.__value.metadata, conventions)
                 else:
                     self.validate_metadata_for_put(self._key, self.__value.metadata)
-                    metadata_has_changed = _update_metadata_modifications(
-                        self.__value.metadata, metadata
-                    )
+                    metadata_has_changed = _update_metadata_modifications(self.__value.metadata, metadata)
 
             entity_to_insert = None
             if not entity_json or metadata_has_changed:

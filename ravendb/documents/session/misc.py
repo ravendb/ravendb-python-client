@@ -12,7 +12,9 @@ if TYPE_CHECKING:
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents.session.query import Query
     from ravendb.documents.session.operations.query import QueryOperation
-    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
     from ravendb.documents import DocumentStore
 
 
@@ -85,6 +87,9 @@ class SessionInfo:
             self.__client_session_id_counter = v
         else:
             self.__session_id = int(hashlib.md5(bytes(session_key)).digest().decode("utf-8"))
+
+    def increment_request_count(self) -> None:
+        self.__session.increment_requests_count()
 
 
 class SessionOptions:

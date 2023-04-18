@@ -28,7 +28,9 @@ from ravendb.documents.commands.multi_get import Content, GetRequest, GetRespons
 
 if TYPE_CHECKING:
     from ravendb.documents.session.operations.query import QueryOperation
-    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
     from ravendb.documents.session.document_session import DocumentSession
     from ravendb.documents.session.cluster_transaction_operation import (
         ClusterTransactionOperationsBase,
@@ -144,7 +146,7 @@ class LazyConditionalLoadOperation(LazyOperation):
         request.method = "GET"
         request.query = f"?id={Utils.quote_key(self.__key)}"
 
-        request.headers["If-None-Match"] = f'"{self.__change_vector}"'
+        request.headers[constants.Headers.IF_NONE_MATCH] = f'"{self.__change_vector}"'
         return request
 
     def handle_response(self, response: "GetResponse") -> None:

@@ -24,7 +24,9 @@ from ravendb.documents.operations.compare_exchange.compare_exchange_value_result
 )
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
     from ravendb.documents.session.document_session import DocumentSession
     from ravendb import Lazy
 

@@ -8,7 +8,9 @@ from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict, Utils
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
 
 _T = TypeVar("_T")
 

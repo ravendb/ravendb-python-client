@@ -27,7 +27,9 @@ from ravendb.documents.session.event_args import (
 )
 from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.session.document_session import DocumentSession
-from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+    InMemoryDocumentSessionOperations,
+)
 from ravendb.documents.session.misc import SessionOptions
 from ravendb.documents.subscriptions.document_subscriptions import DocumentSubscriptions
 from ravendb.http.request_executor import RequestExecutor

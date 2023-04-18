@@ -3,7 +3,9 @@ from typing import Union, List, Type, TypeVar
 from ravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
 from ravendb.documents.commands.multi_get import GetRequest, MultiGetCommand
 from ravendb.documents.session.document_info import DocumentInfo
-from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+    InMemoryDocumentSessionOperations,
+)
 
 _T = TypeVar("_T")
 

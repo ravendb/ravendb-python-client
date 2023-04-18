@@ -30,7 +30,9 @@ from ravendb.documents.session.cluster_transaction_operation import (
     IClusterTransactionOperations,
 )
 from ravendb.documents.session.document_info import DocumentInfo
-from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+    InMemoryDocumentSessionOperations,
+)
 from ravendb.documents.session.loaders.include import IncludeBuilder
 from ravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from ravendb.documents.session.operations.lazy import LazyLoadOperation, LazySessionOperations
