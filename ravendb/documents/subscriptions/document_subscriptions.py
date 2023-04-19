@@ -2,6 +2,7 @@ import os
 from typing import Optional, Type, TypeVar, Dict, List, TYPE_CHECKING
 
 from ravendb.documents.operations.ongoing_tasks import ToggleOngoingTaskStateOperation, OngoingTaskType
+from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.utils.includes_util import IncludesUtil
 from ravendb.documents.commands.subscriptions import (
     CreateSubscriptionCommand,
@@ -111,7 +112,7 @@ class DocumentSubscriptions:
                         query_builder.append(escaped_include)
                         query_builder.append("'")
                     else:
-                        query_builder.append(include)
+                        query_builder.append(f"'{include}'" if QueryToken.is_keyword(include) else include)
 
                     number_of_includes_added += 1
             # todo: uncomment on Counters and TimeSeries development

@@ -368,7 +368,7 @@ class GroupByKeyToken(QueryToken):
 
 
 class GroupBySumToken(QueryToken):
-    def __init__(self, field_name: str, praojected_name: str):
+    def __init__(self, field_name: str, projected_name: str):
         if field_name is None:
             raise ValueError("field_name cannot be None")
 

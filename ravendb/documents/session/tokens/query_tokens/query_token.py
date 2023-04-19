@@ -10,7 +10,7 @@ class QueryToken:
         raise NotImplementedError("Error : write_to is not implemented")
 
     def write_field(self, writer: List[str], field: str):
-        key_word = field in self.RQL_KEYWORDS
+        key_word = self.is_keyword(field)
         if key_word:
             writer.append("'")
         writer.append(field)
