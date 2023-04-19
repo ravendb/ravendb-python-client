@@ -1,9 +1,10 @@
 import base64
 import socket
 import ssl
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Callable
 
 from ravendb.documents.commands.subscriptions import TcpConnectionInfo
+from ravendb.serverwide.tcp import TcpConnectionHeaderMessage
 
 
 class TcpUtils:
@@ -55,3 +56,55 @@ class TcpUtils:
         )
 
         return s, info.url
+
+    @staticmethod
+    def invoke_negotiation(
+        info: TcpConnectionInfo,
+        operation_type: TcpConnectionHeaderMessage.OperationTypes,
+        negotiation_callback,
+        url: str,
+        socket: socket.socket,
+    ) -> TcpConnectionHeaderMessage.SupportedFeatures:
+        if operation_type == TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION:
+            return negotiation_callback(url, info, socket)
+        else:
+            raise NotImplementedError(f"Operation type '{operation_type}' not supported")
+
+    class ConnectSecuredTcpSocketResult:
+        def __init__(
+            self,
+            url: str = None,
+            socket: socket.socket = None,
+            supported_features: TcpConnectionHeaderMessage.SupportedFeatures = None,
+        ):
+            self.url = url
+            self.socket = socket
+            self.supported_features = supported_features
+
+    @staticmethod
+    def connect_secured_tcp_socket(
+        info: TcpConnectionInfo,
+        server_certificate: str,
+        client_certificate_pem_path: str,
+        certificate_private_key_password: Optional[str],
+        operation_type: TcpConnectionHeaderMessage.OperationTypes,
+        negotiation_callback: Callable,
+    ) -> ConnectSecuredTcpSocketResult:
+        if info.urls:
+            for url in info.urls:
+                try:
+                    s = TcpUtils.connect(
+                        url, server_certificate, client_certificate_pem_path, certificate_private_key_password
+                    )
+                    supported_features = TcpUtils.invoke_negotiation(info, operation_type, negotiation_callback, url, s)
+
+                    return TcpUtils.ConnectSecuredTcpSocketResult(url, s, supported_features)
+                except Exception as e:
+                    pass
+                    # ignored
+        s = TcpUtils.connect(
+            info.url, server_certificate, client_certificate_pem_path, certificate_private_key_password
+        )
+
+        supported_features = TcpUtils.invoke_negotiation(info, operation_type, negotiation_callback, info.url, s)
+        return TcpUtils.ConnectSecuredTcpSocketResult(info.url, s, supported_features)

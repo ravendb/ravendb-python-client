@@ -14,7 +14,7 @@ from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_
 
 from ravendb import constants
 from ravendb.documents.session.entity_to_json import EntityToJson
-from ravendb.documents.commands.subscriptions import GetTcpInfoForRemoteTaskCommand
+from ravendb.documents.commands.subscriptions import GetTcpInfoForRemoteTaskCommand, TcpConnectionInfo
 from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
     InMemoryDocumentSessionOperations,
 )
@@ -319,21 +319,16 @@ class SubscriptionWorker(Generic[_T]):
             except ClientVersionMismatchException:
                 tcp_info = self._legacy_try_get_tcp_info(request_executor)
 
-        self._tcp_client, chosen_url = TcpUtils.connect_with_priority(
-            tcp_info, command.result.certificate, self._store.certificate_pem_path
+        result = TcpUtils.connect_secured_tcp_socket(
+            tcp_info,
+            command.result.certificate,
+            self._store.certificate_pem_path,
+            None,
+            TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION,
+            self.__negotiate_protocol_version_for_subscription,
         )
-
-        database_name = self._store.get_effective_database(self._db_name)
-
-        parameters = TcpNegotiateParameters()
-        parameters.database = database_name
-        parameters.operation = TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION
-        parameters.version = TcpConnectionHeaderMessage.SUBSCRIPTION_TCP_VERSION
-        parameters.read_response_and_get_version_callback = self._read_server_response_and_get_version
-        parameters.destination_node_tag = self.current_node_tag
-        parameters.destination_url = chosen_url
-
-        self._supported_features = TcpNegotiation.negotiate_protocol_version(self._tcp_client, parameters)
+        self._tcp_client = result.socket
+        self._supported_features = result.supported_features
 
         if self._supported_features.protocol_version <= 0:
             raise RuntimeError(
@@ -363,6 +358,22 @@ class SubscriptionWorker(Generic[_T]):
 
         return self._tcp_client
 
+    def __negotiate_protocol_version_for_subscription(
+        self, chosen_url: str, tcp_info: TcpConnectionInfo, s: socket
+    ) -> TcpConnectionHeaderMessage.SupportedFeatures:
+        database_name = self._store.get_effective_database(self._db_name)
+
+        parameters = TcpNegotiateParameters()
+        parameters.database = database_name
+        parameters.operation = TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION
+        parameters.version = TcpConnectionHeaderMessage.SUBSCRIPTION_TCP_VERSION
+        parameters.read_response_and_get_version_callback = self._read_server_response_and_get_version
+        parameters.destination_node_tag = self.current_node_tag
+        parameters.destination_url = chosen_url
+        parameters.destination_server_id = tcp_info.server_id
+
+        return TcpNegotiation.negotiate_protocol_version(s, parameters)
+
     def _legacy_try_get_tcp_info(self, request_executor: RequestExecutor, node: Optional[ServerNode] = None):
         tcp_command = GetTcpInfoCommand(f"Subscription/{self._db_name}", self._db_name)
 
@@ -378,10 +389,10 @@ class SubscriptionWorker(Generic[_T]):
         # python doesn't use parsers
         pass
 
-    def _read_server_response_and_get_version(self, url: str) -> int:
+    def _read_server_response_and_get_version(self, url: str, sock: socket) -> int:
         # reading reply from server
         self._ensure_parser()
-        response = self._tcp_client.recv(self._options.receive_buffer_size)
+        response = sock.recv(self._options.receive_buffer_size)
         reply = TcpConnectionHeaderResponse.from_json(json.loads(response.decode("utf-8")))
 
         if reply.status == TcpConnectionStatus.OK:
@@ -896,6 +907,10 @@ class SubscriptionBatch(Generic[_T]):
     @property
     def number_of_items_in_batch(self) -> int:
         return 0 if self.items is None else len(self.items)
+
+    @property
+    def number_of_includes(self) -> int:
+        return len(self._includes) if self._includes is not None else 0
 
     def open_session(self, options: Optional[SessionOptions] = None) -> DocumentSession:
         if not options:

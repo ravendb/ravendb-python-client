@@ -253,7 +253,8 @@ class TcpNegotiateParameters:
         source_node_tag: Optional[str] = None,
         destination_node_tag: Optional[str] = None,
         destination_url: Optional[str] = None,
-        read_response_and_get_version_callback: Optional[Callable[[str], int]] = None,
+        read_response_and_get_version_callback: Optional[Callable[[str, socket.socket], int]] = None,
+        destination_server_id: Optional[str] = None,
     ):
         self.operation = operation
         self.authorize_info = authorize_info
@@ -263,6 +264,7 @@ class TcpNegotiateParameters:
         self.destination_node_tag = destination_node_tag
         self.destination_url = destination_url
         self.read_response_and_get_version_callback = read_response_and_get_version_callback
+        self.destination_server_id = destination_server_id
 
 
 class TcpNegotiation:
@@ -280,7 +282,7 @@ class TcpNegotiation:
         current = parameters.version
         while True:
             cls._send_tcp_version_info(sock, parameters, current)
-            version = parameters.read_response_and_get_version_callback(parameters.destination_url)
+            version = parameters.read_response_and_get_version_callback(parameters.destination_url, sock)
 
             cls.logger.info(
                 f"Read response from {parameters.source_node_tag or parameters.destination_url} "
