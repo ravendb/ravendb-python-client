@@ -1131,7 +1131,7 @@ class InMemoryDocumentSessionOperations:
             if self._entity_changed(document, entity.value, None):
                 return True
 
-        return not self._deleted_entities or not self._deferred_commands
+        return not len(self._deleted_entities) == 0 or not len(self._deferred_commands) == 0
 
     def _what_changed(self) -> Dict[str, List[DocumentsChanges]]:
         changes = {}
