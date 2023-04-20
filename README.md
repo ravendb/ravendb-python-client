@@ -132,7 +132,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
   
 
 ### **Coming soon, work in progress**
-  - Counters & Time Series
+  - Time Series
   - Replication & ETL Commands
   - Streaming (ready, will be merged on v5.4 - https://github.com/ravendb/ravendb-python-client/pull/168)
 
@@ -149,6 +149,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
    [Suggestions](#suggestions),  
    [Patching](#advanced-patching),  
    [Subscriptions](#subscriptions),  
+   [Counters](#counters),  
    [Using classes](#using-classes-for-entities),  
    [Working with secure server](#working-with-a-secure-server),  
    [Building & running tests](#building)  
@@ -1040,6 +1041,68 @@ with store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(subsc
 > <small>[should respect max doc count in batch](https:///github.com/ravendb/ravendb-python-client/blob/aa98bebc953561c4d5d1b94d4af809c9778137f7/ravendb/tests/jvm_migrated_tests/client_tests/subscriptions_tests/test_basic_subscription.py#L79-L106)</small>  
 > <small>[can disable subscription](https:///github.com/ravendb/ravendb-python-client/blob/aa98bebc953561c4d5d1b94d4af809c9778137f7/ravendb/tests/jvm_migrated_tests/client_tests/subscriptions_tests/test_basic_subscription.py#L540-L549)</small>  
 > <small>[can delete subscription](https:///github.com/ravendb/ravendb-python-client/blob/aa98bebc953561c4d5d1b94d4af809c9778137f7/ravendb/tests/jvm_migrated_tests/client_tests/subscriptions_tests/test_basic_subscription.py#L293-L309)</small>  
+
+## Counters 
+There are many ways to play with counters. The most common path is to use session API (`session.counters_for()`).
+```python
+
+    with store.open_session() as session:
+        user1 = User("Aviv1")
+        user2 = User("Aviv2")
+        session.store(user1, "users/1-A")
+        session.store(user2, "users/2-A")
+        session.save_changes()
+
+    # storing counters via session API
+    with store.open_session() as session:
+        session.counters_for("users/1-A").increment("likes", 100)
+        session.counters_for("users/1-A").increment("downloads", 500)
+        session.counters_for("users/2-A").increment("votes", 1000)
+
+        session.save_changes()
+
+    # alternatively, loading counters via GetCountersOperation
+    counters = store.operations.send(GetCountersOperation("users/1-A", ["likes", "downloads"])).counters
+    
+    # loading counters via session API
+    with store.open_session() as session:
+        user1_likes = session.counters_for("users/1-A").get("likes")
+
+    # deleting counters via session API
+    with store.open_session() as session:
+        session.counters_for("users/1-A").delete("likes")
+        session.counters_for("users/1-A").delete("downloads")
+        session.counters_for("users/2-A").delete("votes")
+
+        session.save_changes()
+```
+
+
+##### Playing with counters using CounterBatchOperation
+```python
+
+counter_operation = DocumentCountersOperation(document_id="users/1-A", operations=[])
+counter_operation.add_operations(
+    CounterOperation("Likes", counter_operation_type=CounterOperationType.INCREMENT, delta=4)
+)
+counter_operation.add_operations(
+    CounterOperation(
+        "Shares",
+        counter_operation_type=CounterOperationType.INCREMENT,
+        delta=422,
+    )
+)
+counter_operation.add_operations(CounterOperation("Likes", counter_operation_type=CounterOperationType.DELETE))
+
+counter_batch = CounterBatch(documents=[counter_operation])
+results = self.store.operations.send(CounterBatchOperation(counter_batch))
+```
+>##### Related tests:
+> <small>[incrementing counters](https:///github.com/ravendb/ravendb-python-client/blob/df4e92fbcfb07872e1d7cc920bff5196d19a3aa7/ravendb/tests/session_tests/test_counters.py#L24-L38)</small>  
+> <small>[document counters operation](https:///github.com/ravendb/ravendb-python-client/blob/f5149b943959ffa4ad7afaeef07c17583b4cb2e6/ravendb/tests/jvm_migrated_tests/client_tests/counters_tests/test_counters_single_node.py#L18-L61)</small>  
+> <small>[including counters](https:///github.com/ravendb/ravendb-python-client/blob/305459fbc4ba36c838a7fbde2b98d88d3aefa482/ravendb/tests/jvm_migrated_tests/client_tests/indexing_tests/counters_tests/test_basic_counters_indexes_strong_syntax.py#L29)</small>  
+> <small>[counters indexes](https:///github.com/ravendb/ravendb-python-client/blob/4ac192652bf57d304e1b48032d9acee56f2590b8/ravendb/tests/counters_tests/test_query_on_counters.py#L683)</small>
+
 
 ## Using classes for entities
 
