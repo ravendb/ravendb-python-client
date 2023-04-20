@@ -29,6 +29,7 @@ class TcpConnectionHeaderMessage:
         info: Optional[str] = None,
         authorize_info: Optional[AuthorizationInfo] = None,
         replication_hub_access: Optional[DetailedReplicationHubAccess] = None,
+        server_id: Optional[str] = None,
     ):
         self.database_name = database_name
         self.source_node_tag = source_node_tag
@@ -37,6 +38,7 @@ class TcpConnectionHeaderMessage:
         self.info = info
         self.authorize_info = authorize_info
         self.replication_hub_access = replication_hub_access
+        self.server_id = server_id
 
     def to_json(self) -> Dict:
         return {
@@ -47,6 +49,7 @@ class TcpConnectionHeaderMessage:
             "Info": self.info,
             "AuthorizeInfo": self.authorize_info.to_json(),
             "ReplicationHubAccess": self.replication_hub_access.to_json(),
+            "ServerId": self.server_id,
         }
 
     NUMBER_OR_RETRIES_FOR_SENDING_TCP_HEADER = 2
@@ -334,6 +337,7 @@ class TcpConnectionStatus(Enum):
     OK = "Ok"
     AUTHORIZATION_FAILED = "AuthorizationFailed"
     TCP_VERSION_MISMATCH = "TcpVersionMismatch"
+    INVALID_NETWORK_TOPOLOGY = "InvalidNetworkTopology"
 
 
 class TcpConnectionHeaderResponse:

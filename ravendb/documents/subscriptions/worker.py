@@ -33,12 +33,14 @@ from ravendb.exceptions.exceptions import (
     SubscriberErrorException,
     SubscriptionDoesNotExistException,
     AllTopologyNodesDownException,
+    InvalidNetworkTopologyException,
+    SubscriptionMessageTypeException,
 )
 from ravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 from ravendb.extensions.json_extensions import JsonExtensions
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.document_session import DocumentSession
-from ravendb.documents.subscriptions.options import SubscriptionWorkerOptions
+from ravendb.documents.subscriptions.options import SubscriptionWorkerOptions, SubscriptionOpeningStrategy
 from ravendb.primitives.exceptions import OperationCancelledException
 from ravendb.primitives.misc import CancellationTokenSource
 from ravendb.http.request_executor import RequestExecutor
@@ -405,6 +407,8 @@ class SubscriptionWorker(Generic[_T]):
             # Kindly request the server to drop the connection
             self._send_drop_message(reply)
             raise RuntimeError(f"Can't connect to database {self._db_name} because: {reply.message}")
+        if reply.status == TcpConnectionStatus.INVALID_NETWORK_TOPOLOGY:
+            raise InvalidNetworkTopologyException(f"Failed to connect to url {url} because {reply.message}")
 
         return reply.version
 
@@ -427,10 +431,15 @@ class SubscriptionWorker(Generic[_T]):
                 raise DatabaseDoesNotExistException(f"{self._db_name} does not exists. {connection_status.message}")
 
         if connection_status.type_of_message != SubscriptionConnectionServerMessage.MessageType.CONNECTION_STATUS:
-            raise RuntimeError(
+            message = (
                 f"Server returned illegal type message when expecting connection status, "
                 f"was: {connection_status.type_of_message}"
             )
+
+            if connection_status.type_of_message == SubscriptionConnectionServerMessage.MessageType.ERROR:
+                message += f". Exception: {connection_status.exception}"
+
+            raise SubscriptionMessageTypeException(message)
 
         if connection_status.status == SubscriptionConnectionServerMessage.ConnectionStatus.ACCEPTED:
             pass
@@ -459,6 +468,18 @@ class SubscriptionWorker(Generic[_T]):
                 f"{connection_status.exception}"
             )
         elif connection_status.status == SubscriptionConnectionServerMessage.ConnectionStatus.REDIRECT:
+            if self._options.strategy == SubscriptionOpeningStrategy.WAIT_FOR_FREE:
+                if connection_status.data:
+                    register_connection_duration_in_ticks_object = connection_status.data.get(
+                        "RegisterConnectionDurationInTicks"
+                    )
+                    if (
+                        register_connection_duration_in_ticks_object / 10000000
+                        >= self._options.max_erroneous_period.seconds
+                    ):
+                        # this worker connection waited for free for more than max erroneous period
+                        self._last_connection_failure = None
+
             data = connection_status.data
             redirected_tag = data.get("RedirectedTag")
             appropriate_node = None if redirected_tag is None else redirected_tag
@@ -691,7 +712,9 @@ class SubscriptionWorker(Generic[_T]):
                             self._forced_topology_update_attempts += 1
                             next_node_index = self._forced_topology_update_attempts % len(cur_topology)
                             try:
-                                self._redirect_node = cur_topology[next_node_index]
+                                self._redirect_node = req_ex.get_requested_node(
+                                    cur_topology[next_node_index].cluster_tag, True
+                                ).current_node
                                 self._logger.info(
                                     f"Subscription '{self._options.subscription_name}'. "
                                     f"Will modify redirect node from None to "

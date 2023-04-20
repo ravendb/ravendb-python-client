@@ -55,6 +55,7 @@ class CertificateMetadata:
         collection_secondary_keys: List[str] = None,
         collection_primary_key: str = None,
         public_key_pinning_hash: str = None,
+        not_before: datetime = None,
     ):
         self.name = name
         self.security_clearance = security_clearance
@@ -64,6 +65,7 @@ class CertificateMetadata:
         self.collection_primary_key = collection_primary_key
         self.collection_secondary_keys = collection_secondary_keys
         self.public_key_pinning_hash = public_key_pinning_hash
+        self.not_before = not_before
 
     @classmethod
     def from_json(cls, json_dict: dict) -> CertificateMetadata:
@@ -76,6 +78,7 @@ class CertificateMetadata:
             json_dict.get("CollectionSecondaryKeys", None),
             json_dict.get("CollectionPrimaryKey", None),
             json_dict.get("PublicKeyPinningHash", None),
+            Utils.string_to_datetime(json_dict["NotBefore"]) if "NotBefore" in json_dict else None,
         )
 
 

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import requests
 
@@ -263,7 +263,12 @@ class SucceedRequestEventArgs(EventArgs):
 
 class FailedRequestEventArgs(EventArgs):
     def __init__(
-        self, database: str, url: str, exception: Exception, request: requests.Request, response: requests.Response
+        self,
+        database: str,
+        url: str,
+        exception: Exception,
+        request: Optional[requests.Request],
+        response: Optional[requests.Response],
     ):
         self.__database = database
         self.__url = url

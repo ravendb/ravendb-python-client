@@ -107,10 +107,17 @@ class SubscriptionDoesNotExistException(SubscriptionException):
 
 
 class SubscriptionDoesNotBelongToNodeException(SubscriptionException):
-    def __init__(self, *args, appropriate_node: Optional[str] = None, reasons: Dict[str, str] = None):
+    def __init__(
+        self,
+        *args,
+        appropriate_node: Optional[str] = None,
+        reasons: Dict[str, str] = None,
+        register_connection_duration_in_ticks: bool = None,
+    ):
         super(SubscriptionDoesNotBelongToNodeException, self).__init__(*args)
         self.appropriate_node = appropriate_node
         self.reasons = reasons
+        self.register_connection_duration_in_ticks = register_connection_duration_in_ticks
 
 
 class SubscriptionChangeVectorUpdateConcurrencyException(SubscriptionException):
@@ -118,4 +125,16 @@ class SubscriptionChangeVectorUpdateConcurrencyException(SubscriptionException):
 
 
 class SubscriberErrorException(Exception):
+    pass
+
+
+class InvalidNetworkTopologyException(Exception):
+    pass
+
+
+class SubscriptionMessageTypeException(Exception):
+    pass
+
+
+class RavenTimeoutException(Exception):
     pass

@@ -19,6 +19,7 @@ from ravendb.exceptions.exceptions import (
     UnsuccessfulRequestException,
     DatabaseDoesNotExistException,
     AuthorizationException,
+    RequestedNodeUnavailableException,
 )
 from ravendb.documents.operations.configuration import GetClientConfigurationOperation
 from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
@@ -199,9 +200,28 @@ class RequestExecutor:
         self.__ensure_node_selector()
         return self._node_selector.get_preferred_node()
 
+    def get_requested_node(self, node_tag: str, throw_if_contains_failures: bool = False) -> CurrentIndexAndNode:
+        self.__ensure_node_selector()
+        current_index_and_node = self._node_selector.get_requested_node(node_tag)
+
+        if throw_if_contains_failures and not self._node_selector.node_is_available(
+            current_index_and_node.current_index
+        ):
+            raise RequestedNodeUnavailableException(
+                f"Requested node {node_tag} currently unavailable, please try again later."
+            )
+
+        return current_index_and_node
+
     def __on_failed_request_invoke(self, url: str, e: Exception):
         for event in self.__on_failed_request:
-            event(FailedRequestEventArgs(self.__database_name, url, e))
+            event(FailedRequestEventArgs(self.__database_name, url, e, None, None))
+
+    def __on_failed_request_invoke_details(
+        self, url: str, e: Exception, request: Optional[requests.Request], response: Optional[requests.Response]
+    ) -> None:
+        for event in self.__on_failed_request:
+            event(FailedRequestEventArgs(self.__database_name, url, e, request, response))
 
     def __on_succeed_request_invoke(
         self, database: str, url: str, response: requests.Response, request: requests.Request, attempt_number: int
@@ -550,27 +570,22 @@ class RequestExecutor:
         refresh_topology = response.headers.get(constants.Headers.REFRESH_TOPOLOGY, False)
         refresh_client_configuration = response.headers.get(constants.Headers.REFRESH_CLIENT_CONFIGURATION, False)
 
-        if refresh_topology or refresh_client_configuration:
-            server_node = ServerNode(chosen_node.url, self.__database_name)
+        refresh_task = Future()
+        refresh_task.set_result(False)
 
-            update_parameters = UpdateTopologyParameters(server_node)
+        refresh_client_configuration_task = Future()
+        refresh_client_configuration_task.set_result(None)
+
+        if refresh_topology:
+            update_parameters = UpdateTopologyParameters(chosen_node)
             update_parameters.timeout_in_ms = 0
             update_parameters.debug_tag = "refresh-topology-header"
+            refresh_task = self.update_topology_async(update_parameters)
 
-            if refresh_topology:
-                topology_task = self.update_topology_async(update_parameters)
-            else:
-                topology_task = Future()
-                topology_task.set_result(False)
+        if refresh_client_configuration:
+            refresh_client_configuration_task = self._update_client_configuration_async(chosen_node)
 
-            if refresh_client_configuration:
-                client_configuration = self._update_client_configuration_async(server_node)
-            else:
-                client_configuration = Future()
-                client_configuration.set_result(None)
-
-            return [topology_task, client_configuration]
-        return []
+        return [refresh_task, refresh_client_configuration_task]
 
     def __send_request_to_server(
         self,
@@ -1154,7 +1169,7 @@ class RequestExecutor:
         if index_node_and_etag.current_node in command.failed_nodes:
             return False
 
-        self.__on_failed_request_invoke(url, e)
+        self.__on_failed_request_invoke(url, e, request, response)
 
         self.execute(
             index_node_and_etag.current_node, index_node_and_etag.current_index, command, should_retry, session_info

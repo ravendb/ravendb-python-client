@@ -6,7 +6,7 @@ import time
 import uuid
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from typing import Union, List, Dict
 
 from ravendb.exceptions.exceptions import (
@@ -77,6 +77,16 @@ class NodeSelector:
             self.fastest_records = [0] * len(topology.nodes)
             self.fastest: Union[None, int] = None
             self.speed_test_mode = 0
+            self.unlikely_everyone_faulted_choice_index: Optional[int] = 0
+
+        @property
+        def node_when_everyone_marked_as_faulted(self) -> CurrentIndexAndNode:
+            index = self.unlikely_everyone_faulted_choice_index
+            self.unlikely_everyone_faulted_choice_index = (self.unlikely_everyone_faulted_choice_index + 1) % len(
+                self.nodes
+            )
+
+            return CurrentIndexAndNode(index, self.nodes[index])
 
     def __enter__(self):
         return self
@@ -93,6 +103,9 @@ class NodeSelector:
     @property
     def topology(self) -> Topology:
         return self.__state.topology
+
+    def node_is_available(self, index: int) -> bool:
+        return self.__state.failures[index] == 0
 
     def on_failed_request(self, node_index: int) -> None:
         state = self.__state
@@ -117,16 +130,10 @@ class NodeSelector:
 
     def get_requested_node(self, node_tag: str) -> CurrentIndexAndNode:
         state = self.__state
-        state_failures = state.failures
         server_nodes = state.nodes
-        length = min(len(server_nodes), len(state_failures))
-        for i in range(length):
+        for i in range(len(server_nodes)):
             if server_nodes[i].cluster_tag == node_tag:
-                if state_failures[i] == 0 and server_nodes[i].url:
-                    return CurrentIndexAndNode(i, server_nodes[i])
-                raise RequestedNodeUnavailableException(
-                    f"Requested node {node_tag} is currently unavailable, please try again later."
-                )
+                return CurrentIndexAndNode(i, server_nodes[i])
 
         if len(state.nodes) == 0:
             raise DatabaseDoesNotExistException("There are no nodes in the topology at all")
@@ -142,7 +149,7 @@ class NodeSelector:
         server_nodes = state.nodes
         length = min(len(server_nodes), len(state_failures))
         for i in range(length):
-            if state_failures[0] == 0 and server_nodes[i].url:
+            if state_failures[0] == 0:
                 return CurrentIndexAndNode(i, server_nodes[i])
         return cls.unlikely_everyone_faulted_choice(state)
 
@@ -154,11 +161,11 @@ class NodeSelector:
 
     @staticmethod
     def unlikely_everyone_faulted_choice(state: NodeSelector.__NodeSelectorState) -> CurrentIndexAndNode:
-        # if there are all marked as failed, we'll chose the first
+        # if there are all marked as failed, we'll chose the next (the one in CurrentNodeIndex)
         # one so the user will get an error (or recover :-) )
         if len(state.nodes) == 0:
             raise DatabaseDoesNotExistException("There are no nodes in the topology at all")
-        return CurrentIndexAndNode(0, state.nodes[0])
+        return state.node_when_everyone_marked_as_faulted
 
     def get_node_by_session_id(self, session_id: int) -> CurrentIndexAndNode:
         state = self.__state
@@ -289,6 +296,7 @@ class CurrentIndexAndNodeAndEtag:
 class NodeStatus:
     def __init__(
         self,
+        name: str,
         connected: bool,
         error_details: str,
         last_send: datetime.datetime,
@@ -296,12 +304,25 @@ class NodeStatus:
         last_sent_message: str,
         last_matching_index: int,
     ):
+        self.name = name
         self.connected = connected
         self.error_details = error_details
         self.last_send = last_send
         self.last_reply = last_reply
         self.last_sent_message = last_sent_message
         self.last_matching_index = last_matching_index
+
+    def __str__(self):
+        return (
+            "NodeStatus{"
+            f"name='{self.name}'"
+            f", connected={self.connected}"
+            f", errorDetails={self.error_details}"
+            f", lastSend={self.last_send}"
+            f", lastReply={self.last_reply}"
+            f", lastSentMessage={self.last_sent_message}"
+            "}"
+        )
 
 
 class RaftCommand:

@@ -53,6 +53,7 @@ class DatabaseTopology:
         stamp: Optional[LeaderStamp] = None,
         database_topology_id_base_64: Optional[str] = None,
         priority_order: Optional[List[str]] = None,
+        nodes_modified_at: Optional[datetime.datetime] = None,
     ):
         self.members = members
         self.promotables = promotables
@@ -65,6 +66,7 @@ class DatabaseTopology:
         self.stamp = stamp
         self.database_topology_id_base_64 = database_topology_id_base_64
         self.priority_order = priority_order
+        self.nodes_modified_at = nodes_modified_at
 
     @property
     def all_nodes(self) -> List[str]:

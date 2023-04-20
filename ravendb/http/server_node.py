@@ -1,5 +1,8 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ravendb.http.topology import ClusterTopology
 
 
 class ServerNode:
@@ -43,6 +46,22 @@ class ServerNode:
     @property
     def last_server_version(self) -> str:
         return self.__last_server_version
+
+    @classmethod
+    def create_from(cls, topology: "ClusterTopology"):
+        nodes = []
+        if topology is None:
+            return nodes
+
+        for key, value in topology.members.items():
+            server_node = cls(value, cluster_tag=key)
+            nodes.append(server_node)
+
+        for key, value in topology.watchers.items():
+            server_node = cls(value, cluster_tag=key)
+            nodes.append(server_node)
+
+        return nodes
 
     def should_update_server_version(self) -> bool:
         if self.last_server_version is None or self.__last_server_version_check > 100:
