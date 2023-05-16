@@ -150,6 +150,7 @@ Although new API isn't compatible with the previous one, it comes with **many im
    [Patching](#advanced-patching),  
    [Subscriptions](#subscriptions),  
    [Counters](#counters),  
+   [Bulk Insert](#bulk-insert),  
    [Using classes](#using-classes-for-entities),  
    [Working with secure server](#working-with-a-secure-server),  
    [Building & running tests](#building)  
@@ -1103,6 +1104,34 @@ results = self.store.operations.send(CounterBatchOperation(counter_batch))
 > <small>[including counters](https:///github.com/ravendb/ravendb-python-client/blob/305459fbc4ba36c838a7fbde2b98d88d3aefa482/ravendb/tests/jvm_migrated_tests/client_tests/indexing_tests/counters_tests/test_basic_counters_indexes_strong_syntax.py#L29)</small>  
 > <small>[counters indexes](https:///github.com/ravendb/ravendb-python-client/blob/4ac192652bf57d304e1b48032d9acee56f2590b8/ravendb/tests/counters_tests/test_query_on_counters.py#L683)</small>
 
+
+
+## Bulk insert
+Bulk insert is the efficient way to store a large amount of documents.
+
+https://ravendb.net/docs/article-page/5.4/csharp/client-api/bulk-insert/how-to-work-with-bulk-insert-operation.
+
+For example:
+
+```python
+foo_bar1 = FooBar("John Doe")
+foo_bar2 = FooBar("Jane Doe")
+foo_bar3 = FooBar("John")
+foo_bar4 = FooBar("Jane")
+
+with store.bulk_insert() as bulk_insert:
+    bulk_insert.store(foo_bar1)
+    bulk_insert.store(foo_bar2)
+    bulk_insert.store_as(foo_bar3, "foobars/66")
+    bulk_insert.store_as(foo_bar4, "foobars/99", MetadataAsDictionary({"some_metadata_value": 75}))
+```
+The 3rd insert will store document named "foobars/66".
+
+The 4th insert will store document with custom name and extra metadata.
+
+>##### Related tests:
+> <small>[simple bulk insert](https:///github.com/ravendb/ravendb-python-client/blob/45cb934e8ecc45d935afe3dd1dc96b40f94bcb00/ravendb/tests/jvm_migrated_tests/client_tests/test_bulk_inserts.py#L18-L44)</small>  
+> <small>[modifying metadata on bulk insert](https:///github.com/ravendb/ravendb-python-client/blob/45cb934e8ecc45d935afe3dd1dc96b40f94bcb00/ravendb/tests/jvm_migrated_tests/client_tests/test_bulk_inserts.py#L56-L68)</small>  
 
 ## Using classes for entities
 
