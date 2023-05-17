@@ -36,7 +36,7 @@ class BulkInsertOperation:
             self.output_stream_mock = Future()
 
         def enqueue_buffer_for_flush(self, buffer: bytearray):
-            self._buffers_to_flush_queue.put(buffer)
+            self._buffers_to_flush_queue.put(bytes(buffer))
 
         # todo: blocking semaphore acquired and released on enter and exit from bulk insert operation context manager
         def send_data(self):
