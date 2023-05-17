@@ -63,12 +63,14 @@ class TcpConnectionInfo:
         certificate: Optional[str] = None,
         urls: Optional[List[str]] = None,
         node_tag: Optional[str] = None,
+        server_id: Optional[str] = None,
     ):
         self.port = port
         self.url = url
         self.certificate = certificate
         self.urls = urls
         self.node_tag = node_tag
+        self.server_id = server_id
 
     @classmethod
     def from_json(cls, json_dict: Dict) -> TcpConnectionInfo:
@@ -78,6 +80,7 @@ class TcpConnectionInfo:
             json_dict.get("Certificate", None),
             json_dict.get("Urls", None),
             json_dict.get("NodeTag", None),
+            json_dict.get("ServerId", None),
         )
 
 

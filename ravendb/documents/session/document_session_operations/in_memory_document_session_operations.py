@@ -6,6 +6,7 @@ import json
 from abc import abstractmethod
 
 from ravendb.documents.operations.executor import OperationExecutor
+from ravendb.documents.session.document_session_operations.misc import _update_metadata_modifications
 from ravendb.documents.session.misc import (
     SessionOptions,
     TransactionMode,
@@ -784,7 +785,7 @@ class InMemoryDocumentSessionOperations:
             if key is None:
                 raise ValueError("Id cannot be None")
             change_vector = None
-            document_info = self._documents_by_id.get(key)
+            document_info = self._documents_by_id.get_value(key)
             if document_info is not None:
                 new_obj = self.entity_to_json.convert_entity_to_json(document_info.entity, document_info)
                 if document_info.entity is not None and self._entity_changed(new_obj, document_info, None):
@@ -801,7 +802,13 @@ class InMemoryDocumentSessionOperations:
             change_vector = change_vector if self.__use_optimistic_concurrency else None
             if self._counters_by_doc_id:
                 self._counters_by_doc_id.pop(key, None)
-            self.defer(DeleteCommandData(key, expected_change_vector if expected_change_vector else change_vector))
+            self.defer(
+                DeleteCommandData(
+                    key,
+                    expected_change_vector or change_vector,
+                    expected_change_vector or (document_info.change_vector if document_info is not None else None),
+                )
+            )
             return
 
         entity = key_or_entity
@@ -979,18 +986,6 @@ class InMemoryDocumentSessionOperations:
     def cluster_transaction(self) -> ClusterTransactionOperationsBase:
         raise RuntimeError(f"{self.__class__.__name__} must override the cluster_session property method")
 
-    @staticmethod
-    def __update_metadata_modifications(document_info: DocumentInfo) -> bool:
-        dirty = False
-        if document_info.metadata_instance is not None:
-            if document_info.metadata_instance.is_dirty:
-                dirty = True
-            for key, value in document_info.metadata_instance.items():
-                if value is None or isinstance(value, MetadataAsDictionary) and value.is_dirty is True:
-                    dirty = True
-                document_info.metadata[key] = json.loads(json.dumps(value, default=Utils.json_default))
-        return dirty
-
     def __prepare_for_creating_revisions_from_ids(self, result: SaveChangesData) -> None:
         for id_entry in self._ids_for_creating_forced_revisions:
             result.session_commands.append(ForceRevisionCommandData(id_entry))
@@ -1026,11 +1021,13 @@ class InMemoryDocumentSessionOperations:
                         result.on_success.remove_document_by_entity(document_info.entity)
                         result.entities.append(document_info.entity)
 
-                    result.on_success.remove_document_by_entity(document_info.key)
+                    result.on_success.remove_document_by_id(document_info.key)
 
                 change_vector = change_vector if self.__use_optimistic_concurrency else None
                 self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
-                result.session_commands.append(DeleteCommandData(document_info.key, document_info.change_vector))
+                result.session_commands.append(
+                    DeleteCommandData(document_info.key, change_vector, document_info.change_vector)
+                )
 
             if changes is None:
                 result.on_success.clear_deleted_entities()
@@ -1048,7 +1045,7 @@ class InMemoryDocumentSessionOperations:
             if self.is_deleted(entity.value.key):
                 continue
 
-            dirty_metadata = self.__update_metadata_modifications(entity.value)
+            dirty_metadata = _update_metadata_modifications(entity.value.metadata_instance, entity.value.metadata)
 
             document = self.entity_to_json.convert_entity_to_json(entity.key, entity.value)
 
@@ -1067,7 +1064,7 @@ class InMemoryDocumentSessionOperations:
                 self.before_store_invoke(before_store_event_args)
 
                 if before_store_event_args.is_metadata_accessed:
-                    self.__update_metadata_modifications(entity.value)
+                    _update_metadata_modifications(entity.value.metadata_instance, entity.value.metadata)
 
                 if before_store_event_args.is_metadata_accessed or self._entity_changed(document, entity.value, None):
                     document = self.entity_to_json.convert_entity_to_json(entity.key, entity.value)
@@ -1134,7 +1131,7 @@ class InMemoryDocumentSessionOperations:
             if self._entity_changed(document, entity.value, None):
                 return True
 
-        return not len(self._deleted_entities) == 0
+        return not len(self._deleted_entities) == 0 or not len(self._deferred_commands) == 0
 
     def _what_changed(self) -> Dict[str, List[DocumentsChanges]]:
         changes = {}
@@ -1146,7 +1143,7 @@ class InMemoryDocumentSessionOperations:
 
     def __get_all_entities_changes(self, changes: Dict[str, List[DocumentsChanges]]) -> None:
         for key, value in self._documents_by_id.items():
-            self.__update_metadata_modifications(value)
+            _update_metadata_modifications(value.metadata_instance, value.metadata)
             new_obj = self.entity_to_json.convert_entity_to_json(value.entity, value)
             self._entity_changed(new_obj, value, changes)
 

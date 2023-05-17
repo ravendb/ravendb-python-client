@@ -14,8 +14,10 @@ from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_
 
 from ravendb import constants
 from ravendb.documents.session.entity_to_json import EntityToJson
-from ravendb.documents.commands.subscriptions import GetTcpInfoForRemoteTaskCommand
-from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.commands.subscriptions import GetTcpInfoForRemoteTaskCommand, TcpConnectionInfo
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+    InMemoryDocumentSessionOperations,
+)
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.misc import SessionOptions, TransactionMode
 from ravendb.documents.subscriptions.revision import Revision
@@ -31,12 +33,14 @@ from ravendb.exceptions.exceptions import (
     SubscriberErrorException,
     SubscriptionDoesNotExistException,
     AllTopologyNodesDownException,
+    InvalidNetworkTopologyException,
+    SubscriptionMessageTypeException,
 )
 from ravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 from ravendb.extensions.json_extensions import JsonExtensions
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.document_session import DocumentSession
-from ravendb.documents.subscriptions.options import SubscriptionWorkerOptions
+from ravendb.documents.subscriptions.options import SubscriptionWorkerOptions, SubscriptionOpeningStrategy
 from ravendb.primitives.exceptions import OperationCancelledException
 from ravendb.primitives.misc import CancellationTokenSource
 from ravendb.http.request_executor import RequestExecutor
@@ -317,21 +321,16 @@ class SubscriptionWorker(Generic[_T]):
             except ClientVersionMismatchException:
                 tcp_info = self._legacy_try_get_tcp_info(request_executor)
 
-        self._tcp_client, chosen_url = TcpUtils.connect_with_priority(
-            tcp_info, command.result.certificate, self._store.certificate_pem_path
+        result = TcpUtils.connect_secured_tcp_socket(
+            tcp_info,
+            command.result.certificate,
+            self._store.certificate_pem_path,
+            None,
+            TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION,
+            self.__negotiate_protocol_version_for_subscription,
         )
-
-        database_name = self._store.get_effective_database(self._db_name)
-
-        parameters = TcpNegotiateParameters()
-        parameters.database = database_name
-        parameters.operation = TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION
-        parameters.version = TcpConnectionHeaderMessage.SUBSCRIPTION_TCP_VERSION
-        parameters.read_response_and_get_version_callback = self._read_server_response_and_get_version
-        parameters.destination_node_tag = self.current_node_tag
-        parameters.destination_url = chosen_url
-
-        self._supported_features = TcpNegotiation.negotiate_protocol_version(self._tcp_client, parameters)
+        self._tcp_client = result.socket
+        self._supported_features = result.supported_features
 
         if self._supported_features.protocol_version <= 0:
             raise RuntimeError(
@@ -361,6 +360,22 @@ class SubscriptionWorker(Generic[_T]):
 
         return self._tcp_client
 
+    def __negotiate_protocol_version_for_subscription(
+        self, chosen_url: str, tcp_info: TcpConnectionInfo, s: socket
+    ) -> TcpConnectionHeaderMessage.SupportedFeatures:
+        database_name = self._store.get_effective_database(self._db_name)
+
+        parameters = TcpNegotiateParameters()
+        parameters.database = database_name
+        parameters.operation = TcpConnectionHeaderMessage.OperationTypes.SUBSCRIPTION
+        parameters.version = TcpConnectionHeaderMessage.SUBSCRIPTION_TCP_VERSION
+        parameters.read_response_and_get_version_callback = self._read_server_response_and_get_version
+        parameters.destination_node_tag = self.current_node_tag
+        parameters.destination_url = chosen_url
+        parameters.destination_server_id = tcp_info.server_id
+
+        return TcpNegotiation.negotiate_protocol_version(s, parameters)
+
     def _legacy_try_get_tcp_info(self, request_executor: RequestExecutor, node: Optional[ServerNode] = None):
         tcp_command = GetTcpInfoCommand(f"Subscription/{self._db_name}", self._db_name)
 
@@ -376,10 +391,10 @@ class SubscriptionWorker(Generic[_T]):
         # python doesn't use parsers
         pass
 
-    def _read_server_response_and_get_version(self, url: str) -> int:
+    def _read_server_response_and_get_version(self, url: str, sock: socket) -> int:
         # reading reply from server
         self._ensure_parser()
-        response = self._tcp_client.recv(self._options.receive_buffer_size)
+        response = sock.recv(self._options.receive_buffer_size)
         reply = TcpConnectionHeaderResponse.from_json(json.loads(response.decode("utf-8")))
 
         if reply.status == TcpConnectionStatus.OK:
@@ -392,6 +407,8 @@ class SubscriptionWorker(Generic[_T]):
             # Kindly request the server to drop the connection
             self._send_drop_message(reply)
             raise RuntimeError(f"Can't connect to database {self._db_name} because: {reply.message}")
+        if reply.status == TcpConnectionStatus.INVALID_NETWORK_TOPOLOGY:
+            raise InvalidNetworkTopologyException(f"Failed to connect to url {url} because {reply.message}")
 
         return reply.version
 
@@ -414,10 +431,15 @@ class SubscriptionWorker(Generic[_T]):
                 raise DatabaseDoesNotExistException(f"{self._db_name} does not exists. {connection_status.message}")
 
         if connection_status.type_of_message != SubscriptionConnectionServerMessage.MessageType.CONNECTION_STATUS:
-            raise RuntimeError(
+            message = (
                 f"Server returned illegal type message when expecting connection status, "
                 f"was: {connection_status.type_of_message}"
             )
+
+            if connection_status.type_of_message == SubscriptionConnectionServerMessage.MessageType.ERROR:
+                message += f". Exception: {connection_status.exception}"
+
+            raise SubscriptionMessageTypeException(message)
 
         if connection_status.status == SubscriptionConnectionServerMessage.ConnectionStatus.ACCEPTED:
             pass
@@ -446,6 +468,18 @@ class SubscriptionWorker(Generic[_T]):
                 f"{connection_status.exception}"
             )
         elif connection_status.status == SubscriptionConnectionServerMessage.ConnectionStatus.REDIRECT:
+            if self._options.strategy == SubscriptionOpeningStrategy.WAIT_FOR_FREE:
+                if connection_status.data:
+                    register_connection_duration_in_ticks_object = connection_status.data.get(
+                        "RegisterConnectionDurationInTicks"
+                    )
+                    if (
+                        register_connection_duration_in_ticks_object / 10000000
+                        >= self._options.max_erroneous_period.seconds
+                    ):
+                        # this worker connection waited for free for more than max erroneous period
+                        self._last_connection_failure = None
+
             data = connection_status.data
             redirected_tag = data.get("RedirectedTag")
             appropriate_node = None if redirected_tag is None else redirected_tag
@@ -678,7 +712,9 @@ class SubscriptionWorker(Generic[_T]):
                             self._forced_topology_update_attempts += 1
                             next_node_index = self._forced_topology_update_attempts % len(cur_topology)
                             try:
-                                self._redirect_node = cur_topology[next_node_index]
+                                self._redirect_node = req_ex.get_requested_node(
+                                    cur_topology[next_node_index].cluster_tag, True
+                                ).current_node
                                 self._logger.info(
                                     f"Subscription '{self._options.subscription_name}'. "
                                     f"Will modify redirect node from None to "
@@ -894,6 +930,10 @@ class SubscriptionBatch(Generic[_T]):
     @property
     def number_of_items_in_batch(self) -> int:
         return 0 if self.items is None else len(self.items)
+
+    @property
+    def number_of_includes(self) -> int:
+        return len(self._includes) if self._includes is not None else 0
 
     def open_session(self, options: Optional[SessionOptions] = None) -> DocumentSession:
         if not options:

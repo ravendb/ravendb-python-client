@@ -23,7 +23,9 @@ from ravendb.util.util import RaftIdGenerator
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.patch import PatchRequest
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
 
 
 class CommandType(Enum):
@@ -270,11 +272,15 @@ class CommandData:
 
 
 class DeleteCommandData(CommandData):
-    def __init__(self, key: str, change_vector: str):
-        super(DeleteCommandData, self).__init__(key=key, command_type=CommandType.DELETE)
+    def __init__(self, key: str, change_vector: str, original_change_vector: str = None):
+        super(DeleteCommandData, self).__init__(key=key, command_type=CommandType.DELETE, change_vector=change_vector)
+        self.original_change_vector = original_change_vector
 
     def serialize(self, conventions: DocumentConventions) -> dict:
-        return {"Id": self.key, "ChangeVector": self.change_vector, "Type": CommandType.DELETE}
+        data = {"Id": self.key, "ChangeVector": self.change_vector, "Type": CommandType.DELETE}
+        if self.original_change_vector is not None:
+            data.update({"OriginalChangeVector": self.original_change_vector})
+        return data
 
 
 class PutCommandDataBase(CommandData):

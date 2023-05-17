@@ -40,6 +40,7 @@ class DocumentConventions(object):
         self.throw_if_query_page_size_is_not_set = False
         self._send_application_identifier = True
         self._save_enums_as_integers: Optional[bool] = None
+        self._disable_atomic_document_writes_in_cluster_wide_transaction: Optional[bool] = None
 
         # Configuration
         self.json_default_method = DocumentConventions.json_default
@@ -197,6 +198,15 @@ class DocumentConventions(object):
     @property
     def send_application_identifier(self) -> bool:
         return self._send_application_identifier
+
+    @property
+    def disable_atomic_document_writes_in_cluster_wide_transaction(self) -> bool:
+        return self._disable_atomic_document_writes_in_cluster_wide_transaction
+
+    @disable_atomic_document_writes_in_cluster_wide_transaction.setter
+    def disable_atomic_document_writes_in_cluster_wide_transaction(self, value: bool):
+        self.__assert_not_frozen()
+        self._disable_atomic_document_writes_in_cluster_wide_transaction = value
 
     @staticmethod
     def json_default(o):

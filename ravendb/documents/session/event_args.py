@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import requests
 
@@ -6,7 +6,9 @@ from ravendb.documents.session.misc import DocumentQueryCustomization
 from ravendb.http.topology import Topology
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
 
 
 class EventArgs:
@@ -260,10 +262,19 @@ class SucceedRequestEventArgs(EventArgs):
 
 
 class FailedRequestEventArgs(EventArgs):
-    def __init__(self, database: str, url: str, exception: Exception):
+    def __init__(
+        self,
+        database: str,
+        url: str,
+        exception: Exception,
+        request: Optional[requests.Request],
+        response: Optional[requests.Response],
+    ):
         self.__database = database
         self.__url = url
         self.__exception = exception
+        self.__request = request
+        self.__response = response
 
     @property
     def database(self) -> str:
@@ -276,6 +287,14 @@ class FailedRequestEventArgs(EventArgs):
     @property
     def exception(self) -> Exception:
         return self.__exception
+
+    @property
+    def request(self) -> requests.Request:
+        return self.__request
+
+    @property
+    def response(self) -> requests.Response:
+        return self.__response
 
 
 class TopologyUpdatedEventArgs(EventArgs):

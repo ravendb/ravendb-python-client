@@ -115,36 +115,6 @@ class MultiGetCommand(RavenCommand):
     def create_request(self, node: ServerNode) -> Optional[requests.Request]:
         self.__base_url = f"{node.url}/databases/{node.database}"
         url = self.__base_url + "/multi_get"
-        # todo: aggressive caching
-        # if self.__maybe_read_all_from_cache(self.__request_executor.aggressive_caching):
-        #     self.aggressively_cached = True
-        #     return None
-        #
-        # aggressive_cache_options: AggressiveCacheOptions = self.__request_executor.aggressive_caching
-        # if aggressive_cache_options and aggressive_cache_options.mode == AggressiveCacheMode.TRACK_CHANGES:
-        #     self.result = []
-        #     for command in self.__commands:
-        #         if not command.can_cache_aggressively:
-        #             break
-        #         cache_key = self.__get_cache_key(command)[0]
-        #         cached_item, _, cached_ref = self.__http_cache.get(cache_key, "", "")
-        #         cached_item: ReleaseCacheItem
-        #         if (
-        #             cached_ref is None
-        #             or cached_item.age > aggressive_cache_options.duration
-        #             or cached_item.might_have_been_modified
-        #         ):
-        #             break
-        #         get_response = GetResponse()
-        #         get_response.result = cached_ref
-        #         get_response.status_code = http.HTTPStatus.NOT_MODIFIED
-        #         self.result.append(get_response)
-        #
-        #     if len(self.result) == len(self.__commands):
-        #         return None
-        #
-        #     self.result = None
-
         request = requests.Request("POST", url)
 
         request.data = {
@@ -211,7 +181,6 @@ class MultiGetCommand(RavenCommand):
         req_url = self.__base_url + command.url_and_query
         return command.method + "-" + req_url if command.method else req_url, req_url
 
-    # todo: make sure json parses correctly down there
     def set_response_raw(self, response: requests.Response, stream: bytes) -> None:
         try:
             try:
@@ -224,7 +193,7 @@ class MultiGetCommand(RavenCommand):
 
                 for get_response in self.read_responses(response_temp):
                     command = self.__commands[i]
-                    self.__maybe_set_cache(get_response, command)
+                    self.__maybe_set_cache(get_response, command, i)
 
                     if self.__cached is not None and get_response.status_code == http.HTTPStatus.NOT_MODIFIED:
                         cloned_response = GetResponse()
@@ -241,8 +210,11 @@ class MultiGetCommand(RavenCommand):
         except Exception as e:
             self._throw_invalid_response(e)
 
-    def __maybe_set_cache(self, get_response: GetResponse, command: GetRequest):
+    def __maybe_set_cache(self, get_response: GetResponse, command: GetRequest, cached_index: int):
         if get_response.status_code == http.HTTPStatus.NOT_MODIFIED:
+            # if not modified - update age
+            if self.__cached is not None:
+                self.__cached.values[cached_index][0].not_modified()
             return
 
         cache_key = self.__get_cache_key(command)[0]
@@ -281,7 +253,19 @@ class MultiGetCommand(RavenCommand):
         return False
 
     def close_cache(self):
+        # If _cached is not null - it means that the client approached with this multitask request to node
+        # and the request failed and now client tries to send it to another node.
+
         if self.__cached is not None:
             self.__cached.close()
 
         self.__cached = None
+        # The client sends the commands.
+        # Some of which could be saved in cache with a response
+        # that includes the change vector that received from the old fallen node.
+        # The client can't use those responses because their URLs are different
+        # (include the IP and port of the old node), because of that the client
+        # needs to get those docs again from the new node.
+
+        for command in self.__commands:
+            command.headers.remove(constants.Headers.IF_NONE_MATCH)

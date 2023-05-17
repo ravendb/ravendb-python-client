@@ -31,3 +31,11 @@ class ConcurrencyException(ConflictException):
 class ClientVersionMismatchException(RavenException):
     def __init__(self, message: Optional[str] = None, cause: Optional[Exception] = None):
         super().__init__(message, cause)
+
+
+class PortInUseException(RavenException):
+    pass
+
+
+class IndexCompactionInProgressException(RavenException):
+    pass

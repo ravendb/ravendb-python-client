@@ -13,7 +13,9 @@ from ravendb.exceptions.documents.indexes import IndexDoesNotExistException
 from ravendb.tools.utils import Stopwatch, Utils
 
 if TYPE_CHECKING:
-    from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
     from ravendb.documents.session.document_session import DocumentSession
 
 

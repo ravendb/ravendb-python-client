@@ -1762,8 +1762,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         query_data.project_into = True
         query_data.projection_behavior = projection_behavior
 
-        select_fields = self.select_fields_query_data(projection_class, query_data=query_data)
-        return select_fields
+        return self.select_fields_query_data(projection_class, query_data=query_data)
 
     def wait_for_non_stale_results(self, wait_timeout: datetime.timedelta = None) -> DocumentQuery[_T]:
         self._wait_for_non_stale_results(wait_timeout)

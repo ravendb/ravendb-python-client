@@ -6,9 +6,8 @@ from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
-from ravendb import constants, exceptions
 from ravendb.changes.database_changes import DatabaseChanges
-from ravendb.documents.bulk_insert_operation import BulkInsertOperation
+from ravendb.documents.bulk_insert_operation import BulkInsertOperation, BulkInsertOptions
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.session.event_args import (
@@ -28,7 +27,9 @@ from ravendb.documents.session.event_args import (
 )
 from ravendb.documents.store.lazy import Lazy
 from ravendb.documents.session.document_session import DocumentSession
-from ravendb.documents.session.in_memory_document_session_operations import InMemoryDocumentSessionOperations
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+    InMemoryDocumentSessionOperations,
+)
 from ravendb.documents.session.misc import SessionOptions
 from ravendb.documents.subscriptions.document_subscriptions import DocumentSubscriptions
 from ravendb.http.request_executor import RequestExecutor
@@ -48,12 +49,12 @@ class DocumentStoreBase:
         self.__conventions = None
         self._initialized: bool = False
 
-        self.__certificate_pem_path: Union[None, str] = None
-        self.__trust_store_path: Union[None, str] = None
+        self.__certificate_pem_path: Optional[str] = None
+        self.__trust_store_path: Optional[str] = None
 
         self._urls: List[str] = []
-        self._database: Union[None, str] = None
-        self._disposed: Union[None, bool] = None
+        self._database: Optional[str] = None
+        self._disposed: Optional[bool] = None
 
         self.__before_store: List[Callable[[BeforeStoreEventArgs], None]] = []
         self.__after_save_changes: List[Callable[[AfterSaveChangesEventArgs], None]] = []
@@ -311,10 +312,11 @@ class DocumentStore(DocumentStoreBase):
         self.database = database
         self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
         # todo: aggressive cache
-        self.__maintenance_operation_executor: Union[None, MaintenanceOperationExecutor] = None
-        self.__operation_executor: Union[None, OperationExecutor] = None
+        self.__maintenance_operation_executor: Optional[MaintenanceOperationExecutor] = None
+        self.__operation_executor: Optional[OperationExecutor] = None
         # todo: database smuggler
-        self.__identifier: Union[None, str] = None
+        self.__multi_db_hilo: Optional[MultiDatabaseHiLoGenerator] = None
+        self.__identifier: Optional[str] = None
         self.__add_change_lock = threading.Lock()
         self.__database_changes = {}
         self.__after_close: List[Callable[[], None]] = []
@@ -327,7 +329,11 @@ class DocumentStore(DocumentStoreBase):
         self.close()
 
     @property
-    def thread_pool_executor(self):
+    def hilo_id_generator(self) -> Optional[MultiDatabaseHiLoGenerator]:
+        return self.__multi_db_hilo
+
+    @property
+    def thread_pool_executor(self) -> ThreadPoolExecutor:
         return self.__thread_pool_executor
 
     @property
@@ -335,7 +341,7 @@ class DocumentStore(DocumentStoreBase):
         return self.__subscriptions
 
     @property
-    def identifier(self) -> Union[None, str]:
+    def identifier(self) -> Optional[str]:
         if self.__identifier is not None:
             return self.__identifier
 
@@ -398,12 +404,13 @@ class DocumentStore(DocumentStoreBase):
     def open_session(
         self, database: Optional[str] = None, session_options: Optional[SessionOptions] = None
     ) -> DocumentSession:
-        if not database and not session_options:
+        if not session_options:
             session_options = SessionOptions()
-        if not ((session_options is not None) ^ (database is not None)):
-            raise ValueError("Pass either database str or session_options object")
-        if database:
-            session_options = SessionOptions(database=database)
+            session_options.database = database
+            session_options.disable_atomic_document_writes_in_cluster_wide_transaction = (
+                self.conventions.disable_atomic_document_writes_in_cluster_wide_transaction
+            )
+
         self.assert_initialized()
         self._ensure_not_closed()
 
@@ -520,9 +527,9 @@ class DocumentStore(DocumentStoreBase):
 
     # todo: aggressively cache
 
-    def bulk_insert(self, database_name: Optional[str] = None) -> BulkInsertOperation:
+    def bulk_insert(self, database_name: str = None, options: BulkInsertOptions = None) -> BulkInsertOperation:
         self.assert_initialized()
-        return BulkInsertOperation(self.get_effective_database(database_name), self)
+        return BulkInsertOperation(self.get_effective_database(database_name), self, options)
 
     def _assert_valid_configuration(self) -> None:
         if not self.urls:

@@ -1,4 +1,4 @@
-from ravendb.documents.session.in_memory_document_session_operations import RefEq
+from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import RefEq
 from ravendb.tests.test_base import TestBase
 from dataclasses import dataclass
 

@@ -364,3 +364,8 @@ class ModifyOngoingTaskResult:
     @classmethod
     def from_json(cls, json_dict: Dict) -> ModifyOngoingTaskResult:
         return cls(json_dict["TaskId"], json_dict["RaftCommandIndex"], json_dict.get("ResponsibleNode", None))
+
+
+class DatabaseSettings:
+    def __init__(self, settings: Dict[str, str] = None):
+        self.settings = settings

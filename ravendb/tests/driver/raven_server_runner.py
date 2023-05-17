@@ -26,6 +26,7 @@ class RavenServerRunner:
             "--RunInMemory=true",
             "--License.Eula.Accepted=true",
             "--Setup.Mode=None",
+            "--Logs.Mode=None",
             f"--Testing.ParentProcessId={RavenServerRunner.get_process_id('0')}",
         ]
 

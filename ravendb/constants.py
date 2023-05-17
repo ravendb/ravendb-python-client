@@ -16,6 +16,7 @@ class Documents:
         LAST_MODIFIED = "@last-modified"
         CHANGE_VECTOR = "@change-vector"
         EXPIRES = "@expires"
+        REFRESH = "@refresh"
         ALL_DOCUMENTS_COLLECTION = "@all_docs"
         EMPTY_COLLECTION = "@empty"
         NESTED_OBJECT_TYPES = "@nested-object-types"

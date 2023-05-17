@@ -90,7 +90,7 @@ class HeadDocumentCommand(RavenCommand[str]):
         url = f"{node.url}/databases/{node.database}/docs?id={Utils.escape(self.__key, True, False)}"
         request = requests.Request("HEAD", url)
         if self.__change_vector is not None:
-            request.headers["If-None-Match"] = self.__change_vector
+            request.headers[constants.Headers.IF_NONE_MATCH] = self.__change_vector
         return request
 
     def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:
@@ -387,7 +387,7 @@ class HeadAttachmentCommand(RavenCommand[str]):
             f"{node.url}/databases/{node.database}"
             f"/attachments?id={Utils.quote_key(self.__document_id)}"
             f"&name={Utils.quote_key(self.__name)}",
-            {"If-None-Match": self.__change_vector} if self.__change_vector else None,
+            {constants.Headers.IF_NONE_MATCH: self.__change_vector} if self.__change_vector else None,
         )
 
     def process_response(self, cache: HttpCache, response: requests.Response, url) -> http.ResponseDisposeHandling:
@@ -435,7 +435,7 @@ class ConditionalGetDocumentsCommand(RavenCommand[ConditionalGetResult]):
     def create_request(self, node: ServerNode) -> requests.Request:
         url = f"{node.url}/databases/{node.database}/docs?id={Utils.quote_key(self.__key)}"
         request = requests.Request("GET", url)
-        request.headers["If-None-Match"] = f'"{self.__change_vector}"'
+        request.headers[constants.Headers.IF_NONE_MATCH] = f'"{self.__change_vector}"'
 
         return request
 

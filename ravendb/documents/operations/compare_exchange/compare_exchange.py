@@ -6,6 +6,7 @@ from typing import Union, Optional, Generic, TypeVar, Type
 from ravendb import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.commands.batches import PutCompareExchangeCommandData, DeleteCompareExchangeCommandData
+from ravendb.documents.session.document_session_operations.misc import _update_metadata_modifications
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.entity_to_json import EntityToJson
@@ -98,7 +99,12 @@ class CompareExchangeSessionValue(Generic[_T]):
                 self.__value = value
                 return value
 
-            value = CompareExchangeValue(self._key, self._index, entity)
+            value = CompareExchangeValue(
+                self._key,
+                self._index,
+                entity,
+                self.__original_value.metadata if self.__original_value is not None else None,
+            )
             self.__value = value
 
             return value
@@ -145,15 +151,32 @@ class CompareExchangeSessionValue(Generic[_T]):
             entity = EntityToJson.convert_entity_to_json_internal_static(self.__value.value, conventions, None, False)
 
             entity_json = entity if isinstance(entity, dict) else None
-            metadata = None
+            metadata = (
+                self.__original_value.value.get(constants.Documents.Metadata.KEY, None)
+                if self.__original_value is not None
+                else None
+            )
+            metadata_has_changed = False
+
             if self.__value.has_metadata and len(self.__value.metadata) != 0:
-                metadata = self.prepare_metadata_for_put(self._key, self.__value.metadata, conventions)
+                if metadata is None:
+                    metadata_has_changed = True
+                    # create new metadata (because there wasn't any metadata before)
+                    metadata = self.prepare_metadata_for_put(self._key, self.__value.metadata, conventions)
+                else:
+                    self.validate_metadata_for_put(self._key, self.__value.metadata)
+                    metadata_has_changed = _update_metadata_modifications(self.__value.metadata, metadata)
+
             entity_to_insert = None
-            if not entity_json:
+            if not entity_json or metadata_has_changed:
                 entity_json = entity_to_insert = self.__convert_entity(self._key, entity, metadata)
 
             new_value = CompareExchangeValue(self._key, self._index, entity_json)
-            has_changed = self.__original_value is None or self.has_changed(self.__original_value, new_value)
+            has_changed = (
+                self.__original_value is None
+                or metadata_has_changed
+                or self.has_changed(self.__original_value, new_value)
+            )
             self.__original_value = new_value
             if not has_changed:
                 return None
@@ -212,15 +235,17 @@ class CompareExchangeSessionValue(Generic[_T]):
     def prepare_metadata_for_put(
         key: str, metadata_dictionary: MetadataAsDictionary, conventions: DocumentConventions
     ) -> dict:
-        if constants.Documents.Metadata.EXPIRES in metadata_dictionary:
-            obj = metadata_dictionary.get(constants.Documents.Metadata.EXPIRES)
-            if not obj:
-                raise ValueError(
-                    f"The values of {constants.Documents.Metadata.EXPIRES} metadata for compare exchange '{key}' is None"
-                )
+        CompareExchangeSessionValue.validate_metadata_for_put(key, metadata_dictionary)
+
+        return metadata_dictionary.metadata
+
+    @staticmethod
+    def validate_metadata_for_put(key: str, metadata_as_dictionary: MetadataAsDictionary) -> None:
+        if constants.Documents.Metadata.EXPIRES in metadata_as_dictionary:
+            obj = metadata_as_dictionary[constants.Documents.Metadata.EXPIRES]
+            if obj is None:
+                f"The values of {constants.Documents.Metadata.EXPIRES} metadata for compare exchange '{key}' is None"
             if not isinstance(obj, datetime.datetime) and not isinstance(obj, str):
                 raise ValueError(
                     f"The type of {constants.Documents.Metadata.EXPIRES} metadata for compare exchange '{key}' is not valid. Use the following type: datetime.datetime or string"
                 )
-
-        return metadata_dictionary.metadata
