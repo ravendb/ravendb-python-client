@@ -2,7 +2,6 @@ from __future__ import annotations
 import logging
 from typing import Optional, List, TYPE_CHECKING, Type, TypeVar
 
-from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.tools.utils import CaseInsensitiveSet, CaseInsensitiveDict, Utils
@@ -11,6 +10,7 @@ if TYPE_CHECKING:
     from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
         InMemoryDocumentSessionOperations,
     )
+    from ravendb.documents.operations.time_series import TimeSeriesRange
 
 _T = TypeVar("_T")
 
@@ -26,7 +26,7 @@ class LoadOperation:
         counters_to_include: Optional[List[str]] = None,
         compare_exchange_values_to_include: Optional[List[str]] = None,
         include_all_counters: Optional[bool] = None,
-        time_series_to_include: Optional[List[TimeSeriesRange]] = None,
+        time_series_to_include: Optional[List["TimeSeriesRange"]] = None,
     ):
         self._session = session
         self._keys = keys
@@ -95,7 +95,7 @@ class LoadOperation:
         self._include_all_counters = True
         return self
 
-    def with_time_series(self, time_series: List[TimeSeriesRange]):
+    def with_time_series(self, time_series: List["TimeSeriesRange"]):
         if time_series:
             self._time_series_to_include = time_series
         return self

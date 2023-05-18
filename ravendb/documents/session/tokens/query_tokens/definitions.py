@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import enum
 import os
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Optional, Tuple, TYPE_CHECKING
 
 from ravendb import constants
 from ravendb.documents.session.misc import OrderingType
-from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.documents.indexes.spatial.configuration import SpatialUnits
 from ravendb.documents.queries.group_by import GroupByMethod
 from ravendb.documents.queries.misc import SearchOperator
@@ -15,6 +14,9 @@ from ravendb.documents.session.tokens.misc import WhereOperator
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.tools.utils import Utils
+
+if TYPE_CHECKING:
+    from ravendb.documents.operations.time_series import TimeSeriesRange
 
 
 class CompareExchangeValueIncludesToken(QueryToken):
@@ -63,12 +65,12 @@ class CounterIncludesToken(QueryToken):
 
 
 class TimeSeriesIncludesToken(QueryToken):
-    def __init__(self, source_path: str, time_range: TimeSeriesRange):
+    def __init__(self, source_path: str, time_range: "TimeSeriesRange"):
         self.__range = time_range
         self.__source_path = source_path
 
     @classmethod
-    def create(cls, source_path: str, time_range: TimeSeriesRange) -> TimeSeriesIncludesToken:
+    def create(cls, source_path: str, time_range: "TimeSeriesRange") -> TimeSeriesIncludesToken:
         return cls(source_path, time_range)
 
     def add_alias_to_path(self, alias: str):

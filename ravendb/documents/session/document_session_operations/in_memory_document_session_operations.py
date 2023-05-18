@@ -7,6 +7,7 @@ from abc import abstractmethod
 
 from ravendb.documents.operations.executor import OperationExecutor
 from ravendb.documents.session.document_session_operations.misc import _update_metadata_modifications
+from ravendb.documents.operations.time_series import TimeSeriesRangeResult
 from ravendb.documents.session.misc import (
     SessionOptions,
     TransactionMode,
@@ -29,7 +30,6 @@ from ravendb.documents.commands.crud import GetDocumentsResult
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
 from ravendb.exceptions.exceptions import NonUniqueObjectException, InvalidOperationException
-from ravendb.data.timeseries import TimeSeriesRangeResult
 from ravendb.documents.commands.batches import (
     CommandData,
     BatchOptions,
@@ -45,7 +45,7 @@ from ravendb.documents.session.cluster_transaction_operation import ClusterTrans
 from ravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.event_args import *
-from ravendb.documents.session.time_series.time_series import TimeSeriesEntry
+from ravendb.documents.session.time_series import TimeSeriesEntry
 from ravendb.documents.session.utils.includes_util import IncludesUtil
 from ravendb.extensions.json_extensions import JsonExtensions
 from ravendb.http.raven_command import RavenCommand
@@ -461,7 +461,7 @@ class InMemoryDocumentSessionOperations:
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
         self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = CaseInsensitiveDict()
-        self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = {}
+        self._time_series_by_doc_id: Dict[str, Dict[str, List[TimeSeriesRangeResult]]] = CaseInsensitiveDict()
 
         self._deleted_entities: Union[
             Set[DeletedEntitiesHolder.DeletedEntitiesEnumeratorResult], DeletedEntitiesHolder
@@ -931,8 +931,7 @@ class InMemoryDocumentSessionOperations:
             result.deferred_commands_map.update(self._deferred_commands_map)
 
         for deferred_command in result.deferred_commands:
-            if deferred_command.on_before_save_changes:
-                deferred_command.on_before_save_changes(self)
+            deferred_command.on_before_save_changes(self)
 
         return result
 

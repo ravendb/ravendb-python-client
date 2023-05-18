@@ -23,6 +23,10 @@ _T = TypeVar("_T")
 
 
 class DocumentConventions(object):
+    @classmethod
+    def default_conventions(cls):
+        return cls()
+
     __cached_default_type_collection_names: Dict[type, str] = {}
 
     def __init__(self):

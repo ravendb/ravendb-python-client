@@ -25,7 +25,6 @@ from ravendb.documents.operations.revisions.configuration import (
     RevisionsConfiguration,
     RevisionsCollectionConfiguration,
 )
-from ravendb.documents.operations.time_series.configuration import TimeSeriesConfiguration
 
 from ravendb.documents.queries.sorting import SorterDefinition
 
@@ -37,6 +36,7 @@ if TYPE_CHECKING:
         DatabaseTopology,
     )
     from ravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
+    from ravendb.documents.operations.time_series import TimeSeriesConfiguration
 
 
 class DatabaseRecord:
@@ -56,7 +56,7 @@ class DatabaseRecord:
         self.indexes: Union[None, Dict[str, IndexDefinition]] = {}
         self.auto_indexes: Union[None, Dict[str, AutoIndexDefinition]] = None
         self.revisions: Union[None, RevisionsConfiguration] = None
-        self.time_series: Union[None, TimeSeriesConfiguration] = None
+        self.time_series: Union[None, "TimeSeriesConfiguration"] = None
         self.expiration: Union[None, ExpirationConfiguration] = None
         self.periodic_backups: List[PeriodicBackupConfiguration] = []
         self.external_replications: List[ExternalReplication] = []
