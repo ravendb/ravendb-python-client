@@ -1,9 +1,13 @@
-import ijson
+from decimal import InvalidOperation
+from ijson.common import integer_or_decimal, IncompleteJSONError
+from ijson.backends.python import UnexpectedSymbol
 from _elementtree import ParseError
 from socket import timeout
 import re
 
-
+# BUFSIZE isn't included in newer ijson versions so we define it ourselves:
+# See: https://github.com/isagalaev/ijson/blob/c594cdd3c94c8b4a018577966b3ad22bb44c2620/ijson/backends/python.py#L14
+BUFSIZE = 16 * 1024
 LEXEME_RE = re.compile(b"[a-z0-9eE\.\+-]+|\S")
 BYTE_ARRAY_CHARACTERS = bytearray(b',}:{"')
 IS_WEBSOCKET = False
@@ -17,7 +21,7 @@ class IncrementalJsonParser:
         self.lexer = self.lexer(socket)
 
     @staticmethod
-    def lexer(socket, buf_size=ijson.backend.BUFSIZE):
+    def lexer(socket, buf_size=BUFSIZE):
         data = socket.recv() if IS_WEBSOCKET else socket.recv(buf_size)
         if not data:
             return
@@ -45,7 +49,7 @@ class IncrementalJsonParser:
                         except ValueError:
                             data = socket.recv().encode("utf-8") if IS_WEBSOCKET else socket.recv(buf_size)
                             if not data:
-                                raise ijson.backend.common.IncompleteJSONError("Incomplete string lexeme")
+                                raise IncompleteJSONError("Incomplete string lexeme")
 
                             buf += data[1:-1] if IS_WEBSOCKET else data
 
@@ -157,11 +161,11 @@ class IncrementalJsonParser:
                     return
 
                 try:
-                    yield ("number", ijson.backend.common.number(symbol))
-                except ijson.backend.decimal.InvalidOperation:
-                    raise ijson.backend.UnexpectedSymbol(symbol, pos)
+                    yield ("number", integer_or_decimal(symbol))
+                except InvalidOperation:
+                    raise UnexpectedSymbol(symbol, pos)
         except StopIteration:
-            raise ijson.backend.common.IncompleteJSONError("Incomplete JSON data")
+            raise IncompleteJSONError("Incomplete JSON data")
 
     @staticmethod
     def parse_array(lexer):
@@ -176,11 +180,11 @@ class IncrementalJsonParser:
                     if symbol == "]":
                         break
                     if symbol != ",":
-                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
+                        raise UnexpectedSymbol(symbol, pos)
                     pos, symbol = next(lexer)
             yield ("end_array", None)
         except StopIteration:
-            raise ijson.backend.common.IncompleteJSONError("Incomplete JSON data")
+            raise IncompleteJSONError("Incomplete JSON data")
 
     @staticmethod
     def parse_object(lexer):
@@ -190,22 +194,22 @@ class IncrementalJsonParser:
             if symbol != "}":
                 while True:
                     if symbol[0] != '"':
-                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
+                        raise UnexpectedSymbol(symbol, pos)
                     yield ("map_key", IncrementalJsonParser.unescape(symbol[1:-1]))
                     pos, symbol = next(lexer)
                     if symbol != ":":
-                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
+                        raise UnexpectedSymbol(symbol, pos)
                     for event in IncrementalJsonParser.parse_value(lexer, None, pos):
                         yield event
                     pos, symbol = next(lexer)
                     if symbol == "}":
                         break
                     if symbol != ",":
-                        raise ijson.backend.UnexpectedSymbol(symbol, pos)
+                        raise UnexpectedSymbol(symbol, pos)
                     pos, symbol = next(lexer)
             yield ("end_map", None)
         except StopIteration:
-            raise ijson.backend.common.IncompleteJSONError("Incomplete JSON data")
+            raise IncompleteJSONError("Incomplete JSON data")
 
     @staticmethod
     def unescape(s):

@@ -21,7 +21,7 @@ setup(
         "requests >= 2.27.1",
         "requests-pkcs12 >= 1.13",
         "pyOpenSSL >= 22.0.0",
-        "ijson == 2.3",
+        "ijson >= 3",
         "websocket-client >= 0.46.0",
         "inflect >= 5.4.0",
     ],
