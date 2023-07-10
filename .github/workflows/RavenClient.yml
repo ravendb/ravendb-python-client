@@ -2,12 +2,17 @@ name: tests/python
 
 on:
   push:
-    branches: [ v5.2 ]
+    branches: [v5.2]
   pull_request:
-    branches: [ v5.2 ]
+    branches: [v5.2]
   schedule:
-    - cron: '0 10 * * 6'
-
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+    inputs:
+      ravendb_version:
+        description: 'RavenDB Version'
+        required: true
+        type: string
 
 jobs:
     build:
@@ -31,7 +36,7 @@ jobs:
       steps:
       - uses: actions/checkout@v2
 
-      - name: Use Python ${{ matrix.node-version }}
+      - name: Use Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
           python-version : ${{ matrix.python-version }}
