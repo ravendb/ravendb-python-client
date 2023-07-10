@@ -45,7 +45,12 @@ jobs:
         run:  python -c "import sys; print(sys.version)"
 
       - name: Download RavenDB Server
-        run: wget -q -O RavenDB.tar.bz2 "https://hibernatingrhinos.com/downloads/RavenDB%20for%20Linux%20x64/latest?buildType=${{ env.RAVENDB_BUILD_TYPE }}&version=${{ matrix.serverVersion }}"
+        run: |
+          if [[ -n "${{ inputs.ravendb_version }}" ]]; then
+            wget -O RavenDB.tar.bz2 "https://daily-builds.s3.amazonaws.com/RavenDB-${{ inputs.ravendb_version }}-linux-x64.tar.bz2"
+          else
+            wget -O RavenDB.tar.bz2 "https://hibernatingrhinos.com/downloads/RavenDB%20for%20Linux%20x64/latest?buildType=${{ env.RAVENDB_BUILD_TYPE }}&version=${{ matrix.serverVersion }}"
+          fi
 
       - run: mkdir certs
       - run: openssl genrsa -out certs/ca.key 2048
