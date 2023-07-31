@@ -2097,7 +2097,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
 
         return AggregationDocumentQuery(self)
 
-    def aggregate_by_facets(self, *facets: FacetBase) -> AggregationDocumentQuery[_T]:
+    def aggregate_by_facets(self, facets: List[FacetBase]) -> AggregationDocumentQuery[_T]:
         for facet in facets:
             self.aggregate_by(facet)
 
