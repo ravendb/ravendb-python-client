@@ -19,7 +19,8 @@ from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 from ravendb.documents.operations.attachments import (
     GetAttachmentOperation,
-    AttachmentName, CloseableAttachmentResult,
+    AttachmentName,
+    CloseableAttachmentResult,
 )
 from ravendb.documents.operations.batch import BatchOperation
 from ravendb.documents.operations.executor import OperationExecutor, SessionOperationExecutor

@@ -44,14 +44,16 @@ class FacetBase(ABC):
         pass
 
     def to_json(self) -> Dict:
-        return {
+        json_dict = {
             "DisplayFieldName": self.display_field_name,
-            "Options": self.options.to_json(),
             "Aggregations": {
                 aggregation.to_json(): {aggregation_field.to_json() for aggregation_field in aggregation_fields_set}
                 for aggregation, aggregation_fields_set in self.aggregations.items()
             },
         }
+        if self.options:
+            json_dict["Options"] = self.options.to_json()
+        return json_dict
 
     @classmethod
     def from_json(cls, json_dict: Dict) -> FacetBase:
