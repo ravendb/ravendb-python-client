@@ -1027,7 +1027,14 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 self.__session._request_executor.execute_command(command, self.__session.session_info)
                 return command.result is not None
 
-            def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
+            def store(
+                self,
+                entity_or_document_id: Union[object, str],
+                name: str,
+                stream: bytes,
+                content_type: str = None,
+                change_vector: str = None,
+            ):
                 if not isinstance(entity_or_document_id, str):
                     entity = self.__session._documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
