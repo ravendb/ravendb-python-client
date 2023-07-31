@@ -133,6 +133,15 @@ class FacetSetup:
     def __init__(self, facets: List[Facet] = None, range_facets: List[RangeFacet] = None):
         self.facets = facets or []
         self.range_facets = range_facets or []
+        self.Id: Optional[str] = None
+
+    @property
+    def id_(self):
+        return self.Id
+
+    @id_.setter
+    def id_(self, value: str):
+        self.Id = value
 
     @classmethod
     def from_json(cls, json_dict: Dict) -> FacetSetup:
