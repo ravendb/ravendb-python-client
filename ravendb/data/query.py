@@ -1,5 +1,6 @@
 from typing import Union, TYPE_CHECKING
 
+from ravendb.documents.queries.facets.misc import FacetTermSortMode
 from ravendb.tools.utils import Utils
 from abc import ABCMeta
 from enum import Enum
@@ -197,16 +198,6 @@ class OldFacetAggregation(Enum):
         return self.value
 
 
-class FacetTermSortMode(Enum):
-    value_asc = "ValueAsc"
-    value_desc = "ValueDesc"
-    hits_asc = "HitsAsc"
-    hits_desc = "HitsDesc"
-
-    def __str__(self):
-        return self.value
-
-
 class OldFacet(object):
     def __init__(
         self,
@@ -218,7 +209,7 @@ class OldFacet(object):
         aggregation_field=None,
         aggregation_type=None,
         max_result=None,
-        term_sort_mode=FacetTermSortMode.value_asc,
+        term_sort_mode=FacetTermSortMode.VALUE_ASC,
         include_remaining_terms=False,
     ):
         """
