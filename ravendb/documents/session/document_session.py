@@ -19,7 +19,7 @@ from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 from ravendb.documents.operations.attachments import (
     GetAttachmentOperation,
-    AttachmentName,
+    AttachmentName, CloseableAttachmentResult,
 )
 from ravendb.documents.operations.batch import BatchOperation
 from ravendb.documents.operations.executor import OperationExecutor, SessionOperationExecutor
@@ -1127,7 +1127,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 name: str = None,
                 # att_requests: Optional[List[AttachmentRequest]] = None,
                 # todo: fetching multiple attachments with single command
-            ):
+            ) -> CloseableAttachmentResult:
                 # if att_requests is not None:
                 #     if entity_or_document_id or name:
                 #         raise ValueError("Specify either <att_requests> or <entity/document_id, name>")
