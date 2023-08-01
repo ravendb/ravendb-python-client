@@ -165,7 +165,7 @@ class SpatialOptionsFactory:
             opts.units = circle_radius_units
             return opts
 
-        def quad_prefix_tree_level(
+        def quad_prefix_tree_index(
             self, max_tree_level: int, circle_radius_units: SpatialUnits = SpatialUnits.KILOMETERS
         ) -> SpatialOptions:
             if max_tree_level == 0:
