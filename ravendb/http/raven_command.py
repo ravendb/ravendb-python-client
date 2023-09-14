@@ -110,9 +110,6 @@ class RavenCommand(Generic[_T_Result]):
             f"When {self.response_type} is set to Raw then please override this method to handle the response "
         )
 
-    def _url_encode(self, value: str) -> bytes:
-        return value.encode("utf-8")
-
     @staticmethod
     def ensure_is_not_null_or_string(value: str, name: str) -> None:
         if not value:
