@@ -104,9 +104,9 @@ class GetTcpInfoForRemoteTaskCommand(RavenCommand[TcpConnectionInfo]):
     def create_request(self, node: ServerNode) -> requests.Request:
         url = (
             f"{node.url}/info/remote-task/tcp?"
-            f"database={self._url_encode(self._remote_database)}"
-            f"&remote-task={self._url_encode(self._remote_task)}"
-            f"&tag={self._url_encode(self._tag)}"
+            f"database={self._remote_database}"
+            f"&remote-task={self._remote_task}"
+            f"&tag={self._tag}"
         )
 
         if self._verify_database:
