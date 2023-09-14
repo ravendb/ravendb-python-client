@@ -26,7 +26,7 @@ from ravendb.tests.test_base import TestBase
 class TestBasicSubscription(TestBase):
     def setUp(self):
         super(TestBasicSubscription, self).setUp()
-        self.reasonable_amount_of_time = 60
+        self.reasonable_amount_of_time = 10
 
     def _put_user_doc(self):
         with self.store.open_session() as session:
@@ -384,19 +384,19 @@ class TestBasicSubscription(TestBase):
             items2 = queue.Queue()
             subscription2.run(lambda x: [items2.put(i.result) for i in x.items])
 
-            user = items1.get()
+            user = items1.get(timeout=15)
             self.assertIsNotNone(user)
             self.assertEqual("users/1", user.Id)
 
-            user = items1.get()
+            user = items1.get(timeout=15)
             self.assertIsNotNone(user)
             self.assertEqual("users/2", user.Id)
 
-            user = items2.get()
+            user = items2.get(timeout=15)
             self.assertIsNotNone(user)
             self.assertEqual("users/1", user.Id)
 
-            user = items2.get()
+            user = items2.get(timeout=15)
             self.assertIsNotNone(user)
             self.assertEqual("users/2", user.Id)
 
@@ -407,11 +407,11 @@ class TestBasicSubscription(TestBase):
                 session.store(User(), "users/4")
                 session.save_changes()
 
-            user = items2.get()
+            user = items2.get(timeout=15)
             self.assertIsNotNone(user)
             self.assertEqual("users/3", user.Id)
 
-            user = items2.get()
+            user = items2.get(timeout=15)
             self.assertIsNotNone(user)
             self.assertEqual("users/4", user.Id)
         finally:
@@ -456,8 +456,8 @@ class TestBasicSubscription(TestBase):
             docs = queue.Queue()
             subscribe = subscription.run(lambda x: [docs.put(item.result) for item in x.items])
 
-            self.assertIsNotNone(docs.get())
-            self.assertIsNotNone(docs.get())
+            self.assertIsNotNone(docs.get(timeout=15))
+            self.assertIsNotNone(docs.get(timeout=15))
             self.store.subscriptions.drop_connection(key)
             try:
                 # this can exit normally or throw on drop connection
