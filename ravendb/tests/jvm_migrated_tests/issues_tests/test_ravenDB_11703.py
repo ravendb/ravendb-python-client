@@ -61,7 +61,7 @@ class TestRavenDB11703(TestBase):
             session.counters_for("users/1").increment("likes")
             session.save_changes()
 
-        counter_change: CounterChange = changes_queue.get(timeout=20)
+        counter_change: CounterChange = changes_queue.get(timeout=10)
         self.assertIsNotNone(counter_change)
 
         self.assertEqual("users/1", counter_change.document_id)
@@ -75,7 +75,7 @@ class TestRavenDB11703(TestBase):
             session.counters_for("users/1").delete("likes")
             session.save_changes()
 
-        counter_change = changes_queue.get(timeout=20)
+        counter_change = changes_queue.get(timeout=10)
         self.assertIsNotNone(counter_change)
 
         self.assertEqual("users/1", counter_change.document_id)
