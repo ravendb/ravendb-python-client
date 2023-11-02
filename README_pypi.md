@@ -5,7 +5,8 @@
 Install from [PyPi](https://pypi.python.org/pypi), as [ravendb](https://pypi.org/project/ravendb/).
 ```bash
 pip install ravendb
-````
+```
+
 ## Introduction
 Python client API (v5.2) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
 
