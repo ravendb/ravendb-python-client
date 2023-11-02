@@ -1,3 +1,5 @@
+import threading
+import time
 from queue import Queue
 
 from ravendb.changes.types import CounterChange, CounterChangeTypes
@@ -49,9 +51,9 @@ class TestRavenDB11703(TestBase):
         close_method()
 
     def test_can_get_notification_about_counter_delete(self):
-        changes_queue = Queue()
+        changes = []
         observer = self.store.changes().for_counters_of_document("users/1")
-        close_method = observer.subscribe(changes_queue.put)
+        close_method = observer.subscribe(changes.append)
 
         with self.store.open_session() as session:
             session.store(User(), "users/1")
@@ -60,8 +62,13 @@ class TestRavenDB11703(TestBase):
         with self.store.open_session() as session:
             session.counters_for("users/1").increment("likes")
             session.save_changes()
+        i = 0
+        while i < 100 and not changes:
+            i += 1
+            time.sleep(0.1)
 
-        counter_change: CounterChange = changes_queue.get(timeout=10)
+        counter_change = changes.pop()
+
         self.assertIsNotNone(counter_change)
 
         self.assertEqual("users/1", counter_change.document_id)
@@ -75,7 +82,11 @@ class TestRavenDB11703(TestBase):
             session.counters_for("users/1").delete("likes")
             session.save_changes()
 
-        counter_change = changes_queue.get(timeout=10)
+        while i < 100 and not changes:
+            i += 1
+            time.sleep(0.1)
+
+        counter_change = changes.pop()
         self.assertIsNotNone(counter_change)
 
         self.assertEqual("users/1", counter_change.document_id)
