@@ -20,6 +20,7 @@ from ravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 from ravendb.documents.operations.attachments import (
     GetAttachmentOperation,
     AttachmentName,
+    CloseableAttachmentResult,
 )
 from ravendb.documents.operations.batch import BatchOperation
 from ravendb.documents.operations.executor import OperationExecutor, SessionOperationExecutor
@@ -1027,7 +1028,14 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 self.__session._request_executor.execute_command(command, self.__session.session_info)
                 return command.result is not None
 
-            def store(self, entity_or_document_id, name, stream, content_type=None, change_vector=None):
+            def store(
+                self,
+                entity_or_document_id: Union[object, str],
+                name: str,
+                stream: bytes,
+                content_type: str = None,
+                change_vector: str = None,
+            ):
                 if not isinstance(entity_or_document_id, str):
                     entity = self.__session._documents_by_entity.get(entity_or_document_id, None)
                     if not entity:
@@ -1120,7 +1128,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 name: str = None,
                 # att_requests: Optional[List[AttachmentRequest]] = None,
                 # todo: fetching multiple attachments with single command
-            ):
+            ) -> CloseableAttachmentResult:
                 # if att_requests is not None:
                 #     if entity_or_document_id or name:
                 #         raise ValueError("Specify either <att_requests> or <entity/document_id, name>")
