@@ -411,7 +411,7 @@ user_names = [user_proj.name for user_proj in session.query_collection("Users").
 #    name: 'John',
 #    age: 30,
 #    kids: [...],
-#    registeredAt: 2017-11-10T23:00:00.000Z } ]
+#    registered_at: 2017-11-10T23:00:00.000Z } ]
 ```
 
 >##### Related tests:
@@ -430,13 +430,13 @@ list(session.query_collection("Users").where_in("name", ["John", "Thomas"]))
 # [ User {
 #     name: 'John',
 #     age: 30,
-#     registeredAt: 2017-11-10T23:00:00.000Z,
+#     registered_at: 2017-11-10T23:00:00.000Z,
 #     kids: [...],
 #     id: 'users/1-A' },
 #   User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' } ]
 ```
 
@@ -458,7 +458,7 @@ list(session.query_collection("Users").where_starts_with("name", "J"))
 #    name: 'John',
 #    age: 30,
 #    kids: [...],
-#    registeredAt: 2017-11-10T23:00:00.000Z } ]
+#    registered_at: 2017-11-10T23:00:00.000Z } ]
 ```
 
 >##### Related tests:
@@ -479,7 +479,7 @@ list(session.query_collection("Users").where_between("registered_at", datetime.d
 # [ User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' } ]
 ```
 
@@ -499,7 +499,7 @@ list(session.query_collection("Users").where_greater_than("age", 29))
 # [ User {
 #   name: 'John',
 #   age: 30,
-#   registeredAt: 2017-11-10T23:00:00.000Z,
+#   registered_at: 2017-11-10T23:00:00.000Z,
 #   kids: [...],
 #   id: 'users/1-A' } ]
 ```
@@ -523,7 +523,7 @@ session.query_collection("Users").where_exists("kids")
 # [ User {
 #   name: 'John',
 #   age: 30,
-#   registeredAt: 2017-11-10T23:00:00.000Z,
+#   registered_at: 2017-11-10T23:00:00.000Z,
 #   kids: [...],
 #   id: 'users/1-A' } ]
 ```
@@ -543,7 +543,7 @@ list(session.query_collection("Users").contains_all("kids", ["Mara", "Dmitri"]))
 # [ User {
 #   name: 'John',
 #   age: 30,
-#   registeredAt: 2017-11-10T23:00:00.000Z,
+#   registered_at: 2017-11-10T23:00:00.000Z,
 #   kids: ["Dmitri", "Mara"]
 #   id: 'users/1-A' } ]
 ```
@@ -564,7 +564,7 @@ Perform full-text search.
 # [ User {
 #   name: 'John',
 #   age: 30,
-#   registeredAt: 2017-11-10T23:00:00.000Z,
+#   registered_at: 2017-11-10T23:00:00.000Z,
 #   kids: ["Dmitri", "Mara"]
 #   id: 'users/1-A' } ]
 ```
@@ -589,13 +589,13 @@ list(session.query_collection("Users").where_exists("kids").or_else()
 # [ User {
 #     name: 'John',
 #     age: 30,
-#     registeredAt: 2017-11-10T23:00:00.000Z,
+#     registered_at: 2017-11-10T23:00:00.000Z,
 #     kids: ["Dmitri", "Mara"]
 #     id: 'users/1-A' },
 #   User {
 #     name: 'Stefanie',
 #     age: 25,
-#     registeredAt: 2015-07-29T22:00:00.000Z,
+#     registered_at: 2015-07-29T22:00:00.000Z,
 #     id: 'users/2-A' } ]
 ```
 
@@ -615,7 +615,7 @@ list(session.query_collection("Users").not_().where_equals("age", 25))
 # [ User {
 #   name: 'John',
 #   age: 30,
-#   registeredAt: 2017-11-10T23:00:00.000Z,
+#   registered_at: 2017-11-10T23:00:00.000Z,
 #   kids: ["Dmitri", "Mara"]
 #   id: 'users/1-A' } ]
 ```
@@ -638,18 +638,18 @@ list(session.query_collection("Users")
 #  [ User {
 #     name: 'John',
 #     age: 30,
-#     registeredAt: 2017-11-10T23:00:00.000Z,
+#     registered_at: 2017-11-10T23:00:00.000Z,
 #     kids: [ 'Dmitri', 'Mara' ],
 #     id: 'users/1-A' },
 #   User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' },
 #   User {
 #     name: 'Stefanie',
 #     age: 25,
-#     registeredAt: 2015-07-29T22:00:00.000Z,
+#     registered_at: 2015-07-29T22:00:00.000Z,
 #     id: 'users/2-A' } ]
 ```
 
@@ -674,18 +674,18 @@ list(session.query_collection("Users")
 #  [ User {
 #     name: 'John',
 #     age: 30,
-#     registeredAt: 2017-11-10T23:00:00.000Z,
+#     registered_at: 2017-11-10T23:00:00.000Z,
 #     kids: [ 'Dmitri', 'Mara' ],
 #     id: 'users/1-A' },
 #   User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' },
 #   User {
 #     name: 'Stefanie',
 #     age: 25,
-#     registeredAt: 2015-07-29T22:00:00.000Z,
+#     registered_at: 2015-07-29T22:00:00.000Z,
 #     id: 'users/2-A' } ]
 ```
 
@@ -701,17 +701,17 @@ list(session.query_collection("Users").order_by("age"))
 # [ User {
 #     name: 'Stefanie',
 #     age: 25,
-#     registeredAt: 2015-07-29T22:00:00.000Z,
+#     registered_at: 2015-07-29T22:00:00.000Z,
 #     id: 'users/2-A' },
 #   User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' },
 #   User {
 #     name: 'John',
 #     age: 30,
-#     registeredAt: 2017-11-10T23:00:00.000Z,
+#     registered_at: 2017-11-10T23:00:00.000Z,
 #     kids: [ 'Dmitri', 'Mara' ],
 #     id: 'users/1-A' } ]
 ```
@@ -738,12 +738,12 @@ Limit the number of query results.
 # [ User {
 #     name: 'Stefanie',
 #     age: 25,
-#     registeredAt: 2015-07-29T22:00:00.000Z,
+#     registered_at: 2015-07-29T22:00:00.000Z,
 #     id: 'users/2-A' },
 #   User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' } ]
 ```
 
@@ -765,7 +765,7 @@ list(session.query_collection("Users").order_by("age")
 # [ User {
 #     name: 'Thomas',
 #     age: 25,
-#     registeredAt: 2016-04-24T22:00:00.000Z,
+#     registered_at: 2016-04-24T22:00:00.000Z,
 #     id: 'users/3-A' } ]
 ```
 
@@ -787,15 +787,15 @@ results = list(session.query_collection("Users")
 
 # Sample results
 # QueryStatistics {
-#   isStale: false,
-#   durationInMs: 744,
-#   totalResults: 1,
-#   skippedResults: 0,
+#   is_stale: false,
+#   duration_in_ms: 744,
+#   total_results: 1,
+#   skipped_results: 0,
 #   timestamp: 2018-09-24T05:34:15.260Z,
-#   indexName: 'Auto/users/Byage',
-#   indexTimestamp: 2018-09-24T05:34:15.260Z,
-#   lastQueryTime: 2018-09-24T05:34:15.260Z,
-#   resultEtag: 8426908718162809000 }
+#   index_name: 'Auto/users/Byage',
+#   index_timestamp: 2018-09-24T05:34:15.260Z,
+#   last_query_time: 2018-09-24T05:34:15.260Z,
+#   result_etag: 8426908718162809000 }
 ```
 
 >##### Related tests:
@@ -843,10 +843,10 @@ attachment =  session.advanced.attachments.get(document_id, "photo.png")
 # Attachment.details contains information about the attachment:
 #     { 
 #       name: 'photo.png',
-#       documentId: 'users/1-A',
-#       contentType: 'image/png',
+#       document_id: 'users/1-A',
+#       content_type: 'image/png',
 #       hash: 'MvUEcrFHSVDts5ZQv2bQ3r9RwtynqnyJzIbNYzu1ZXk=',
-#       changeVector: '"A:3-K5TR36dafUC98AItzIa6ow"',
+#       change_vector: '"A:3-K5TR36dafUC98AItzIa6ow"',
 #       size: 4579 
 #     }
 
@@ -875,7 +875,7 @@ session.advanced.attachments.get_names(doc)
 # Sample results:
 # [ { name: 'photo.png',
 #     hash: 'MvUEcrFHSVDts5ZQv2bQ3r9RwtynqnyJzIbNYzu1ZXk=',
-#     contentType: 'image/png',
+#     content_type: 'image/png',
 #     size: 4579 } ]
 ```
 >##### Related tests:
@@ -1011,12 +1011,12 @@ with store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(subsc
         # Process the incoming batch items
         # Sample batch.items:
         # [ Item {
-        #     changeVector: 'A:2-r6nkF5nZtUKhcPEk6/LL+Q',
+        #     change_vector: 'A:2-r6nkF5nZtUKhcPEk6/LL+Q',
         #     id: 'users/1-A',
-        #     rawResult:
+        #     raw_result:
         #      { name: 'John',
         #        age: 30,
-        #        registeredAt: '2017-11-11T00:00:00.0000000',
+        #        registered_at: '2017-11-11T00:00:00.0000000',
         #        kids: [Array],
         #        '@metadata': [Object],
         #        id: 'users/1-A' },
@@ -1027,7 +1027,7 @@ with store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(subsc
         #        '@change-vector': 'A:2-r6nkF5nZtUKhcPEk6/LL+Q',
         #        '@id': 'users/1-A',
         #        '@last-modified': '2018-10-18T11:15:51.4882011Z' },
-        #     exceptionMessage: undefined } ]
+        #     exception_message: undefined } ]
         # ...
     
     
