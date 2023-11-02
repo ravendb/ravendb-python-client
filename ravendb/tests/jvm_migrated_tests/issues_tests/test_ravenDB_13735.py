@@ -1,5 +1,6 @@
 import datetime
 import time
+import unittest
 
 from ravendb import DocumentStore, RefreshConfiguration
 from ravendb.documents.operations.refresh.configuration import ConfigureRefreshOperation
@@ -19,7 +20,7 @@ class TestRavenDB13735(TestBase):
 
         store.maintenance.send(ConfigureRefreshOperation(config))
 
-    # todo: flaky test that fails around 12AM - known issue
+    @unittest.skip("Fails on cicd due to free license - refresh frequency is below allowed 36 hours")
     def test_refresh_will_update_document_change_vector(self):
         self._setup_refresh(self.store)
 
@@ -29,16 +30,7 @@ class TestRavenDB13735(TestBase):
             session.store(user, "users/1-A")
 
             datetime_now = datetime.datetime.now()
-            hour_ago = datetime.datetime(
-                year=datetime_now.year,
-                month=datetime_now.month,
-                day=datetime_now.day,
-                hour=datetime_now.hour - 1,
-                minute=datetime_now.minute,
-                second=datetime_now.second,
-                microsecond=datetime_now.microsecond,
-                tzinfo=datetime_now.tzinfo,
-            )
+            hour_ago = datetime_now - datetime.timedelta(hours=1)
 
             session.advanced.get_metadata_for(user)["@refresh"] = hour_ago.isoformat()
             session.save_changes()

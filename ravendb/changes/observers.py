@@ -1,9 +1,9 @@
-from abc import ABCMeta, abstractmethod
+from __future__ import annotations
+from concurrent.futures import Future
+from threading import Lock
 from typing import Callable, Generic, TypeVar
 
 from ravendb.tools.concurrentset import ConcurrentSet
-from concurrent.futures import Future
-from threading import Lock
 
 _T_Change = TypeVar("_T_Change")
 
@@ -32,21 +32,36 @@ class Observable(Generic[_T_Change]):
         except Exception as e:
             self.error(e)
 
-    def subscribe(self, observer) -> Callable[[], None]:
+    def subscribe(self, on_next_callback: Callable[[], None]) -> Callable[[], None]:
         """
-        @param Observer or func observer: The observer that will do action when changes happens
+        @param func on_next_callback: The action that observer will do when changes happens
         :return: method that close the subscriber
         """
         self.inc()
-        if not isinstance(observer, Observer):
-            observer = ActionObserver(on_next=observer)
+        observer = ActionObserver(on_next=on_next_callback)
         self._subscribers.add(observer)
 
-        def close_action():
+        def close_action() -> None:
             self.dec()
             self._subscribers.remove(observer)
-            if "on_complete" in observer.__dict__ and "__call__" in observer.on_complete.__dict__:
-                observer.on_complete()
+            if observer.on_completed_callback is not None:
+                observer.on_completed()
+
+        return close_action
+
+    def subscribe_with_observer(self, observer: ActionObserver) -> Callable[[], None]:
+        """
+        @param Observer observer: The observer that will do action when changes happens
+        :return: method that close the subscriber
+        """
+        self.inc()
+        self._subscribers.add(observer)
+
+        def close_action() -> None:
+            self.dec()
+            self._subscribers.remove(observer)
+            if observer.on_completed_callback is not None:
+                observer.on_completed()
 
         return close_action
 
@@ -106,38 +121,28 @@ class Observable(Generic[_T_Change]):
             return
 
 
-class Observer(metaclass=ABCMeta):
-    @abstractmethod
-    def on_completed(self) -> None:
-        pass
-
-    @abstractmethod
-    def on_error(self, exception: Exception) -> None:
-        pass
-
-    @abstractmethod
-    def on_next(self, value: _T_Change) -> None:
-        pass
-
-
-class ActionObserver(Observer):
+class ActionObserver:
     def __init__(
         self,
         on_next: Callable[[_T_Change], None],
         on_error: Callable[[Exception], None] = None,
         on_completed: Callable[[], None] = None,
     ):
-        self._on_next = on_next
-        self._on_error = on_error
-        self._on_completed = on_completed
+        self._on_next_callback = on_next
+        self._on_error_callback = on_error
+        self._on_completed_callback = on_completed
 
     def on_next(self, value: _T_Change) -> None:
-        self._on_next(value)
+        self._on_next_callback(value)
 
     def on_error(self, exception: Exception) -> None:
-        if self._on_error:
-            self._on_error(exception)
+        if self._on_error_callback:
+            self._on_error_callback(exception)
 
     def on_completed(self) -> None:
-        if self._on_completed:
-            self._on_completed()
+        if self._on_completed_callback:
+            self._on_completed_callback()
+
+    @property
+    def on_completed_callback(self):
+        return self._on_completed_callback

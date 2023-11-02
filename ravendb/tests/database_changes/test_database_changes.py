@@ -35,7 +35,7 @@ class TestDatabaseChanges(TestBase):
                 event.set()
 
         all_observer = self.store.changes().for_all_documents()
-        close_method = all_observer.subscribe(ActionObserver(on_next=on_next))
+        close_method = all_observer.subscribe_with_observer(ActionObserver(on_next=on_next))
         all_observer.ensure_subscribe_now()
         with self.store.open_session() as session:
             session.store(User("Idan"))

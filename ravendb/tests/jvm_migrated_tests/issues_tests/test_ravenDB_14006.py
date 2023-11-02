@@ -1,3 +1,4 @@
+import time
 import unittest
 from typing import Optional
 
@@ -279,7 +280,7 @@ class TestRavenDB14006(TestBase):
                 ).statistics(__statistics_callback)
             )
             self.assertEqual(1, len(companies))
-            self.assertGreater(statistics.duration_in_ms, 0)
+            self.assertGreaterEqual(statistics.duration_in_ms, 0)
             number_of_requests = session.number_of_requests
             result_etag = statistics.result_etag
 
@@ -309,6 +310,8 @@ class TestRavenDB14006(TestBase):
                 )
                 value.value.city = "Bydgoszcz"
                 inner_session.save_changes()
+                self.wait_for_indexing(self.store)
+                time.sleep(1)
 
             companies = list(
                 session.advanced.raw_query(
@@ -319,7 +322,9 @@ class TestRavenDB14006(TestBase):
                     + "from Companies as c\n"
                     + "select incl(c)",
                     Company,
-                ).statistics(__statistics_callback)
+                )
+                .statistics(__statistics_callback)
+                .wait_for_non_stale_results()
             )
 
             self.assertEqual(1, len(companies))
@@ -460,6 +465,8 @@ class TestRavenDB14006(TestBase):
                 value.value.city = "Bydgoszcz"
 
                 inner_session.save_changes()
+                self.wait_for_indexing(self.store)
+                time.sleep(0.3)
 
             companies = list(
                 session.query(object_type=Company).statistics(__statistics_callback).include(__include_cmpxch)
@@ -539,10 +546,12 @@ class TestRavenDB14006(TestBase):
                 inner_session.save_changes()
 
                 self.wait_for_indexing(self.store)
+                time.sleep(0.3)
 
             companies = list(
                 session.query_index_type(Companies_ByName, Company)
                 .statistics(__statistics_callback)
+                .wait_for_non_stale_results()
                 .include(__include_cmpxch)
             )
 

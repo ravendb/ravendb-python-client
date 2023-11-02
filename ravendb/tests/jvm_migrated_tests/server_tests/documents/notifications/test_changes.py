@@ -42,8 +42,8 @@ class TestChanges(TestBase):
             document_change = value
             event.set()
 
-        subscription = ActionObserver(__ev)
-        close_action = observable.subscribe(subscription)
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
         observable.ensure_subscribe_now()
 
         with self.store.open_session() as session:
@@ -81,8 +81,8 @@ class TestChanges(TestBase):
             if len(changes_list) == 2:
                 event.set()
 
-        subscription = ActionObserver(__ev)
-        close_action = observable.subscribe(subscription)
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
         observable.ensure_subscribe_now()
 
         with self.store.open_session() as session:
@@ -117,8 +117,8 @@ class TestChanges(TestBase):
             document_change = value
             event.set()
 
-        subscription = ActionObserver(__ev)
-        close_action = observable.subscribe(subscription)
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
         observable.ensure_subscribe_now()
 
         with self.store.open_session() as session:
@@ -160,8 +160,8 @@ class TestChanges(TestBase):
             index_change = value
             event.set()
 
-        subscription = ActionObserver(__ev)
-        close_action = observable.subscribe(subscription)
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
         observable.ensure_subscribe_now()
 
         operation = SetIndexesPriorityOperation(IndexPriority.LOW, index.index_name)
@@ -184,8 +184,8 @@ class TestChanges(TestBase):
             index_change = value
             event.set()
 
-        subscription = ActionObserver(__ev)
-        close_action = observable.subscribe(subscription)
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
         observable.ensure_subscribe_now()
 
         operation = SetIndexesPriorityOperation(IndexPriority.LOW, index.index_name)
@@ -208,8 +208,8 @@ class TestChanges(TestBase):
             if len(document_changes) == 2:
                 event.set()
 
-        subscription = ActionObserver(__ev)
-        close_action = observable.subscribe(subscription)
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
         observable.ensure_subscribe_now()
 
         with self.store.open_session() as session:

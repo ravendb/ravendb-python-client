@@ -894,7 +894,7 @@ all_documents_changes = []
 # Subscribe for all documents, or for specific collection (or other database items)
 all_observer = self.store.changes().for_all_documents()
 
-close_method = all_observer.subscribe(ActionObserver(on_next=all_documents_changes.append))
+close_method = all_observer.subscribe_with_observer(ActionObserver(on_next=all_documents_changes.append))
 all_observer.ensure_subscribe_now()
 
 session = store.open_session()
