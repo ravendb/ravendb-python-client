@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb.documents.operations.configuration import ClientConfiguration, PutClientConfigurationOperation
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.session.misc import SessionOptions, TransactionMode
@@ -10,6 +12,7 @@ class TestRavenDB13456(TestBase):
     def setUp(self):
         super().setUp()
 
+    @unittest.skip("Fails on cicd due to free license - adding the client configuration is disallowed")
     def test_can_change_identity_parts_separator(self):
         with self.store.open_session() as session:
             company1 = Company()
