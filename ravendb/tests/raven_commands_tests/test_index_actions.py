@@ -67,7 +67,7 @@ class TestIndexActions(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.time_series_for("users/1", "HeartRate").append(
+            session.time_series_for("users/1", "HeartRate").append_single(
                 datetime.now(), values=98
             )  # todo: implement time_series_for
             session.save_changes()

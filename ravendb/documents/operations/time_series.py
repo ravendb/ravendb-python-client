@@ -12,8 +12,8 @@ from ravendb.documents.session.time_series import TimeSeriesEntry
 from ravendb.http.http_cache import HttpCache
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import RaftCommand
-from ravendb.http.raven_command import RavenCommand
-from ravendb.documents.operations.definitions import MaintenanceOperation, IOperation
+from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
+from ravendb.documents.operations.definitions import MaintenanceOperation, IOperation, VoidOperation
 from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
 
@@ -169,8 +169,7 @@ class ConfigureTimeSeriesPolicyOperation(MaintenanceOperation[ConfigureTimeSerie
         def create_request(self, node: ServerNode) -> requests.Request:
             request = requests.Request(
                 "PUT",
-                f"{node.url}/databases/{node.database}/admin/timeseries"
-                f"/policy?collection={self._url_encode(self._collection)}",
+                f"{node.url}/databases/{node.database}/admin/timeseries" f"/policy?collection={self._collection}",
                 data=self._configuration.to_json(),
             )
             return request
@@ -289,8 +288,8 @@ class RemoveTimeSeriesPolicyOperation(MaintenanceOperation[ConfigureTimeSeriesOp
                 "DELETE",
                 f"{node.url}/databases"
                 f"/{node.database}/admin/timeseries/policy?"
-                f"collection={self._url_encode(self._collection)}&"
-                f"name={self._url_encode(self._name)}",
+                f"collection={self._collection}&"
+                f"name={self._name}",
             )
 
         def set_response(self, response: Optional[str], from_cache: bool) -> None:
@@ -329,8 +328,8 @@ class TimeSeriesOperation:
 
         def to_json(self) -> Dict[str, Any]:
             return {
-                "From": Utils.datetime_to_string(self._datetime_from),
-                "To": Utils.datetime_to_string(self._datetime_to),
+                "From": Utils.datetime_to_string(self._datetime_from) if self._datetime_from else None,
+                "To": Utils.datetime_to_string(self._datetime_to) if self._datetime_to else None,
             }
 
     def __init__(self, name: Optional[str] = None):
@@ -397,7 +396,7 @@ class TimeSeriesRangeResult:
             Utils.string_to_datetime(json_dict["From"]),
             Utils.string_to_datetime(json_dict["To"]),
             [TimeSeriesEntry.from_json(entry_json) for entry_json in json_dict["Entries"]],
-            json_dict["TotalResults"],
+            json_dict["TotalResults"] if "TotalResults" in json_dict else 0,
             json_dict.get("Includes", None),
         )
 
@@ -460,19 +459,19 @@ class GetTimeSeriesOperation(IOperation[TimeSeriesRangeResult]):
                 node.database,
                 "/timeseries",
                 "?docId=",
-                self._url_encode(self._doc_id),
+                self._doc_id,
             ]
 
             if self._start > 0:
                 path_builder.append("&start=")
-                path_builder.append(self._start)
+                path_builder.append(str(self._start))
 
             if self._page_size < int_max:
                 path_builder.append("&pageSize=")
-                path_builder.append(self._page_size)
+                path_builder.append(str(self._page_size))
 
             path_builder.append("&name=")
-            path_builder.append(self._url_encode(self._name))
+            path_builder.append(self._name)
 
             if self._from is not None:
                 path_builder.append("&from=")
@@ -575,7 +574,7 @@ class GetMultipleTimeSeriesOperation(IOperation[TimeSeriesDetails]):
                 node.database,
                 "/timeseries/ranges",
                 "?docId=",
-                self._url_encode(self._doc_id),
+                self._doc_id,
             ]
 
             if self._start > 0:
@@ -615,3 +614,95 @@ class GetMultipleTimeSeriesOperation(IOperation[TimeSeriesDetails]):
 
         def is_read_request(self) -> bool:
             return True
+
+
+class TimeSeriesBatchOperation(VoidOperation):
+    def __init__(self, document_id: str, operation: TimeSeriesOperation):
+        if document_id is None:
+            raise ValueError("Document id cannot be None")
+        if operation is None:
+            raise ValueError("Operation cannot be None")
+
+        self._document_id = document_id
+        self._operation = operation
+
+    def get_command(
+        self, store: "DocumentStore", conventions: "DocumentConventions", cache: HttpCache
+    ) -> VoidRavenCommand:
+        return self.TimeSeriesBatchCommand(self._document_id, self._operation, conventions)
+
+    class TimeSeriesBatchCommand(VoidRavenCommand):
+        def __init__(self, document_id: str, operation: TimeSeriesOperation, conventions: "DocumentConventions"):
+            super().__init__()
+            self._document_id = document_id
+            self._operation = operation
+            self._conventions = conventions
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            url = f"{node.url}/databases/{node.database}/timeseries?docId={self._document_id}"
+            request = requests.Request("POST", url)
+            request.data = self._operation.to_json()
+            return request
+
+        def is_read_request(self) -> bool:
+            return False
+
+
+class TimeSeriesItemDetail:
+    def __init__(self, name: str, number_of_entities: int, start_date: datetime.datetime, end_date: datetime.datetime):
+        self.name = name
+        self.number_of_entries = number_of_entities
+        self.start_date = start_date
+        self.end_date = end_date
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesItemDetail:
+        return cls(
+            json_dict["Name"],
+            json_dict["NumberOfEntries"],
+            Utils.string_to_datetime(json_dict["StartDate"]),
+            Utils.string_to_datetime(json_dict["EndDate"]),
+        )
+
+
+class TimeSeriesStatistics:
+    def __init__(self, document_id: str, time_series: List[TimeSeriesItemDetail]):
+        self.document_id = document_id
+        self.time_series = time_series
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesStatistics:
+        return cls(
+            json_dict["DocumentId"],
+            [TimeSeriesItemDetail.from_json(ts_item_detail_json) for ts_item_detail_json in json_dict["TimeSeries"]],
+        )
+
+
+class GetTimeSeriesStatisticsOperation(IOperation[TimeSeriesStatistics]):
+    def __init__(self, document_id: str):
+        self._document_id = document_id
+
+    @property
+    def document_id(self) -> str:
+        return self.document_id
+
+    def get_command(
+        self, store: "DocumentStore", conventions: "DocumentConventions", cache: HttpCache
+    ) -> RavenCommand[TimeSeriesStatistics]:
+        return self.GetTimeSeriesStatisticsCommand(self._document_id)
+
+    class GetTimeSeriesStatisticsCommand(RavenCommand[TimeSeriesStatistics]):
+        def __init__(self, document_id: str):
+            super().__init__()
+            self._document_id = document_id
+
+        def is_read_request(self) -> bool:
+            return True
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "GET", f"{node.url}/databases/{node.database}/timeseries/stats?docId={self._document_id}"
+            )
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            self.result = TimeSeriesStatistics.from_json(json.loads(response))

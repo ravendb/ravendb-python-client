@@ -619,6 +619,10 @@ class InMemoryDocumentSessionOperations:
         return self._counters_by_doc_id
 
     @property
+    def time_series_by_doc_id(self):
+        return self._time_series_by_doc_id
+
+    @property
     def number_of_requests(self) -> int:
         return self.__number_of_requests
 

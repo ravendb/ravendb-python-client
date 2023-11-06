@@ -27,8 +27,8 @@ class TestTimeSeries(TestBase):
         now = datetime.now()
         with self.store.open_session() as session:
             tsf = session.time_series_for("users/1-A", "HeartRate")
-            tsf.append(now, 70, tag="foo/bar")
-            tsf.append(now - timedelta(hours=3), 86, tag="foo/bazz")
+            tsf.append_single(now, 70, tag="foo/bar")
+            tsf.append_single(now - timedelta(hours=3), 86, tag="foo/bazz")
             session.save_changes()
 
             time_series = tsf.get()
@@ -40,7 +40,7 @@ class TestTimeSeries(TestBase):
         now = datetime.now()
         with self.store.open_session() as session:
             tsf = session.time_series_for("users/1-A", "HeartRate")
-            tsf.append(now, 70, tag="foo/bar")
+            tsf.append_single(now, 70, tag="foo/bar")
             session.save_changes()
             time_series = tsf.get()
             self.assertEqual(len(time_series), 1)
@@ -57,9 +57,9 @@ class TestTimeSeries(TestBase):
         now = datetime.now()
         with self.store.open_session() as session:
             tsf = session.time_series_for("users/1-A", "HeartRate")
-            tsf.append(now + timedelta(minutes=5), 70, tag="foo/bar")
-            tsf.append(now + timedelta(hours=3), 71, tag="foo/barz")
-            tsf.append(now + timedelta(days=5), 72, tag="foo/barzz")
+            tsf.append_single(now + timedelta(minutes=5), 70, tag="foo/bar")
+            tsf.append_single(now + timedelta(hours=3), 71, tag="foo/barz")
+            tsf.append_single(now + timedelta(days=5), 72, tag="foo/barzz")
 
             session.save_changes()
 

@@ -18,9 +18,9 @@ class TestTimeSeriesOperations(TestBase):
     def add_timeseries(self):
         # Add time_series to user/1-A document
         time_series_operation = TimeSeriesOperation(name="Heartrate")
-        time_series_operation.append(datetime.now(), 73, tag="heart/rates")
-        time_series_operation.append(datetime.now() + timedelta(minutes=5), 78, tag="heart/rates")
-        time_series_operation.append(datetime(2019, 4, 23) + timedelta(minutes=5), 789, tag="heart/rates")
+        time_series_operation.append_single(datetime.now(), 73, tag="heart/rates")
+        time_series_operation.append_single(datetime.now() + timedelta(minutes=5), 78, tag="heart/rates")
+        time_series_operation.append_single(datetime(2019, 4, 23) + timedelta(minutes=5), 789, tag="heart/rates")
 
         time_series_batch_operation = TimeSeriesBatchOperation(document_id="users/1-A", operation=time_series_operation)
         self.store.operations.send(time_series_batch_operation)

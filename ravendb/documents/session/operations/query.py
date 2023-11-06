@@ -135,9 +135,8 @@ class QueryOperation:
             if query_result.counter_includes is not None:
                 self.__session.register_counters(query_result.counter_includes, query_result.included_counter_names)
 
-            # todo: timeseries
             if query_result.time_series_includes is not None:
-                raise NotImplementedError()
+                self.__session.register_time_series(query_result.time_series_includes)
 
             if query_result.compare_exchange_value_includes is not None:
                 self.__session.cluster_transaction.register_compare_exchange_values(

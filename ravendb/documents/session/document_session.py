@@ -641,8 +641,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if self._session._counters_by_doc_id:
                     self._session._counters_by_doc_id.pop(document_info.key, None)
-                if self._session._time_series_by_doc_id:
-                    self._session._time_series_by_doc_id.pop(document_info.key, None)
+                if self._session.time_series_by_doc_id:
+                    self._session.time_series_by_doc_id.pop(document_info.key, None)
 
             self._session._deleted_entities.evict(entity)
             self._session.entity_to_json.remove_from_missing(entity)
@@ -1740,10 +1740,10 @@ class SessionTimeSeriesBase(abc.ABC):
             f", the document was already deleted in this session."
         )
 
-    def append(self, timestamp: datetime.datetime, value: float, tag: Optional[str] = None) -> None:
-        self.append_values(timestamp, [value], tag)
+    def append_single(self, timestamp: datetime.datetime, value: float, tag: Optional[str] = None) -> None:
+        self.append(timestamp, [value], tag)
 
-    def append_values(self, timestamp: datetime.datetime, values: List[float], tag: Optional[str] = None) -> None:
+    def append(self, timestamp: datetime.datetime, values: List[float], tag: Optional[str] = None) -> None:
         document_info = self.session._documents_by_id.get_value(self.doc_id)
         if document_info is not None and document_info.entity in self.session._deleted_entities:
             self._throw_document_already_deleted_in_session(self.doc_id, self.name)
@@ -1766,7 +1766,9 @@ class SessionTimeSeriesBase(abc.ABC):
     def delete_at(self, at: datetime.datetime) -> None:
         self.delete(at, at)
 
-    def delete(self, datetime_from: Optional[datetime.datetime], datetime_to: Optional[datetime.datetime]):
+    def delete(
+        self, datetime_from: Optional[datetime.datetime] = None, datetime_to: Optional[datetime.datetime] = None
+    ):
         document_info = self.session._documents_by_id.get_value(self.doc_id)
         if document_info is not None and document_info.entity in self.session._deleted_entities:
             self._throw_document_already_deleted_in_session(self.doc_id, self.name)
@@ -1798,15 +1800,12 @@ class SessionTimeSeriesBase(abc.ABC):
         document = self.session._documents_by_id.get_value(self.doc_id)
         if document is not None:
             metadata_time_series_raw = document.metadata.get(constants.Documents.Metadata.TIME_SERIES)
-            if metadata_time_series_raw is not None:  # todo: and is array ?
+            if metadata_time_series_raw is not None and isinstance(metadata_time_series_raw, list):
                 time_series = metadata_time_series_raw
 
-                for ts in time_series:
-                    if self.name in ts:
-                        break
-                    return (
-                        []
-                    )  # the document is loaded in the session, but the metadata says that there is no such timeseries
+                if not any(ts.lower() == self.name.lower() for ts in time_series):
+                    # the document is loaded in the session, but the metadata says that there is no such timeseries
+                    return []
 
         self.session.increment_requests_count()
         range_result: TimeSeriesRangeResult = self.session.operations.send(
@@ -1819,16 +1818,20 @@ class SessionTimeSeriesBase(abc.ABC):
 
         if not self.session.no_tracking:
             self._handle_includes(range_result)
+            needs_write = self.doc_id not in self.session.time_series_by_doc_id
+            cache = CaseInsensitiveDict() if needs_write else self.session.time_series_by_doc_id[self.doc_id]
 
-            cache = self.session._time_series_by_doc_id.get(self.doc_id, CaseInsensitiveDict())
             ranges = cache.get(self.name)
             if ranges is not None and len(ranges) > 0:
                 # update
                 index = 0 if ranges[0].from_date > to_datetime else len(ranges)
-                ranges[index] = range_result
+                ranges.insert(index, range_result)
             else:
                 item = [range_result]
                 cache[self.name] = item
+
+            if needs_write:
+                self.session.time_series_by_doc_id[self.doc_id] = cache
 
         return range_result.entries
 
@@ -1872,7 +1875,7 @@ class SessionTimeSeriesBase(abc.ABC):
         page_size: int,
         includes: Callable[[TimeSeriesIncludeBuilder], None],
     ) -> List[TimeSeriesEntry]:
-        cache = self.session._time_series_by_doc_id.get(self.doc_id, None)
+        cache = self.session.time_series_by_doc_id.get(self.doc_id, None)
         ranges = cache.get(self.name)
 
         # try to find a range in cache that contains [from, to]
@@ -2103,11 +2106,11 @@ class SessionTimeSeriesBase(abc.ABC):
         return result_to_user
 
     def _not_in_cache(self, from_date: datetime.datetime, to_date: datetime.datetime):
-        cache = self.session._time_series_by_doc_id.get(self.doc_id, None)
+        cache = self.session.time_series_by_doc_id.get(self.doc_id, None)
         if cache is None:
             return True
 
-        ranges = cache[self.name]
+        ranges = cache.get(self.name, None)
         if ranges is None:
             return True
 
@@ -2218,10 +2221,10 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
 
     def append(self, timestamp: datetime.datetime, entry: _T, tag: Optional[str] = None) -> None:
         values = TimeSeriesValuesHelper.get_values(type(entry), entry)
-        self.append_values(timestamp, values, tag)
+        self.append(timestamp, values, tag)
 
     def append_entry(self, entry: TypedTimeSeriesEntry[_T]) -> None:
-        self.append(entry.timestamp, entry.value, entry.tag)
+        self.append_single(entry.timestamp, entry.value, entry.tag)
 
 
 class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
@@ -2261,4 +2264,4 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
 
     def append_entry(self, entry: TypedTimeSeriesRollupEntry) -> None:
         values = entry.get_values_from_members()
-        self.append_values(entry.timestamp, values, entry.tag)
+        self.append(entry.timestamp, values, entry.tag)
