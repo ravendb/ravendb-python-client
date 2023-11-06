@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 from ravendb.documents.operations.time_series import (
     GetTimeSeriesOperation,
     TimeSeriesOperation,
-    TimeSeriesBatchOperation, GetTimeSeriesStatisticsOperation,
+    TimeSeriesBatchOperation,
+    GetTimeSeriesStatisticsOperation,
 )
 from ravendb.tests.test_base import TestBase, User
 
