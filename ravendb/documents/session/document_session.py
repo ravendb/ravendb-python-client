@@ -1901,7 +1901,7 @@ class SessionTimeSeriesBase(abc.ABC):
                     # we have all the range we need
                     # or that we have all the results we need in smaller range
 
-                    return self.chop_relevant_range(ranges[to_range_index], from_date, to_date, start, page_size)
+                    return self._chop_relevant_range(ranges[to_range_index], from_date, to_date, start, page_size)
 
                 from_range_index = to_range_index
                 continue
@@ -2060,22 +2060,23 @@ class SessionTimeSeriesBase(abc.ABC):
 
     @staticmethod
     def _chop_relevant_range(
-        self,
-        range: TimeSeriesRangeResult,
+        ts_range: TimeSeriesRangeResult,
         from_date: datetime.datetime,
         to_date: datetime.datetime,
         start: int,
         page_size: int,
-    ):
-        if range.entries is None:
+    ) -> List[TimeSeriesEntry]:
+        if ts_range.entries is None:
             return []
 
-        result = []
-        for value in range.entries:
+        results = []
+        for value in ts_range.entries:
             if value.timestamp > to_date:
                 break
+
             if value.timestamp < from_date:
                 continue
+
             start -= 1
             if start + 1 > 0:
                 continue
@@ -2084,9 +2085,9 @@ class SessionTimeSeriesBase(abc.ABC):
             if page_size + 1 <= 0:
                 break
 
-            result.append(value)
+            results.append(value)
 
-        return result
+        return results
 
     def _get_from_cache(
         self,

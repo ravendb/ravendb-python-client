@@ -517,7 +517,11 @@ class TimeSeriesDetails:
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesDetails:
         return cls(
-            json_dict["Id"], {key: TimeSeriesRangeResult.from_json(value) for key, value in json_dict["Values"].items()}
+            json_dict["Id"],
+            {
+                key: [TimeSeriesRangeResult.from_json(value) for value in values]
+                for key, values in json_dict["Values"].items()
+            },
         )
 
 
