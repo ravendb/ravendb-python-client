@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, List, TYPE_CHECKING, Type, TypeVar
+from typing import Optional, List, TYPE_CHECKING, Type, TypeVar, Set
 
 from ravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
 from ravendb.documents.session.document_info import DocumentInfo
@@ -78,7 +78,7 @@ class LoadOperation:
             self._keys = [key]
         return self
 
-    def with_includes(self, includes: List[str]):
+    def with_includes(self, includes: Optional[Set[str]]):
         self._includes = includes
         return self
 

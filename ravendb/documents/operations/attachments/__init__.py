@@ -152,7 +152,7 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
 
 
 class GetAttachmentOperation(IOperation):
-    def __init__(self, document_id: str, name: str, attachment_type: AttachmentType, change_vector: str):
+    def __init__(self, document_id: str, name: str, attachment_type: AttachmentType, change_vector: Optional[str]):
         if document_id is None:
             raise ValueError("Invalid document_id")
         if name is None:

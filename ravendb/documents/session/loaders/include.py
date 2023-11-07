@@ -22,24 +22,32 @@ class IncludeBuilderBase:
         self._include_time_series_document: Optional[bool] = None
 
     @property
-    def _time_series_to_include(self) -> Union[None, Set["TimeSeriesRange"]]:
+    def time_series_to_include(self) -> Union[None, Set["TimeSeriesRange"]]:
         if self._time_series_to_include_by_source_alias is None:
             return None
-        return self._time_series_to_include_by_source_alias[""]
+        return self._time_series_to_include_by_source_alias.get("", None)
 
     @property
-    def _counters_to_include(self) -> Union[None, Set[str]]:
+    def counters_to_include(self) -> Union[None, Set[str]]:
         if self._counters_to_include_by_source_path is None or len(self._counters_to_include_by_source_path) == 0:
             return None
-        value = self._counters_to_include_by_source_path.get("")
+        value = self._counters_to_include_by_source_path.get("", None)
         return value[1] if value is not None else {}
 
     @property
-    def _is_all_counters(self) -> bool:
+    def is_all_counters(self) -> bool:
         if self._counters_to_include_by_source_path is None:
             return False
-        value = self._counters_to_include_by_source_path.get("")
+        value = self._counters_to_include_by_source_path.get("", None)
         return value[0] if value is not None else False
+
+    @property
+    def documents_to_include(self):
+        return self._documents_to_include
+
+    @property
+    def compare_exchange_values_to_include(self):
+        return self._compare_exchange_values_to_include
 
     def _include_compare_exchange_value(self, path: str) -> None:
         if self._compare_exchange_values_to_include is None:

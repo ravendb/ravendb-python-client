@@ -593,6 +593,22 @@ class InMemoryDocumentSessionOperations:
             event(before_query_event_args)
 
     @property
+    def documents_by_id(self):
+        return self._documents_by_id
+
+    @property
+    def deleted_entities(self):
+        return self._deleted_entities
+
+    @property
+    def deferred_commands_map(self):
+        return self._deferred_commands_map
+
+    @property
+    def documents_by_entity(self):
+        return self._documents_by_entity
+
+    @property
     def operations(self) -> OperationExecutor:
         return self._operation_executor
 

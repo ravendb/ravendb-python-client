@@ -76,7 +76,7 @@ class DeleteDocumentCommand(VoidRavenCommand):
 
 
 class HeadDocumentCommand(RavenCommand[str]):
-    def __init__(self, key: str, change_vector: str):
+    def __init__(self, key: str, change_vector: Optional[str]):
         super(HeadDocumentCommand, self).__init__(str)
         if key is None:
             raise ValueError("Key cannot be None")
@@ -368,7 +368,7 @@ class HiLoReturnCommand(VoidRavenCommand):
 
 
 class HeadAttachmentCommand(RavenCommand[str]):
-    def __init__(self, document_id: str, name: str, change_vector: str):
+    def __init__(self, document_id: str, name: str, change_vector: Optional[str]):
         super().__init__(str)
 
         if document_id.isspace():
