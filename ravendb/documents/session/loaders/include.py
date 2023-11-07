@@ -1,9 +1,12 @@
 from __future__ import annotations
 import datetime
-from typing import Set, Tuple, Dict, Union, Optional, List
+from typing import Set, Tuple, Dict, Union, Optional, TYPE_CHECKING
 from ravendb.documents.conventions import DocumentConventions
-from ravendb.data.timeseries import TimeSeriesRange
+import ravendb.documents.operations.time_series
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
+
+if TYPE_CHECKING:
+    from ravendb.documents.operations.time_series import TimeSeriesRange
 
 
 class IncludeBuilderBase:
@@ -13,11 +16,13 @@ class IncludeBuilderBase:
         self._documents_to_include: Set[str] = set()
         self._alias: str = ""
         self._counters_to_include_by_source_path: Dict[str, Tuple[bool, Set[str]]] = CaseInsensitiveDict()
-        self._time_series_to_include_by_source_alias: Dict[str, Set[TimeSeriesRange]] = {}
+        self._time_series_to_include_by_source_alias: Dict[str, Set["TimeSeriesRange"]] = {}
         self._compare_exchange_values_to_include: Set[str] = set()
+        self._include_time_series_tags: Optional[bool] = None
+        self._include_time_series_document: Optional[bool] = None
 
     @property
-    def _time_series_to_include(self) -> Union[None, Set[TimeSeriesRange]]:
+    def _time_series_to_include(self) -> Union[None, Set["TimeSeriesRange"]]:
         if self._time_series_to_include_by_source_alias is None:
             return None
         return self._time_series_to_include_by_source_alias[""]
@@ -43,14 +48,14 @@ class IncludeBuilderBase:
 
     def _include_counter_with_alias(self, path: str, *names: str) -> None:
         self._with_alias()
-        self._include_counters(path, list(names) if isinstance(names, tuple) else [names])
+        self._include_counters(path, *names)
 
     def _include_documents(self, path: str):
         if not self._documents_to_include:
             self._documents_to_include = set()
         self._documents_to_include.add(path)
 
-    def _include_counters(self, path: str, names: List[str]):
+    def _include_counters(self, path: str, *names: str):
         if not names:
             raise ValueError("Expected at least one name")
 
@@ -102,7 +107,7 @@ class IncludeBuilderBase:
             hash_set = set()
             self._time_series_to_include_by_source_alias[alias] = hash_set
 
-        hash_set.add(TimeSeriesRange(name, from_date, to_date))
+        hash_set.add(ravendb.documents.operations.time_series.TimeSeriesRange(name, from_date, to_date))
 
 
 class IncludeBuilder(IncludeBuilderBase):
@@ -114,7 +119,7 @@ class IncludeBuilder(IncludeBuilderBase):
         return self
 
     def include_counter(self, name: str) -> IncludeBuilderBase:
-        self._include_counters("", [name])
+        self._include_counters("", name)
         return self
 
     def include_counters(self, *names: str) -> IncludeBuilderBase:
@@ -147,7 +152,7 @@ class QueryIncludeBuilder(IncludeBuilderBase):
         return self
 
     def include_counters(self, *names: str, path: Optional[str] = ""):
-        self._include_counter_with_alias(path, *names if isinstance(names, tuple) else names)
+        self._include_counter_with_alias(path, *names)
         return self
 
     def include_all_counters(self, path: Optional[str] = ""):
@@ -210,3 +215,16 @@ class SubscriptionIncludeBuilder(IncludeBuilderBase):
 #       time: TimeValue
 #   ) -> SubscriptionIncludeBuilder:
 #       self._include_time_series_by_range_type_and_count("", name, type, count)
+
+
+class TimeSeriesIncludeBuilder(IncludeBuilderBase):
+    def __init__(self, conventions: DocumentConventions):
+        super(TimeSeriesIncludeBuilder, self).__init__(conventions)
+
+    def include_tags(self) -> TimeSeriesIncludeBuilder:
+        self._include_time_series_tags = True
+        return self
+
+    def include_document(self) -> TimeSeriesIncludeBuilder:
+        self._include_time_series_document = TimeSeriesIncludeBuilder
+        return self

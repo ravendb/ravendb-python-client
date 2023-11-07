@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 import copy
 import datetime
 import http
@@ -7,15 +8,31 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar
+from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Tuple, Generic
 
 from ravendb import constants
+from ravendb.constants import int_max
 from ravendb.documents.operations.counters import CounterOperation, CounterOperationType, GetCountersOperation
+from ravendb.documents.operations.time_series import (
+    TimeSeriesOperation,
+    GetTimeSeriesOperation,
+    TimeSeriesRange,
+    TimeSeriesRangeResult,
+    TimeSeriesDetails,
+    GetMultipleTimeSeriesOperation,
+    TimeSeriesConfiguration,
+)
 from ravendb.documents.session.conditional_load import ConditionalLoadResult
+from ravendb.documents.session.time_series import (
+    TimeSeriesEntry,
+    TypedTimeSeriesEntry,
+    TimeSeriesValuesHelper,
+    TypedTimeSeriesRollupEntry,
+)
+from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import InvalidOperationException
 from ravendb.data.operation import AttachmentType
-from ravendb.data.timeseries import TimeSeriesRange
 from ravendb.documents.indexes.definitions import AbstractCommonApiForIndexes
 from ravendb.documents.operations.attachments import (
     GetAttachmentOperation,
@@ -31,6 +48,7 @@ from ravendb.documents.session.cluster_transaction_operation import (
     IClusterTransactionOperations,
 )
 from ravendb.documents.session.document_info import DocumentInfo
+from ravendb.documents.session.loaders.include import TimeSeriesIncludeBuilder
 from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
     InMemoryDocumentSessionOperations,
 )
@@ -63,6 +81,7 @@ from ravendb.documents.commands.batches import (
     IndexBatchOptions,
     ReplicationBatchOptions,
     CountersBatchCommandData,
+    TimeSeriesBatchCommandData,
 )
 from ravendb.documents.commands.crud import (
     HeadDocumentCommand,
@@ -437,6 +456,38 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def counters_for_entity(self, entity: object) -> SessionDocumentCounters:
         return SessionDocumentCounters(self, entity)
 
+    def time_series_for(self, document_id: str, name: str = None) -> SessionDocumentTimeSeries:
+        return SessionDocumentTimeSeries(self, document_id, name)
+
+    def time_series_for_entity(self, entity: object, name: str = None) -> SessionDocumentTimeSeries:
+        return SessionDocumentTimeSeries.from_entity(self, entity, name)
+
+    def typed_time_series_for(
+        self, object_type: Type[_T], document_id: str, name: Optional[str] = None
+    ) -> SessionDocumentTypedTimeSeries[_T]:
+        return SessionDocumentTypedTimeSeries(object_type, self, document_id, name)
+
+    def typed_time_series_for_entity(
+        self, object_type: Type[_T], entity: object, name: Optional[str] = None
+    ) -> SessionDocumentTypedTimeSeries[_T]:
+        return SessionDocumentTypedTimeSeries.from_entity_typed(object_type, self, entity, name)
+
+    def time_series_rollup_for(
+        self, object_type: Type[_T], document_id: str, policy: str, raw: Optional[str] = None
+    ) -> SessionDocumentRollupTypedTimeSeries[_T]:
+        ts_name = raw or TimeSeriesOperations.get_time_series_name(object_type, self.conventions)
+        return SessionDocumentRollupTypedTimeSeries(
+            object_type, self, document_id, ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy
+        )
+
+    def time_series_rollup_for_entity(
+        self, object_type: Type[_T], entity: object, policy: str, raw: Optional[str] = None
+    ) -> SessionDocumentRollupTypedTimeSeries[_T]:
+        ts_name = raw or TimeSeriesOperations.get_time_series_name(object_type, self.conventions)
+        return SessionDocumentRollupTypedTimeSeries.from_entity_rollup_typed(
+            object_type, self, entity, ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy
+        )
+
     class _EagerSessionOperations:
         def __init__(self, session: DocumentSession):
             self.__session = session
@@ -590,8 +641,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
                 if self._session._counters_by_doc_id:
                     self._session._counters_by_doc_id.pop(document_info.key, None)
-                if self._session._time_series_by_doc_id:
-                    self._session._time_series_by_doc_id.pop(document_info.key, None)
+                if self._session.time_series_by_doc_id:
+                    self._session.time_series_by_doc_id.pop(document_info.key, None)
 
             self._session._deleted_entities.evict(entity)
             self._session.entity_to_json.remove_from_missing(entity)
@@ -1644,3 +1695,574 @@ class SessionDocumentCounters(SessionCountersBase):
             self.session.counters_by_doc_id[self.doc_id] = cache
 
         return result
+
+
+class SessionTimeSeriesBase(abc.ABC):
+    def __init__(self, session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+        if not document_id or document_id.isspace():
+            raise ValueError("Document id cannot be None.")
+
+        if not name or name.isspace():
+            raise ValueError("Name cannot be None")
+
+        self.doc_id = document_id
+        self.name = name
+        self.session = session
+
+    @classmethod
+    def from_entity(
+        cls, session: InMemoryDocumentSessionOperations, entity: object, name: str
+    ) -> SessionTimeSeriesBase:
+        if entity is None:
+            raise ValueError("Entity cannot be None")
+
+        document_info = session._documents_by_entity.get(entity)
+
+        if document_info is None:
+            cls._throw_entity_not_in_session()
+
+        if not name or name.isspace():
+            raise ValueError("Name cannot be None or whitespace")
+
+        return cls(session, document_info.key, name)
+
+    @staticmethod
+    def _throw_entity_not_in_session() -> None:
+        raise ValueError(
+            "Entity is not associated with the session, cannot perform timeseries operations to it. "
+            "Use document id instead or track the entity in the session"
+        )
+
+    @staticmethod
+    def _throw_document_already_deleted_in_session(document_id: str, time_series: str) -> None:
+        raise ValueError(
+            f"Can't modify timeseries {time_series} of document {document_id}"
+            f", the document was already deleted in this session."
+        )
+
+    def append_single(self, timestamp: datetime.datetime, value: float, tag: Optional[str] = None) -> None:
+        self.append(timestamp, [value], tag)
+
+    def append(self, timestamp: datetime.datetime, values: List[float], tag: Optional[str] = None) -> None:
+        document_info = self.session._documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session._deleted_entities:
+            self._throw_document_already_deleted_in_session(self.doc_id, self.name)
+
+        op = TimeSeriesOperation.AppendOperation(timestamp, values, tag)
+        command = self.session._deferred_commands_map.get(
+            IdTypeAndName.create(self.doc_id, CommandType.TIME_SERIES, self.name)
+        )
+        if command is not None:
+            ts_cmd: TimeSeriesBatchCommandData = command
+            ts_cmd.time_series.append(op)
+        else:
+            appends = []
+            appends.append(op)
+            self.session.defer(TimeSeriesBatchCommandData(self.doc_id, self.name, appends, None))
+
+    def delete_all(self) -> None:
+        self.delete(None, None)
+
+    def delete_at(self, at: datetime.datetime) -> None:
+        self.delete(at, at)
+
+    def delete(
+        self, datetime_from: Optional[datetime.datetime] = None, datetime_to: Optional[datetime.datetime] = None
+    ):
+        document_info = self.session._documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session._deleted_entities:
+            self._throw_document_already_deleted_in_session(self.doc_id, self.name)
+
+        op = TimeSeriesOperation.DeleteOperation(datetime_from, datetime_to)
+
+        command = self.session._deferred_commands_map.get(
+            IdTypeAndName.create(self.doc_id, CommandType.TIME_SERIES, self.name), None
+        )
+        if command is not None:
+            ts_cmd: TimeSeriesBatchCommandData = command
+            ts_cmd.time_series.delete(op)
+
+        else:
+            deletes = [op]
+            self.session.defer(TimeSeriesBatchCommandData(self.doc_id, self.name, None, deletes))
+
+    def get_time_series_and_includes(
+        self,
+        from_datetime: datetime.datetime,
+        to_datetime: datetime.datetime,
+        includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]],
+        start: int,
+        page_size: int,
+    ) -> Optional[List[TimeSeriesEntry]]:
+        if page_size == 0:
+            return []
+
+        document = self.session._documents_by_id.get_value(self.doc_id)
+        if document is not None:
+            metadata_time_series_raw = document.metadata.get(constants.Documents.Metadata.TIME_SERIES)
+            if metadata_time_series_raw is not None and isinstance(metadata_time_series_raw, list):
+                time_series = metadata_time_series_raw
+
+                if not any(ts.lower() == self.name.lower() for ts in time_series):
+                    # the document is loaded in the session, but the metadata says that there is no such timeseries
+                    return []
+
+        self.session.increment_requests_count()
+        range_result: TimeSeriesRangeResult = self.session.operations.send(
+            GetTimeSeriesOperation(self.doc_id, self.name, from_datetime, to_datetime, start, page_size, includes),
+            self.session.session_info,
+        )
+
+        if range_result is None:
+            return None
+
+        if not self.session.no_tracking:
+            self._handle_includes(range_result)
+            needs_write = self.doc_id not in self.session.time_series_by_doc_id
+            cache = CaseInsensitiveDict() if needs_write else self.session.time_series_by_doc_id[self.doc_id]
+
+            ranges = cache.get(self.name)
+            if ranges is not None and len(ranges) > 0:
+                # update
+                index = 0 if ranges[0].from_date > to_datetime else len(ranges)
+                ranges.insert(index, range_result)
+            else:
+                item = [range_result]
+                cache[self.name] = item
+
+            if needs_write:
+                self.session.time_series_by_doc_id[self.doc_id] = cache
+
+        return range_result.entries
+
+    def _handle_includes(self, range_result: TimeSeriesRangeResult) -> None:
+        if range_result.includes is None:
+            return
+
+        self.session.register_includes(range_result.includes)
+
+        range_result.includes = None
+
+    @staticmethod
+    def _skip_and_trim_range_if_needed(
+        from_date: datetime.datetime,
+        to_date: datetime.datetime,
+        from_range: TimeSeriesRangeResult,
+        to_range: TimeSeriesRangeResult,
+        values: List[TimeSeriesEntry],
+        skip: int,
+        trim: int,
+    ) -> List[TimeSeriesEntry]:
+        if from_range is not None and from_date <= from_range.to_date:
+            # need to skip a part of the first range
+            if to_range is not None and to_date >= to_range.from_date:
+                # also need to trim a part of the last range
+                return values[skip : len(values) - trim]
+
+            return values[skip:]
+
+        if to_range is not None and to_date >= to_range.from_date:
+            # trim a part of the last range
+            return values[: len(values) - trim]
+
+        return values
+
+    def _serve_from_cache(
+        self,
+        from_date: datetime.datetime,
+        to_date: datetime.datetime,
+        start: int,
+        page_size: int,
+        includes: Callable[[TimeSeriesIncludeBuilder], None],
+    ) -> List[TimeSeriesEntry]:
+        cache = self.session.time_series_by_doc_id.get(self.doc_id, None)
+        ranges = cache.get(self.name)
+
+        # try to find a range in cache that contains [from, to]
+        # if found, chop just the relevant part from it and return to the user
+
+        # otherwise, try to find two ranges (from_range, to_range)
+        # such that 'from_range' is the last occurence for which range.from_date <= from_date
+        # and to_range is the first occurence for which range.to_date >= to
+        # At the same time, figure out the missing partial ranges that we need to get from the server
+
+        from_range_index = -1
+        ranges_to_get_from_server: Optional[List[TimeSeriesRange]] = None
+        to_range_index = -1
+
+        for i in range(len(ranges)):
+            to_range_index += 1
+            if ranges[to_range_index].from_date <= from_date:
+                if (
+                    ranges[to_range_index].to_date >= to_date
+                    or len(ranges[to_range_index].entries) - start >= page_size
+                ):
+                    # we have the entire range in cache
+                    # we have all the range we need
+                    # or that we have all the results we need in smaller range
+
+                    return self._chop_relevant_range(ranges[to_range_index], from_date, to_date, start, page_size)
+
+                from_range_index = to_range_index
+                continue
+
+            # can't get the entire range from cache
+            if ranges_to_get_from_server is None:
+                ranges_to_get_from_server = []
+
+            # add the missing part [f, t] between current range start (or 'from')
+            # and previous range end (or 'to') to the list of ranges we need to get from server
+
+            from_to_use = (
+                from_date
+                if (to_range_index == 0 or from_date < ranges[to_range_index - 1].to_date)
+                else ranges[to_range_index - 1].to_date
+            )
+            to_to_use = ranges[to_range_index].from_date if ranges[to_range_index].from_date <= to_date else to_date
+
+            ranges_to_get_from_server.append(TimeSeriesRange(self.name, from_to_use, to_to_use))
+
+            if ranges[to_range_index].to_date >= to_date:
+                break
+
+        if to_range_index == len(ranges) - 1:
+            # requested_range [from, to] ends after all ranges in cache
+            # add the missing part between the last range end and 'to'
+            # to the list of ranges we need to get from server
+
+            if ranges_to_get_from_server is None:
+                ranges_to_get_from_server = []
+
+            ranges_to_get_from_server.append(TimeSeriesRange(self.name, ranges[-1].to_date, to_date))
+
+        # get all the missing parts from server
+
+        self.session.increment_requests_count()
+
+        details: TimeSeriesDetails = self.session.operations.send(
+            GetMultipleTimeSeriesOperation(self.doc_id, ranges_to_get_from_server, start, page_size, includes),
+            self.session.session_info,
+        )
+
+        if includes is not None:
+            self._register_includes(details)
+
+        # merge all the missing parts as we got from server
+        # with all the ranges in cache that are between 'fromRange' and 'toRange'
+
+        merged_values, result_to_user = self._merge_ranges_with_results(
+            from_date, to_date, ranges, from_range_index, to_range_index, details.values[self.name]
+        )
+
+        if not self.session.no_tracking:
+            from_date = min(
+                [
+                    from_date
+                    for from_date in [x.from_date for x in details.values.get(self.name)]
+                    if from_date is not None
+                ]
+            )
+            to_date = max(
+                [to_date for to_date in [x.to_date for x in details.values.get(self.name)] if to_date is not None]
+            )
+            InMemoryDocumentSessionOperations.add_to_cache(
+                self.name, from_date, to_date, from_range_index, to_range_index, ranges, cache, merged_values
+            )
+
+        return result_to_user
+
+    def _register_includes(self, detials: TimeSeriesDetails) -> None:
+        for range_result in detials.values.get(self.name):
+            self._handle_includes(range_result)
+
+    @staticmethod
+    def _merge_ranges_with_results(
+        from_date: datetime.datetime,
+        to_date: datetime.datetime,
+        ranges: List[TimeSeriesRangeResult],
+        from_range_index: int,
+        to_range_index: int,
+        result_from_server: List[TimeSeriesRangeResult],
+    ) -> Tuple[List[TimeSeriesEntry], List[TimeSeriesEntry]]:
+        skip = 0
+        trim = 0
+        current_result_index = 0
+        merged_values = []
+
+        start = from_range_index if from_range_index != -1 else 0
+        end = len(ranges) - 1 if to_range_index == len(ranges) else to_range_index
+
+        for i in range(start, end + 1):
+            if i == from_range_index:
+                if ranges[i].from_date <= from_date <= ranges[i].to_date:
+                    # requested range [from, to] starts inside 'fromRange'
+                    # i.e from_range.from_date <= from_date <= from_range.to_date
+                    # so we might need to skip a part of it when we return the
+                    # result to the user (i.e. skip [from_range.from_date, from_date])
+
+                    if ranges[i].entries is not None:
+                        for v in ranges[i].entries:
+                            merged_values.append(v)
+                            if v.timestamp < from_date:
+                                skip += 1
+                continue
+
+            if (
+                current_result_index < len(result_from_server)
+                and result_from_server[current_result_index].from_date < ranges[i].from_date
+            ):
+                # add current result from server to the merged list
+                # in order to avoid duplication, skip first item in range
+                # (unless this is the first time we're adding to the merged list)
+                to_add = result_from_server[current_result_index].entries[0 if len(merged_values) == 0 else 1 :]
+                current_result_index += 1
+                merged_values.extend(to_add)
+
+            if i == to_range_index:
+                if ranges[i].from_date <= to_date:
+                    # requested range [from_date, to_date] ends inside to_range
+                    # so we might need to trim a part of it when we return the
+                    # result to the user (i.e. trim [to_date, to_range.to_date]
+
+                    for index in range(0 if len(merged_values) == 0 else 1, len(ranges[i].entries)):
+                        merged_values.append(ranges[i].entries[index])
+                        if ranges[i].entries[index].timestamp > to_date:
+                            trim += 1
+
+                continue
+
+            # add current range from cache to the merged list
+            # in order to avoid duplication, skip frist item in range if needed
+
+            to_add = ranges[i].entries[0 if len(merged_values) == 0 else 1 :]
+            merged_values.extend(to_add)
+
+        if current_result_index < len(result_from_server):
+            # the requested range ends after all the ranges in cache,
+            # so the last missing part is from server
+            # add last missing part to the merged list
+
+            to_add = result_from_server[current_result_index].entries[0 if len(merged_values) == 0 else 1 :]
+            current_result_index += 1
+            merged_values.extend(to_add)
+
+        result_to_user = SessionTimeSeriesBase._skip_and_trim_range_if_needed(
+            from_date,
+            to_date,
+            None if from_range_index == -1 else ranges[from_range_index],
+            None if to_range_index == len(ranges) else ranges[to_range_index],
+            merged_values,
+            skip,
+            trim,
+        )
+
+        return merged_values, result_to_user
+
+    @staticmethod
+    def _chop_relevant_range(
+        ts_range: TimeSeriesRangeResult,
+        from_date: datetime.datetime,
+        to_date: datetime.datetime,
+        start: int,
+        page_size: int,
+    ) -> List[TimeSeriesEntry]:
+        if ts_range.entries is None:
+            return []
+
+        results = []
+        for value in ts_range.entries:
+            if value.timestamp > to_date:
+                break
+
+            if value.timestamp < from_date:
+                continue
+
+            start -= 1
+            if start + 1 > 0:
+                continue
+
+            page_size -= 1
+            if page_size + 1 <= 0:
+                break
+
+            results.append(value)
+
+        return results
+
+    def _get_from_cache(
+        self,
+        from_date: datetime.datetime,
+        to_date: datetime.datetime,
+        includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]],
+        start: int,
+        page_size: int,
+    ):
+        # RavenDB-16060
+        # Typed TimeSeries result need special handling when served from cache
+        # since we cache the results untyped
+
+        # in java we return untyped entries here
+
+        result_to_user = self._serve_from_cache(from_date, to_date, start, page_size, includes)
+        return result_to_user
+
+    def _not_in_cache(self, from_date: datetime.datetime, to_date: datetime.datetime):
+        cache = self.session.time_series_by_doc_id.get(self.doc_id, None)
+        if cache is None:
+            return True
+
+        ranges = cache.get(self.name, None)
+        if ranges is None:
+            return True
+
+        return not ranges or ranges[0].from_date > to_date or from_date > ranges[-1].to_date
+
+    class CachedEntryInfo:
+        def __init__(
+            self,
+            served_from_cache: bool,
+            result_to_user: List[TimeSeriesEntry],
+            merged_values: List[TimeSeriesEntry],
+            from_range_index: int,
+            to_range_index: int,
+        ):
+            self.served_from_cache = served_from_cache
+            self.result_to_user = result_to_user
+            self.merged_values = merged_values
+            self.from_range_index = from_range_index
+            self.to_range_index = to_range_index
+
+
+class SessionDocumentTimeSeries(SessionTimeSeriesBase):
+    def __init__(self, session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+        super(SessionDocumentTimeSeries, self).__init__(session, document_id, name)
+
+    @classmethod
+    def from_entity(
+        cls, session: InMemoryDocumentSessionOperations, entity: object, name: str
+    ) -> SessionDocumentTimeSeries:
+        if entity is None:
+            raise ValueError("Entity cannot be None")
+
+        document_info = session._documents_by_entity.get(entity)
+
+        if document_info is None:
+            cls._throw_entity_not_in_session()
+
+        if not name or name.isspace():
+            raise ValueError("Name cannot be None or whitespace")
+
+        return cls(session, document_info.key, name)
+
+    def get(
+        self,
+        from_date: Optional[datetime.datetime] = None,
+        to_date: Optional[datetime.datetime] = None,
+        start: int = 0,
+        page_size: int = int_max,
+    ) -> Optional[List[TimeSeriesEntry]]:
+        return self.get_include(from_date, to_date, None, start, page_size)
+
+    def get_include(
+        self,
+        from_date: Optional[datetime.datetime] = None,
+        to_date: Optional[datetime.datetime] = None,
+        includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]] = None,
+        start: int = 0,
+        page_size: int = int_max,
+    ) -> Optional[List[TimeSeriesEntry]]:
+        if super()._not_in_cache(from_date, to_date):
+            return self.get_time_series_and_includes(from_date, to_date, includes, start, page_size)
+
+        results_to_user = super()._serve_from_cache(from_date, to_date, start, page_size, includes)
+
+        if results_to_user is None:
+            return None
+
+        return results_to_user[:page_size]
+
+
+class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
+    def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+        super(SessionDocumentTypedTimeSeries, self).__init__(session, document_id, name)
+        self._object_type = object_type
+
+    @classmethod
+    def from_entity_typed(
+        cls, object_type: Type[_T], session: InMemoryDocumentSessionOperations, entity: object, name: str
+    ) -> SessionDocumentTypedTimeSeries:
+        if entity is None:
+            raise ValueError("Entity cannot be None")
+
+        document_info = session._documents_by_entity.get(entity)
+
+        if document_info is None:
+            cls._throw_entity_not_in_session()
+
+        if not name or name.isspace():
+            raise ValueError("Name cannot be None or whitespace")
+        return cls(object_type, session, document_info.key, name)
+
+    def get(
+        self,
+        from_date: Optional[datetime.datetime] = None,
+        to_date: Optional[datetime.datetime] = None,
+        start: int = 0,
+        page_size: int = int_max,
+    ) -> Optional[List[TypedTimeSeriesEntry[_T]]]:
+        if super()._not_in_cache(from_date, to_date):
+            entries = self.get_time_series_and_includes(from_date, to_date, None, start, page_size)
+            if entries is None:
+                return None
+
+            return [x.as_typed_entry(self._object_type) for x in entries]
+
+        results = self._get_from_cache(from_date, to_date, None, start, page_size)
+        return [x.as_typed_entry(self._object_type) for x in results]
+
+    def append(self, timestamp: datetime.datetime, entry: _T, tag: Optional[str] = None) -> None:
+        values = TimeSeriesValuesHelper.get_values(type(entry), entry)
+        self.append(timestamp, values, tag)
+
+    def append_entry(self, entry: TypedTimeSeriesEntry[_T]) -> None:
+        self.append_single(entry.timestamp, entry.value, entry.tag)
+
+
+class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
+    def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+        super(SessionDocumentRollupTypedTimeSeries, self).__init__(session, document_id, name)
+        self._object_type = object_type
+
+    @classmethod
+    def from_entity_rollup_typed(
+        cls, object_type: Type[_T], session: InMemoryDocumentSessionOperations, entity: object, name: str
+    ) -> SessionDocumentRollupTypedTimeSeries:
+        if entity is None:
+            raise ValueError("Entity cannot be None")
+
+        document_info = session._documents_by_entity.get(entity)
+
+        if document_info is None:
+            cls._throw_entity_not_in_session()
+
+        if not name or name.isspace():
+            raise ValueError("Name cannot be None or whitespace")
+        return cls(object_type, session, document_info.key, name)
+
+    def get(
+        self,
+        from_date: Optional[datetime.datetime] = None,
+        to_date: Optional[datetime.datetime] = None,
+        start: int = 0,
+        page_size: int = int_max,
+    ):
+        if self._not_in_cache(from_date, to_date):
+            results = self.get_time_series_and_includes(from_date, to_date, None, start, page_size)
+            return [TypedTimeSeriesRollupEntry.from_entry(self._object_type, x) for x in results]
+
+        results = self._get_from_cache(from_date, to_date, None, start, page_size)
+        return [TypedTimeSeriesRollupEntry.from_entry(self._object_type, x) for x in results]
+
+    def append_entry(self, entry: TypedTimeSeriesRollupEntry) -> None:
+        values = entry.get_values_from_members()
+        self.append(entry.timestamp, values, entry.tag)

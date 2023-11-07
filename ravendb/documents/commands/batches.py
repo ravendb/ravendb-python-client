@@ -13,7 +13,9 @@ from ravendb.documents.operations.counters import (
     DocumentCountersOperation,
     CounterOperationType,
 )
+from ravendb.documents.operations.time_series import TimeSeriesOperation
 from ravendb.documents.session.misc import TransactionMode, ForceRevisionStrategy
+from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.json.result import BatchCommandResult
@@ -236,13 +238,11 @@ class CommandData:
         name: str = None,
         change_vector: str = None,
         command_type: CommandType = None,
-        on_before_save_changes: Callable = None,
     ):
         self._key = key
         self._name = name
         self._change_vector = change_vector
         self._command_type = command_type
-        self._on_before_save_changes = on_before_save_changes
 
     @property
     def key(self) -> str:
@@ -260,11 +260,8 @@ class CommandData:
     def command_type(self) -> CommandType:
         return self._command_type
 
-    @property
-    def on_before_save_changes(
-        self,
-    ) -> Callable[[InMemoryDocumentSessionOperations], None]:
-        return self._on_before_save_changes
+    def on_before_save_changes(self, session: InMemoryDocumentSessionOperations) -> None:
+        pass
 
     @abstractmethod
     def serialize(self, conventions: DocumentConventions) -> dict:
@@ -633,6 +630,37 @@ class DeleteAttachmentCommandData(CommandData):
 
     def serialize(self, conventions: DocumentConventions) -> dict:
         return {"Id": self._key, "Name": self.name, "ChangeVector": self.change_vector, "Type": self.command_type}
+
+
+class TimeSeriesBatchCommandData(CommandData):
+    def __init__(
+        self,
+        document_id: str,
+        name: str,
+        appends: Optional[List[TimeSeriesOperation.AppendOperation]],
+        deletes: Optional[List[TimeSeriesOperation.DeleteOperation]],
+    ):
+        if not document_id:
+            raise ValueError("Document id cannot be None")
+        if not name:
+            raise ValueError("Name cannot be None")
+
+        super(TimeSeriesBatchCommandData, self).__init__(document_id, name, None, CommandType.TIME_SERIES)
+        self.time_series = TimeSeriesOperation()
+        self.time_series.name = name
+
+        if appends:
+            for append_operation in appends:
+                self.time_series.append(append_operation)
+        if deletes:
+            for delete_operation in deletes:
+                self.time_series.delete(delete_operation)
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        return {"Id": self.key, "TimeSeries": self.time_series.to_json(), "Type": "TimeSeries"}
+
+    def on_before_save_changes(self, session: InMemoryDocumentSessionOperations) -> None:
+        pass
 
 
 # ------------ OPTIONS ------------

@@ -1,5 +1,9 @@
+import sys
+
 int_max = 0x7FFFFFF
+min_normal = sys.float_info.min
 json_serialize_method_name = "to_json"
+nan_value = float("nan")
 
 
 class Documents:
