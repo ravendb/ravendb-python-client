@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+import re
 from enum import Enum
 from abc import ABC
 from typing import Union, Optional, List, Dict, Set, Iterable
@@ -301,7 +302,7 @@ class IndexDefinition(IndexDefinitionBase):
 
         source_type = IndexSourceType.NONE
         for map in self.maps:
-            map_source_type = None  # todo: IndexDefinitionHelper.detect_static_index_source_type(map)
+            map_source_type = IndexDefinitionHelper.detect_static_index_source_type(map)
             if source_type == IndexSourceType.NONE:
                 source_type = map_source_type
                 continue
@@ -574,3 +575,69 @@ class IndexErrors:
     @classmethod
     def from_json(cls, json_dict: dict) -> IndexErrors:
         return cls(json_dict["Name"], list(map(lambda x: IndexingError.from_json(x), json_dict["Errors"])))
+
+
+class IndexDefinitionHelper:
+    @staticmethod
+    def detect_static_index_type(map_str: str, reduce: str) -> IndexType:
+        if len(map_str) == 0:
+            raise ValueError("Index definitions contains no maps")
+
+        map_str = IndexDefinitionHelper._strip_comments(map_str)
+        map_str = IndexDefinitionHelper._unify_white_space(map_str)
+
+        map_lower = map_str.lower()
+        if (
+            map_lower.startswith("from")
+            or map_lower.startswith("docs")
+            or (map_lower.startswith("timeseries") and not map_lower.startswith("timeseries.map"))
+            or (map_lower.startswith("counters") and not map_lower.startswith("counters.map"))
+        ):
+            # C# indexes must start with "from" query syntax or
+            # "docs" for method syntax
+            if reduce is None or reduce.isspace():
+                return IndexType.MAP
+            return IndexType.MAP_REDUCE
+
+        if reduce.isspace():
+            return IndexType.JAVA_SCRIPT_MAP
+
+        return IndexType.JAVA_SCRIPT_MAP_REDUCE
+
+    @staticmethod
+    def detect_static_index_source_type(map_str: str) -> IndexSourceType:
+        if not map_str or map_str.isspace():
+            raise ValueError("Value cannot be None or whitespace")
+
+        map_str = IndexDefinitionHelper._strip_comments(map_str)
+        map_str = IndexDefinitionHelper._unify_white_space(map_str)
+
+        # detect first supported syntax: timeseries.Companies.HeartRate.Where
+        map_lower = map_str.lower()
+        if map_lower.startswith("timeseries"):
+            return IndexSourceType.TIME_SERIES
+
+        if map_lower.startswith("counters"):
+            return IndexSourceType.COUNTERS
+
+        if map_lower.startswith("from"):
+            # detect 'from ts in timeseries' or 'from ts in timeseries.Users.HeartRate'
+
+            tokens = [token for token in map_lower.split(" ", 4) if token]
+
+            if len(tokens) > 4 and tokens[2].lower() == "in":
+                if tokens[3].startswith("timeseries"):
+                    return IndexSourceType.TIME_SERIES
+                if tokens[3].startswith("counters"):
+                    return IndexSourceType.COUNTERS
+
+        # fallback to documents based index
+        return IndexSourceType.DOCUMENTS
+
+    @staticmethod
+    def _strip_comments(map_str: str) -> str:
+        return re.sub("(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)", "", map_str).strip()
+
+    @staticmethod
+    def _unify_white_space(map_str: str) -> str:
+        return re.sub("\\s+", " ", map_str)

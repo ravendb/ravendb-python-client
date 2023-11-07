@@ -59,17 +59,14 @@ class TestIndexActions(TestBase):
             command = DeleteIndexOperation(None).get_command(self.conventions)
             self.requests_executor.execute_command(command)
 
-    @unittest.skip("TimeSeries")
-    def test_timeseries_index_creation(self):
+    def test_time_series_index_creation(self):
         with self.store.open_session() as session:
             user = User("Idan")
             session.store(user, "users/1")
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.time_series_for("users/1", "HeartRate").append_single(
-                datetime.now(), values=98
-            )  # todo: implement time_series_for
+            session.time_series_for("users/1", "HeartRate").append_single(datetime.now(), 98)
             session.save_changes()
 
         self.map_ = (
@@ -86,7 +83,7 @@ class TestIndexActions(TestBase):
 
         self.store.maintenance.send(PutIndexesOperation(index))
 
-        self.assertEqual(index.source_type, IndexSourceType.time_series)
+        self.assertEqual(IndexSourceType.TIME_SERIES, index.source_type)
 
     @unittest.skip("Counters")
     def test_counters_index_creation(self):
