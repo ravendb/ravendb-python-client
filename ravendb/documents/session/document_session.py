@@ -68,6 +68,7 @@ from ravendb.documents.session.misc import (
 from ravendb.documents.session.query import DocumentQuery, RawDocumentQuery
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.operations.load_operation import LoadOperation
+from ravendb.tools.time_series import TSRangeHelper
 from ravendb.tools.utils import Utils, Stopwatch, CaseInsensitiveDict
 from ravendb.documents.commands.batches import (
     PatchCommandData,
@@ -1816,7 +1817,7 @@ class SessionTimeSeriesBase(abc.ABC):
             ranges = cache.get(self.name)
             if ranges is not None and len(ranges) > 0:
                 # update
-                index = 0 if ranges[0].from_date > to_datetime else len(ranges)
+                index = 0 if TSRangeHelper.left(ranges[0].from_date) > TSRangeHelper.right(to_datetime) else len(ranges)
                 ranges.insert(index, range_result)
             else:
                 item = [range_result]
@@ -1845,15 +1846,15 @@ class SessionTimeSeriesBase(abc.ABC):
         skip: int,
         trim: int,
     ) -> List[TimeSeriesEntry]:
-        if from_range is not None and from_date <= from_range.to_date:
+        if from_range is not None and TSRangeHelper.left(from_date) <= TSRangeHelper.right(from_range.to_date):
             # need to skip a part of the first range
-            if to_range is not None and to_date >= to_range.from_date:
+            if to_range is not None and TSRangeHelper.left(to_range.from_date) <= TSRangeHelper.right(to_date):
                 # also need to trim a part of the last range
                 return values[skip : len(values) - trim]
 
             return values[skip:]
 
-        if to_range is not None and to_date >= to_range.from_date:
+        if to_range is not None and TSRangeHelper.left(to_range.from_date) <= TSRangeHelper.right(to_date):
             # trim a part of the last range
             return values[: len(values) - trim]
 
@@ -1884,9 +1885,9 @@ class SessionTimeSeriesBase(abc.ABC):
 
         for i in range(len(ranges)):
             to_range_index += 1
-            if ranges[to_range_index].from_date <= from_date:
+            if TSRangeHelper.left(ranges[to_range_index].from_date) <= TSRangeHelper.left(from_date):
                 if (
-                    ranges[to_range_index].to_date >= to_date
+                    TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date)
                     or len(ranges[to_range_index].entries) - start >= page_size
                 ):
                     # we have the entire range in cache
@@ -1907,14 +1908,21 @@ class SessionTimeSeriesBase(abc.ABC):
 
             from_to_use = (
                 from_date
-                if (to_range_index == 0 or from_date < ranges[to_range_index - 1].to_date)
+                if (
+                    to_range_index == 0
+                    or TSRangeHelper.left(from_date) < TSRangeHelper.right(ranges[to_range_index - 1].to_date)
+                )
                 else ranges[to_range_index - 1].to_date
             )
-            to_to_use = ranges[to_range_index].from_date if ranges[to_range_index].from_date <= to_date else to_date
+            to_to_use = (
+                ranges[to_range_index].from_date
+                if TSRangeHelper.left(ranges[to_range_index].from_date) <= TSRangeHelper.right(to_date)
+                else to_date
+            )
 
             ranges_to_get_from_server.append(TimeSeriesRange(self.name, from_to_use, to_to_use))
 
-            if ranges[to_range_index].to_date >= to_date:
+            if TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date):
                 break
 
         if to_range_index == len(ranges) - 1:
@@ -1986,7 +1994,11 @@ class SessionTimeSeriesBase(abc.ABC):
 
         for i in range(start, end + 1):
             if i == from_range_index:
-                if ranges[i].from_date <= from_date <= ranges[i].to_date:
+                if (
+                    TSRangeHelper.left(ranges[i].from_date)
+                    <= TSRangeHelper.left(from_date)
+                    <= TSRangeHelper.right(ranges[i].to_date)
+                ):
                     # requested range [from, to] starts inside 'fromRange'
                     # i.e from_range.from_date <= from_date <= from_range.to_date
                     # so we might need to skip a part of it when we return the
@@ -1995,13 +2007,13 @@ class SessionTimeSeriesBase(abc.ABC):
                     if ranges[i].entries is not None:
                         for v in ranges[i].entries:
                             merged_values.append(v)
-                            if v.timestamp < from_date:
+                            if v.timestamp < TSRangeHelper.left(from_date):
                                 skip += 1
                 continue
 
-            if (
-                current_result_index < len(result_from_server)
-                and result_from_server[current_result_index].from_date < ranges[i].from_date
+            if current_result_index < len(result_from_server) and (
+                TSRangeHelper.left(result_from_server[current_result_index].from_date)
+                < TSRangeHelper.left(ranges[i].from_date)
             ):
                 # add current result from server to the merged list
                 # in order to avoid duplication, skip first item in range
@@ -2011,14 +2023,14 @@ class SessionTimeSeriesBase(abc.ABC):
                 merged_values.extend(to_add)
 
             if i == to_range_index:
-                if ranges[i].from_date <= to_date:
+                if TSRangeHelper.left(ranges[i].from_date) <= TSRangeHelper.right(to_date):
                     # requested range [from_date, to_date] ends inside to_range
                     # so we might need to trim a part of it when we return the
                     # result to the user (i.e. trim [to_date, to_range.to_date]
 
                     for index in range(0 if len(merged_values) == 0 else 1, len(ranges[i].entries)):
                         merged_values.append(ranges[i].entries[index])
-                        if ranges[i].entries[index].timestamp > to_date:
+                        if ranges[i].entries[index].timestamp > TSRangeHelper.right(to_date):
                             trim += 1
 
                 continue
@@ -2063,10 +2075,10 @@ class SessionTimeSeriesBase(abc.ABC):
 
         results = []
         for value in ts_range.entries:
-            if value.timestamp > to_date:
+            if value.timestamp > TSRangeHelper.right(to_date):
                 break
 
-            if value.timestamp < from_date:
+            if value.timestamp < TSRangeHelper.left(from_date):
                 continue
 
             start -= 1
@@ -2109,8 +2121,8 @@ class SessionTimeSeriesBase(abc.ABC):
 
         return (
             not ranges
-            or (ranges[0].from_date if ranges[0].from_date is not None else datetime.min) > to_date
-            or from_date > (ranges[-1].to_date if ranges[-1].to_date is not None else datetime.max)
+            or TSRangeHelper.left(ranges[0].from_date) > TSRangeHelper.right(to_date)
+            or TSRangeHelper.left(from_date) > TSRangeHelper.right(ranges[-1].to_date)
         )
 
     class CachedEntryInfo:

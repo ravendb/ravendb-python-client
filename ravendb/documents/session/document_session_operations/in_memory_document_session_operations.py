@@ -15,6 +15,7 @@ from ravendb.documents.session.misc import (
     ForceRevisionStrategy,
     DocumentsChanges,
 )
+from ravendb.tools.time_series import TSRangeHelper
 
 try:
     from collections.abc import MutableSet
@@ -1412,11 +1413,19 @@ class InMemoryDocumentSessionOperations:
     def __add_to_cache(cache: Dict[str, List[TimeSeriesRangeResult]], new_range: TimeSeriesRangeResult, name: str):
         local_ranges = cache.get(name)
         if not local_ranges:
+            # No local ranges in cache for this series
             cache[name] = list([new_range])
             return
 
-        if local_ranges[0].from_date > new_range.to_date or local_ranges[-1].to_date < new_range.from_date:
-            index = 0 if local_ranges[0].from_date > new_range.to_date else len(local_ranges)
+        if TSRangeHelper.left(local_ranges[0].from_date) > TSRangeHelper.right(new_range.to_date) or TSRangeHelper.left(
+            new_range.from_date
+        ) > TSRangeHelper.right(local_ranges[-1].to_date):
+            # the entire range [from, to] is out of cache bounds
+            index = (
+                0
+                if TSRangeHelper.left(local_ranges[0].from_date) > TSRangeHelper.right(new_range.to_date)
+                else len(local_ranges)
+            )
             local_ranges[index] = new_range
             return
 
@@ -1425,13 +1434,13 @@ class InMemoryDocumentSessionOperations:
         range_already_in_cache = False
 
         for to_range_index in range(len(local_ranges)):
-            if local_ranges[to_range_index].from_date <= new_range.from_date:
-                if local_ranges[to_range_index].to_date >= new_range.to_date:
+            if TSRangeHelper.left(local_ranges[to_range_index].from_date) <= TSRangeHelper.left(new_range.from_date):
+                if TSRangeHelper.right(local_ranges[to_range_index].to_date) >= TSRangeHelper.right(new_range.to_date):
                     range_already_in_cache = True
                     break
                 from_range_index = to_range_index
                 continue
-            if local_ranges[to_range_index].to_date >= new_range.to_date:
+            if TSRangeHelper.right(local_ranges[to_range_index].to_date) >= TSRangeHelper.right(new_range.to_date):
                 break
 
         if range_already_in_cache:
@@ -1478,7 +1487,7 @@ class InMemoryDocumentSessionOperations:
                 cache[time_series] = result
                 return
 
-            if ranges[to_range_index].from_date > to_date:
+            if TSRangeHelper.left(ranges[to_range_index].from_date) > TSRangeHelper.right(to_date):
                 # requested range ends before 'toRange' starts
                 # remove all ranges that come before 'toRange' from cache
                 # add the new range at the beginning of the list
@@ -1510,7 +1519,7 @@ class InMemoryDocumentSessionOperations:
         if to_range_index == len(ranges):
             # didn't find a 'to_range' => all the ranges in cache end before 'to'
 
-            if ranges[from_range_index].to_date < from_date:
+            if TSRangeHelper.left(from_date) > TSRangeHelper.right(ranges[from_range_index].to_date):
                 # requested range starts after 'fromRange' ends,
                 # so it needs to be placed right after it
                 # remove all the ranges that come after 'fromRange' from cache
@@ -1543,10 +1552,10 @@ class InMemoryDocumentSessionOperations:
         # found both 'from_range' and 'to_range'
         # the requested range is inside cache bounds
 
-        if ranges[from_range_index].to_date < from_date:
+        if TSRangeHelper.left(from_date) > TSRangeHelper.right(ranges[from_range_index].to_date):
             # requested range starts after 'from_range' ends
 
-            if ranges[to_range_index].from_date > to_date:
+            if TSRangeHelper.left(ranges[to_range_index].from_date) > TSRangeHelper.right(to_date):
                 # requested range ends before 'toRange' starts
 
                 # remove all ranges in between 'fromRange' and 'toRange'
@@ -1580,7 +1589,7 @@ class InMemoryDocumentSessionOperations:
 
         # the requested range starts inside 'from_range'
 
-        if ranges[to_range_index].from_date > to_date:
+        if TSRangeHelper.left(ranges[to_range_index].from_date) > TSRangeHelper.right(to_date):
             # requested range ends before 'toRange' starts
 
             # remove all ranges in between 'fromRange' and 'toRange'
@@ -1625,9 +1634,12 @@ class InMemoryDocumentSessionOperations:
                 if val.timestamp.time() >= new_range.from_date.time():
                     break
                 merged_values.append(val)
+
         merged_values.extend(new_range.entries)
 
-        if to_range_index < len(local_ranges) and local_ranges[to_range_index].from_date <= new_range.to_date:
+        if to_range_index < len(local_ranges) and TSRangeHelper.left(
+            local_ranges[to_range_index].from_date
+        ) <= TSRangeHelper.right(new_range.to_date):
             for val in local_ranges[to_range_index].entries:
                 if val.timestamp.time() <= new_range.to_date.time():
                     continue
