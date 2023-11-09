@@ -1,5 +1,8 @@
 from __future__ import annotations
+
+import abc
 import datetime
+import inspect
 import math
 from typing import List, Dict, Type, Tuple, Any, TypeVar, Generic, Optional
 
@@ -7,7 +10,7 @@ from ravendb import constants
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tools.utils import Utils
 
-_T = TypeVar("_T")
+_T_TSBindable = TypeVar("_T_TSBindable")
 _T_Values = TypeVar("_T_Values")
 
 
@@ -103,19 +106,19 @@ class TypedTimeSeriesRollupEntry(Generic[_T_Values]):
                     target[i * 6 + offset] = values[i]
 
     @classmethod
-    def from_entry(cls, object_type: Type[_T], entry: TimeSeriesEntry):
-        result = TypedTimeSeriesRollupEntry(object_type, entry.timestamp)
+    def from_entry(cls, ts_bindable_object_type: Type[_T_TSBindable], entry: TimeSeriesEntry):
+        result = TypedTimeSeriesRollupEntry(ts_bindable_object_type, entry.timestamp)
         result.rollup = True
         result.tag = entry.tag
 
         values = entry.values
 
-        result._first = TimeSeriesValuesHelper.set_fields(object_type, cls.extract_values(values, 0))
-        result._last = TimeSeriesValuesHelper.set_fields(object_type, cls.extract_values(values, 1))
-        result._min = TimeSeriesValuesHelper.set_fields(object_type, cls.extract_values(values, 2))
-        result._max = TimeSeriesValuesHelper.set_fields(object_type, cls.extract_values(values, 3))
-        result._sum = TimeSeriesValuesHelper.set_fields(object_type, cls.extract_values(values, 4))
-        result._count = TimeSeriesValuesHelper.set_fields(object_type, cls.extract_values(values, 5))
+        result._first = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 0))
+        result._last = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 1))
+        result._min = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 2))
+        result._max = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 3))
+        result._sum = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 4))
+        result._count = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 5))
 
     @staticmethod
     def extract_values(input: List[float], offset: int) -> List[float]:
@@ -130,14 +133,14 @@ class TypedTimeSeriesRollupEntry(Generic[_T_Values]):
         return result
 
 
-class TypedTimeSeriesEntry(Generic[_T]):
+class TypedTimeSeriesEntry(Generic[_T_TSBindable]):
     def __init__(
         self,
         timestamp: datetime.datetime = None,
         tag: str = None,
         values: List[int] = None,
         rollup: bool = None,
-        value: _T = None,
+        value: _T_TSBindable = None,
     ):
         self.timestamp = timestamp
         self.tag = tag
@@ -186,60 +189,116 @@ class TimeSeriesEntry:
             json_dict["IsRollup"],
         )
 
-    def as_typed_entry(self, object_type: Type[_T]) -> TypedTimeSeriesEntry[_T]:
+    def as_typed_entry(self, ts_bindable_object_type: Type[_T_TSBindable]) -> TypedTimeSeriesEntry[_T_TSBindable]:
         return TypedTimeSeriesEntry(
             self.timestamp,
             self.tag,
             self.values,
             self.rollup,
-            TimeSeriesValuesHelper.set_fields(object_type, self.values, self.rollup),
+            TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, self.values, self.rollup),
         )
 
 
+class ITimeSeriesValuesBindable(abc.ABC):
+    @abc.abstractmethod
+    def get_time_series_mapping(self) -> Dict[int, Tuple[str, Optional[str]]]:
+        # return a dictionary {index of time series value - (name of 'float' field, label)}
+        # e.g. return {0 : ('heart', 'Heartrate'), 1: ('bp', 'Blood Pressure')}
+        # for some class that has 'heart' and 'bp' float fields
+        raise NotImplementedError()
+
+
 class TimeSeriesValuesHelper:
-    _cache: Dict[Type, Dict[int, Tuple[Tuple[str, Any], str]]] = {}
+    _cache: Dict[Type, Dict[int, Tuple[str, str]]] = {}
 
     @staticmethod
-    def get_fields_mapping(object_type: Type) -> Dict[int, Tuple[str, str]]:
-        raise NotImplementedError()  # return map of the float fields associated with time series value name
+    def create_ts_bindable_class_instance(ts_bindable_object_type: Type[_T_TSBindable]) -> _T_TSBindable:
+        init_signature = inspect.signature(ts_bindable_object_type.__init__)
+        init_parameters = init_signature.parameters.values()
+
+        # Create a dictionary of arguments with default values
+        arguments = {
+            param.name: param.default if param.default != param.empty else None
+            for param in init_parameters
+            if param.name != "self"
+        }
+
+        instance = None
+
+        try:
+            instance = ts_bindable_object_type(**arguments)
+        except Exception as e:
+            raise TypeError(
+                f"Failed to get time series fields mapping. "
+                f"Failed to resolve the class instance fields, "
+                f"initializing object of class '{ts_bindable_object_type.__name__}' using default args: '{arguments}'. "
+                f"Is the {ts_bindable_object_type.__name__}__init__() raising errors in some cases?",
+                e,
+            )
+        return instance
 
     @staticmethod
-    def get_values(object_type: Type[_T], obj: _T) -> Optional[List[float]]:
-        mapping = TimeSeriesValuesHelper.get_fields_mapping(object_type)
+    def get_fields_mapping(ts_bindable_object_type: Type[_T_TSBindable]) -> Optional[Dict[int, Tuple[str, str]]]:
+        if ts_bindable_object_type not in TimeSeriesValuesHelper._cache:
+            if not issubclass(ts_bindable_object_type, ITimeSeriesValuesBindable):
+                return None
+
+            ts_bindable_class_instance = TimeSeriesValuesHelper.create_ts_bindable_class_instance(
+                ts_bindable_object_type
+            )
+            ts_bindable_type_mapping = ts_bindable_class_instance.get_time_series_mapping()
+
+            new_cache_entry = {}
+            for idx, field_name_and_ts_value_name in ts_bindable_type_mapping.items():
+                field_name = field_name_and_ts_value_name[0]
+                time_series_value_name = field_name_and_ts_value_name[1] or field_name
+                new_cache_entry[idx] = (field_name, time_series_value_name)
+
+            TimeSeriesValuesHelper._cache[ts_bindable_object_type] = new_cache_entry
+        return TimeSeriesValuesHelper._cache[ts_bindable_object_type]
+
+    @staticmethod
+    def get_values(ts_bindable_object_type: Type[_T_TSBindable], obj: _T_TSBindable) -> Optional[List[float]]:
+        mapping = TimeSeriesValuesHelper.get_fields_mapping(ts_bindable_object_type)
         if mapping is None:
             return None
 
         try:
             values: List[Optional[float]] = [None] * len(mapping)
             for key, value in mapping.items():
-                values[key] = obj.__dict__()[value[0]]  # get field value
+                values[key] = obj.__dict__[value[0]]  # get field value
 
             return values
         except Exception as e:
             raise RavenException("Unable to read time series values", e)
 
     @staticmethod
-    def set_fields(object_type: Type[_T], values: List[float], as_rollup: bool):
+    def set_fields(
+        ts_bindable_object_type: Type[_T_TSBindable], values: List[float], as_rollup: bool = False
+    ) -> _T_TSBindable:
         if values is None:
             return None
 
-        mapping = TimeSeriesValuesHelper.get_fields_mapping(object_type)
-        if mapping is None:
-            return None
-
-        raise NotImplementedError()
-
-    @staticmethod
-    def set_fields(object_type: Type[_T], values: List[float], as_rollup: bool = False) -> _T:
-        if values is None:
-            return None
-
-        mapping = TimeSeriesValuesHelper.get_fields_mapping(object_type)
+        mapping = TimeSeriesValuesHelper.get_fields_mapping(ts_bindable_object_type)
         if mapping is None:
             return None
 
         try:
-            raise NotImplementedError()
+            ts_bindable_class_instance = TimeSeriesValuesHelper.create_ts_bindable_class_instance(
+                ts_bindable_object_type
+            )
+            for index, field_name_and_ts_name_tuple in mapping.items():
+                value = None  # Not-a-Number
+
+                if index < len(values):
+                    if as_rollup:
+                        index *= 6
+                    value = values[index]
+
+                field_name = field_name_and_ts_name_tuple[0]
+                ts_bindable_class_instance.__dict__[field_name] = value
+
+            return ts_bindable_class_instance
 
         except Exception as e:
             raise RavenException("Unable to read time series values.", e)

@@ -28,6 +28,7 @@ from ravendb.documents.session.time_series import (
     TypedTimeSeriesEntry,
     TimeSeriesValuesHelper,
     TypedTimeSeriesRollupEntry,
+    ITimeSeriesValuesBindable,
 )
 from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.exceptions import exceptions
@@ -103,6 +104,7 @@ if TYPE_CHECKING:
 
 _T = TypeVar("_T")
 _TIndex = TypeVar("_TIndex", bound=AbstractCommonApiForIndexes)
+_T_TS_Values_Bindable = TypeVar("_T_TS_Values_Bindable", bound=ITimeSeriesValuesBindable)
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):
@@ -456,29 +458,45 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return SessionDocumentTimeSeries.from_entity(self, entity, name)
 
     def typed_time_series_for(
-        self, object_type: Type[_T], document_id: str, name: Optional[str] = None
-    ) -> SessionDocumentTypedTimeSeries[_T]:
-        return SessionDocumentTypedTimeSeries(object_type, self, document_id, name)
+        self, ts_bindable_object_type: Type[_T_TS_Values_Bindable], document_id: str, name: Optional[str] = None
+    ) -> SessionDocumentTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = name or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
+        return SessionDocumentTypedTimeSeries(ts_bindable_object_type, self, document_id, ts_name)
 
     def typed_time_series_for_entity(
-        self, object_type: Type[_T], entity: object, name: Optional[str] = None
-    ) -> SessionDocumentTypedTimeSeries[_T]:
-        return SessionDocumentTypedTimeSeries.from_entity_typed(object_type, self, entity, name)
+        self, ts_bindable_object_type: Type[_T_TS_Values_Bindable], entity: object, name: Optional[str] = None
+    ) -> SessionDocumentTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = name or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
+        return SessionDocumentTypedTimeSeries.from_entity_typed(ts_bindable_object_type, self, entity, ts_name)
 
     def time_series_rollup_for(
-        self, object_type: Type[_T], document_id: str, policy: str, raw: Optional[str] = None
-    ) -> SessionDocumentRollupTypedTimeSeries[_T]:
-        ts_name = raw or TimeSeriesOperations.get_time_series_name(object_type, self.conventions)
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        document_id: str,
+        policy: str,
+        raw: Optional[str] = None,
+    ) -> SessionDocumentRollupTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = raw or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
         return SessionDocumentRollupTypedTimeSeries(
-            object_type, self, document_id, ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy
+            ts_bindable_object_type,
+            self,
+            document_id,
+            ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy,
         )
 
     def time_series_rollup_for_entity(
-        self, object_type: Type[_T], entity: object, policy: str, raw: Optional[str] = None
-    ) -> SessionDocumentRollupTypedTimeSeries[_T]:
-        ts_name = raw or TimeSeriesOperations.get_time_series_name(object_type, self.conventions)
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        entity: object,
+        policy: str,
+        raw: Optional[str] = None,
+    ) -> SessionDocumentRollupTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = raw or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
         return SessionDocumentRollupTypedTimeSeries.from_entity_rollup_typed(
-            object_type, self, entity, ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy
+            ts_bindable_object_type,
+            self,
+            entity,
+            ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy,
         )
 
     class _EagerSessionOperations:
@@ -2190,14 +2208,24 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
         return results_to_user[:page_size]
 
 
-class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
-    def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
+    def __init__(
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        document_id: str,
+        name: str,
+    ):
         super(SessionDocumentTypedTimeSeries, self).__init__(session, document_id, name)
-        self._object_type = object_type
+        self._ts_value_object_type = ts_bindable_object_type
 
     @classmethod
     def from_entity_typed(
-        cls, object_type: Type[_T], session: InMemoryDocumentSessionOperations, entity: object, name: str
+        cls,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        entity: object,
+        name: str,
     ) -> SessionDocumentTypedTimeSeries:
         if entity is None:
             raise ValueError("Entity cannot be None")
@@ -2207,9 +2235,9 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
         if document_info is None:
             cls._throw_entity_not_in_session()
 
-        if not name or name.isspace():
-            raise ValueError("Name cannot be None or whitespace")
-        return cls(object_type, session, document_info.key, name)
+        if not name:
+            name = TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, session.conventions)
+        return cls(ts_bindable_object_type, session, document_info.key, name)
 
     def get(
         self,
@@ -2217,33 +2245,43 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
         to_date: Optional[datetime] = None,
         start: int = 0,
         page_size: int = int_max,
-    ) -> Optional[List[TypedTimeSeriesEntry[_T]]]:
+    ) -> Optional[List[TypedTimeSeriesEntry[_T_TS_Values_Bindable]]]:
         if super()._not_in_cache(from_date, to_date):
             entries = self.get_time_series_and_includes(from_date, to_date, None, start, page_size)
             if entries is None:
                 return None
 
-            return [x.as_typed_entry(self._object_type) for x in entries]
+            return [x.as_typed_entry(self._ts_value_object_type) for x in entries]
 
         results = self._get_from_cache(from_date, to_date, None, start, page_size)
-        return [x.as_typed_entry(self._object_type) for x in results]
+        return [x.as_typed_entry(self._ts_value_object_type) for x in results]
 
-    def append(self, timestamp: datetime, entry: _T, tag: Optional[str] = None) -> None:
+    def append(self, timestamp: datetime, entry: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
         values = TimeSeriesValuesHelper.get_values(type(entry), entry)
-        self.append(timestamp, values, tag)
+        super().append(timestamp, values, tag)
 
-    def append_entry(self, entry: TypedTimeSeriesEntry[_T]) -> None:
+    def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
         self.append_single(entry.timestamp, entry.value, entry.tag)
 
 
-class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
-    def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
+    def __init__(
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        document_id: str,
+        name: str,
+    ):
         super(SessionDocumentRollupTypedTimeSeries, self).__init__(session, document_id, name)
-        self._object_type = object_type
+        self._object_type = ts_bindable_object_type
 
     @classmethod
     def from_entity_rollup_typed(
-        cls, object_type: Type[_T], session: InMemoryDocumentSessionOperations, entity: object, name: str
+        cls,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        entity: object,
+        name: str,
     ) -> SessionDocumentRollupTypedTimeSeries:
         if entity is None:
             raise ValueError("Entity cannot be None")
@@ -2255,7 +2293,7 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
 
         if not name or name.isspace():
             raise ValueError("Name cannot be None or whitespace")
-        return cls(object_type, session, document_info.key, name)
+        return cls(ts_bindable_object_type, session, document_info.key, name)
 
     def get(
         self,
