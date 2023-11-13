@@ -296,7 +296,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         include_builder = IncludeBuilder(self.conventions)
         includes(include_builder)
 
-        time_series_includes = include_builder.time_series_to_include
+        time_series_includes = (
+            include_builder.time_series_to_include if include_builder.time_series_to_include is not None else None
+        )
         compare_exchange_values_to_include = include_builder.compare_exchange_values_to_include
 
         result = self._load_internal(

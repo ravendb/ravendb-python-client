@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 
 from ravendb.documents.session.time_series import ITimeSeriesValuesBindable
-from ravendb.tests.test_base import TestBase, User
+from ravendb.infrastructure.entities import User
+from ravendb.tests.test_base import TestBase
 
 
 class HeartRateMeasure(ITimeSeriesValuesBindable):
@@ -49,7 +50,7 @@ class TestRavenDB16060(TestBase):
         doc_id = "users/0x901507"
 
         with self.store.open_session() as session:
-            user = User("Gracjan")
+            user = User(name="Gracjan")
             session.store(user, doc_id)
 
             session.save_changes()
@@ -105,3 +106,25 @@ class TestRavenDB16060(TestBase):
             self.assertEqual(base_line + timedelta(minutes=3), vals[0].timestamp)
             self.assertEqual(base_line + timedelta(minutes=3, seconds=3), vals[1].timestamp)
             self.assertEqual(base_line + timedelta(minutes=5), vals[13].timestamp)
+
+    def test_can_include_typed_time_series(self):
+        base_line = datetime(2023, 8, 20, 21, 30)
+        doc_id = "users/0x901507"
+
+        with self.store.open_session() as session:
+            user = User(name="Gracjan")
+            session.store(user, doc_id)
+            ts = session.typed_time_series_for(HeartRateMeasure, doc_id)
+            ts.append(base_line, HeartRateMeasure(59), "watches/fitbit")
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            items = list(session.query(object_type=User).include(lambda x: x.include_time_series("HeartRateMeasures")))
+
+            for item in items:
+                time_series = session.typed_time_series_for(HeartRateMeasure, item.Id, "HeartRateMeasures").get()
+                self.assertEqual(1, len(time_series))
+                self.assertEqual(59, time_series[0].value.heart_rate)
+
+            self.assertEqual(1, session.advanced.number_of_requests)

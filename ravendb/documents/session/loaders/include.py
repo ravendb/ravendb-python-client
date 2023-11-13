@@ -42,6 +42,18 @@ class IncludeBuilderBase:
         return value[0] if value is not None else False
 
     @property
+    def alias(self):
+        return self._alias
+
+    @property
+    def counters_to_include_by_source_path(self):
+        return self._counters_to_include_by_source_path
+
+    @property
+    def time_series_to_include_by_source_alias(self):
+        return self._time_series_to_include_by_source_alias
+
+    @property
     def documents_to_include(self):
         return self._documents_to_include
 
