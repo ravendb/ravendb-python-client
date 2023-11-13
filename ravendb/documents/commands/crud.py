@@ -259,7 +259,9 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
         if self._time_series_includes is not None:
             for time_series in self._time_series_includes:
                 path_builder.append(
-                    f"&timeseries={time_series.name}&from={time_series.from_date}&to={time_series.to_date}"
+                    f"&timeseries={time_series.name}"
+                    f"&from={Utils.datetime_to_string(time_series.from_date)}"
+                    f"&to={Utils.datetime_to_string(time_series.to_date)}"
                 )
 
         if self._compare_exchange_value_includes is not None:

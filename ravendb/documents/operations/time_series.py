@@ -340,9 +340,9 @@ class TimeSeriesOperation:
     def to_json(self) -> Dict[str, Any]:
         json_dict = {"Name": self.name}
         if self._appends:
-            json_dict["Appends"] = self._appends
+            json_dict["Appends"] = [append_op.to_json() for append_op in self._appends]
         if self._deletes:
-            json_dict["Deletes"] = self._deletes
+            json_dict["Deletes"] = [delete_op.to_json() for delete_op in self._deletes]
         return json_dict
 
     def append(self, append_operation: AppendOperation) -> None:

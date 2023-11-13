@@ -24,7 +24,7 @@ except Exception:
 
 import uuid as uuid
 from copy import deepcopy, Error
-from typing import Optional, Union, Callable, List, Dict, Set, Type, TypeVar, Tuple
+from typing import Union, Callable, List, Dict, Set, Type, TypeVar, Tuple, Any
 
 from ravendb import constants
 from ravendb.documents.commands.crud import GetDocumentsResult
@@ -1394,27 +1394,37 @@ class InMemoryDocumentSessionOperations:
 
                 cache[1][counter] = None
 
-    def register_time_series(self, result_time_series: dict):
+    def register_time_series(self, result_time_series: Dict[str, Dict[str, List[Dict[str, Any]]]]):
         if self.no_tracking or not result_time_series:
             return
 
-        for key, value in result_time_series:
-            if not value:
+        for doc_id, time_series in result_time_series.items():
+            if not time_series:
                 continue
-            cache = self._time_series_by_doc_id.get(key, CaseInsensitiveDict())
-            for inner_key, inner_value in value:
-                if not inner_value:
+
+            # compute if absent (cache the result)
+            session_cache = self._time_series_by_doc_id
+            cached_value = None
+            if doc_id in session_cache:
+                cached_value = session_cache[doc_id]
+            if cached_value is None:
+                cached_value = CaseInsensitiveDict()
+                session_cache[doc_id] = cached_value
+
+            for time_series_name, time_series_ranges in time_series.items():
+                if not time_series_ranges:
                     continue
-                name = inner_key
-                for range_val in inner_value:
-                    self.__add_to_cache(cache, range_val, name)
+                name = time_series_name
+                for time_series_range in time_series_ranges:
+                    time_series_range_result = TimeSeriesRangeResult.from_json(time_series_range)
+                    self.__add_to_cache(cached_value, time_series_range_result, name)
 
     @staticmethod
     def __add_to_cache(cache: Dict[str, List[TimeSeriesRangeResult]], new_range: TimeSeriesRangeResult, name: str):
         local_ranges = cache.get(name)
         if not local_ranges:
             # No local ranges in cache for this series
-            cache[name] = list([new_range])
+            cache[name] = [new_range]
             return
 
         if TSRangeHelper.left(local_ranges[0].from_date) > TSRangeHelper.right(new_range.to_date) or TSRangeHelper.left(
