@@ -9,7 +9,7 @@ from ravendb.documents.operations.compare_exchange.compare_exchange_value_result
     CompareExchangeValueResultParser,
 )
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.queries.facets.misc import FacetResult
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.session.document_info import DocumentInfo

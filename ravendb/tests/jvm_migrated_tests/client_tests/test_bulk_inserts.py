@@ -1,7 +1,8 @@
 import datetime
 import time
 
-from ravendb import MetadataAsDictionary, constants
+from ravendb import MetadataAsDictionary
+from ravendb.primitives import constants
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException
 from ravendb.tests.test_base import TestBase
 

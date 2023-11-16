@@ -1,6 +1,6 @@
-from typing import Dict, Set, Optional, Callable, Union
+from typing import Dict, Set, Optional, Callable
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.indexes.definitions import (
     FieldStorage,

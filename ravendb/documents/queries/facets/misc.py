@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from typing import Union, List, Dict
 
-from ravendb import constants
+from ravendb.primitives import constants
 
 
 class FacetAggregation(enum.Enum):

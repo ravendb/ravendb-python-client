@@ -1,13 +1,10 @@
-import datetime
-import enum
 import json
 from typing import Dict
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.queries.query import ProjectionBehavior
-from ravendb.tools.utils import Utils
 
 
 class JsonExtensions:

@@ -1,7 +1,7 @@
 import hashlib
-from typing import Iterable, TYPE_CHECKING, List
+from typing import Iterable, TYPE_CHECKING
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.tools.utils import Utils
 
 if TYPE_CHECKING:

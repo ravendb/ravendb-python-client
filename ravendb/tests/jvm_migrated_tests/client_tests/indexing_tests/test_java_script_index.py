@@ -1,6 +1,7 @@
 from typing import List
 
-from ravendb import IndexFieldOptions, constants
+from ravendb import IndexFieldOptions
+from ravendb.primitives import constants
 from ravendb.documents.indexes.definitions import FieldIndexing
 from ravendb.documents.indexes.index_creation import AbstractJavaScriptIndexCreationTask
 from ravendb.infrastructure.entities import User

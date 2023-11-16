@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Union, List, Dict, TYPE_CHECKING, Optional
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.commands.batches import SingleNodeBatchCommand, ClusterWideBatchCommand, CommandType
 from ravendb.documents.operations.patch import PatchStatus
 from ravendb.documents.session.event_args import AfterSaveChangesEventArgs

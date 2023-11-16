@@ -1,11 +1,8 @@
 from typing import Dict, List
 
-import ravendb.tools.utils
-
-import ravendb.constants as constants
+import ravendb.primitives.constants as constants
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.misc import DocumentsChanges
-from ravendb.tools.utils import Utils
 
 
 class JsonOperation:

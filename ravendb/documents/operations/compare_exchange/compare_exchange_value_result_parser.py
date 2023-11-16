@@ -1,7 +1,7 @@
 import json
 from typing import Dict, Type, TypeVar, Optional
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.compare_exchange.compare_exchange import CompareExchangeValue
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary

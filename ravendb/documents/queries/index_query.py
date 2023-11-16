@@ -2,7 +2,7 @@ from __future__ import annotations
 import datetime
 from typing import TypeVar, Generic, Union, Optional, Dict
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.queries.query import ProjectionBehavior
 from ravendb.documents.queries.utils import HashCalculator
 

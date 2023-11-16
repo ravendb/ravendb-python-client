@@ -12,7 +12,7 @@ from threading import Timer, Semaphore, Lock
 import requests
 from copy import copy
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.session.event_args import BeforeRequestEventArgs, FailedRequestEventArgs, SucceedRequestEventArgs
 from ravendb.exceptions.exceptions import (
     AllTopologyNodesDownException,

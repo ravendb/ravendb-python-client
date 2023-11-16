@@ -6,7 +6,7 @@ from typing import Optional, TYPE_CHECKING, List
 
 import requests
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.data.operation import AttachmentType
 from ravendb.documents.operations.definitions import IOperation, VoidOperation
 from ravendb.http.http_cache import HttpCache

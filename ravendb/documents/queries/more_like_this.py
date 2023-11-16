@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Callable, List, Dict, Generic, TypeVar, Union, TYPE_CHECKING
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.session.tokens.query_tokens.definitions import MoreLikeThisToken
 
 

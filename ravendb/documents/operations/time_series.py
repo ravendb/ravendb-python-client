@@ -3,17 +3,19 @@ from __future__ import annotations
 import abc
 import datetime
 import json
+from enum import Enum
 from typing import Dict, Optional, List, Any, TYPE_CHECKING, Callable
 import requests
 
-from ravendb.constants import int_max
+from ravendb.primitives.constants import int_max
 from ravendb.documents.session.loaders.include import TimeSeriesIncludeBuilder
-from ravendb.documents.session.time_series import TimeSeriesEntry
+from ravendb.documents.session.time_series import TimeSeriesEntry, AbstractTimeSeriesRange
 from ravendb.http.http_cache import HttpCache
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import RaftCommand
 from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.documents.operations.definitions import MaintenanceOperation, IOperation, VoidOperation
+from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
 
@@ -25,27 +27,28 @@ if TYPE_CHECKING:
 class TimeSeriesPolicy:
     def __init__(
         self,
-        name: str,
-        aggregation_time: Optional[datetime.timedelta] = None,
-        retention_time: datetime.timedelta = datetime.timedelta.max,
+        name: Optional[str] = None,
+        aggregation_time: Optional[TimeValue] = None,
+        retention_time: TimeValue = TimeValue.MAX_VALUE(),
     ):
         if not name or name.isspace():
             raise ValueError("Name cannot be None or empty")
 
-        if aggregation_time is not None and aggregation_time < datetime.timedelta(0):
+        if aggregation_time is not None and aggregation_time.compare_to(TimeValue.ZERO()) <= 0:
             raise ValueError("Aggregation time must be greater than zero")
 
-        if retention_time < datetime.timedelta(0):
+        if retention_time is not None and retention_time.compare_to(TimeValue.ZERO()) <= 0:
             raise ValueError("Retention time must be greater than zero")
 
-        self.name = name
         self.retention_time = retention_time
         self.aggregation_time = aggregation_time
+
+        self.name = name
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesPolicy:
         return cls(
-            json_dict["Name"],
+            json_dict["Name"],  # todo: Invalid deserialization
             Utils.string_to_timedelta(json_dict["AggregationTime"]),
             Utils.string_to_timedelta(json_dict["RetentionTime"]),
         )
@@ -55,7 +58,7 @@ class TimeSeriesPolicy:
 
     def to_json(self) -> Dict[str, Any]:
         return {
-            "Name": self.name,
+            "Name": self.name,  # todo: Invalid serialization
             "AggregationTime": Utils.timedelta_to_str(self.aggregation_time),
             "RetentionTime": Utils.timedelta_to_str(self.retention_time),
         }
@@ -66,14 +69,14 @@ class RawTimeSeriesPolicy(TimeSeriesPolicy):
 
     @classmethod
     def DEFAULT_POLICY(cls) -> RawTimeSeriesPolicy:
-        return cls()
+        return cls(TimeValue.MAX_VALUE())
 
-    def __init__(self, retention_time: Optional[datetime.timedelta] = datetime.timedelta.max):
-        if retention_time != datetime.timedelta.max:
-            if retention_time <= datetime.timedelta(0):
-                raise ValueError("Retention time must be greater than zero")
+    def __init__(self, retention_time: TimeValue = TimeValue.MAX_VALUE()):
+        if retention_time.compare_to(TimeValue.ZERO()) <= 0:
+            raise ValueError("Retention time must be greater than zero")
 
-        super(RawTimeSeriesPolicy, self).__init__(self.POLICY_STRING, None, retention_time)
+        self.name = self.POLICY_STRING
+        self.retention_time = retention_time
 
 
 class TimeSeriesCollectionConfiguration:
@@ -363,18 +366,6 @@ class TimeSeriesOperation:
         self._deletes.append(delete_operation)
 
 
-class AbstractTimeSeriesRange(abc.ABC):
-    def __init__(self, name: str):
-        self.name = name
-
-
-class TimeSeriesRange(AbstractTimeSeriesRange):
-    def __init__(self, name: str, from_date: Optional[datetime.datetime], to_date: Optional[datetime.datetime]):
-        super().__init__(name)
-        self.from_date = from_date
-        self.to_date = to_date
-
-
 class TimeSeriesRangeResult:
     def __init__(
         self,
@@ -529,7 +520,7 @@ class GetMultipleTimeSeriesOperation(IOperation[TimeSeriesDetails]):
     def __init__(
         self,
         doc_id: str,
-        ranges: List[TimeSeriesRange],
+        ranges: List[AbstractTimeSeriesRange],
         start: Optional[int] = 0,
         page_size: Optional[int] = int_max,
         includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]] = None,
@@ -555,7 +546,7 @@ class GetMultipleTimeSeriesOperation(IOperation[TimeSeriesDetails]):
         def __init__(
             self,
             doc_id: str,
-            ranges: List[TimeSeriesRange],
+            ranges: List[AbstractTimeSeriesRange],
             start: Optional[int] = 0,
             page_size: Optional[int] = int_max,
             includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]] = None,

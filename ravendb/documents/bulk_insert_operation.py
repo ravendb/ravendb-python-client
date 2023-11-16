@@ -10,7 +10,7 @@ from threading import Lock, Semaphore
 from typing import Optional, TYPE_CHECKING
 
 import requests
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.http.server_node import ServerNode
 from ravendb.http.raven_command import RavenCommand

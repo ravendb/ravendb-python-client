@@ -26,7 +26,7 @@ import uuid as uuid
 from copy import deepcopy, Error
 from typing import Union, Callable, List, Dict, Set, Type, TypeVar, Tuple, Any
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.commands.crud import GetDocumentsResult
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
@@ -51,7 +51,6 @@ from ravendb.documents.session.utils.includes_util import IncludesUtil
 from ravendb.extensions.json_extensions import JsonExtensions
 from ravendb.http.raven_command import RavenCommand
 from ravendb.json.json_operation import JsonOperation
-from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.json.result import BatchCommandResult
 from ravendb.documents.session.entity_to_json import EntityToJson
 from ravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
@@ -1427,31 +1426,39 @@ class InMemoryDocumentSessionOperations:
             cache[name] = [new_range]
             return
 
-        if TSRangeHelper.left(local_ranges[0].from_date) > TSRangeHelper.right(new_range.to_date) or TSRangeHelper.left(
-            new_range.from_date
-        ) > TSRangeHelper.right(local_ranges[-1].to_date):
+        if TSRangeHelper.left(local_ranges[0].from_date) > TSRangeHelper.right(
+            new_range.to_date
+        ) or TSRangeHelper.right(local_ranges[-1].to_date) < TSRangeHelper.left(new_range.from_date):
             # the entire range [from, to] is out of cache bounds
             index = (
                 0
                 if TSRangeHelper.left(local_ranges[0].from_date) > TSRangeHelper.right(new_range.to_date)
                 else len(local_ranges)
             )
-            local_ranges[index] = new_range
+            local_ranges.insert(index, new_range)
             return
 
         to_range_index = int()
         from_range_index = -1
         range_already_in_cache = False
+        broke_out_of_loop = False
 
         for to_range_index in range(len(local_ranges)):
             if TSRangeHelper.left(local_ranges[to_range_index].from_date) <= TSRangeHelper.left(new_range.from_date):
                 if TSRangeHelper.right(local_ranges[to_range_index].to_date) >= TSRangeHelper.right(new_range.to_date):
                     range_already_in_cache = True
+                    broke_out_of_loop = True
                     break
+
                 from_range_index = to_range_index
                 continue
+
             if TSRangeHelper.right(local_ranges[to_range_index].to_date) >= TSRangeHelper.right(new_range.to_date):
+                broke_out_of_loop = True
                 break
+
+        if not broke_out_of_loop:
+            to_range_index += 1  # in Java, the last increment happens before the condition check
 
         if range_already_in_cache:
             InMemoryDocumentSessionOperations.__update_existing_range(local_ranges[to_range_index], new_range)
@@ -1506,7 +1513,9 @@ class InMemoryDocumentSessionOperations:
                 # and the requested range is : [1,6]
                 # after this action cache will be : [[1,6], [7,10]]
 
-                ranges[0:to_range_index].clear()
+                for i in range(0, to_range_index):
+                    del ranges[0]
+
                 time_series_range_result = TimeSeriesRangeResult(from_date, to_date, values)
                 ranges.insert(0, time_series_range_result)
                 return
@@ -1521,7 +1530,9 @@ class InMemoryDocumentSessionOperations:
 
             ranges[to_range_index].from_date = from_date
             ranges[to_range_index].entries = values
-            ranges[0:to_range_index].clear()
+
+            for i in range(0, to_range_index):
+                del ranges[0]
             return
 
         # found a 'from_range'
@@ -1540,7 +1551,9 @@ class InMemoryDocumentSessionOperations:
                 # then 'fromRange' is : [2,3]
                 # after this action cache will be : [[2,3], [4,12]]
 
-                ranges[from_range_index + 1 : len(ranges)].clear()
+                for i in range(from_range_index + 1, len(ranges)):
+                    del ranges[from_range_index + 1]
+
                 time_series_range_result = TimeSeriesRangeResult(from_date, to_date, values)
                 ranges.append(time_series_range_result)
                 return
@@ -1556,7 +1569,9 @@ class InMemoryDocumentSessionOperations:
 
             ranges[from_range_index].to_date = to_date
             ranges[from_range_index].entries = values
-            ranges[from_range_index + 1 : len(ranges)].clear()
+
+            for i in range(from_range_index + 1, len(ranges)):
+                del ranges[from_range_index + 1]
             return
 
         # found both 'from_range' and 'to_range'
@@ -1576,7 +1591,9 @@ class InMemoryDocumentSessionOperations:
                 # then 'fromRange' is [2,3] and 'toRange' is [10,12]
                 # after this action cache will be : [[2,3], [4,9], [10,12]]
 
-                ranges[from_range_index + 1 : to_range_index].clear()
+                for i in range(from_range_index + 1, to_range_index):
+                    del ranges[from_range_index + 1]
+
                 time_series_range_result = TimeSeriesRangeResult(from_date, to_date, values)
                 ranges.insert(from_range_index + 1, time_series_range_result)
                 return
@@ -1591,7 +1608,8 @@ class InMemoryDocumentSessionOperations:
             # then 'fromRange' is [2,3] and 'toRange' is [7,10]
             # after this action cache will be : [[2,3], [4,10]]
 
-            ranges[from_range_index + 1 : to_range_index].clear()
+            for i in range(from_range_index + 1, to_range_index):
+                del ranges[from_range_index + 1]
             ranges[to_range_index].from_date = from_date
             ranges[to_range_index].entries = values
 
@@ -1612,8 +1630,8 @@ class InMemoryDocumentSessionOperations:
 
             ranges[from_range_index].to_date = to_date
             ranges[from_range_index].entries = values
-            ranges[from_range_index + 1 : to_range_index].clear()
-
+            for i in range(from_range_index + 1, to_range_index):
+                del ranges[from_range_index + 1]
             return
 
         # the requested range starts inside 'fromRange'
@@ -1629,7 +1647,8 @@ class InMemoryDocumentSessionOperations:
 
         ranges[from_range_index].to_date = ranges[to_range_index].to_date
         ranges[from_range_index].entries = values
-        ranges[from_range_index + 1 : to_range_index + 1].clear()
+        for i in range(from_range_index + 1, to_range_index + 1):
+            del ranges[from_range_index + 1]
 
     @staticmethod
     def __merge_ranges(
@@ -1639,9 +1658,9 @@ class InMemoryDocumentSessionOperations:
         new_range: TimeSeriesRangeResult,
     ) -> List[TimeSeriesEntry]:
         merged_values = []
-        if from_range_index != -1 and local_ranges[from_range_index].to_date.time() >= new_range.from_date.time():
+        if from_range_index != -1 and local_ranges[from_range_index].to_date >= new_range.from_date:
             for val in local_ranges[from_range_index].entries:
-                if val.timestamp.time() >= new_range.from_date.time():
+                if val.timestamp >= new_range.from_date:
                     break
                 merged_values.append(val)
 
@@ -1651,7 +1670,7 @@ class InMemoryDocumentSessionOperations:
             local_ranges[to_range_index].from_date
         ) <= TSRangeHelper.right(new_range.to_date):
             for val in local_ranges[to_range_index].entries:
-                if val.timestamp.time() <= new_range.to_date.time():
+                if val.timestamp <= new_range.to_date:
                     continue
                 merged_values.append(val)
         return merged_values
@@ -1660,7 +1679,7 @@ class InMemoryDocumentSessionOperations:
     def __update_existing_range(local_range: TimeSeriesRangeResult, new_range: TimeSeriesRangeResult) -> None:
         new_values = []
         for index in range(len(local_range.entries)):
-            if local_range.entries[index].timestamp.time() >= new_range.from_date.time():
+            if local_range.entries[index].timestamp >= new_range.from_date:
                 break
 
             new_values.append(local_range.entries[index])
@@ -1668,7 +1687,7 @@ class InMemoryDocumentSessionOperations:
         new_values.extend(new_range.entries)
 
         for j in range(len(local_range.entries)):
-            if local_range.entries[j].timestamp.time() <= new_range.to_date.time():
+            if local_range.entries[j].timestamp <= new_range.to_date:
                 continue
             new_values.append(local_range.entries[j])
         local_range.entries = new_values

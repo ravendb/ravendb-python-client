@@ -10,13 +10,12 @@ import time
 import uuid
 from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Tuple, Generic, Set
 
-from ravendb import constants
-from ravendb.constants import int_max
+from ravendb.primitives import constants
+from ravendb.primitives.constants import int_max
 from ravendb.documents.operations.counters import CounterOperation, CounterOperationType, GetCountersOperation
 from ravendb.documents.operations.time_series import (
     TimeSeriesOperation,
     GetTimeSeriesOperation,
-    TimeSeriesRange,
     TimeSeriesRangeResult,
     TimeSeriesDetails,
     GetMultipleTimeSeriesOperation,
@@ -29,6 +28,7 @@ from ravendb.documents.session.time_series import (
     TimeSeriesValuesHelper,
     TypedTimeSeriesRollupEntry,
     ITimeSeriesValuesBindable,
+    TimeSeriesRange,
 )
 from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.exceptions import exceptions

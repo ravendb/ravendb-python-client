@@ -2,7 +2,7 @@ import inspect
 from copy import deepcopy
 from typing import Optional, TYPE_CHECKING, Union, Type, TypeVar, Dict
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.event_args import (
     BeforeConversionToDocumentEventArgs,

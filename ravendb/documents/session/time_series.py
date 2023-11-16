@@ -4,14 +4,47 @@ import abc
 import datetime
 import inspect
 import math
+from enum import Enum
 from typing import List, Dict, Type, Tuple, Any, TypeVar, Generic, Optional
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.exceptions.raven_exceptions import RavenException
+from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import Utils
 
 _T_TSBindable = TypeVar("_T_TSBindable")
 _T_Values = TypeVar("_T_Values")
+
+
+class AbstractTimeSeriesRange(abc.ABC):
+    def __init__(self, name: str):
+        self.name = name
+
+
+class TimeSeriesRange(AbstractTimeSeriesRange):
+    def __init__(self, name: str, from_date: Optional[datetime.datetime], to_date: Optional[datetime.datetime]):
+        super().__init__(name)
+        self.from_date = from_date
+        self.to_date = to_date
+
+
+class TimeSeriesTimeRange(AbstractTimeSeriesRange):
+    def __init__(self, name: str, time: TimeValue, type: TimeSeriesRangeType):
+        super().__init__(name)
+        self.time = time
+        self.type = type
+
+
+class TimeSeriesCountRange(AbstractTimeSeriesRange):
+    def __init__(self, name: str, count: int, type: TimeSeriesRangeType):
+        super().__init__(name)
+        self.count = count
+        self.type = type
+
+
+class TimeSeriesRangeType(Enum):
+    NONE = "None"
+    LAST = "Last"
 
 
 class TypedTimeSeriesRollupEntry(Generic[_T_Values]):

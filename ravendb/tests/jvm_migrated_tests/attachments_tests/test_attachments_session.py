@@ -1,4 +1,4 @@
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.exceptions.exceptions import InvalidOperationException
 from ravendb.documents.commands.batches import DeleteCommandData
 from ravendb.documents.operations.attachments import DeleteAttachmentOperation
