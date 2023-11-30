@@ -1760,6 +1760,10 @@ class SessionTimeSeriesBase(abc.ABC):
         self.append(timestamp, [value], tag)
 
     def append(self, timestamp: datetime, values: List[float], tag: Optional[str] = None) -> None:
+        if not isinstance(values, List):
+            raise TypeError(
+                f"The 'values' arg must be a list. If you want to append single float use 'append_single(..)' instead."
+            )
         document_info = self.session.documents_by_id.get_value(self.doc_id)
         if document_info is not None and document_info.entity in self.session.deleted_entities:
             self._throw_document_already_deleted_in_session(self.doc_id, self.name)
