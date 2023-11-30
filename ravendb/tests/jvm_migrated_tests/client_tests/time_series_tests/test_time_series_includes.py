@@ -197,3 +197,79 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(base_line + timedelta(minutes=3), vals[0].timestamp)
             self.assertEqual(base_line + timedelta(minutes=3, seconds=3), vals[1].timestamp)
             self.assertEqual(base_line + timedelta(minutes=5), vals[13].timestamp)
+
+    def test_include_multiple_time_series(self):
+        document_id = "users/gracjan"
+        base_line = datetime(2023, 8, 20, 21, 30)
+
+        with self.store.open_session() as session:
+            user = User(name="Gracjan")
+            session.store(user, document_id)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            for i in range(360):
+                session.time_series_for(document_id, "Heartrate").append_single(
+                    base_line + timedelta(seconds=i * 10), 6, "watches/fitbit"
+                )
+                session.time_series_for(document_id, "BloodPressure").append_single(
+                    base_line + timedelta(seconds=i * 10), 66, "watches/fitbit"
+                )
+                session.time_series_for(document_id, "Nasdaq").append_single(
+                    base_line + timedelta(seconds=i * 10), 8097.23, "nasdaq.com"
+                )
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.load(
+                document_id,
+                User,
+                lambda i: i.include_time_series(
+                    "Heartrate", base_line + timedelta(minutes=3), base_line + timedelta(minutes=5)
+                )
+                .include_time_series(
+                    "BloodPressure", base_line + timedelta(minutes=40), base_line + timedelta(minutes=45)
+                )
+                .include_time_series("Nasdaq", base_line + timedelta(minutes=15), base_line + timedelta(minutes=25)),
+            )
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual("Gracjan", user.name)
+
+            # should not go to server
+
+            vals = session.time_series_for(document_id, "Heartrate").get(
+                base_line + timedelta(minutes=3), base_line + timedelta(minutes=5)
+            )
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(13, len(vals))
+
+            self.assertEqual(base_line + timedelta(minutes=3), vals[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=5), vals[12].timestamp)
+
+            # should not go to server
+
+            vals = session.time_series_for(document_id, "BloodPressure").get(
+                base_line + timedelta(minutes=40), base_line + timedelta(minutes=45)
+            )
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(31, len(vals))
+
+            self.assertEqual(base_line + timedelta(minutes=40), vals[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=45), vals[30].timestamp)
+
+            # should not go to server
+
+            vals = session.time_series_for(document_id, "Nasdaq").get(
+                base_line + timedelta(minutes=15), base_line + timedelta(minutes=25)
+            )
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(61, len(vals))
+
+            self.assertEqual(base_line + timedelta(minutes=15), vals[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=25), vals[60].timestamp)
