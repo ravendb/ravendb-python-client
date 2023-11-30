@@ -250,14 +250,12 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
             for include in self._includes:
                 path_builder.append(f"&include={include}")
 
-        # todo: counters
         if self._include_all_counters:
             path_builder.append(f"&counter={constants.Counters.ALL}")
         elif self._counters:
             for counter in self._counters:
                 path_builder.append(f"&counter={counter}")
 
-        # todo: time series
         if self._time_series_includes is not None:
             for ts_include in self._time_series_includes:
                 if isinstance(ts_include, TimeSeriesRange):
@@ -279,7 +277,7 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
                     count_range: TimeSeriesCountRange = ts_include
                     path_builder.append(
                         f"&timeseriescount={count_range.name}"
-                        f"&countType={count_range.type}"
+                        f"&countType={count_range.type.value}"
                         f"&countValue={count_range.count}"
                     )
                 else:

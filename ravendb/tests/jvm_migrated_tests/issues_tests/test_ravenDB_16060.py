@@ -376,7 +376,7 @@ class TestRavenDB16060(TestBase):
             user = session.load(
                 doc_id,
                 User,
-                lambda i: i.include_time_series_time_value(
+                lambda i: i.include_time_series_by_range_type_and_time(
                     "heartRateMeasures", TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)
                 ),
             )

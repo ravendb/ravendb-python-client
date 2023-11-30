@@ -8,7 +8,12 @@ from ravendb.documents.conventions import DocumentConventions
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 
-from ravendb.documents.session.time_series import TimeSeriesRange, TimeSeriesTimeRange, TimeSeriesRangeType
+from ravendb.documents.session.time_series import (
+    TimeSeriesRange,
+    TimeSeriesTimeRange,
+    TimeSeriesRangeType,
+    TimeSeriesCountRange,
+)
 
 
 class IncludeBuilderBase:
@@ -169,6 +174,33 @@ class IncludeBuilderBase:
         time_range = TimeSeriesTimeRange(name, time, type_)
         hash_set.add(time_range)
 
+    def _include_time_series_by_range_type_and_count(
+        self, alias: str, name: str, type_: TimeSeriesRangeType, count: int
+    ) -> None:
+        self._assert_valid(alias, name)
+        self._assert_valid_type_and_count(type_, count)
+
+        if self.time_series_to_include_by_source_alias is None:
+            self._time_series_to_include_by_source_alias = {}
+
+        hash_set = self._time_series_to_include_by_source_alias.get(alias, None)
+        if hash_set is None:
+            hash_set = set()
+            self._time_series_to_include_by_source_alias[alias] = hash_set
+
+        count_range = TimeSeriesCountRange(name, count, type_)
+        hash_set.add(count_range)
+
+    @staticmethod
+    def _assert_valid_type_and_count(type_: TimeSeriesRangeType, count: int) -> None:
+        if type_ == TimeSeriesRangeType.NONE:
+            raise ValueError("Time range type cannot be set to NONE when time is specified.")
+        elif type_ == TimeSeriesRangeType.LAST:
+            if count <= 0:
+                raise ValueError("Count have to be positive")
+        else:
+            raise ValueError(f"Not supported time range type {type_.value}")
+
     @staticmethod
     def _assert_valid_type(type_: TimeSeriesRangeType, time: TimeValue) -> None:
         if type_ == TimeSeriesRangeType.NONE:
@@ -216,13 +248,19 @@ class IncludeBuilder(IncludeBuilderBase):
         self._include_time_series_from_to(alias, name, from_date, to_date)
         return self
 
-    def include_time_series_time_value(
+    def include_time_series_by_range_type_and_time(
         self, name: Optional[str], type_: TimeSeriesRangeType, time: TimeValue
-    ) -> IncludeBuilder:
+    ) -> IncludeBuilderBase:
         self._include_time_series_by_range_type_and_time("", name, type_, time)
         return self
 
-    def include_all_time_series(self, type_: TimeSeriesRangeType, time: TimeValue) -> IncludeBuilder:
+    def include_time_series_by_range_type_and_count(
+        self, name: str, type_: TimeSeriesRangeType, count: int
+    ) -> IncludeBuilderBase:
+        self._include_time_series_by_range_type_and_count("", name, type_, count)
+        return self
+
+    def include_all_time_series(self, type_: TimeSeriesRangeType, time: TimeValue) -> IncludeBuilderBase:
         self._include_time_series_by_range_type_and_time("", constants.TimeSeries.ALL, type_, time)
         return self
 
