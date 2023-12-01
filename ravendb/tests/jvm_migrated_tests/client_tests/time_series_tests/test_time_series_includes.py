@@ -5,15 +5,22 @@ from ravendb.infrastructure.orders import Company, Order
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase, User
 
+document_id = "users/gracjan"
+company_id = "companies/1-A"
+order_id = "orders/1-A"
+base_line = datetime(2023, 8, 20, 21, 30)
+ts_name1 = "Heartrate"
+ts_name2 = "Speedrate"
+tag1 = "watches/fitbit"
+tag2 = "watches/apple"
+tag3 = "watches/bitfit"
+
 
 class TestTimeSeriesIncludes(TestBase):
     def setUp(self):
         super(TestTimeSeriesIncludes, self).setUp()
 
     def test_should_cache_empty_time_series_ranges(self):
-        document_id = "users/gracjan"
-        base_line = datetime(2023, 8, 20, 21, 30)
-
         with self.store.open_session() as session:
             user = User(name="Gracjan")
             session.store(user, document_id)
@@ -98,8 +105,6 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(base_line + timedelta(minutes=30), ranges[0].to_date)
 
     def test_session_load_with_include_time_series(self):
-        base_line = datetime(2023, 8, 20, 21, 30)
-
         with self.store.open_session() as session:
             company = Company(name="HR")
             session.store(company, "companies/1-A")
@@ -145,9 +150,6 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(1, session.advanced.number_of_requests)
 
     def test_include_time_series_and_update_existing_range_in_cache(self):
-        document_id = "users/gracjan"
-        base_line = datetime(2023, 8, 20, 21, 30)
-
         with self.store.open_session() as session:
             user = User(name="Gracjan")
             session.store(user, document_id)
@@ -201,9 +203,6 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(base_line + timedelta(minutes=5), vals[13].timestamp)
 
     def test_include_multiple_time_series(self):
-        document_id = "users/gracjan"
-        base_line = datetime(2023, 8, 20, 21, 30)
-
         with self.store.open_session() as session:
             user = User(name="Gracjan")
             session.store(user, document_id)
@@ -277,23 +276,19 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(base_line + timedelta(minutes=25), vals[60].timestamp)
 
     def test_include_time_series_and_merge_with_existing_ranges_in_cache(self):
-        document_id = "users/gracjan"
-        base_line = datetime(2023, 8, 20, 21, 30)
-        ts_name = "Heartrate"
-
         with self.store.open_session() as session:
             session.store(User(name="Gracjan"), document_id)
             session.save_changes()
 
         with self.store.open_session() as session:
-            tsf = session.time_series_for(document_id, ts_name)
+            tsf = session.time_series_for(document_id, ts_name1)
             for i in range(360):
                 tsf.append_single(base_line + timedelta(seconds=10 * i), 6, "watches/fitbit")
 
             session.save_changes()
 
         with self.store.open_session() as session:
-            vals = session.time_series_for(document_id, ts_name).get(
+            vals = session.time_series_for(document_id, ts_name1).get(
                 base_line + timedelta(minutes=2), base_line + timedelta(minutes=10)
             )
             self.assertEqual(1, session.advanced.number_of_requests)
@@ -305,13 +300,13 @@ class TestTimeSeriesIncludes(TestBase):
                 document_id,
                 User,
                 lambda i: i.include_time_series(
-                    ts_name, base_line + timedelta(minutes=40), base_line + timedelta(minutes=50)
+                    ts_name1, base_line + timedelta(minutes=40), base_line + timedelta(minutes=50)
                 ),
             )
             self.assertEqual(2, session.advanced.number_of_requests)
 
             # should not go to server
-            vals = session.time_series_for(document_id, ts_name).get(
+            vals = session.time_series_for(document_id, ts_name1).get(
                 base_line + timedelta(minutes=40), base_line + timedelta(minutes=50)
             )
             self.assertEqual(2, session.advanced.number_of_requests)
@@ -323,7 +318,7 @@ class TestTimeSeriesIncludes(TestBase):
 
             cache = session.time_series_by_doc_id.get(document_id)
             self.assertIsNotNone(cache)
-            ranges = cache.get(ts_name)
+            ranges = cache.get(ts_name1)
             self.assertEqual(2, len(ranges))
 
             self.assertEqual(base_line + timedelta(minutes=2), ranges[0].from_date)
@@ -339,14 +334,16 @@ class TestTimeSeriesIncludes(TestBase):
 
             # should go to server to get [0, 2] and merge it into existing [2, 10]
             user = session.load(
-                document_id, User, lambda i: i.include_time_series(ts_name, base_line, base_line + timedelta(minutes=2))
+                document_id,
+                User,
+                lambda i: i.include_time_series(ts_name1, base_line, base_line + timedelta(minutes=2)),
             )
 
             self.assertEqual(3, session.advanced.number_of_requests)
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(base_line, base_line + timedelta(minutes=2))
+            vals = session.time_series_for(document_id, ts_name1).get(base_line, base_line + timedelta(minutes=2))
 
             self.assertEqual(3, session.advanced.number_of_requests)
 
@@ -369,14 +366,14 @@ class TestTimeSeriesIncludes(TestBase):
                 document_id,
                 User,
                 lambda i: i.include_time_series(
-                    ts_name, base_line + timedelta(minutes=10), base_line + timedelta(minutes=16)
+                    ts_name1, base_line + timedelta(minutes=10), base_line + timedelta(minutes=16)
                 ),
             )
 
             self.assertEqual(4, session.advanced.number_of_requests)
 
             # should not go to server
-            vals = session.time_series_for(document_id, ts_name).get(
+            vals = session.time_series_for(document_id, ts_name1).get(
                 base_line + timedelta(minutes=10), base_line + timedelta(minutes=16)
             )
             self.assertEqual(4, session.advanced.number_of_requests)
@@ -403,7 +400,7 @@ class TestTimeSeriesIncludes(TestBase):
                 document_id,
                 User,
                 lambda i: i.include_time_series(
-                    ts_name, base_line + timedelta(minutes=17), base_line + timedelta(minutes=19)
+                    ts_name1, base_line + timedelta(minutes=17), base_line + timedelta(minutes=19)
                 ),
             )
 
@@ -411,7 +408,7 @@ class TestTimeSeriesIncludes(TestBase):
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(
+            vals = session.time_series_for(document_id, ts_name1).get(
                 base_line + timedelta(minutes=17), base_line + timedelta(minutes=19)
             )
 
@@ -441,7 +438,7 @@ class TestTimeSeriesIncludes(TestBase):
                 document_id,
                 User,
                 lambda i: i.include_time_series(
-                    ts_name, base_line + timedelta(minutes=18), base_line + timedelta(minutes=48)
+                    ts_name1, base_line + timedelta(minutes=18), base_line + timedelta(minutes=48)
                 ),
             )
 
@@ -449,7 +446,7 @@ class TestTimeSeriesIncludes(TestBase):
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(
+            vals = session.time_series_for(document_id, ts_name1).get(
                 base_line + timedelta(minutes=18), base_line + timedelta(minutes=48)
             )
 
@@ -477,7 +474,7 @@ class TestTimeSeriesIncludes(TestBase):
                 document_id,
                 User,
                 lambda i: i.include_time_series(
-                    ts_name, base_line + timedelta(minutes=12), base_line + timedelta(minutes=22)
+                    ts_name1, base_line + timedelta(minutes=12), base_line + timedelta(minutes=22)
                 ),
             )
 
@@ -485,7 +482,7 @@ class TestTimeSeriesIncludes(TestBase):
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(
+            vals = session.time_series_for(document_id, ts_name1).get(
                 base_line + timedelta(minutes=12), base_line + timedelta(minutes=22)
             )
 
@@ -510,7 +507,7 @@ class TestTimeSeriesIncludes(TestBase):
                 document_id,
                 User,
                 lambda i: i.include_time_series_by_range_type_and_time(
-                    ts_name, TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)
+                    ts_name1, TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)
                 ),
             )
 
@@ -518,13 +515,13 @@ class TestTimeSeriesIncludes(TestBase):
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(base_line + timedelta(minutes=50), None)
+            vals = session.time_series_for(document_id, ts_name1).get(base_line + timedelta(minutes=50), None)
 
             self.assertEqual(8, session.advanced.number_of_requests)
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(base_line + timedelta(minutes=50), None)
+            vals = session.time_series_for(document_id, ts_name1).get(base_line + timedelta(minutes=50), None)
 
             self.assertEqual(8, session.advanced.number_of_requests)
 
@@ -538,25 +535,20 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(None, ranges[0].to_date)
 
     def test_query_with_include_time_series(self):
-        document_id = "users/gracjan"
-        base_line = datetime(2023, 8, 20, 21, 30)
-        ts_name = "Heartrate"
-        tag = "watches/fitbit"
-
         with self.store.open_session() as session:
             session.store(User(name="Gracjan"), document_id)
             session.save_changes()
 
         with self.store.open_session() as session:
-            tsf = session.time_series_for(document_id, ts_name)
+            tsf = session.time_series_for(document_id, ts_name1)
 
             for i in range(360):
-                tsf.append_single(base_line + timedelta(seconds=i * 10), 67, tag)
+                tsf.append_single(base_line + timedelta(seconds=i * 10), 67, tag1)
 
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(object_type=User).include(lambda i: i.include_time_series(ts_name))
+            query = session.query(object_type=User).include(lambda i: i.include_time_series(ts_name1))
 
             result = list(query)
 
@@ -566,30 +558,24 @@ class TestTimeSeriesIncludes(TestBase):
 
             # should not go to server
 
-            vals = session.time_series_for(document_id, ts_name).get(base_line, base_line + timedelta(minutes=30))
+            vals = session.time_series_for(document_id, ts_name1).get(base_line, base_line + timedelta(minutes=30))
 
             self.assertEqual(1, session.advanced.number_of_requests)
 
             self.assertEqual(181, len(vals))
             self.assertEqual(base_line, vals[0].timestamp)
-            self.assertEqual(tag, vals[0].tag)
+            self.assertEqual(tag1, vals[0].tag)
             self.assertEqual(67, vals[0].values[0])
             self.assertEqual(base_line + timedelta(minutes=30), vals[180].timestamp)
 
     def test_can_load_async_with_include_time_series_last_range_by_count(self):
-        company_id = "companies/1-A"
-        order_id = "orders/1-A"
-        base_line = datetime(2023, 8, 20, 21, 30)
-        ts_name = "Heartrate"
-        tag = "watches/fitbit"
-
         with self.store.open_session() as session:
             session.store(Company(name="HR"), company_id)
             session.store(Order(company=company_id), order_id)
-            tsf = session.time_series_for(order_id, ts_name)
+            tsf = session.time_series_for(order_id, ts_name1)
 
             for i in range(15):
-                tsf.append_single(base_line - timedelta(minutes=i), i, tag)
+                tsf.append_single(base_line - timedelta(minutes=i), i, tag1)
 
             session.save_changes()
 
@@ -598,7 +584,7 @@ class TestTimeSeriesIncludes(TestBase):
                 order_id,
                 Order,
                 lambda i: i.include_documents("company").include_time_series_by_range_type_and_count(
-                    ts_name, TimeSeriesRangeType.LAST, 11
+                    ts_name1, TimeSeriesRangeType.LAST, 11
                 ),
             )
             self.assertEqual(1, session.advanced.number_of_requests)
@@ -611,7 +597,7 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual("HR", company.name)
 
             # should not go to server
-            values = session.time_series_for(order_id, ts_name).get(base_line - timedelta(minutes=10), None)
+            values = session.time_series_for(order_id, ts_name1).get(base_line - timedelta(minutes=10), None)
 
             self.assertEqual(1, session.advanced.number_of_requests)
             self.assertEqual(11, len(values))
@@ -619,7 +605,7 @@ class TestTimeSeriesIncludes(TestBase):
             for i in range(len(values)):
                 self.assertEqual(1, len(values[i].values))
                 self.assertEqual(len(values) - 1 - i, values[i].values[0])
-                self.assertEqual(tag, values[i].tag)
+                self.assertEqual(tag1, values[i].tag)
                 self.assertEqual(base_line - timedelta(minutes=len(values) - 1 - i), values[i].timestamp)
 
     def test_can_load_async_with_include_array_of_time_series_last_range_by_time(self):
@@ -629,15 +615,6 @@ class TestTimeSeriesIncludes(TestBase):
         self.can_load_async_with_include_array_of_time_series_last_range(False)
 
     def can_load_async_with_include_array_of_time_series_last_range(self, by_time: bool) -> None:
-        company_id = "companies/1-A"
-        order_id = "orders/1-A"
-        base_line = datetime(2023, 8, 20, 21, 30)
-        ts_name1 = "Heartrate"
-        ts_name2 = "Speedrate"
-        tag1 = "watches/fitbit"
-        tag2 = "watches/apple"
-        tag3 = "watches/bitfit"
-
         with self.store.open_session() as session:
             session.store(Company(name="HR"), company_id)
             session.store(Order(company=company_id), order_id)
@@ -726,3 +703,172 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(6, speedrate_values[2].values[0])
             self.assertEqual(tag3, speedrate_values[2].tag)
             self.assertEqual(base_line - timedelta(minutes=8), speedrate_values[2].timestamp)
+
+    def test_can_load_async_with_include_all_time_series_last_range_by_count(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), company_id)
+            session.store(Order(company=company_id), order_id)
+            tsf = session.time_series_for(order_id, ts_name1)
+            for i in range(15):
+                tsf.append_single(base_line - timedelta(minutes=i), i, tag1)
+            tsf2 = session.time_series_for(order_id, ts_name2)
+            for i in range(15):
+                tsf2.append_single(base_line - timedelta(minutes=i), i, tag1)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                order_id,
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_count(TimeSeriesRangeType.LAST, 11),
+            )
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            # should not go to server
+            company = session.load(order.company, Company)
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual("HR", company.name)
+
+            # should not go to server
+            heartrate_values = session.time_series_for_entity(order, ts_name1).get(
+                base_line - timedelta(minutes=10), None
+            )
+            self.assertEqual(11, len(heartrate_values))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            speedrate_values = session.time_series_for_entity(order, ts_name2).get(
+                base_line - timedelta(minutes=10), None
+            )
+
+            self.assertEqual(11, len(speedrate_values))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            for i in range(len(heartrate_values)):
+                self.assertEqual(1, len(heartrate_values[i].values))
+                self.assertEqual(len(heartrate_values) - 1 - i, heartrate_values[i].values[0])
+                self.assertEqual(tag1, heartrate_values[i].tag)
+                self.assertEqual(
+                    base_line - timedelta(minutes=len(heartrate_values) - 1 - i), heartrate_values[i].timestamp
+                )
+
+            for i in range(len(speedrate_values)):
+                self.assertEqual(1, len(speedrate_values[i].values))
+                self.assertEqual(len(speedrate_values) - 1 - i, speedrate_values[i].values[0])
+                self.assertEqual(tag1, speedrate_values[i].tag)
+                self.assertEqual(
+                    base_line - timedelta(minutes=len(speedrate_values) - 1 - i), speedrate_values[i].timestamp
+                )
+
+    def test_can_load_async_with_include_all_time_series_last_range_by_type(self):
+        with self.store.open_session() as session:
+            session.store(Company(name="HR"), company_id)
+            session.store(Order(company=company_id), order_id)
+            tsf = session.time_series_for(order_id, ts_name1)
+            for i in range(15):
+                tsf.append_single(base_line - timedelta(minutes=i), i, tag1)
+            tsf2 = session.time_series_for(order_id, ts_name2)
+            for i in range(15):
+                tsf2.append_single(base_line - timedelta(minutes=i), i, tag1)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            order = session.load(
+                order_id,
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_time(
+                    TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)
+                ),
+            )
+
+            # should not go to server
+            company = session.load(order.company, Company)
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual("HR", company.name)
+
+            # should not go to server
+            heartrate_values = session.time_series_for_entity(order, ts_name1).get(
+                base_line - timedelta(minutes=10), None
+            )
+            self.assertEqual(11, len(heartrate_values))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            speedrate_values = session.time_series_for_entity(order, ts_name2).get(
+                base_line - timedelta(minutes=10), None
+            )
+
+            self.assertEqual(11, len(speedrate_values))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            for i in range(len(heartrate_values)):
+                self.assertEqual(1, len(heartrate_values[i].values))
+                self.assertEqual(len(heartrate_values) - 1 - i, heartrate_values[i].values[0])
+                self.assertEqual(tag1, heartrate_values[i].tag)
+                self.assertEqual(
+                    base_line - timedelta(minutes=len(heartrate_values) - 1 - i), heartrate_values[i].timestamp
+                )
+
+            for i in range(len(speedrate_values)):
+                self.assertEqual(1, len(speedrate_values[i].values))
+                self.assertEqual(len(speedrate_values) - 1 - i, speedrate_values[i].values[0])
+                self.assertEqual(tag1, speedrate_values[i].tag)
+                self.assertEqual(
+                    base_line - timedelta(minutes=len(speedrate_values) - 1 - i), speedrate_values[i].timestamp
+                )
+
+    def test_multi_load_with_include_time_series(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Oren"), "users/ayende")
+            session.store(User(name="Gracjan"), "users/gracjan")
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf1 = session.time_series_for("users/ayende", ts_name1)
+            tsf2 = session.time_series_for("users/gracjan", ts_name1)
+
+            for i in range(360):
+                tsf1.append_single(base_line + timedelta(seconds=i * 10), 6, tag1)
+
+                if i % 2 == 0:
+                    tsf2.append_single(base_line + timedelta(seconds=i * 10), 7, tag1)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            users = session.load(
+                ["users/ayende", "users/gracjan"],
+                User,
+                lambda i: i.include_time_series(ts_name1, base_line, base_line + timedelta(minutes=30)),
+            )
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual("Oren", users.get("users/ayende").name)
+            self.assertEqual("Gracjan", users.get("users/gracjan").name)
+
+            # should not go to server
+
+            vals = session.time_series_for("users/ayende", ts_name1).get(base_line, base_line + timedelta(minutes=30))
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(181, len(vals))
+
+            self.assertEqual(base_line, vals[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=30), vals[180].timestamp)
+
+            # should not go to server
+
+            vals = session.time_series_for("users/gracjan", ts_name1).get(base_line, base_line + timedelta(minutes=30))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(91, len(vals))
+            self.assertEqual(base_line, vals[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=30), vals[90].timestamp)

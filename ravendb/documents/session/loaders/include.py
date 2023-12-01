@@ -290,8 +290,12 @@ class IncludeBuilder(IncludeBuilderBase):
         self._include_array_of_time_series_by_range_type_and_count(names, type_, count)
         return self
 
-    def include_all_time_series(self, type_: TimeSeriesRangeType, time: TimeValue) -> IncludeBuilderBase:
+    def include_all_time_series_by_time(self, type_: TimeSeriesRangeType, time: TimeValue) -> IncludeBuilderBase:
         self._include_time_series_by_range_type_and_time("", constants.TimeSeries.ALL, type_, time)
+        return self
+
+    def include_all_time_series_by_count(self, type_: TimeSeriesRangeType, count: int) -> IncludeBuilderBase:
+        self._include_time_series_by_range_type_and_count("", constants.TimeSeries.ALL, type_, count)
         return self
 
     def include_compare_exchange_value(self, path: str) -> IncludeBuilderBase:
