@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Set, Tuple, Dict, Union, Optional
+from typing import Set, Tuple, Dict, Union, Optional, List
 
 from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
@@ -191,6 +191,24 @@ class IncludeBuilderBase:
         count_range = TimeSeriesCountRange(name, count, type_)
         hash_set.add(count_range)
 
+    def _include_array_of_time_series_by_range_type_and_count(
+        self, names: List[str], type_: TimeSeriesRangeType, count: int
+    ) -> None:
+        if names is None:
+            raise ValueError("Names cannot be None")
+
+        for name in names:
+            self._include_time_series_by_range_type_and_count("", name, type_, count)
+
+    def _include_array_of_time_series_by_range_type_and_time(
+        self, names: List[str], type_: TimeSeriesRangeType, time: TimeValue
+    ) -> None:
+        if names is None:
+            raise ValueError("Names cannot be None")
+
+        for name in names:
+            self._include_time_series_by_range_type_and_time("", name, type_, time)
+
     @staticmethod
     def _assert_valid_type_and_count(type_: TimeSeriesRangeType, count: int) -> None:
         if type_ == TimeSeriesRangeType.NONE:
@@ -258,6 +276,18 @@ class IncludeBuilder(IncludeBuilderBase):
         self, name: str, type_: TimeSeriesRangeType, count: int
     ) -> IncludeBuilderBase:
         self._include_time_series_by_range_type_and_count("", name, type_, count)
+        return self
+
+    def include_array_of_time_series_by_range_type_and_time(
+        self, names: List[str], type_: TimeSeriesRangeType, time: TimeValue
+    ) -> IncludeBuilderBase:
+        self._include_array_of_time_series_by_range_type_and_time(names, type_, time)
+        return self
+
+    def include_array_of_time_series_by_range_type_and_count(
+        self, names: List[str], type_: TimeSeriesRangeType, count: int
+    ) -> IncludeBuilderBase:
+        self._include_array_of_time_series_by_range_type_and_count(names, type_, count)
         return self
 
     def include_all_time_series(self, type_: TimeSeriesRangeType, time: TimeValue) -> IncludeBuilderBase:
