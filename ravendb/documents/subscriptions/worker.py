@@ -12,7 +12,7 @@ from json import JSONDecoder, JSONDecodeError
 from socket import socket
 from typing import TypeVar, Generic, Type, Optional, Callable, Dict, List, TYPE_CHECKING, Any
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.session.entity_to_json import EntityToJson
 from ravendb.documents.commands.subscriptions import GetTcpInfoForRemoteTaskCommand, TcpConnectionInfo
 from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (

@@ -3,7 +3,7 @@ import datetime
 from enum import Enum
 from typing import Union, Optional, Generic, TypeVar, Type
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.commands.batches import PutCompareExchangeCommandData, DeleteCompareExchangeCommandData
 from ravendb.documents.session.document_session_operations.misc import _update_metadata_modifications

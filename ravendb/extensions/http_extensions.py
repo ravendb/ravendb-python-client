@@ -2,7 +2,7 @@ from typing import Union, Dict
 
 import requests
 
-from ravendb import constants
+from ravendb.primitives import constants
 
 
 class HttpExtensions:

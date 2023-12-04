@@ -6,7 +6,7 @@ from typing import Union, List, Optional, Tuple
 
 import requests
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.http.misc import AggressiveCacheOptions, AggressiveCacheMode
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.extensions.http_extensions import HttpExtensions

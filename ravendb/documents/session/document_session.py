@@ -2,21 +2,20 @@ from __future__ import annotations
 
 import abc
 import copy
-import datetime
+from datetime import datetime
 import http
 import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Tuple, Generic
+from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Tuple, Generic, Set
 
-from ravendb import constants
-from ravendb.constants import int_max
+from ravendb.primitives import constants
+from ravendb.primitives.constants import int_max
 from ravendb.documents.operations.counters import CounterOperation, CounterOperationType, GetCountersOperation
 from ravendb.documents.operations.time_series import (
     TimeSeriesOperation,
     GetTimeSeriesOperation,
-    TimeSeriesRange,
     TimeSeriesRangeResult,
     TimeSeriesDetails,
     GetMultipleTimeSeriesOperation,
@@ -28,6 +27,8 @@ from ravendb.documents.session.time_series import (
     TypedTimeSeriesEntry,
     TimeSeriesValuesHelper,
     TypedTimeSeriesRollupEntry,
+    ITimeSeriesValuesBindable,
+    TimeSeriesRange,
 )
 from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.exceptions import exceptions
@@ -68,6 +69,7 @@ from ravendb.documents.session.misc import (
 from ravendb.documents.session.query import DocumentQuery, RawDocumentQuery
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.operations.load_operation import LoadOperation
+from ravendb.tools.time_series import TSRangeHelper
 from ravendb.tools.utils import Utils, Stopwatch, CaseInsensitiveDict
 from ravendb.documents.commands.batches import (
     PatchCommandData,
@@ -102,6 +104,7 @@ if TYPE_CHECKING:
 
 _T = TypeVar("_T")
 _TIndex = TypeVar("_TIndex", bound=AbstractCommonApiForIndexes)
+_T_TS_Values_Bindable = TypeVar("_T_TS_Values_Bindable", bound=ITimeSeriesValuesBindable)
 
 
 class DocumentSession(InMemoryDocumentSessionOperations):
@@ -168,7 +171,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         requests = []
         for i in range(len(self._pending_lazy_operations)):
             # todo: pending lazy operation create request - WIP
-            req = self._pending_lazy_operations[i].create_request()
+            req = self._pending_lazy_operations[i].create_arequest()
             if req is None:
                 self._pending_lazy_operations.pop(i)
                 i -= 1
@@ -177,7 +180,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         if not requests:
             return ResponseTimeInformation()
 
-        sw = datetime.datetime.now()  # todo: replace with perf_counter or Stopwatch
+        sw = Stopwatch.create_started()
         response_time_duration = ResponseTimeInformation()
         while self._execute_lazy_operations_single_step(response_time_duration, requests, sw):
             time.sleep(0.1)
@@ -188,7 +191,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if value is not None:
                 value(pending_lazy_operation.result)
 
-        elapsed = datetime.datetime.now() - sw
+        elapsed = sw.elapsed()
         response_time_duration.total_client_duration = elapsed
 
         self._pending_lazy_operations.clear()
@@ -281,6 +284,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     ) -> Union[Dict[str, _T], _T]:
         if key_or_keys is None:
             return None  # todo: return default value of object_type, not always None
+
         if includes is None:
             load_operation = LoadOperation(self)
             self.__load_internal_stream(
@@ -288,28 +292,21 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             )
             result = load_operation.get_documents(object_type)
             return result.popitem()[1] if len(result) == 1 else result if result else None
+
         include_builder = IncludeBuilder(self.conventions)
         includes(include_builder)
 
-        # todo: time series
-        # time_series_includes = (
-        #    [include_builder.time_series_to_include] if include_builder.time_series_to_include is not None else None
-        # )
-
-        time_series_includes = []
-
-        compare_exchange_values_to_include = (
-            include_builder._compare_exchange_values_to_include
-            if include_builder._compare_exchange_values_to_include is not None
-            else None
+        time_series_includes = (
+            include_builder.time_series_to_include if include_builder.time_series_to_include is not None else None
         )
+        compare_exchange_values_to_include = include_builder.compare_exchange_values_to_include
 
         result = self._load_internal(
             object_type,
             [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys,
-            include_builder._documents_to_include if include_builder._documents_to_include else None,
-            include_builder._counters_to_include if include_builder._counters_to_include else None,
-            include_builder._is_all_counters,
+            include_builder.documents_to_include if include_builder.documents_to_include else None,
+            include_builder.counters_to_include if include_builder.counters_to_include else None,
+            include_builder.is_all_counters,
             time_series_includes,
             compare_exchange_values_to_include,
         )
@@ -320,7 +317,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         self,
         object_type: Type[_T],
         keys: List[str],
-        includes: List[str],
+        includes: Optional[Set[str]],
         counter_includes: List[str] = None,
         include_all_counters: bool = False,
         time_series_includes: List[TimeSeriesRange] = None,
@@ -463,29 +460,45 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return SessionDocumentTimeSeries.from_entity(self, entity, name)
 
     def typed_time_series_for(
-        self, object_type: Type[_T], document_id: str, name: Optional[str] = None
-    ) -> SessionDocumentTypedTimeSeries[_T]:
-        return SessionDocumentTypedTimeSeries(object_type, self, document_id, name)
+        self, ts_bindable_object_type: Type[_T_TS_Values_Bindable], document_id: str, name: Optional[str] = None
+    ) -> SessionDocumentTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = name or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
+        return SessionDocumentTypedTimeSeries(ts_bindable_object_type, self, document_id, ts_name)
 
     def typed_time_series_for_entity(
-        self, object_type: Type[_T], entity: object, name: Optional[str] = None
-    ) -> SessionDocumentTypedTimeSeries[_T]:
-        return SessionDocumentTypedTimeSeries.from_entity_typed(object_type, self, entity, name)
+        self, ts_bindable_object_type: Type[_T_TS_Values_Bindable], entity: object, name: Optional[str] = None
+    ) -> SessionDocumentTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = name or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
+        return SessionDocumentTypedTimeSeries.from_entity_typed(ts_bindable_object_type, self, entity, ts_name)
 
     def time_series_rollup_for(
-        self, object_type: Type[_T], document_id: str, policy: str, raw: Optional[str] = None
-    ) -> SessionDocumentRollupTypedTimeSeries[_T]:
-        ts_name = raw or TimeSeriesOperations.get_time_series_name(object_type, self.conventions)
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        document_id: str,
+        policy: str,
+        raw: Optional[str] = None,
+    ) -> SessionDocumentRollupTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = raw or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
         return SessionDocumentRollupTypedTimeSeries(
-            object_type, self, document_id, ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy
+            ts_bindable_object_type,
+            self,
+            document_id,
+            ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy,
         )
 
     def time_series_rollup_for_entity(
-        self, object_type: Type[_T], entity: object, policy: str, raw: Optional[str] = None
-    ) -> SessionDocumentRollupTypedTimeSeries[_T]:
-        ts_name = raw or TimeSeriesOperations.get_time_series_name(object_type, self.conventions)
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        entity: object,
+        policy: str,
+        raw: Optional[str] = None,
+    ) -> SessionDocumentRollupTypedTimeSeries[_T_TS_Values_Bindable]:
+        ts_name = raw or TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, self.conventions)
         return SessionDocumentRollupTypedTimeSeries.from_entity_rollup_typed(
-            object_type, self, entity, ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy
+            ts_bindable_object_type,
+            self,
+            entity,
+            ts_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + policy,
         )
 
     class _EagerSessionOperations:
@@ -521,7 +534,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 if value is not None:
                     value(pending_lazy_operation.result)
 
-            elapsed = datetime.datetime.now() - sw.elapsed()
+            elapsed = datetime.now() - sw.elapsed()
             response_time_duration.total_client_duration = elapsed
 
             self.__session._pending_lazy_operations.clear()
@@ -531,7 +544,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     class _Advanced:
         def __init__(self, session: DocumentSession):
             self._session = session
-            self.__vals_count = 0
+            self.__values_count = 0
             self.__custom_count = 0
             self.__attachment = None
 
@@ -618,7 +631,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 raise ValueError("Entity cannot be None")
             return self._session._get_document_info(entity).metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
 
-        def get_last_modified_for(self, entity: object) -> datetime.datetime:
+        def get_last_modified_for(self, entity: object) -> datetime:
             if entity is None:
                 raise ValueError("Entity cannot be None")
             document_info = self._session._get_document_info(entity)
@@ -833,17 +846,19 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self._session._deferred_commands.remove(command)
             # We'll overwrite the deferredCommandsMap when calling Defer
             # No need to call deferredCommandsMap.remove((id, CommandType.PATCH, null));
+            if not isinstance(command, PatchCommandData):
+                raise TypeError(f"Command class {command.__class__.name} is invalid")
 
             old_patch: PatchCommandData = command
             new_script = old_patch.patch.script + "\n" + patch_request.script
-            new_vals = dict(old_patch.patch.values)
+            new_values = dict(old_patch.patch.values)
 
             for key, value in patch_request.values.items():
-                new_vals[key] = value
+                new_values[key] = value
 
             new_patch_request = PatchRequest()
             new_patch_request.script = new_script
-            new_patch_request.values = new_vals
+            new_patch_request.values = new_values
 
             self.defer(PatchCommandData(document_key, None, new_patch_request, None))
             return True
@@ -854,10 +869,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 key_or_entity = str(metadata.get(constants.Documents.Metadata.ID))
             patch_request = PatchRequest()
             variable = f"this.{path}"
-            value = f"args.val_{self.__vals_count}"
+            value = f"args.val_{self.__values_count}"
             patch_request.script = f"{variable} = {variable} ? {variable} + {value} : {value} ;"
-            patch_request.values = {f"val_{self.__vals_count}": value_to_add}
-            self.__vals_count += 1
+            patch_request.values = {f"val_{self.__values_count}": value_to_add}
+            self.__values_count += 1
             if not self.__try_merge_patches(key_or_entity, patch_request):
                 self.defer(PatchCommandData(key_or_entity, None, patch_request, None))
 
@@ -867,10 +882,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 key_or_entity = metadata[constants.Documents.Metadata.ID]
 
             patch_request = PatchRequest()
-            patch_request.script = f"this.{path} = args.val_{self.__vals_count};"
-            patch_request.values = {f"val_{self.__vals_count}": value}
+            patch_request.script = f"this.{path} = args.val_{self.__values_count};"
+            patch_request.values = {f"val_{self.__values_count}": value}
 
-            self.__vals_count += 1
+            self.__values_count += 1
 
             if not self.__try_merge_patches(key_or_entity, patch_request):
                 self.defer(PatchCommandData(key_or_entity, None, patch_request, None))
@@ -913,8 +928,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         def add_or_patch(self, key: str, entity: object, path_to_object: str, value: object) -> None:
             patch_request = PatchRequest()
-            patch_request.script = f"this.{path_to_object} = args.val_{self.__vals_count}"
-            patch_request.values = {f"val_{self.__vals_count}": value}
+            patch_request.script = f"this.{path_to_object} = args.val_{self.__values_count}"
+            patch_request.values = {f"val_{self.__values_count}": value}
 
             collection_name = self._session._request_executor.conventions.get_collection_name(entity)
             python_type = self._session._request_executor.conventions.get_python_class_name(type(entity))
@@ -927,7 +942,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             new_instance = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
 
-            self.__vals_count += 1
+            self.__values_count += 1
 
             patch_command_data = PatchCommandData(key, None, patch_request)
             patch_command_data.create_if_missing = new_instance
@@ -956,7 +971,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             new_instance = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
 
-            self.__vals_count += 1
+            self.__values_count += 1
 
             patch_command_data = PatchCommandData(key, None, patch_request)
             patch_command_data.create_if_missing = new_instance
@@ -964,11 +979,11 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         def add_or_increment(self, key: str, entity: object, path_to_object: str, val_to_add: object) -> None:
             variable = f"this.{path_to_object}"
-            value = f"args.val_{self.__vals_count}"
+            value = f"args.val_{self.__values_count}"
 
             patch_request = PatchRequest()
             patch_request.script = f"{variable} = {variable} ? {variable} + {value} : {value}"
-            patch_request.values = {f"val_{self.__vals_count}": val_to_add}
+            patch_request.values = {f"val_{self.__values_count}": val_to_add}
 
             collection_name = self._session._request_executor.conventions.get_collection_name(entity)
             python_type = self._session._request_executor.conventions.find_python_class_name(entity.__class__)
@@ -981,7 +996,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             new_instance = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
 
-            self.__vals_count += 1
+            self.__values_count += 1
 
             patch_command_data = PatchCommandData(key, None, patch_request)
             patch_command_data.create_if_missing = new_instance
@@ -1044,7 +1059,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             r = self._session.track_entity_document_info(object_type, document_info)
             return ConditionalLoadResult.create(r, cmd.result.change_vector)
 
-            # todo: stream, query and fors like timeseriesrollupfor, conditional load
+            # todo: stream, query and fors like time_series_rollup_for, conditional load
 
         class _Attachment:
             def __init__(self, session: DocumentSession):
@@ -1444,29 +1459,28 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def session(self) -> InMemoryDocumentSessionOperations:
             return self.__session
 
+        def document_query_from_index_class(
+            self, index_class: Type[_TIndex], object_type: Optional[Type[_T]] = None
+        ) -> DocumentQuery[_T]:
+            if not issubclass(index_class, AbstractCommonApiForIndexes):
+                raise TypeError(
+                    f"Incorrect type, {index_class} isn't an index. "
+                    f"It doesn't inherit from {AbstractCommonApiForIndexes.__name__} "
+                )
+            index = index_class()
+            return self.document_query(object_type, index.index_name, None, index.is_map_reduce)
+
         def document_query(
             self,
-            object_type: type,
-            index_class_or_name: Union[type, str] = None,
+            object_type: Optional[Type[_T]] = None,
+            index_name: Union[type, str] = None,
             collection_name: str = None,
             is_map_reduce: bool = False,
-        ) -> DocumentQuery:
-            if isinstance(index_class_or_name, type):
-                if not issubclass(index_class_or_name, AbstractCommonApiForIndexes):
-                    raise TypeError(
-                        f"Incorrect type, {index_class_or_name} isn't an index. It doesn't inherit from"
-                        f" AbstractCommonApiForIndexes"
-                    )
-                # todo: check the code below
-                index_class_or_name: AbstractCommonApiForIndexes = Utils.initialize_object(
-                    None, index_class_or_name, True
-                )
-                index_class_or_name = index_class_or_name.index_name
-            index_name_and_collection = self.session._process_query_parameters(
-                object_type, index_class_or_name, collection_name, self.session.conventions
+        ) -> DocumentQuery[_T]:
+            index_name, collection_name = self.session._process_query_parameters(
+                object_type, index_name, collection_name, self.session.conventions
             )
-            index_name = index_name_and_collection[0]
-            collection_name = index_name_and_collection[1]
+            return DocumentQuery(object_type, self, index_name, collection_name, is_map_reduce)
 
 
 class SessionCountersBase:
@@ -1478,7 +1492,7 @@ class SessionCountersBase:
             self.doc_id = document_id_or_entity
             self.session = session
         else:
-            document = session._documents_by_entity.get(document_id_or_entity)
+            document = session.documents_by_entity.get(document_id_or_entity)
             if document is None:
                 self._throw_entity_not_in_session(document_id_or_entity)
                 return
@@ -1490,14 +1504,16 @@ class SessionCountersBase:
             raise ValueError("Counter name cannot be empty")
 
         counter_op = CounterOperation(counter, CounterOperationType.INCREMENT, delta)
-        document_info = self.session._documents_by_id.get_value(self.doc_id)
-        if document_info is not None and document_info.entity in self.session._deleted_entities:
+        document_info = self.session.documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session.deleted_entities:
             self._throw_document_already_deleted_in_session(self.doc_id, counter)
 
-        command = self.session._deferred_commands_map.get(
+        command = self.session.deferred_commands_map.get(
             IdTypeAndName.create(self.doc_id, CommandType.COUNTERS, None), None
         )
         if command is not None:
+            if not isinstance(command, CountersBatchCommandData):
+                raise TypeError(f"Command class {command.__class__.name} is invalid")
             counters_batch_command_data: CountersBatchCommandData = command
             if counters_batch_command_data.has_delete(counter):
                 self._throw_increment_counter_after_delete_attempt(self.doc_id, counter)
@@ -1510,16 +1526,16 @@ class SessionCountersBase:
         if not counter or counter.isspace():
             raise ValueError("Counter name is required")
 
-        if IdTypeAndName.create(self.doc_id, CommandType.DELETE, None) in self.session._deferred_commands_map:
+        if IdTypeAndName.create(self.doc_id, CommandType.DELETE, None) in self.session.deferred_commands_map:
             return  # no-op
 
-        document_info = self.session._documents_by_id.get_value(self.doc_id)
-        if document_info is not None and document_info.entity in self.session._deleted_entities:
+        document_info = self.session.documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session.deleted_entities:
             return  # no-op
 
         counter_op = CounterOperation(counter, CounterOperationType.DELETE)
 
-        command = self.session._deferred_commands_map.get(
+        command = self.session.deferred_commands_map.get(
             IdTypeAndName.create(self.doc_id, CommandType.COUNTERS, None), None
         )
         if command is not None:
@@ -1572,7 +1588,7 @@ class SessionDocumentCounters(SessionCountersBase):
 
         missing_counters = not cache[0]
 
-        document = self.session._documents_by_id.get_value(self.doc_id)
+        document = self.session.documents_by_id.get_value(self.doc_id)
         if document is not None:
             metadata_counters: Dict = document.metadata.get(constants.Documents.Metadata.COUNTERS, None)
             if metadata_counters is None:
@@ -1616,7 +1632,7 @@ class SessionDocumentCounters(SessionCountersBase):
         else:
             cache = [False, CaseInsensitiveDict()]
 
-        document = self.session._documents_by_id.get_value(self.doc_id)
+        document = self.session.documents_by_id.get_value(self.doc_id)
         metadata_has_counter_name = False
         if document is not None:
             metadata_counters = document.metadata.get(constants.Documents.Metadata.COUNTERS, None)
@@ -1650,7 +1666,7 @@ class SessionDocumentCounters(SessionCountersBase):
             cache = [False, CaseInsensitiveDict()]
 
         metadata_counters = None
-        document = self.session._documents_by_id.get_value(self.doc_id)
+        document = self.session.documents_by_id.get_value(self.doc_id)
         if document is not None:
             metadata_counters = document.metadata.get(constants.Documents.Metadata.COUNTERS, None)
 
@@ -1716,7 +1732,7 @@ class SessionTimeSeriesBase(abc.ABC):
         if entity is None:
             raise ValueError("Entity cannot be None")
 
-        document_info = session._documents_by_entity.get(entity)
+        document_info = session.documents_by_entity.get(entity)
 
         if document_info is None:
             cls._throw_entity_not_in_session()
@@ -1729,56 +1745,57 @@ class SessionTimeSeriesBase(abc.ABC):
     @staticmethod
     def _throw_entity_not_in_session() -> None:
         raise ValueError(
-            "Entity is not associated with the session, cannot perform timeseries operations to it. "
+            "Entity is not associated with the session, cannot perform time series operations to it. "
             "Use document id instead or track the entity in the session"
         )
 
     @staticmethod
     def _throw_document_already_deleted_in_session(document_id: str, time_series: str) -> None:
         raise ValueError(
-            f"Can't modify timeseries {time_series} of document {document_id}"
+            f"Can't modify time series {time_series} of document {document_id}"
             f", the document was already deleted in this session."
         )
 
-    def append_single(self, timestamp: datetime.datetime, value: float, tag: Optional[str] = None) -> None:
+    def append_single(self, timestamp: datetime, value: float, tag: Optional[str] = None) -> None:
         self.append(timestamp, [value], tag)
 
-    def append(self, timestamp: datetime.datetime, values: List[float], tag: Optional[str] = None) -> None:
-        document_info = self.session._documents_by_id.get_value(self.doc_id)
-        if document_info is not None and document_info.entity in self.session._deleted_entities:
+    def append(self, timestamp: datetime, values: List[float], tag: Optional[str] = None) -> None:
+        if not isinstance(values, List):
+            raise TypeError(
+                f"The 'values' arg must be a list. If you want to append single float use 'append_single(..)' instead."
+            )
+        document_info = self.session.documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session.deleted_entities:
             self._throw_document_already_deleted_in_session(self.doc_id, self.name)
 
         op = TimeSeriesOperation.AppendOperation(timestamp, values, tag)
-        command = self.session._deferred_commands_map.get(
+        command = self.session.deferred_commands_map.get(
             IdTypeAndName.create(self.doc_id, CommandType.TIME_SERIES, self.name)
         )
         if command is not None:
             ts_cmd: TimeSeriesBatchCommandData = command
             ts_cmd.time_series.append(op)
         else:
-            appends = []
-            appends.append(op)
+            appends = [op]
             self.session.defer(TimeSeriesBatchCommandData(self.doc_id, self.name, appends, None))
 
     def delete_all(self) -> None:
         self.delete(None, None)
 
-    def delete_at(self, at: datetime.datetime) -> None:
+    def delete_at(self, at: datetime) -> None:
         self.delete(at, at)
 
-    def delete(
-        self, datetime_from: Optional[datetime.datetime] = None, datetime_to: Optional[datetime.datetime] = None
-    ):
-        document_info = self.session._documents_by_id.get_value(self.doc_id)
-        if document_info is not None and document_info.entity in self.session._deleted_entities:
+    def delete(self, datetime_from: Optional[datetime] = None, datetime_to: Optional[datetime] = None):
+        document_info = self.session.documents_by_id.get_value(self.doc_id)
+        if document_info is not None and document_info.entity in self.session.deleted_entities:
             self._throw_document_already_deleted_in_session(self.doc_id, self.name)
 
         op = TimeSeriesOperation.DeleteOperation(datetime_from, datetime_to)
 
-        command = self.session._deferred_commands_map.get(
+        command = self.session.deferred_commands_map.get(
             IdTypeAndName.create(self.doc_id, CommandType.TIME_SERIES, self.name), None
         )
-        if command is not None:
+        if command is not None and isinstance(command, TimeSeriesBatchCommandData):
             ts_cmd: TimeSeriesBatchCommandData = command
             ts_cmd.time_series.delete(op)
 
@@ -1788,8 +1805,8 @@ class SessionTimeSeriesBase(abc.ABC):
 
     def get_time_series_and_includes(
         self,
-        from_datetime: datetime.datetime,
-        to_datetime: datetime.datetime,
+        from_datetime: datetime,
+        to_datetime: datetime,
         includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]],
         start: int,
         page_size: int,
@@ -1797,14 +1814,14 @@ class SessionTimeSeriesBase(abc.ABC):
         if page_size == 0:
             return []
 
-        document = self.session._documents_by_id.get_value(self.doc_id)
+        document = self.session.documents_by_id.get_value(self.doc_id)
         if document is not None:
             metadata_time_series_raw = document.metadata.get(constants.Documents.Metadata.TIME_SERIES)
             if metadata_time_series_raw is not None and isinstance(metadata_time_series_raw, list):
                 time_series = metadata_time_series_raw
 
                 if not any(ts.lower() == self.name.lower() for ts in time_series):
-                    # the document is loaded in the session, but the metadata says that there is no such timeseries
+                    # the document is loaded in the session, but the metadata says that there is no such time series
                     return []
 
         self.session.increment_requests_count()
@@ -1824,7 +1841,7 @@ class SessionTimeSeriesBase(abc.ABC):
             ranges = cache.get(self.name)
             if ranges is not None and len(ranges) > 0:
                 # update
-                index = 0 if ranges[0].from_date > to_datetime else len(ranges)
+                index = 0 if TSRangeHelper.left(ranges[0].from_date) > TSRangeHelper.right(to_datetime) else len(ranges)
                 ranges.insert(index, range_result)
             else:
                 item = [range_result]
@@ -1845,23 +1862,23 @@ class SessionTimeSeriesBase(abc.ABC):
 
     @staticmethod
     def _skip_and_trim_range_if_needed(
-        from_date: datetime.datetime,
-        to_date: datetime.datetime,
+        from_date: datetime,
+        to_date: datetime,
         from_range: TimeSeriesRangeResult,
         to_range: TimeSeriesRangeResult,
         values: List[TimeSeriesEntry],
         skip: int,
         trim: int,
     ) -> List[TimeSeriesEntry]:
-        if from_range is not None and from_date <= from_range.to_date:
+        if from_range is not None and TSRangeHelper.left(from_date) <= TSRangeHelper.right(from_range.to_date):
             # need to skip a part of the first range
-            if to_range is not None and to_date >= to_range.from_date:
+            if to_range is not None and TSRangeHelper.left(to_range.from_date) <= TSRangeHelper.right(to_date):
                 # also need to trim a part of the last range
                 return values[skip : len(values) - trim]
 
             return values[skip:]
 
-        if to_range is not None and to_date >= to_range.from_date:
+        if to_range is not None and TSRangeHelper.left(to_range.from_date) <= TSRangeHelper.right(to_date):
             # trim a part of the last range
             return values[: len(values) - trim]
 
@@ -1869,8 +1886,8 @@ class SessionTimeSeriesBase(abc.ABC):
 
     def _serve_from_cache(
         self,
-        from_date: datetime.datetime,
-        to_date: datetime.datetime,
+        from_date: datetime,
+        to_date: datetime,
         start: int,
         page_size: int,
         includes: Callable[[TimeSeriesIncludeBuilder], None],
@@ -1882,8 +1899,8 @@ class SessionTimeSeriesBase(abc.ABC):
         # if found, chop just the relevant part from it and return to the user
 
         # otherwise, try to find two ranges (from_range, to_range)
-        # such that 'from_range' is the last occurence for which range.from_date <= from_date
-        # and to_range is the first occurence for which range.to_date >= to
+        # such that 'from_range' is the last occurrence for which range.from_date <= from_date
+        # and to_range is the first occurrence for which range.to_date >= to
         # At the same time, figure out the missing partial ranges that we need to get from the server
 
         from_range_index = -1
@@ -1892,9 +1909,9 @@ class SessionTimeSeriesBase(abc.ABC):
 
         for i in range(len(ranges)):
             to_range_index += 1
-            if ranges[to_range_index].from_date <= from_date:
+            if TSRangeHelper.left(ranges[to_range_index].from_date) <= TSRangeHelper.left(from_date):
                 if (
-                    ranges[to_range_index].to_date >= to_date
+                    TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date)
                     or len(ranges[to_range_index].entries) - start >= page_size
                 ):
                     # we have the entire range in cache
@@ -1915,14 +1932,21 @@ class SessionTimeSeriesBase(abc.ABC):
 
             from_to_use = (
                 from_date
-                if (to_range_index == 0 or from_date < ranges[to_range_index - 1].to_date)
+                if (
+                    to_range_index == 0
+                    or TSRangeHelper.left(from_date) < TSRangeHelper.right(ranges[to_range_index - 1].to_date)
+                )
                 else ranges[to_range_index - 1].to_date
             )
-            to_to_use = ranges[to_range_index].from_date if ranges[to_range_index].from_date <= to_date else to_date
+            to_to_use = (
+                ranges[to_range_index].from_date
+                if TSRangeHelper.left(ranges[to_range_index].from_date) <= TSRangeHelper.right(to_date)
+                else to_date
+            )
 
             ranges_to_get_from_server.append(TimeSeriesRange(self.name, from_to_use, to_to_use))
 
-            if ranges[to_range_index].to_date >= to_date:
+            if TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date):
                 break
 
         if to_range_index == len(ranges) - 1:
@@ -1971,14 +1995,14 @@ class SessionTimeSeriesBase(abc.ABC):
 
         return result_to_user
 
-    def _register_includes(self, detials: TimeSeriesDetails) -> None:
-        for range_result in detials.values.get(self.name):
+    def _register_includes(self, details: TimeSeriesDetails) -> None:
+        for range_result in details.values.get(self.name):
             self._handle_includes(range_result)
 
     @staticmethod
     def _merge_ranges_with_results(
-        from_date: datetime.datetime,
-        to_date: datetime.datetime,
+        from_date: datetime,
+        to_date: datetime,
         ranges: List[TimeSeriesRangeResult],
         from_range_index: int,
         to_range_index: int,
@@ -1994,7 +2018,11 @@ class SessionTimeSeriesBase(abc.ABC):
 
         for i in range(start, end + 1):
             if i == from_range_index:
-                if ranges[i].from_date <= from_date <= ranges[i].to_date:
+                if (
+                    TSRangeHelper.left(ranges[i].from_date)
+                    <= TSRangeHelper.left(from_date)
+                    <= TSRangeHelper.right(ranges[i].to_date)
+                ):
                     # requested range [from, to] starts inside 'fromRange'
                     # i.e from_range.from_date <= from_date <= from_range.to_date
                     # so we might need to skip a part of it when we return the
@@ -2003,13 +2031,13 @@ class SessionTimeSeriesBase(abc.ABC):
                     if ranges[i].entries is not None:
                         for v in ranges[i].entries:
                             merged_values.append(v)
-                            if v.timestamp < from_date:
+                            if v.timestamp < TSRangeHelper.left(from_date):
                                 skip += 1
                 continue
 
-            if (
-                current_result_index < len(result_from_server)
-                and result_from_server[current_result_index].from_date < ranges[i].from_date
+            if current_result_index < len(result_from_server) and (
+                TSRangeHelper.left(result_from_server[current_result_index].from_date)
+                < TSRangeHelper.left(ranges[i].from_date)
             ):
                 # add current result from server to the merged list
                 # in order to avoid duplication, skip first item in range
@@ -2019,20 +2047,20 @@ class SessionTimeSeriesBase(abc.ABC):
                 merged_values.extend(to_add)
 
             if i == to_range_index:
-                if ranges[i].from_date <= to_date:
+                if TSRangeHelper.left(ranges[i].from_date) <= TSRangeHelper.right(to_date):
                     # requested range [from_date, to_date] ends inside to_range
                     # so we might need to trim a part of it when we return the
                     # result to the user (i.e. trim [to_date, to_range.to_date]
 
                     for index in range(0 if len(merged_values) == 0 else 1, len(ranges[i].entries)):
                         merged_values.append(ranges[i].entries[index])
-                        if ranges[i].entries[index].timestamp > to_date:
+                        if ranges[i].entries[index].timestamp > TSRangeHelper.right(to_date):
                             trim += 1
 
                 continue
 
             # add current range from cache to the merged list
-            # in order to avoid duplication, skip frist item in range if needed
+            # in order to avoid duplication, skip first item in range if needed
 
             to_add = ranges[i].entries[0 if len(merged_values) == 0 else 1 :]
             merged_values.extend(to_add)
@@ -2061,8 +2089,8 @@ class SessionTimeSeriesBase(abc.ABC):
     @staticmethod
     def _chop_relevant_range(
         ts_range: TimeSeriesRangeResult,
-        from_date: datetime.datetime,
-        to_date: datetime.datetime,
+        from_date: datetime,
+        to_date: datetime,
         start: int,
         page_size: int,
     ) -> List[TimeSeriesEntry]:
@@ -2071,10 +2099,10 @@ class SessionTimeSeriesBase(abc.ABC):
 
         results = []
         for value in ts_range.entries:
-            if value.timestamp > to_date:
+            if value.timestamp > TSRangeHelper.right(to_date):
                 break
 
-            if value.timestamp < from_date:
+            if value.timestamp < TSRangeHelper.left(from_date):
                 continue
 
             start -= 1
@@ -2091,8 +2119,8 @@ class SessionTimeSeriesBase(abc.ABC):
 
     def _get_from_cache(
         self,
-        from_date: datetime.datetime,
-        to_date: datetime.datetime,
+        from_date: datetime,
+        to_date: datetime,
         includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]],
         start: int,
         page_size: int,
@@ -2106,7 +2134,7 @@ class SessionTimeSeriesBase(abc.ABC):
         result_to_user = self._serve_from_cache(from_date, to_date, start, page_size, includes)
         return result_to_user
 
-    def _not_in_cache(self, from_date: datetime.datetime, to_date: datetime.datetime):
+    def _not_in_cache(self, from_date: datetime, to_date: datetime):
         cache = self.session.time_series_by_doc_id.get(self.doc_id, None)
         if cache is None:
             return True
@@ -2115,7 +2143,11 @@ class SessionTimeSeriesBase(abc.ABC):
         if ranges is None:
             return True
 
-        return not ranges or ranges[0].from_date > to_date or from_date > ranges[-1].to_date
+        return (
+            not ranges
+            or TSRangeHelper.left(ranges[0].from_date) > TSRangeHelper.right(to_date)
+            or TSRangeHelper.left(from_date) > TSRangeHelper.right(ranges[-1].to_date)
+        )
 
     class CachedEntryInfo:
         def __init__(
@@ -2144,7 +2176,7 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
         if entity is None:
             raise ValueError("Entity cannot be None")
 
-        document_info = session._documents_by_entity.get(entity)
+        document_info = session.documents_by_entity.get(entity)
 
         if document_info is None:
             cls._throw_entity_not_in_session()
@@ -2156,8 +2188,8 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
 
     def get(
         self,
-        from_date: Optional[datetime.datetime] = None,
-        to_date: Optional[datetime.datetime] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
         start: int = 0,
         page_size: int = int_max,
     ) -> Optional[List[TimeSeriesEntry]]:
@@ -2165,8 +2197,8 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
 
     def get_include(
         self,
-        from_date: Optional[datetime.datetime] = None,
-        to_date: Optional[datetime.datetime] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
         includes: Optional[Callable[[TimeSeriesIncludeBuilder], None]] = None,
         start: int = 0,
         page_size: int = int_max,
@@ -2182,77 +2214,97 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
         return results_to_user[:page_size]
 
 
-class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
-    def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
+    def __init__(
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        document_id: str,
+        name: str,
+    ):
         super(SessionDocumentTypedTimeSeries, self).__init__(session, document_id, name)
-        self._object_type = object_type
+        self._ts_value_object_type = ts_bindable_object_type
 
     @classmethod
     def from_entity_typed(
-        cls, object_type: Type[_T], session: InMemoryDocumentSessionOperations, entity: object, name: str
+        cls,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        entity: object,
+        name: str,
     ) -> SessionDocumentTypedTimeSeries:
         if entity is None:
             raise ValueError("Entity cannot be None")
 
-        document_info = session._documents_by_entity.get(entity)
+        document_info = session.documents_by_entity.get(entity)
 
         if document_info is None:
             cls._throw_entity_not_in_session()
 
-        if not name or name.isspace():
-            raise ValueError("Name cannot be None or whitespace")
-        return cls(object_type, session, document_info.key, name)
+        if not name:
+            name = TimeSeriesOperations.get_time_series_name(ts_bindable_object_type, session.conventions)
+        return cls(ts_bindable_object_type, session, document_info.key, name)
 
     def get(
         self,
-        from_date: Optional[datetime.datetime] = None,
-        to_date: Optional[datetime.datetime] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
         start: int = 0,
         page_size: int = int_max,
-    ) -> Optional[List[TypedTimeSeriesEntry[_T]]]:
+    ) -> Optional[List[TypedTimeSeriesEntry[_T_TS_Values_Bindable]]]:
         if super()._not_in_cache(from_date, to_date):
             entries = self.get_time_series_and_includes(from_date, to_date, None, start, page_size)
             if entries is None:
                 return None
 
-            return [x.as_typed_entry(self._object_type) for x in entries]
+            return [x.as_typed_entry(self._ts_value_object_type) for x in entries]
 
         results = self._get_from_cache(from_date, to_date, None, start, page_size)
-        return [x.as_typed_entry(self._object_type) for x in results]
+        return [x.as_typed_entry(self._ts_value_object_type) for x in results]
 
-    def append(self, timestamp: datetime.datetime, entry: _T, tag: Optional[str] = None) -> None:
+    def append(self, timestamp: datetime, entry: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
         values = TimeSeriesValuesHelper.get_values(type(entry), entry)
-        self.append(timestamp, values, tag)
+        super().append(timestamp, values, tag)
 
-    def append_entry(self, entry: TypedTimeSeriesEntry[_T]) -> None:
+    def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
         self.append_single(entry.timestamp, entry.value, entry.tag)
 
 
-class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T]):
-    def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, document_id: str, name: str):
+class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
+    def __init__(
+        self,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        document_id: str,
+        name: str,
+    ):
         super(SessionDocumentRollupTypedTimeSeries, self).__init__(session, document_id, name)
-        self._object_type = object_type
+        self._object_type = ts_bindable_object_type
 
     @classmethod
     def from_entity_rollup_typed(
-        cls, object_type: Type[_T], session: InMemoryDocumentSessionOperations, entity: object, name: str
+        cls,
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
+        session: InMemoryDocumentSessionOperations,
+        entity: object,
+        name: str,
     ) -> SessionDocumentRollupTypedTimeSeries:
         if entity is None:
             raise ValueError("Entity cannot be None")
 
-        document_info = session._documents_by_entity.get(entity)
+        document_info = session.documents_by_entity.get(entity)
 
         if document_info is None:
             cls._throw_entity_not_in_session()
 
         if not name or name.isspace():
             raise ValueError("Name cannot be None or whitespace")
-        return cls(object_type, session, document_info.key, name)
+        return cls(ts_bindable_object_type, session, document_info.key, name)
 
     def get(
         self,
-        from_date: Optional[datetime.datetime] = None,
-        to_date: Optional[datetime.datetime] = None,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
         start: int = 0,
         page_size: int = int_max,
     ):

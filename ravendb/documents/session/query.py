@@ -19,7 +19,8 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from ravendb import constants
+from ravendb.documents.session.time_series import TimeSeriesRange
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.indexes.spatial.configuration import SpatialUnits, SpatialRelation
 from ravendb.documents.queries.explanation import Explanations, ExplanationOptions
@@ -83,6 +84,7 @@ from ravendb.documents.session.tokens.query_tokens.definitions import (
     ShapeToken,
     SuggestToken,
     CounterIncludesToken,
+    TimeSeriesIncludesToken,
 )
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.documents.session.utils.includes_util import IncludesUtil
@@ -147,6 +149,7 @@ class AbstractDocumentQuery(Generic[_T]):
         self._explanation_token: Optional[ExplanationToken] = None
         self._explanations: Optional[Explanations] = None
         self._counter_includes_tokens: Optional[List[CounterIncludesToken]] = None
+        self._time_series_includes_tokens: Optional[List[TimeSeriesIncludesToken]] = None
 
         self._before_query_executed_callback: List[Callable[[IndexQuery], None]] = []
         self._after_query_executed_callback: List[Callable[[QueryResult], None]] = [
@@ -365,15 +368,18 @@ class AbstractDocumentQuery(Generic[_T]):
             includes = path_or_include_builder
             if includes is None:
                 return
-            if includes._documents_to_include is not None:
-                self._document_includes.update(includes._documents_to_include)
+            if includes.documents_to_include is not None:
+                self._document_includes.update(includes.documents_to_include)
 
-            # todo: counters and time series includes
-            self._include_counters(includes._alias, includes._counters_to_include_by_source_path)
-            # if includes.time_series_to_include_by_source_alias is not None:
-            #     self._include_time_series(includes.alias, includes.time_series_to_include_by_source_alias)
-            if includes._compare_exchange_values_to_include is not None:
-                for compare_exchange_value in includes._compare_exchange_values_to_include:
+            self._include_counters(includes.alias, includes.counters_to_include_by_source_path)
+
+            if includes.time_series_to_include_by_source_alias is not None:
+                self._include_time_series(includes.alias, includes.time_series_to_include_by_source_alias)
+
+            if includes.compare_exchange_values_to_include is not None:
+                self._compare_exchange_includes_tokens = []
+
+                for compare_exchange_value in includes.compare_exchange_values_to_include:
                     self._compare_exchange_includes_tokens.append(
                         CompareExchangeValueIncludesToken.create(compare_exchange_value)
                     )
@@ -921,7 +927,7 @@ class AbstractDocumentQuery(Generic[_T]):
             and self._query_timings is None
             and not self._compare_exchange_includes_tokens
             and self._counter_includes_tokens is None
-            # todo: and self._time_series_includes_tokens is None
+            and self._time_series_includes_tokens is None
         ):
             return
 
@@ -940,9 +946,8 @@ class AbstractDocumentQuery(Generic[_T]):
             else:
                 query_text.append(include)
 
-        # todo: counters & time series
         first = self.__write_include_tokens(self._counter_includes_tokens, first, query_text)
-        # first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
+        first = self.__write_include_tokens(self._time_series_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._compare_exchange_includes_tokens, first, query_text)
         first = self.__write_include_tokens(self._highlighting_tokens, first, query_text)
 
@@ -1265,7 +1270,10 @@ class AbstractDocumentQuery(Generic[_T]):
         if self._counter_includes_tokens is not None:
             for counter_includes_token in self._counter_includes_tokens:
                 counter_includes_token.add_alias_to_path(from_alias)
-        # todo: time series tokens
+
+        if self._time_series_includes_tokens is not None:
+            for time_series_include_token in self._time_series_includes_tokens:
+                time_series_include_token.add_alias_to_path(from_alias)
 
         return from_alias
 
@@ -1689,9 +1697,17 @@ class AbstractDocumentQuery(Generic[_T]):
             for name in value[1]:
                 self._counter_includes_tokens.append(CounterIncludesToken.create(key, name))
 
-    # todo: time series
-    # def _include_time_series(self, alias:str, time_series_to_include:Dict[str,Set[AbstractTimeSeriesRange]]) -> None:
-    # pass
+    def _include_time_series(self, alias: str, time_series_to_include: Dict[str, Set[TimeSeriesRange]]) -> None:
+        if not time_series_to_include:
+            return
+
+        self._time_series_includes_tokens = []
+        if self._includes_alias is None:
+            self._includes_alias = alias
+
+        for ts_name, ranges in time_series_to_include.items():
+            for ts_range in ranges:
+                self._time_series_includes_tokens.append(TimeSeriesIncludesToken.create(ts_name, ts_range))
 
 
 class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):

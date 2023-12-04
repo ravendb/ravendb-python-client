@@ -11,7 +11,7 @@ import inflect
 
 from typing import TypeVar
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.operations.configuration import ClientConfiguration, LoadBalanceBehavior, ReadBalanceBehavior
 from ravendb.documents.indexes.definitions import SortOptions
 from ravendb.tools.utils import Utils

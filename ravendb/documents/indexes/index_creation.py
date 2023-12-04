@@ -2,7 +2,7 @@ import logging
 from abc import abstractmethod, ABC
 from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional, List, Collection
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactory
 from ravendb.documents.store.definition import DocumentStore, DocumentStoreBase

@@ -1,6 +1,7 @@
 import sys
 
-int_max = 0x7FFFFFF
+int_min = 0x80000000
+int_max = 0x7FFFFFFF
 min_normal = sys.float_info.min
 json_serialize_method_name = "to_json"
 nan_value = float("nan")
@@ -68,3 +69,10 @@ class Headers:
     TRANSFER_ENCODING = "Transfer-Encoding"
     CONTENT_ENCODING = "Content-Encoding"
     CONTENT_LENGTH = "Content-Length"
+
+
+class TimeSeries:
+    SELECT_FIELD_NAME = "timeseries"
+    QUERY_FUNCTION = "__timeSeriesQueryFunction"
+
+    ALL = "@all_timeseries"

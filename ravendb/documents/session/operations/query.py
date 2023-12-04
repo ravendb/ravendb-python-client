@@ -3,7 +3,7 @@ import enum
 import logging
 from typing import Union, Optional, TypeVar, List, Type, Callable, Dict, TYPE_CHECKING
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.commands.query import QueryCommand
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.queries.query import QueryResult

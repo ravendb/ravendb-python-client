@@ -9,7 +9,7 @@ from enum import Enum
 from subprocess import Popen
 from typing import Iterable, List, Union, Optional, Set
 from datetime import timedelta
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.operations.indexes import GetIndexErrorsOperation
 from ravendb.exceptions.exceptions import DatabaseDoesNotExistException
 from ravendb.documents.indexes.definitions import IndexState, IndexErrors

@@ -563,7 +563,7 @@ class CopyAttachmentCommandData(CommandData):
         source_name: str,
         destination_document_id: str,
         destination_name: str,
-        change_vector: str,
+        change_vector: Optional[str],
     ):
         if source_document_id.isspace():
             raise ValueError("source_document_id is required")
@@ -595,7 +595,7 @@ class MoveAttachmentCommandData(CommandData):
         name: str,
         destination_id: str,
         destination_name: str,
-        change_vector: str,
+        change_vector: Optional[str],
     ):
         if key.isspace():
             raise ValueError("source_document_id is required")
@@ -621,7 +621,7 @@ class MoveAttachmentCommandData(CommandData):
 
 
 class DeleteAttachmentCommandData(CommandData):
-    def __init__(self, document_id: str, name: str, change_vector: str):
+    def __init__(self, document_id: str, name: str, change_vector: Optional[str]):
         if not document_id:
             raise ValueError(document_id)
         if not name:

@@ -1,4 +1,4 @@
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.operations.counters import (
     DocumentCountersOperation,
     CounterOperation,

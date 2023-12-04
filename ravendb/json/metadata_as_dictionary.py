@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ravendb import constants
+from ravendb.primitives import constants
 
 
 class MetadataAsDictionary:

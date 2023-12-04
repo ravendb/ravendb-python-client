@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import enum
 import os
-from typing import List, Union, Optional, Tuple, TYPE_CHECKING
+from typing import List, Union, Optional, Tuple
 
-from ravendb import constants
+from ravendb.documents.session.time_series import (
+    TimeSeriesRange,
+    TimeSeriesTimeRange,
+    TimeSeriesRangeType,
+    AbstractTimeSeriesRange,
+    TimeSeriesCountRange,
+)
+from ravendb.primitives import constants
 from ravendb.documents.session.misc import OrderingType
 from ravendb.documents.indexes.spatial.configuration import SpatialUnits
 from ravendb.documents.queries.group_by import GroupByMethod
@@ -14,9 +21,6 @@ from ravendb.documents.session.tokens.misc import WhereOperator
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.tools.utils import Utils
-
-if TYPE_CHECKING:
-    from ravendb.documents.operations.time_series import TimeSeriesRange
 
 
 class CompareExchangeValueIncludesToken(QueryToken):
@@ -65,12 +69,12 @@ class CounterIncludesToken(QueryToken):
 
 
 class TimeSeriesIncludesToken(QueryToken):
-    def __init__(self, source_path: str, time_range: "TimeSeriesRange"):
+    def __init__(self, source_path: str, time_range: AbstractTimeSeriesRange):
         self.__range = time_range
         self.__source_path = source_path
 
     @classmethod
-    def create(cls, source_path: str, time_range: "TimeSeriesRange") -> TimeSeriesIncludesToken:
+    def create(cls, source_path: str, time_range: AbstractTimeSeriesRange) -> TimeSeriesIncludesToken:
         return cls(source_path, time_range)
 
     def add_alias_to_path(self, alias: str):
@@ -81,9 +85,43 @@ class TimeSeriesIncludesToken(QueryToken):
         if self.__source_path:
             writer.append(f"{self.__source_path}, ")
 
-        writer.append(f"'{self.__range.name}', ")
-        writer.append(f"'{Utils.datetime_to_string(self.__range.from_date)}', " if self.__range.from_date else "null,")
-        writer.append(f"'{Utils.datetime_to_string(self.__range.to_date)}', " if self.__range.to_date else "null")
+        if self.__range.name:
+            writer.append(f"'{self.__range.name}', ")
+
+        if isinstance(self.__range, TimeSeriesRange):
+            self.__range: TimeSeriesRange
+
+            writer.append(
+                f"'{Utils.datetime_to_string(self.__range.from_date)}', " if self.__range.from_date else "null,"
+            )
+            writer.append(f"'{Utils.datetime_to_string(self.__range.to_date)}', " if self.__range.to_date else "null")
+
+        elif isinstance(self.__range, TimeSeriesTimeRange):
+            self.__range: TimeSeriesTimeRange
+
+            if self.__range.type == TimeSeriesRangeType.LAST:
+                writer.append("last(")
+            else:
+                raise ValueError(f"Not supported time range type: {str(self.__range.type)}")
+            writer.append(str(self.__range.time.value))
+            writer.append(", '")
+            writer.append(self.__range.time.unit.value)
+            writer.append("')")
+
+        elif isinstance(self.__range, TimeSeriesCountRange):
+            self.__range: TimeSeriesCountRange
+
+            if self.__range.type == TimeSeriesRangeType.LAST:
+                writer.append("last(")
+            else:
+                raise ValueError(f"Not supported time range type: {str(self.__range.type)}")
+
+            writer.append(str(self.__range.count))
+            writer.append(")")
+
+        else:
+            raise ValueError(f"Not supported time range type: {str(self.__range.__class__.__name__)}")
+
         writer.append(")")
 
 

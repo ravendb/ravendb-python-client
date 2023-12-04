@@ -26,7 +26,7 @@ class TestTimeSeriesOperations(TestBase):
         ts_operation = TimeSeriesOperation(self.ts_name)
 
         base = datetime.now()
-        base_24 = datetime(2023, 11, 14)
+        base_24 = datetime(2022, 11, 14)
 
         ts_operation.append(TimeSeriesOperation.AppendOperation(base, [73], "heart/rates"))
         ts_operation.append(TimeSeriesOperation.AppendOperation(base + timedelta(minutes=5), [78], "heart/rates"))

@@ -7,7 +7,7 @@ from abc import abstractmethod
 from typing import Generic, TypeVar, TYPE_CHECKING, Optional, List, Dict
 import requests
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.operations.operation import Operation
 from ravendb.serverwide.database_record import DatabaseRecordWithEtag, DatabaseRecord
 from ravendb.serverwide.misc import DatabaseTopology

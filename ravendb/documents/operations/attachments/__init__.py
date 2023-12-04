@@ -6,7 +6,7 @@ from typing import Optional, TYPE_CHECKING, List
 
 import requests
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.data.operation import AttachmentType
 from ravendb.documents.operations.definitions import IOperation, VoidOperation
 from ravendb.http.http_cache import HttpCache
@@ -152,7 +152,7 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
 
 
 class GetAttachmentOperation(IOperation):
-    def __init__(self, document_id: str, name: str, attachment_type: AttachmentType, change_vector: str):
+    def __init__(self, document_id: str, name: str, attachment_type: AttachmentType, change_vector: Optional[str]):
         if document_id is None:
             raise ValueError("Invalid document_id")
         if name is None:

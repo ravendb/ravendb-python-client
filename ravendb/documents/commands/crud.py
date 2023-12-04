@@ -3,10 +3,15 @@ import datetime
 import http
 import json
 from typing import Optional, List
-from typing import TYPE_CHECKING
 import requests
 
-from ravendb import constants
+from ravendb.documents.session.time_series import (
+    TimeSeriesRange,
+    TimeSeriesTimeRange,
+    TimeSeriesCountRange,
+    AbstractTimeSeriesRange,
+)
+from ravendb.primitives import constants
 from ravendb.documents.commands.results import GetDocumentsResult
 from ravendb.documents.queries.utils import HashCalculator
 from ravendb.http.misc import ResponseDisposeHandling
@@ -17,9 +22,6 @@ from ravendb.http.http_cache import HttpCache
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.tools.utils import Utils
-
-if TYPE_CHECKING:
-    from ravendb.documents.conventions import DocumentConventions
 
 
 class PutResult:
@@ -76,7 +78,7 @@ class DeleteDocumentCommand(VoidRavenCommand):
 
 
 class HeadDocumentCommand(RavenCommand[str]):
-    def __init__(self, key: str, change_vector: str):
+    def __init__(self, key: str, change_vector: Optional[str]):
         super(HeadDocumentCommand, self).__init__(str)
         if key is None:
             raise ValueError("Key cannot be None")
@@ -124,7 +126,7 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
         self._key: Optional[str] = None
         self._counters: Optional[List[str]] = None
         self._include_all_counters: Optional[bool] = None
-        self._time_series_includes: Optional[List] = None  # todo: AbstractTimeSeriesRange
+        self._time_series_includes: Optional[List[AbstractTimeSeriesRange]] = None
 
         self._compare_exchange_value_includes: Optional[List[str]] = None
 
@@ -248,19 +250,38 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
             for include in self._includes:
                 path_builder.append(f"&include={include}")
 
-        # todo: counters
         if self._include_all_counters:
             path_builder.append(f"&counter={constants.Counters.ALL}")
         elif self._counters:
             for counter in self._counters:
                 path_builder.append(f"&counter={counter}")
 
-        # todo: time series
         if self._time_series_includes is not None:
-            for time_series in self._time_series_includes:
-                path_builder.append(
-                    f"&timeseries={time_series.name}&from={time_series.from_date}&to={time_series.to_date}"
-                )
+            for ts_include in self._time_series_includes:
+                if isinstance(ts_include, TimeSeriesRange):
+                    range_: TimeSeriesRange = ts_include
+                    path_builder.append(
+                        f"&timeseries={range_.name}"
+                        f"&from={Utils.datetime_to_string(range_.from_date) if range_.from_date else ''}"
+                        f"&to={Utils.datetime_to_string(range_.to_date) if range_.to_date else ''}"
+                    )
+                elif isinstance(ts_include, TimeSeriesTimeRange):
+                    time_range: TimeSeriesTimeRange = ts_include
+                    path_builder.append(
+                        f"&timeseriestime={time_range.name}"
+                        f"&timeType={time_range.type.value}"
+                        f"&timeValue={time_range.time.value}"
+                        f"&timeUnit={time_range.time.unit.value}"
+                    )
+                elif isinstance(ts_include, TimeSeriesCountRange):
+                    count_range: TimeSeriesCountRange = ts_include
+                    path_builder.append(
+                        f"&timeseriescount={count_range.name}"
+                        f"&countType={count_range.type.value}"
+                        f"&countValue={count_range.count}"
+                    )
+                else:
+                    raise TypeError(f"Unexpected TimeSeries range {ts_include.__class__.__name__}")
 
         if self._compare_exchange_value_includes is not None:
             for compare_exchange_value in self._compare_exchange_value_includes:
@@ -368,7 +389,7 @@ class HiLoReturnCommand(VoidRavenCommand):
 
 
 class HeadAttachmentCommand(RavenCommand[str]):
-    def __init__(self, document_id: str, name: str, change_vector: str):
+    def __init__(self, document_id: str, name: str, change_vector: Optional[str]):
         super().__init__(str)
 
         if document_id.isspace():

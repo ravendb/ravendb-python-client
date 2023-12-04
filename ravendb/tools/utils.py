@@ -4,7 +4,7 @@ import enum
 import time
 from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type, TYPE_CHECKING
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.exceptions import exceptions
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 import OpenSSL.crypto

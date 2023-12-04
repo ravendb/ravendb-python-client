@@ -1,10 +1,10 @@
 from __future__ import annotations
 import json
-from typing import Union, Optional, Generic, TypeVar, Dict, TYPE_CHECKING, Type, Collection
+from typing import Optional, Generic, TypeVar, Dict, TYPE_CHECKING, Type, Collection
 
 import requests
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.compare_exchange.compare_exchange import (
     CompareExchangeValue,
@@ -21,7 +21,7 @@ from ravendb.http.topology import RaftCommand
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.entity_to_json import EntityToJson
 from ravendb.tools.utils import Utils
-from ravendb.util.util import RaftIdGenerator, StartingWithOptions
+from ravendb.util.util import RaftIdGenerator
 
 _T = TypeVar("_T")
 

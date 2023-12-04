@@ -1,4 +1,4 @@
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.tests.test_base import TestBase

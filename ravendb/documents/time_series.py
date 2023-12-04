@@ -3,7 +3,7 @@ import datetime
 from typing import TYPE_CHECKING, Optional, Type, TypeVar, List
 
 from ravendb.documents.conventions import DocumentConventions
-from ravendb.documents.session.time_series import TimeSeriesValuesHelper
+from ravendb.documents.session.time_series import TimeSeriesValuesHelper, ITimeSeriesValuesBindable
 from ravendb.documents.operations.time_series import (
     ConfigureTimeSeriesValueNamesOperation,
     TimeSeriesPolicy,
@@ -14,22 +14,10 @@ from ravendb.documents.operations.time_series import (
 )
 
 _T_Collection = TypeVar("_T_Collection")
-_T_Time_Series_Entry = TypeVar("_T_Time_Series_Entry")
+_T_TS_Values_Bindable = TypeVar("_T_TS_Values_Bindable", bound=ITimeSeriesValuesBindable)
 
 if TYPE_CHECKING:
     from ravendb import DocumentStore
-
-
-def time_series_value(idx: int, name: Optional[str] = ""):
-    if -127 > idx or idx > 127:
-        raise ValueError("idx must be between 0 and 127")
-
-    def decorator(field):
-        field.idx = idx
-        field.name = name
-        return field
-
-    return decorator
 
 
 class TimeSeriesOperations:
@@ -41,17 +29,17 @@ class TimeSeriesOperations:
     def register_type(
         self,
         collection_class: Type[_T_Collection],
-        time_series_entry_class: Type[_T_Time_Series_Entry],
+        ts_bindable_object_type: Type[_T_TS_Values_Bindable],
         name: Optional[str] = None,
     ):
         if name is None:
-            name = self.get_time_series_name(time_series_entry_class, self._store.conventions)
+            name = self.get_time_series_name(ts_bindable_object_type, self._store.conventions)
 
-        mapping = TimeSeriesValuesHelper.get_fields_mapping(time_series_entry_class)
+        mapping = TimeSeriesValuesHelper.get_fields_mapping(ts_bindable_object_type)
         if mapping is None:
             raise RuntimeError(
-                f"{self.get_time_series_name(time_series_entry_class, self._store.conventions)} "
-                f"must contain @{time_series_value.__name__} decorated fields"
+                f"{self.get_time_series_name(ts_bindable_object_type, self._store.conventions)} "
+                f"must implement {ITimeSeriesValuesBindable.__name__}"
             )
 
         collection = self._store.conventions.find_collection_name(collection_class)
@@ -95,8 +83,8 @@ class TimeSeriesOperations:
         self._executor.send(RemoveTimeSeriesPolicyOperation(collection, name))
 
     @staticmethod
-    def get_time_series_name(object_type: Type[_T_Time_Series_Entry], conventions: DocumentConventions):
-        return conventions.find_collection_name(object_type)
+    def get_time_series_name(ts_bindable_object_type: Type[_T_TS_Values_Bindable], conventions: DocumentConventions):
+        return conventions.find_collection_name(ts_bindable_object_type)
 
     def for_database(self, database: str) -> TimeSeriesOperations:
         if self._database.lower() == database.lower():

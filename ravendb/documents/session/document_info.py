@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any, Dict
 
-from ravendb import constants
+from ravendb.primitives import constants
 from ravendb.documents.session.concurrency_check_mode import ConcurrencyCheckMode
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 
