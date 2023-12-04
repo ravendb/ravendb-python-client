@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import abc
 import datetime
 import json
-from enum import Enum
 from typing import Dict, Optional, List, Any, TYPE_CHECKING, Callable
 import requests
 
@@ -18,9 +16,9 @@ from ravendb.documents.operations.definitions import MaintenanceOperation, IOper
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
+from ravendb.documents.conventions import DocumentConventions
 
 if TYPE_CHECKING:
-    from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.store.definition import DocumentStore
 
 
