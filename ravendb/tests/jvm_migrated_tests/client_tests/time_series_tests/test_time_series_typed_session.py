@@ -9,7 +9,12 @@ from ravendb.documents.operations.time_series import (
     ConfigureTimeSeriesOperation,
     RawTimeSeriesPolicy,
 )
-from ravendb.documents.session.time_series import ITimeSeriesValuesBindable, TypedTimeSeriesEntry
+from ravendb.documents.queries.time_series import TimeSeriesRawResult
+from ravendb.documents.session.time_series import (
+    ITimeSeriesValuesBindable,
+    TypedTimeSeriesEntry,
+    TypedTimeSeriesRollupEntry,
+)
 from ravendb.infrastructure.entities import User
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase
@@ -278,7 +283,7 @@ class TestTimeSeriesTypedSession(TestBase):
 
         config = TimeSeriesConfiguration()
         config.collections = {"users": time_series_collection_configuration}
-        config.policy_check_frequency = timedelta(seconds=1)
+        config.policy_check_frequency = timedelta(milliseconds=100)
 
         self.store.maintenance.send(ConfigureTimeSeriesOperation(config))
         self.store.time_series.register_type(User, StockPrice)
@@ -313,3 +318,92 @@ class TestTimeSeriesTypedSession(TestBase):
             self.assertIsNotNone(r.max)
             self.assertIsNotNone(r.count)
             self.assertIsNotNone(r.average)
+
+    def test_can_work_with_rollup_time_series(self):
+        raw_hours = 24
+        raw = RawTimeSeriesPolicy(TimeValue.of_hours(raw_hours))
+
+        p1 = TimeSeriesPolicy("By6Hours", TimeValue.of_hours(6), TimeValue.of_hours(raw_hours * 4))
+        p2 = TimeSeriesPolicy("By1Day", TimeValue.of_days(1), TimeValue.of_hours(raw_hours * 5))
+        p3 = TimeSeriesPolicy("By30Minutes", TimeValue.of_minutes(30), TimeValue.of_hours(raw_hours * 2))
+        p4 = TimeSeriesPolicy("By1Hour", TimeValue.of_hours(1), TimeValue.of_hours(raw_hours * 3))
+
+        users_config = TimeSeriesCollectionConfiguration()
+        users_config.raw_policy = raw
+        users_config.policies = [p1, p2, p3, p4]
+
+        config = TimeSeriesConfiguration()
+        config.collections = {"Users": users_config}
+        config.policy_check_frequency = timedelta(milliseconds=100)
+
+        self.store.maintenance.send(ConfigureTimeSeriesOperation(config))
+        self.store.time_series.register_type(User, StockPrice)
+
+        # please notice we don't modify server time here!
+
+        now = datetime.utcnow()
+        base_line = RavenTestHelper.utc_today() - timedelta(days=12)
+
+        total = TimeValue.of_days(12).value // 60
+
+        with self.store.open_session() as session:
+            session.store(User(name="Karmel"), "users/karmel")
+
+            ts = session.typed_time_series_for(StockPrice, "users/karmel")
+            for i in range(total + 1):
+                open = i
+                close = i + 100_000
+                high = i + 200_000
+                low = i + 300_000
+                volume = i + 400_000
+                ts.append(
+                    base_line + timedelta(minutes=i), StockPrice(open, close, high, low, volume), "watches/fitbit"
+                )
+
+            session.save_changes()
+
+        time.sleep(1.5)  # wait for rollups
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out()\n"
+                    "{\n"
+                    "    from StockPrices\n"
+                    "    between $start and $end\n"
+                    "}\n"
+                    "from Users as u\n"
+                    "select out()",
+                    TimeSeriesRawResult,
+                )
+                .add_parameter("start", base_line - timedelta(days=1))
+                .add_parameter("end", now + timedelta(days=1))
+            )
+            result_raw = query.single()
+            result = result_raw.as_typed_result(StockPrice)
+
+            self.assertGreater(len(result.results), 0)
+
+            for res in result.results:
+                if res.is_rollup:
+                    self.assertGreater(len(res.values), 0)
+                    self.assertGreater(len(res.value.low), 0)
+                    self.assertGreater(len(res.value.high), 0)
+                else:
+                    self.assertEqual(5, len(res.values))
+
+        now = datetime.utcnow()
+
+        with self.store.open_session() as session:
+            ts = session.time_series_rollup_for(StockPrice, "users/karmel", p1.name)
+            a = TypedTimeSeriesRollupEntry(StockPrice, datetime.utcnow())
+            a.max.close = 1
+            ts.append(a)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            ts = session.time_series_rollup_for(StockPrice, "users/karmel", p1.name)
+
+            res = ts.get(now - timedelta(milliseconds=1), now + timedelta(days=1))
+            self.assertEqual(1, len(res))
+            self.assertEqual(1, res[0].max.close)

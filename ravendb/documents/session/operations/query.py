@@ -1,5 +1,6 @@
 import datetime
 import enum
+import inspect
 import logging
 from typing import Union, Optional, TypeVar, List, Type, Callable, Dict, TYPE_CHECKING
 
@@ -199,7 +200,12 @@ class QueryOperation:
             BeforeConversionToEntityEventArgs(session, key, object_type, document)
         )
 
-        result = Utils.initialize_object(document, object_type)
+        # By custom defined 'from_json' serializer class method
+        # todo: make separate interface to do from_json
+        if "from_json" in object_type.__dict__ and inspect.ismethod(object_type.from_json):
+            result = object_type.from_json(document)
+        else:
+            result = Utils.initialize_object(document, object_type)
         session.after_conversion_to_entity_invoke(AfterConversionToEntityEventArgs(session, key, document, result))
 
         return result

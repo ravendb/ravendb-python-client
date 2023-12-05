@@ -1585,6 +1585,12 @@ class AbstractDocumentQuery(Generic[_T]):
 
         return self._query_operation.current_query_results.create_snapshot()
 
+    def single(self) -> _T:
+        result = list(self.__execute_query_operation(2))
+        if len(result) != 1:
+            raise ValueError(f"Expected single result, got: {len(result)} ")
+        return result[0]
+
     def _aggregate_by(self, facet: FacetBase) -> None:
         for token in self._select_tokens:
             if isinstance(token, FacetToken):
@@ -1872,7 +1878,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self.negate_next()
         return self
 
-    def take(self, count: int) -> DocumentQuery[_T]:
+    def take(self: DocumentQuery[_T], count: int) -> DocumentQuery[_T]:
         self._take(count)
         return self
 
@@ -1887,12 +1893,6 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._take(0)
         query_result = self.get_query_result()
         return query_result.total_results
-
-    def single(self) -> _T:
-        result = list(self.take(2))
-        if len(result) != 1:
-            raise ValueError(f"Expected signle result, got: {len(result)} ")
-        return result[0]
 
     def where_lucene(self, field_name: str, where_clause: str, exact: bool = False) -> DocumentQuery[_T]:
         self._where_lucene(field_name, where_clause, exact)

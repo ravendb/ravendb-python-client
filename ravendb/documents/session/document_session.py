@@ -2324,4 +2324,8 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_
 
     def append_entry(self, entry: TypedTimeSeriesRollupEntry) -> None:
         values = entry.get_values_from_members()
-        self.append(entry.timestamp, values, entry.tag)
+        super().append(entry.timestamp, values, entry.tag)
+
+    def append(self, entry: TypedTimeSeriesRollupEntry[_T_TS_Values_Bindable]) -> None:  # todo: investigate warning
+        values = entry.get_values_from_members()
+        super().append(entry.timestamp, values, entry.tag)

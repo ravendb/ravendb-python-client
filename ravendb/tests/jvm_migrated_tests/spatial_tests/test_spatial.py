@@ -45,7 +45,7 @@ class MyProjection:
     def from_json(cls, json_dict: Dict) -> MyProjection:
         return cls(
             json_dict["Id"],
-            datetime.datetime.fromisoformat(json_dict["date"]),
+            datetime.datetime.fromisoformat(json_dict["date"]) if "date" in json_dict else None,
             json_dict["latitude"],
             json_dict["longitude"],
         )

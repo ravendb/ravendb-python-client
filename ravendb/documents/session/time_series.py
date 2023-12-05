@@ -64,7 +64,7 @@ class TypedTimeSeriesRollupEntry(Generic[_T_Values]):
 
     def _create_instance(self) -> _T_Values:
         try:
-            raise NotImplementedError()  # create object type instance
+            return Utils.try_get_new_instance(self._object_type)  # create object type instance
         except Exception as e:
             raise RavenException(f"Unable to create instance of class: {self._object_type.__name__}", e)
 
@@ -183,13 +183,13 @@ class TypedTimeSeriesEntry(Generic[_T_TSBindable]):
         timestamp: datetime.datetime = None,
         tag: str = None,
         values: List[int] = None,
-        rollup: bool = None,
+        is_rollup: bool = None,
         value: _T_TSBindable = None,
     ):
         self.timestamp = timestamp
         self.tag = tag
         self.values = values
-        self.rollup = rollup
+        self.is_rollup = is_rollup
         self.value = value
 
     @classmethod
