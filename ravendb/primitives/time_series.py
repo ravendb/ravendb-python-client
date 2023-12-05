@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
 from ravendb.primitives.constants import int_max, int_min
 
@@ -21,6 +21,9 @@ class TimeValue:
     def __init__(self, value: int, unit: TimeValueUnit):
         self.value = value
         self.unit = unit
+
+    def to_json(self) -> Dict[str, Any]:
+        return {"Value": self.value, "Unit": self.unit}
 
     def __str__(self):
         if self.value == int_max:

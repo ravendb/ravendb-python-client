@@ -890,14 +890,14 @@ class RequestExecutor:
 
         return preferred_task.result().response
 
-    def __create_request(self, node: ServerNode, command: RavenCommand) -> requests.Request:
+    def __create_request(self, node: ServerNode, command: RavenCommand) -> Optional[requests.Request]:
         request = command.create_request(node)
         # todo: optimize that if - look for the way to make less ifs each time
         if request.data and not isinstance(request.data, str) and not inspect.isgenerator(request.data):
             request.data = json.dumps(request.data, default=self.conventions.json_default_method)
 
         # todo: 1117 - 1133
-        return request if request else None
+        return request or None
 
     def should_broadcast(self, command: RavenCommand) -> bool:
         if not isinstance(command, Broadcast):

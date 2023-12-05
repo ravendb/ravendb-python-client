@@ -171,7 +171,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         requests = []
         for i in range(len(self._pending_lazy_operations)):
             # todo: pending lazy operation create request - WIP
-            req = self._pending_lazy_operations[i].create_arequest()
+            req = self._pending_lazy_operations[i].create_request()
             if req is None:
                 self._pending_lazy_operations.pop(i)
                 i -= 1
@@ -1757,6 +1757,13 @@ class SessionTimeSeriesBase(abc.ABC):
         )
 
     def append_single(self, timestamp: datetime, value: float, tag: Optional[str] = None) -> None:
+        if isinstance(value, int):
+            value = float(value)
+        if not isinstance(value, float):
+            raise TypeError(
+                f"Value passed ('{value}') is not a '{float.__name__}'. " f"It is '{value.__class__.__name__}'."
+            )
+
         self.append(timestamp, [value], tag)
 
     def append(self, timestamp: datetime, values: List[float], tag: Optional[str] = None) -> None:
@@ -2267,7 +2274,7 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values
         super().append(timestamp, values, tag)
 
     def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
-        self.append_single(entry.timestamp, entry.value, entry.tag)
+        self.append(entry.timestamp, entry.value, entry.tag)
 
 
 class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):

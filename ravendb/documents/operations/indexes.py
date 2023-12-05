@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 import json
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Optional
 
 import requests
 
@@ -556,7 +556,7 @@ class SetIndexesPriorityOperation(VoidMaintenanceOperation):
 
 
 class GetTermsOperation(MaintenanceOperation[List[str]]):
-    def __init__(self, index_name: str, field: str, from_value: str, page_size: int = None):
+    def __init__(self, index_name: str, field: str, from_value: Optional[str], page_size: int = None):
         if index_name is None:
             raise ValueError("Index name cannot be None")
         if field is None:
@@ -584,8 +584,8 @@ class GetTermsOperation(MaintenanceOperation[List[str]]):
                 f"{server_node.url}/databases/{server_node.database}"
                 f"/indexes/terms?name={Utils.escape(self.__index_name, False, False)}"
                 f"&field={Utils.escape(self.__field, False, False)}"
-                f"&fromValue={self.__from_value if self.__from_value is not None else ''}"
-                f"&pageSize={self.__page_size if self.__page_size is not None else ''}",
+                f"&fromValue={self.__from_value or ''}"
+                f"&pageSize={self.__page_size or ''}",
             )
 
         def set_response(self, response: str, from_cache: bool) -> None:
