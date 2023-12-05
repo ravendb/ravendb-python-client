@@ -330,7 +330,7 @@ class TimeSeriesOperation:
 
     def append(self, append_operation: AppendOperation) -> None:
         if self._appends is None:
-            self._appends = [] # todo: perf
+            self._appends = []  # todo: perf
         filtered = self._appends
 
         # if len(filtered) != 0:

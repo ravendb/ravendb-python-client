@@ -7,12 +7,13 @@ from ravendb.documents.operations.time_series import (
     TimeSeriesCollectionConfiguration,
     TimeSeriesConfiguration,
     ConfigureTimeSeriesOperation,
+    RawTimeSeriesPolicy,
 )
 from ravendb.documents.session.time_series import ITimeSeriesValuesBindable, TypedTimeSeriesEntry
 from ravendb.infrastructure.entities import User
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase
-
+from ravendb.tools.raven_test_helper import RavenTestHelper
 
 document_id = "users/gracjan"
 company_id = "companies/1-A"
@@ -261,3 +262,54 @@ class TestTimeSeriesTypedSession(TestBase):
 
             ts3 = session.time_series_for(document_id, p3.get_time_series_name(ts_name1)).get()
             self.assertEqual(len(ts1) // 4, len(ts3))
+
+    def test_can_work_with_rollup_time_series_2(self):
+        raw_hours = 24
+        raw = RawTimeSeriesPolicy(TimeValue.of_hours(raw_hours))
+
+        p1 = TimeSeriesPolicy("By6Hours", TimeValue.of_hours(6), TimeValue.of_hours(raw_hours * 4))
+        p2 = TimeSeriesPolicy("By1Day", TimeValue.of_days(1), TimeValue.of_hours(raw_hours * 5))
+        p3 = TimeSeriesPolicy("By30Minutes", TimeValue.of_minutes(30), TimeValue.of_hours(raw_hours * 2))
+        p4 = TimeSeriesPolicy("By1Hour", TimeValue.of_hours(1), TimeValue.of_hours(raw_hours * 3))
+
+        time_series_collection_configuration = TimeSeriesCollectionConfiguration()
+        time_series_collection_configuration.raw_policy = raw
+        time_series_collection_configuration.policies = [p1, p2, p3, p4]
+
+        config = TimeSeriesConfiguration()
+        config.collections = {"users": time_series_collection_configuration}
+        config.policy_check_frequency = timedelta(seconds=1)
+
+        self.store.maintenance.send(ConfigureTimeSeriesOperation(config))
+        self.store.time_series.register_type(User, StockPrice)
+
+        total = TimeValue.of_days(12).value // 60
+        base_line = RavenTestHelper.utc_today() - timedelta(days=12)
+
+        with self.store.open_session() as session:
+            session.store(User(name="Karmel"), "users/karmel")
+
+            ts = session.typed_time_series_for(StockPrice, "users/karmel")
+            for i in range(total + 1):
+                open = i
+                close = i + 100_000
+                high = i + 200_000
+                low = i + 300_000
+                volume = i + 400_000
+                ts.append(
+                    base_line + timedelta(minutes=i), StockPrice(open, close, high, low, volume), "watches/fitbit"
+                )
+
+            session.save_changes()
+
+        time.sleep(1.5)  # wait for rollups
+
+        with self.store.open_session() as session:
+            ts1 = session.time_series_rollup_for(StockPrice, "users/karmel", p1.name)
+            r = ts1.get()[0]
+            self.assertIsNotNone(r.first)
+            self.assertIsNotNone(r.last)
+            self.assertIsNotNone(r.min)
+            self.assertIsNotNone(r.max)
+            self.assertIsNotNone(r.count)
+            self.assertIsNotNone(r.average)

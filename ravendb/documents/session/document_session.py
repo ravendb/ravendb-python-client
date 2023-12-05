@@ -2314,7 +2314,7 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_
         to_date: Optional[datetime] = None,
         start: int = 0,
         page_size: int = int_max,
-    ):
+    ) -> List[TypedTimeSeriesRollupEntry[_T_TS_Values_Bindable]]:
         if self._not_in_cache(from_date, to_date):
             results = self.get_time_series_and_includes(from_date, to_date, None, start, page_size)
             return [TypedTimeSeriesRollupEntry.from_entry(self._object_type, x) for x in results]

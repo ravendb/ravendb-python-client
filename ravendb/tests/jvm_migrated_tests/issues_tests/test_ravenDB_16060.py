@@ -436,13 +436,15 @@ class TestRavenDB16060(TestBase):
             session.store(User(name="Karmel"), "users/karmel")
 
             ts = session.typed_time_series_for(StockPrice, "users/karmel")
-            for i in range(total+1):
+            for i in range(total + 1):
                 open = i
                 close = i + 100_000
                 high = i + 200_000
                 low = i + 300_000
                 volume = i + 400_000
-                ts.append(base_line + timedelta(minutes=i), StockPrice(open, close, high, low, volume), "watches/fitbit")
+                ts.append(
+                    base_line + timedelta(minutes=i), StockPrice(open, close, high, low, volume), "watches/fitbit"
+                )
 
             session.save_changes()
 
@@ -456,5 +458,57 @@ class TestRavenDB16060(TestBase):
 
             # should not go to server
             res = ts.get(base_line, base_line + timedelta(days=365))
+            self.assertEqual(16, len(res))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+    def test_can_include_typed_time_series_rollup(self):
+        raw = RawTimeSeriesPolicy(TimeValue.of_hours(24))
+
+        p1 = TimeSeriesPolicy("By6Hours", TimeValue.of_hours(6), TimeValue.of_days(4))
+        p2 = TimeSeriesPolicy("By1Day", TimeValue.of_days(1), TimeValue.of_days(5))
+        p3 = TimeSeriesPolicy("By30Minutes", TimeValue.of_minutes(30), TimeValue.of_days(2))
+        p4 = TimeSeriesPolicy("By1Hour", TimeValue.of_hours(1), TimeValue.of_days(3))
+
+        time_series_collection_configuration = TimeSeriesCollectionConfiguration()
+        time_series_collection_configuration.raw_policy = raw
+        time_series_collection_configuration.policies = [p1, p2, p3, p4]
+
+        config = TimeSeriesConfiguration()
+        config.collections = {"users": time_series_collection_configuration}
+        config.policy_check_frequency = timedelta(seconds=1)
+
+        self.store.maintenance.send(ConfigureTimeSeriesOperation(config))
+        self.store.time_series.register_type(User, StockPrice)
+
+        total = TimeValue.of_days(12).value
+        base_line = RavenTestHelper.utc_today() - timedelta(days=12)
+
+        with self.store.open_session() as session:
+            session.store(User(name="Karmel"), "users/karmel")
+
+            ts = session.typed_time_series_for(StockPrice, "users/karmel")
+            for i in range(total + 1):
+                open = i
+                close = i + 100_000
+                high = i + 200_000
+                low = i + 300_000
+                volume = i + 400_000
+                ts.append(
+                    base_line + timedelta(minutes=i), StockPrice(open, close, high, low, volume), "watches/fitbit"
+                )
+
+            session.save_changes()
+
+        time.sleep(1.2)
+
+        with self.store.open_session() as session:
+            user = (
+                session.query(object_type=User)
+                .include(lambda i: i.include_time_series(f"stockPrices@{p1.name}"))
+                .first()
+            )
+
+            # should not go to server
+            res = session.time_series_rollup_for(StockPrice, user.Id, p1.name).get()
             self.assertEqual(16, len(res))
             self.assertEqual(1, session.advanced.number_of_requests)
