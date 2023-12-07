@@ -19,6 +19,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from ravendb.documents.queries.time_series import TimeSeriesQueryBuilder
 from ravendb.documents.session.time_series import TimeSeriesRange
 from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
@@ -93,6 +94,7 @@ from ravendb.tools.utils import Utils
 _T = TypeVar("_T")
 _TResult = TypeVar("_TResult")
 _TProjection = TypeVar("_TProjection")
+_T_TS_Bindable = TypeVar("_T_TS_Bindable")
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import Lazy
     from ravendb.documents.session.document_session import DocumentSession
@@ -1298,8 +1300,13 @@ class AbstractDocumentQuery(Generic[_T]):
 
         return possible_alias
 
-    # todo: def _create_time_series_query_data(time_series_query: Callable[[TimeSeriesQueryBuilder], None])
-    #  -> QueryData:
+    def _create_time_series_query_data(self, time_series_query: Callable[[TimeSeriesQueryBuilder], None]) -> QueryData:
+        builder = TimeSeriesQueryBuilder()
+        time_series_query(builder)
+
+        fields = [constants.TimeSeries.SELECT_FIELD_NAME + "(" + builder.query_text + ")"]
+        projections = [constants.TimeSeries.QUERY_FUNCTION]
+        return QueryData(fields, projections)
 
     def _add_before_query_executed_listener(self, action: Callable[[IndexQuery], None]) -> None:
         self._before_query_executed_callback.append(action)
@@ -1741,7 +1748,11 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
             is_project_into,
         )
 
-    # todo: selectTimeSeries
+    def select_time_series(
+        self, ts_bindable_object_type: Type[_T_TS_Bindable], time_series_query: Callable[[TimeSeriesQueryBuilder], None]
+    ) -> DocumentQuery[_T_TS_Bindable]:
+        query_data = self._create_time_series_query_data(time_series_query)
+        return self.select_fields_query_data(ts_bindable_object_type, query_data)
 
     def distinct(self) -> DocumentQuery[_T]:
         self._distinct()
