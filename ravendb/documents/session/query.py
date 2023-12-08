@@ -1749,10 +1749,10 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         )
 
     def select_time_series(
-        self, ts_bindable_object_type: Type[_T_TS_Bindable], time_series_query: Callable[[TimeSeriesQueryBuilder], None]
+        self, projection_class: Type[_T_TS_Bindable], time_series_query: Callable[[TimeSeriesQueryBuilder], None]
     ) -> DocumentQuery[_T_TS_Bindable]:
         query_data = self._create_time_series_query_data(time_series_query)
-        return self.select_fields_query_data(ts_bindable_object_type, query_data)
+        return self.select_fields_query_data(projection_class, query_data)
 
     def distinct(self) -> DocumentQuery[_T]:
         self._distinct()
