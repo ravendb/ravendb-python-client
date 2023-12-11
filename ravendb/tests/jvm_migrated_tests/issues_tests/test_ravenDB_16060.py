@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import unittest
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 
@@ -410,6 +411,7 @@ class TestRavenDB16060(TestBase):
             self.assertEqual(base_line, ranges[0].from_date)
             self.assertIsNone(ranges[0].to_date)
 
+    @unittest.skip("Insufficient license permissions. Skipping on CI/CD.")
     def test_can_serve_time_series_from_cache_rollup(self):
         raw = RawTimeSeriesPolicy(TimeValue.of_hours(24))
 
@@ -461,6 +463,7 @@ class TestRavenDB16060(TestBase):
             self.assertEqual(16, len(res))
             self.assertEqual(1, session.advanced.number_of_requests)
 
+    @unittest.skip("Insufficient license permissions. Skipping on CI/CD.")
     def test_can_include_typed_time_series_rollup(self):
         raw = RawTimeSeriesPolicy(TimeValue.of_hours(24))
 

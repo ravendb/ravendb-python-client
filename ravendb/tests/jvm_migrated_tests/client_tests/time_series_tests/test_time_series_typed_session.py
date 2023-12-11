@@ -1,4 +1,5 @@
 import time
+import unittest
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 
@@ -226,6 +227,7 @@ class TestTimeSeriesTypedSession(TestBase):
             self.assertEqual(59, val[0].value.heart_rate)
             self.assertEqual(61, val[1].value.heart_rate)
 
+    @unittest.skip("Insufficient license permissions. Skipping on CI/CD.")
     def test_can_execute_simple_rollup(self):
         p1 = TimeSeriesPolicy("BySecond", TimeValue.of_seconds(1))
         p2 = TimeSeriesPolicy("By2Seconds", TimeValue.of_seconds(2))
@@ -268,6 +270,7 @@ class TestTimeSeriesTypedSession(TestBase):
             ts3 = session.time_series_for(document_id, p3.get_time_series_name(ts_name1)).get()
             self.assertEqual(len(ts1) // 4, len(ts3))
 
+    @unittest.skip("Insufficient license permissions. Skipping on CI/CD.")
     def test_can_work_with_rollup_time_series_2(self):
         raw_hours = 24
         raw = RawTimeSeriesPolicy(TimeValue.of_hours(raw_hours))
@@ -319,6 +322,7 @@ class TestTimeSeriesTypedSession(TestBase):
             self.assertIsNotNone(r.count)
             self.assertIsNotNone(r.average)
 
+    @unittest.skip("Insufficient license permissions. Skipping on CI/CD.")
     def test_can_work_with_rollup_time_series(self):
         raw_hours = 24
         raw = RawTimeSeriesPolicy(TimeValue.of_hours(raw_hours))
