@@ -171,7 +171,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         requests = []
         for i in range(len(self._pending_lazy_operations)):
             # todo: pending lazy operation create request - WIP
-            req = self._pending_lazy_operations[i].create_arequest()
+            req = self._pending_lazy_operations[i].create_request()
             if req is None:
                 self._pending_lazy_operations.pop(i)
                 i -= 1
@@ -1757,6 +1757,13 @@ class SessionTimeSeriesBase(abc.ABC):
         )
 
     def append_single(self, timestamp: datetime, value: float, tag: Optional[str] = None) -> None:
+        if isinstance(value, int):
+            value = float(value)
+        if not isinstance(value, float):
+            raise TypeError(
+                f"Value passed ('{value}') is not a '{float.__name__}'. " f"It is '{value.__class__.__name__}'."
+            )
+
         self.append(timestamp, [value], tag)
 
     def append(self, timestamp: datetime, values: List[float], tag: Optional[str] = None) -> None:
@@ -2267,7 +2274,7 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values
         super().append(timestamp, values, tag)
 
     def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
-        self.append_single(entry.timestamp, entry.value, entry.tag)
+        self.append(entry.timestamp, entry.value, entry.tag)
 
 
 class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
@@ -2307,7 +2314,7 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_
         to_date: Optional[datetime] = None,
         start: int = 0,
         page_size: int = int_max,
-    ):
+    ) -> List[TypedTimeSeriesRollupEntry[_T_TS_Values_Bindable]]:
         if self._not_in_cache(from_date, to_date):
             results = self.get_time_series_and_includes(from_date, to_date, None, start, page_size)
             return [TypedTimeSeriesRollupEntry.from_entry(self._object_type, x) for x in results]
@@ -2317,4 +2324,8 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_
 
     def append_entry(self, entry: TypedTimeSeriesRollupEntry) -> None:
         values = entry.get_values_from_members()
-        self.append(entry.timestamp, values, entry.tag)
+        super().append(entry.timestamp, values, entry.tag)
+
+    def append(self, entry: TypedTimeSeriesRollupEntry[_T_TS_Values_Bindable]) -> None:  # todo: investigate warning
+        values = entry.get_values_from_members()
+        super().append(entry.timestamp, values, entry.tag)

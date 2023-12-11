@@ -155,7 +155,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
         if len(self._index_name) > 256:
             raise ValueError(f"The index name is limited to 256 characters, but was: {self._index_name}")
 
-        self.reduce: Union[None, str] = None
+        self.reduce: Optional[str] = None
 
         self.stores_strings: Dict[str, FieldStorage] = {}
         self.indexes_strings: Dict[str, FieldIndexing] = {}
@@ -164,17 +164,17 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
         self.term_vectors_strings: Dict[str, FieldTermVector] = {}
         self.spatial_indexes_strings: Dict[str, SpatialOptions] = {}
 
-        self.lock_mode: Union[None, IndexLockMode] = None
-        self.priority: Union[None, IndexLockMode] = None
-        self.state: Union[None, IndexState] = None
-        self.deployment_mode: Union[None, IndexDeploymentMode] = None
+        self.lock_mode: Optional[IndexLockMode] = None
+        self.priority: Optional[IndexLockMode] = None
+        self.state: Optional[IndexState] = None
+        self.deployment_mode: Optional[IndexDeploymentMode] = None
 
-        self.output_reduce_to_collection: Union[None, str] = None
-        self.pattern_for_output_reduce_to_collection_references: Union[None, str] = None
-        self.pattern_references_collection_name: Union[None, str] = None
+        self.output_reduce_to_collection: Optional[str] = None
+        self.pattern_for_output_reduce_to_collection_references: Optional[str] = None
+        self.pattern_references_collection_name: Optional[str] = None
 
-        self.additional_sources: Union[None, Dict[str, str]] = None
-        self.additional_assemblies: Union[None, Set[AdditionalAssembly]] = None
+        self.additional_sources: Optional[Dict[str, str]] = None
+        self.additional_assemblies: Optional[Set[AdditionalAssembly]] = None
         self.configuration: Dict[str, str] = {}
 
     @abstractmethod

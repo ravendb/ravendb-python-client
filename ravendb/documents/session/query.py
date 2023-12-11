@@ -19,6 +19,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from ravendb.documents.queries.time_series import TimeSeriesQueryBuilder
 from ravendb.documents.session.time_series import TimeSeriesRange
 from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
@@ -93,6 +94,7 @@ from ravendb.tools.utils import Utils
 _T = TypeVar("_T")
 _TResult = TypeVar("_TResult")
 _TProjection = TypeVar("_TProjection")
+_T_TS_Bindable = TypeVar("_T_TS_Bindable")
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import Lazy
     from ravendb.documents.session.document_session import DocumentSession
@@ -1298,8 +1300,13 @@ class AbstractDocumentQuery(Generic[_T]):
 
         return possible_alias
 
-    # todo: def _create_time_series_query_data(time_series_query: Callable[[TimeSeriesQueryBuilder], None])
-    #  -> QueryData:
+    def _create_time_series_query_data(self, time_series_query: Callable[[TimeSeriesQueryBuilder], None]) -> QueryData:
+        builder = TimeSeriesQueryBuilder()
+        time_series_query(builder)
+
+        fields = [constants.TimeSeries.SELECT_FIELD_NAME + "(" + builder.query_text + ")"]
+        projections = [constants.TimeSeries.QUERY_FUNCTION]
+        return QueryData(fields, projections)
 
     def _add_before_query_executed_listener(self, action: Callable[[IndexQuery], None]) -> None:
         self._before_query_executed_callback.append(action)
@@ -1585,6 +1592,12 @@ class AbstractDocumentQuery(Generic[_T]):
 
         return self._query_operation.current_query_results.create_snapshot()
 
+    def single(self) -> _T:
+        result = list(self.__execute_query_operation(2))
+        if len(result) != 1:
+            raise ValueError(f"Expected single result, got: {len(result)} ")
+        return result[0]
+
     def _aggregate_by(self, facet: FacetBase) -> None:
         for token in self._select_tokens:
             if isinstance(token, FacetToken):
@@ -1735,7 +1748,11 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
             is_project_into,
         )
 
-    # todo: selectTimeSeries
+    def select_time_series(
+        self, projection_class: Type[_T_TS_Bindable], time_series_query: Callable[[TimeSeriesQueryBuilder], None]
+    ) -> DocumentQuery[_T_TS_Bindable]:
+        query_data = self._create_time_series_query_data(time_series_query)
+        return self.select_fields_query_data(projection_class, query_data)
 
     def distinct(self) -> DocumentQuery[_T]:
         self._distinct()
@@ -1872,7 +1889,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self.negate_next()
         return self
 
-    def take(self, count: int) -> DocumentQuery[_T]:
+    def take(self: DocumentQuery[_T], count: int) -> DocumentQuery[_T]:
         self._take(count)
         return self
 
@@ -1887,12 +1904,6 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._take(0)
         query_result = self.get_query_result()
         return query_result.total_results
-
-    def single(self) -> _T:
-        result = list(self.take(2))
-        if len(result) != 1:
-            raise ValueError(f"Expected signle result, got: {len(result)} ")
-        return result[0]
 
     def where_lucene(self, field_name: str, where_clause: str, exact: bool = False) -> DocumentQuery[_T]:
         self._where_lucene(field_name, where_clause, exact)

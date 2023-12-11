@@ -64,41 +64,48 @@ class TypedTimeSeriesRollupEntry(Generic[_T_Values]):
 
     def _create_instance(self) -> _T_Values:
         try:
-            raise NotImplementedError()  # create object type instance
+            return Utils.try_get_new_instance(self._object_type)  # create object type instance
         except Exception as e:
             raise RavenException(f"Unable to create instance of class: {self._object_type.__name__}", e)
 
-    def get_max(self) -> _T_Values:
+    @property
+    def max(self) -> _T_Values:
         if self._max is None:
             self._max = self._create_instance()
         return self._max
 
-    def get_min(self) -> _T_Values:
+    @property
+    def min(self) -> _T_Values:
         if self._min is None:
             self._min = self._create_instance()
         return self._min
 
-    def get_count(self) -> _T_Values:
+    @property
+    def count(self) -> _T_Values:
         if self._count is None:
             self._count = self._create_instance()
         return self._count
 
-    def get_first(self) -> _T_Values:
+    @property
+    def first(self) -> _T_Values:
         if self._first is None:
             self._first = self._create_instance()
         return self._first
 
-    def get_last(self) -> _T_Values:
+    @property
+    def last(self) -> _T_Values:
         if self._last is None:
             self._last = self._create_instance()
         return self._last
 
-    def get_sum(self) -> _T_Values:
+    @property
+    def sum(self) -> _T_Values:
         if self._sum is None:
             self._sum = self._create_instance()
         return self._sum
 
-    def get_average(self) -> _T_Values:
+    @property
+    def average(self) -> _T_Values:
         if self._average is not None:
             return self._average
 
@@ -139,7 +146,9 @@ class TypedTimeSeriesRollupEntry(Generic[_T_Values]):
                     target[i * 6 + offset] = values[i]
 
     @classmethod
-    def from_entry(cls, ts_bindable_object_type: Type[_T_TSBindable], entry: TimeSeriesEntry):
+    def from_entry(
+        cls, ts_bindable_object_type: Type[_T_TSBindable], entry: TimeSeriesEntry
+    ) -> TypedTimeSeriesRollupEntry[_T_TSBindable]:
         result = TypedTimeSeriesRollupEntry(ts_bindable_object_type, entry.timestamp)
         result.rollup = True
         result.tag = entry.tag
@@ -152,6 +161,8 @@ class TypedTimeSeriesRollupEntry(Generic[_T_Values]):
         result._max = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 3))
         result._sum = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 4))
         result._count = TimeSeriesValuesHelper.set_fields(ts_bindable_object_type, cls.extract_values(values, 5))
+
+        return result
 
     @staticmethod
     def extract_values(input: List[float], offset: int) -> List[float]:
@@ -172,13 +183,13 @@ class TypedTimeSeriesEntry(Generic[_T_TSBindable]):
         timestamp: datetime.datetime = None,
         tag: str = None,
         values: List[int] = None,
-        rollup: bool = None,
+        is_rollup: bool = None,
         value: _T_TSBindable = None,
     ):
         self.timestamp = timestamp
         self.tag = tag
         self.values = values
-        self.rollup = rollup
+        self.is_rollup = is_rollup
         self.value = value
 
     @classmethod

@@ -32,10 +32,10 @@ class TimeSeriesPolicy:
         if not name or name.isspace():
             raise ValueError("Name cannot be None or empty")
 
-        if aggregation_time is not None and aggregation_time.compare_to(TimeValue.ZERO()) <= 0:
+        if aggregation_time and aggregation_time.compare_to(TimeValue.ZERO()) <= 0:
             raise ValueError("Aggregation time must be greater than zero")
 
-        if retention_time is not None and retention_time.compare_to(TimeValue.ZERO()) <= 0:
+        if retention_time is None or retention_time.compare_to(TimeValue.ZERO()) <= 0:
             raise ValueError("Retention time must be greater than zero")
 
         self.retention_time = retention_time
@@ -43,22 +43,14 @@ class TimeSeriesPolicy:
 
         self.name = name
 
-    @classmethod
-    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesPolicy:
-        return cls(
-            json_dict["Name"],  # todo: Invalid deserialization
-            Utils.string_to_timedelta(json_dict["AggregationTime"]),
-            Utils.string_to_timedelta(json_dict["RetentionTime"]),
-        )
-
     def get_time_series_name(self, raw_name: str) -> str:
         return raw_name + TimeSeriesConfiguration.TIME_SERIES_ROLLUP_SEPARATOR + self.name
 
     def to_json(self) -> Dict[str, Any]:
         return {
-            "Name": self.name,  # todo: Invalid serialization
-            "AggregationTime": Utils.timedelta_to_str(self.aggregation_time),
-            "RetentionTime": Utils.timedelta_to_str(self.retention_time),
+            "Name": self.name,
+            "AggregationTime": self.aggregation_time.to_json() if self.aggregation_time else None,
+            "RetentionTime": self.retention_time.to_json(),
         }
 
 
@@ -72,29 +64,19 @@ class RawTimeSeriesPolicy(TimeSeriesPolicy):
     def __init__(self, retention_time: TimeValue = TimeValue.MAX_VALUE()):
         if retention_time.compare_to(TimeValue.ZERO()) <= 0:
             raise ValueError("Retention time must be greater than zero")
-
-        self.name = self.POLICY_STRING
-        self.retention_time = retention_time
+        super().__init__(self.POLICY_STRING, retention_time=retention_time)
 
 
 class TimeSeriesCollectionConfiguration:
     def __init__(
         self,
-        disabled: Optional[bool] = None,
+        disabled: Optional[bool] = False,
         policies: Optional[List[TimeSeriesPolicy]] = None,
         raw_policy: Optional[RawTimeSeriesPolicy] = RawTimeSeriesPolicy.DEFAULT_POLICY(),
     ):
         self.disabled = disabled
         self.policies = policies
         self.raw_policy = raw_policy
-
-    @classmethod
-    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesCollectionConfiguration:
-        return cls(
-            json_dict["Disabled"],
-            [TimeSeriesPolicy.from_json(policy_json) for policy_json in json_dict["Policies"]],
-            RawTimeSeriesPolicy.from_json(json_dict["RawPolicy"]),
-        )
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -348,12 +330,12 @@ class TimeSeriesOperation:
 
     def append(self, append_operation: AppendOperation) -> None:
         if self._appends is None:
-            self._appends = []
-        filtered = list(filter(lambda x: x.timestamp == append_operation.timestamp, self._appends))
+            self._appends = []  # todo: perf
+        filtered = self._appends
 
-        if len(filtered) != 0:
-            # element with given timestamp already exists - remove and retry add operation
-            self._appends.remove(filtered.pop())
+        # if len(filtered) != 0:
+        #     # element with given timestamp already exists - remove and retry add operation
+        #     self._appends.remove(filtered.pop())
 
         self._appends.append(append_operation)
 
@@ -699,3 +681,36 @@ class GetTimeSeriesStatisticsOperation(IOperation[TimeSeriesStatistics]):
 
         def set_response(self, response: Optional[str], from_cache: bool) -> None:
             self.result = TimeSeriesStatistics.from_json(json.loads(response))
+
+
+class ConfigureTimeSeriesOperation(MaintenanceOperation[ConfigureTimeSeriesOperationResult]):
+    def __init__(self, configuration: TimeSeriesConfiguration):
+        if not configuration:
+            raise ValueError("Configuration cannot be None")
+
+        self._configuration = configuration
+
+    def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[ConfigureTimeSeriesOperationResult]":
+        return self.ConfigureTimeSeriesCommand(self._configuration)
+
+    class ConfigureTimeSeriesCommand(RavenCommand[ConfigureTimeSeriesOperationResult], RaftCommand):
+        def __init__(self, configuration: TimeSeriesConfiguration):
+            super().__init__(ConfigureTimeSeriesOperationResult)
+            self._configuration = configuration
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            request = requests.Request("POST", f"{node.url}/databases/{node.database}/admin/timeseries/config")
+            request.data = self._configuration.to_json()
+            return request
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            if not response:
+                self._throw_invalid_response()
+
+            self.result = ConfigureTimeSeriesOperationResult.from_json(json.loads(response))
+
+        def get_raft_unique_request_id(self) -> str:
+            return RaftIdGenerator.new_id()

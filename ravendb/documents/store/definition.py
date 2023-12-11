@@ -32,6 +32,7 @@ from ravendb.documents.session.document_session_operations.in_memory_document_se
 )
 from ravendb.documents.session.misc import SessionOptions
 from ravendb.documents.subscriptions.document_subscriptions import DocumentSubscriptions
+from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.http.request_executor import RequestExecutor
 from ravendb.documents.identity.hilo import MultiDatabaseHiLoGenerator
 from ravendb.http.topology import Topology
@@ -321,6 +322,7 @@ class DocumentStore(DocumentStoreBase):
         self.__database_changes = {}
         self.__after_close: List[Callable[[], None]] = []
         self.__before_close: List[Callable[[], None]] = []
+        self.__time_series_operation: Optional[TimeSeriesOperations] = None
 
     def __enter__(self):
         return self
@@ -550,3 +552,10 @@ class DocumentStore(DocumentStoreBase):
             self.__operation_executor = OperationExecutor(self)
 
         return self.__operation_executor
+
+    @property
+    def time_series(self) -> TimeSeriesOperations:
+        if self.__time_series_operation is None:
+            self.__time_series_operation = TimeSeriesOperations(self)
+
+        return self.__time_series_operation

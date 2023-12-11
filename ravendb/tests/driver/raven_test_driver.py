@@ -51,7 +51,7 @@ class RavenTestDriver:
                 self._report_error(e)
 
             raise RuntimeError("Unable to start server")
-
+        print(url)
         store = DocumentStore([url], "test.manager")
         store.conventions.disable_topology_updates = True
 
