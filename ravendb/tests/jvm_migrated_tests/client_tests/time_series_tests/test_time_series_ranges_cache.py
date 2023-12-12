@@ -224,3 +224,61 @@ class TestTimeSeriesRangesCache(TestBase):
 
             self.assertEqual(base_line + timedelta(minutes=0), ranges[0].from_date)
             self.assertEqual(base_line + timedelta(minutes=50), ranges[0].to_date)
+
+    def test_can_handle_ranges_with_no_values(self):
+        base_line = datetime(2023, 8, 20, 21, 30)
+        doc_id = "users/ayende"
+        ts_name = "Heartrate"
+        tag = "watches/fitbit"
+
+        with self.store.open_session() as session:
+            session.store(User(name="Oren"), doc_id)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for(doc_id, ts_name)
+            for i in range(360):
+                tsf.append_single(base_line + timedelta(seconds=i * 10), 60, tag)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            vals = session.time_series_for(doc_id, ts_name).get(
+                base_line - timedelta(hours=2), base_line - timedelta(hours=1)
+            )
+            self.assertEqual(0, len(vals))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            # should not go to server
+            vals = session.time_series_for(doc_id, ts_name).get(
+                base_line - timedelta(hours=2), base_line - timedelta(hours=1)
+            )
+
+            self.assertEqual(0, len(vals))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            # should not go to server
+            vals = session.time_series_for(doc_id, ts_name).get(
+                base_line - timedelta(minutes=90), base_line - timedelta(minutes=70)
+            )
+
+            self.assertEqual(0, len(vals))
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            # should go to server to get[-60, 1] and merge with [-120, -60]
+            vals = session.time_series_for(doc_id, ts_name).get(
+                base_line - timedelta(hours=1), base_line + timedelta(minutes=1)
+            )
+
+            self.assertEqual(7, len(vals))
+            self.assertEqual(base_line, vals[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=1), vals[6].timestamp)
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            cache = session.time_series_by_doc_id.get("users/ayende")
+            ranges = cache[ts_name]
+
+            self.assertIsNotNone(ranges)
+            self.assertEqual(1, len(ranges))
+
+            self.assertEqual(base_line - timedelta(hours=2), ranges[0].from_date)
+            self.assertEqual(base_line + timedelta(minutes=1), ranges[0].to_date)

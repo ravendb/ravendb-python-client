@@ -1913,9 +1913,13 @@ class SessionTimeSeriesBase(abc.ABC):
         from_range_index = -1
         ranges_to_get_from_server: Optional[List[TimeSeriesRange]] = None
         to_range_index = -1
+        cache_includes_whole_range = False
 
-        for i in range(len(ranges)):
+        while True:
             to_range_index += 1
+            if to_range_index >= len(ranges):
+                break
+
             if TSRangeHelper.left(ranges[to_range_index].from_date) <= TSRangeHelper.left(from_date):
                 if (
                     TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date)
@@ -1954,9 +1958,10 @@ class SessionTimeSeriesBase(abc.ABC):
             ranges_to_get_from_server.append(TimeSeriesRange(self.name, from_to_use, to_to_use))
 
             if TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date):
+                cache_includes_whole_range = True
                 break
 
-        if to_range_index == len(ranges):
+        if not cache_includes_whole_range:
             # requested_range [from, to] ends after all ranges in cache
             # add the missing part between the last range end and 'to'
             # to the list of ranges we need to get from server
