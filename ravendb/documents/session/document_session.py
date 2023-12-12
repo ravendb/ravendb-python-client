@@ -1941,7 +1941,7 @@ class SessionTimeSeriesBase(abc.ABC):
                 from_date
                 if (
                     to_range_index == 0
-                    or TSRangeHelper.left(from_date) < TSRangeHelper.right(ranges[to_range_index - 1].to_date)
+                    or TSRangeHelper.right(ranges[to_range_index - 1].to_date) < TSRangeHelper.left(from_date)
                 )
                 else ranges[to_range_index - 1].to_date
             )
@@ -1956,7 +1956,7 @@ class SessionTimeSeriesBase(abc.ABC):
             if TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date):
                 break
 
-        if to_range_index == len(ranges) - 1:
+        if to_range_index == len(ranges):
             # requested_range [from, to] ends after all ranges in cache
             # add the missing part between the last range end and 'to'
             # to the list of ranges we need to get from server

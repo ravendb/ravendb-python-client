@@ -635,7 +635,7 @@ class InMemoryDocumentSessionOperations:
         return self._counters_by_doc_id
 
     @property
-    def time_series_by_doc_id(self):
+    def time_series_by_doc_id(self) -> Dict[str, Dict[str, List[TimeSeriesRangeResult]]]:
         return self._time_series_by_doc_id
 
     @property
