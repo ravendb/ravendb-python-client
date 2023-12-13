@@ -367,7 +367,7 @@ class TimeSeriesRangeResult:
             Utils.string_to_datetime(json_dict["From"]),
             Utils.string_to_datetime(json_dict["To"]),
             [TimeSeriesEntry.from_json(entry_json) for entry_json in json_dict["Entries"]],
-            json_dict["TotalResults"] if "TotalResults" in json_dict else 0,
+            json_dict["TotalResults"] if "TotalResults" in json_dict else None,
             json_dict.get("Includes", None),
         )
 

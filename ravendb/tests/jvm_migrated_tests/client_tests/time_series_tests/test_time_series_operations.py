@@ -261,3 +261,125 @@ class TestTimeSeriesOperations(TestBase):
         self.assertEqual(121, len(range_.entries))
         self.assertEqual(base_line + timedelta(minutes=40), range_.entries[0].timestamp)
         self.assertEqual(base_line + timedelta(minutes=60), range_.entries[120].timestamp)
+
+    def test_can_get_multiple_time_series_in_single_request(self):
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        # append
+
+        base_line = datetime(2023, 8, 20, 21, 30)
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+
+        for i in range(11):
+            time_series_op.append(
+                TimeSeriesOperation.AppendOperation(base_line + timedelta(minutes=i * 10), [72], "watches/fitbit")
+            )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+
+        time_series_op = TimeSeriesOperation("BloodPressure")
+
+        for i in range(11):
+            time_series_op.append(TimeSeriesOperation.AppendOperation(base_line + timedelta(minutes=i * 10), [80]))
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+        self.store.operations.send(time_series_batch)
+
+        time_series_op = TimeSeriesOperation("Temperature")
+
+        for i in range(11):
+            time_series_op.append(
+                TimeSeriesOperation.AppendOperation(base_line + timedelta(minutes=i * 10), [37 + i * 0.15])
+            )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+        self.store.operations.send(time_series_batch)
+
+        # get ranges from multiple time series in a single request
+
+        time_series_details: TimeSeriesDetails = self.store.operations.send(
+            GetMultipleTimeSeriesOperation(
+                document_id,
+                [
+                    TimeSeriesRange("Heartrate", base_line, base_line + timedelta(minutes=15)),
+                    TimeSeriesRange("Heartrate", base_line + timedelta(minutes=30), base_line + timedelta(minutes=45)),
+                    TimeSeriesRange("BloodPressure", base_line, base_line + timedelta(minutes=30)),
+                    TimeSeriesRange(
+                        "BloodPressure", base_line + timedelta(minutes=60), base_line + timedelta(minutes=90)
+                    ),
+                    TimeSeriesRange("Temperature", base_line, base_line + timedelta(days=1)),
+                ],
+            )
+        )
+
+        self.assertEqual(document_id, time_series_details.key)
+        self.assertEqual(3, len(time_series_details.values))
+
+        self.assertEqual(2, len(time_series_details.values["Heartrate"]))
+
+        range_ = time_series_details.values.get("Heartrate")[0]
+
+        self.assertEqual(base_line, range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=15), range_.to_date)
+
+        self.assertEqual(2, len(range_.entries))
+
+        self.assertEqual(base_line, range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=10), range_.entries[1].timestamp)
+
+        self.assertIsNone(range_.total_results)
+
+        range_ = time_series_details.values.get("Heartrate")[1]
+
+        self.assertEqual(base_line + timedelta(minutes=30), range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=45), range_.to_date)
+
+        self.assertEqual(2, len(range_.entries))
+        self.assertEqual(base_line + timedelta(minutes=30), range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=40), range_.entries[1].timestamp)
+
+        self.assertIsNone(range_.total_results)
+
+        range_ = time_series_details.values.get("BloodPressure")[0]
+        self.assertEqual(base_line, range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=30), range_.to_date)
+
+        self.assertEqual(4, len(range_.entries))
+
+        self.assertEqual(base_line, range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=30), range_.entries[3].timestamp)
+
+        self.assertIsNone(range_.total_results)
+
+        range_ = time_series_details.values.get("BloodPressure")[1]
+
+        self.assertEqual(base_line + timedelta(minutes=60), range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=90), range_.to_date)
+
+        self.assertEqual(4, len(range_.entries))
+
+        self.assertEqual(base_line + timedelta(minutes=60), range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=90), range_.entries[3].timestamp)
+
+        self.assertIsNone(range_.total_results)
+
+        self.assertEqual(1, len(time_series_details.values.get("Temperature")))
+
+        range_ = time_series_details.values.get("Temperature")[0]
+
+        self.assertEqual(base_line, range_.from_date)
+        self.assertEqual(base_line + timedelta(days=1), range_.to_date)
+
+        self.assertEqual(11, len(range_.entries))
+
+        self.assertEqual(base_line, range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=100), range_.entries[10].timestamp)
+
+        self.assertEqual(11, range_.total_results)  # full range
