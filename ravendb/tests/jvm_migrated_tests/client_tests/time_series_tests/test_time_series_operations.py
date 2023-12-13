@@ -5,7 +5,10 @@ from ravendb.documents.operations.time_series import (
     TimeSeriesOperation,
     TimeSeriesBatchOperation,
     GetTimeSeriesStatisticsOperation,
+    GetMultipleTimeSeriesOperation,
+    TimeSeriesDetails,
 )
+from ravendb.documents.session.time_series import TimeSeriesRange
 from ravendb.tests.test_base import TestBase, User
 
 
@@ -199,3 +202,62 @@ class TestTimeSeriesOperations(TestBase):
 
         self.assertEqual(base_line + timedelta(minutes=10 * 10), ts2.start_date)
         self.assertEqual(base_line + timedelta(minutes=20 * 10), ts2.end_date)
+
+    def test_can_get_multiple_ranges_in_single_request(self):
+        base_line = datetime(2023, 8, 20, 21, 30)
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+        for i in range(361):
+            time_series_op.append(
+                TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=i * 10), [59], "watches/fitbit")
+            )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+        self.store.operations.send(time_series_batch)
+
+        time_series_details: TimeSeriesDetails = self.store.operations.send(
+            GetMultipleTimeSeriesOperation(
+                document_id,
+                [
+                    TimeSeriesRange("Heartrate", base_line + timedelta(minutes=5), base_line + timedelta(minutes=10)),
+                    TimeSeriesRange("Heartrate", base_line + timedelta(minutes=15), base_line + timedelta(minutes=30)),
+                    TimeSeriesRange("Heartrate", base_line + timedelta(minutes=40), base_line + timedelta(minutes=60)),
+                ],
+            )
+        )
+
+        self.assertEqual(document_id, time_series_details.key)
+        self.assertEqual(1, len(time_series_details.values))
+        self.assertEqual(3, len(time_series_details.values.get("Heartrate")))
+
+        range_ = time_series_details.values.get("Heartrate")[0]
+
+        self.assertEqual(base_line + timedelta(minutes=5), range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=10), range_.to_date)
+
+        self.assertEqual(31, len(range_.entries))
+        self.assertEqual(base_line + timedelta(minutes=5), range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=10), range_.entries[30].timestamp)
+
+        range_ = time_series_details.values.get("Heartrate")[1]
+
+        self.assertEqual(base_line + timedelta(minutes=15), range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=30), range_.to_date)
+
+        self.assertEqual(91, len(range_.entries))
+        self.assertEqual(base_line + timedelta(minutes=15), range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=30), range_.entries[90].timestamp)
+
+        range_ = time_series_details.values.get("Heartrate")[2]
+
+        self.assertEqual(base_line + timedelta(minutes=40), range_.from_date)
+        self.assertEqual(base_line + timedelta(minutes=60), range_.to_date)
+
+        self.assertEqual(121, len(range_.entries))
+        self.assertEqual(base_line + timedelta(minutes=40), range_.entries[0].timestamp)
+        self.assertEqual(base_line + timedelta(minutes=60), range_.entries[120].timestamp)
