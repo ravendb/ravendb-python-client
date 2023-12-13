@@ -554,11 +554,11 @@ class GetMultipleTimeSeriesOperation(IOperation[TimeSeriesDetails]):
 
             if self._start > 0:
                 path_builder.append("&start=")
-                path_builder.append(self._start)
+                path_builder.append(str(self._start))
 
             if self._page_size < int_max:
                 path_builder.append("&pageSize=")
-                path_builder.append(self._page_size)
+                path_builder.append(str(self._page_size))
 
             if not self._ranges:
                 raise ValueError("Ranges cannot be None or empty")
