@@ -17,6 +17,7 @@ from ravendb.documents.session.time_series import (
     TypedTimeSeriesRollupEntry,
 )
 from ravendb.infrastructure.entities import User
+from ravendb.infrastructure.orders import Company
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.raven_test_helper import RavenTestHelper
@@ -82,6 +83,31 @@ class StockPrice(ITimeSeriesValuesBindable):
             2: ("high", None),
             3: ("low", None),
             4: ("volume", None),
+        }
+
+
+class StockPriceWithBadAttributes(ITimeSeriesValuesBindable):
+    def __init__(
+        self,
+        open: Optional[float] = None,
+        close: Optional[float] = None,
+        high: Optional[float] = None,
+        low: Optional[float] = None,
+        volume: Optional[float] = None,
+    ):
+        self.open = open
+        self.close = close
+        self.high = high
+        self.low = low
+        self.volume = volume
+
+    def get_time_series_mapping(self) -> Dict[int, Tuple[str, Optional[str]]]:
+        return {
+            1: ("open", None),
+            2: ("close", None),
+            3: ("high", None),
+            4: ("low", None),
+            5: ("volume", None),
         }
 
 
@@ -411,3 +437,12 @@ class TestTimeSeriesTypedSession(TestBase):
             res = ts.get(now - timedelta(milliseconds=1), now + timedelta(days=1))
             self.assertEqual(1, len(res))
             self.assertEqual(1, res[0].max.close)
+
+    def test_mapping_needs_to_contain_consecutive_values_starting_from_zero(self):
+        self.assertRaisesWithMessage(
+            self.store.time_series.register_type,
+            RuntimeError,
+            "The mapping of 'StockPriceWithBadAttributes' must contain consecutive values starting from 0.",
+            Company,
+            StockPriceWithBadAttributes,
+        )

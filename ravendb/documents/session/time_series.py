@@ -292,6 +292,22 @@ class TimeSeriesValuesHelper:
             )
             ts_bindable_type_mapping = ts_bindable_class_instance.get_time_series_mapping()
 
+            mappings = ts_bindable_type_mapping
+            mapping_keys = list(ts_bindable_type_mapping.keys())
+            if mapping_keys[0] != 0 or mapping_keys[-1] != len(mapping_keys) - 1:
+                raise RuntimeError(
+                    f"The mapping of '{ts_bindable_object_type.__name__ }' "
+                    f"must contain consecutive values starting from 0."
+                )
+
+            for key, (name, tag) in mappings.items():
+                class_instance_value = ts_bindable_class_instance.__dict__[name]
+                if not isinstance(class_instance_value, float) and class_instance_value is not None:
+                    raise RuntimeError(
+                        f"Cannot create a mapping for '{ts_bindable_object_type.__name__}' class, "
+                        f"because field '{name}' is not a float"
+                    )
+
             new_cache_entry = {}
             for idx, field_name_and_ts_value_name in ts_bindable_type_mapping.items():
                 field_name = field_name_and_ts_value_name[0]
