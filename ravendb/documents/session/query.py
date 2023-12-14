@@ -2260,6 +2260,9 @@ class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._take(count)
         return self
 
+    def first(self) -> _T:
+        return list(self.take(1))[0]
+
     def wait_for_non_stale_results(self, wait_timeout: Optional[datetime.timedelta] = None):
         self._wait_for_non_stale_results(wait_timeout)
         return self
