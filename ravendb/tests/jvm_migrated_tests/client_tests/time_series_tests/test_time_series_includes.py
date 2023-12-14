@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from ravendb.documents.session.time_series import TimeSeriesRangeType
 from ravendb.infrastructure.orders import Company, Order
+from ravendb.primitives.constants import int_max
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase, User
 
@@ -945,6 +946,76 @@ class TestTimeSeriesIncludes(TestBase):
                 lambda i: i.include_documents("company").include_all_time_series_by_time(
                     TimeSeriesRangeType.LAST, TimeValue.ZERO()
                 ),
+            )
+
+            self.assertEqual(0, session.advanced.number_of_requests)
+
+    def test_should_throw_on_include_all_time_series_after_including_time_series(self):
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                RuntimeError,
+                "IncludeBuilder : Cannot use 'includeAllTimeSeries' after using 'includeTimeSeries' or 'includeAllTimeSeries'.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_all_time_series_by_count(TimeSeriesRangeType.LAST, 11)
+                .include_all_time_series_by_time(TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)),
+            )
+
+            self.assertRaisesWithMessage(
+                session.load,
+                RuntimeError,
+                "IncludeBuilder : Cannot use 'includeAllTimeSeries' after using 'includeTimeSeries' or 'includeAllTimeSeries'.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_all_time_series_by_count(TimeSeriesRangeType.LAST, int_max)
+                .include_all_time_series_by_time(TimeSeriesRangeType.LAST, TimeValue.of_minutes(11)),
+            )
+
+            self.assertRaisesWithMessage(
+                session.load,
+                RuntimeError,
+                "IncludeBuilder : Cannot use 'includeAllTimeSeries' after using 'includeTimeSeries' or 'includeAllTimeSeries'.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_time_series_by_range_type_and_count("heartrate", TimeSeriesRangeType.LAST, int_max)
+                .include_all_time_series_by_time(TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)),
+            )
+
+            self.assertRaisesWithMessage(
+                session.load,
+                RuntimeError,
+                "IncludeBuilder : Cannot use 'includeAllTimeSeries' after using 'includeTimeSeries' or 'includeAllTimeSeries'.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_time_series_by_range_type_and_count("heartrate", TimeSeriesRangeType.LAST, int_max)
+                .include_all_time_series_by_count(TimeSeriesRangeType.LAST, 11),
+            )
+
+            self.assertRaisesWithMessage(
+                session.load,
+                RuntimeError,
+                "IncludeBuilder : Cannot use 'includeAllTimeSeries' after using 'includeTimeSeries' or 'includeAllTimeSeries'.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_time_series_by_range_type_and_count("heartrate", TimeSeriesRangeType.LAST, 11)
+                .include_all_time_series_by_count(TimeSeriesRangeType.LAST, TimeValue.of_minutes(10)),
+            )
+
+            self.assertRaisesWithMessage(
+                session.load,
+                RuntimeError,
+                "IncludeBuilder : Cannot use 'includeAllTimeSeries' after using 'includeTimeSeries' or 'includeAllTimeSeries'.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company")
+                .include_time_series_by_range_type_and_count("heartrate", TimeSeriesRangeType.LAST, 11)
+                .include_all_time_series_by_count(TimeSeriesRangeType.LAST, TimeValue.of_minutes(11)),
             )
 
             self.assertEqual(0, session.advanced.number_of_requests)
