@@ -22,8 +22,12 @@ class TimeValue:
         self.value = value
         self.unit = unit
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> TimeValue:
+        return cls(json_dict["Value"], TimeValueUnit(json_dict["Unit"]))
+
     def to_json(self) -> Dict[str, Any]:
-        return {"Value": self.value, "Unit": self.unit}
+        return {"Value": self.value, "Unit": self.unit.value}
 
     def __str__(self):
         if self.value == int_max:
