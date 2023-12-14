@@ -182,8 +182,9 @@ class TimeSeriesAggregationResult(TimeSeriesQueryResult):
         return result
 
     @classmethod
-    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesQueryResult:
-        json_dict = json_dict["__timeSeriesQueryFunction"]
+    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesAggregationResult:
+        if "Count" not in json_dict:
+            json_dict = json_dict["__timeSeriesQueryFunction"]
         return cls(
             json_dict["Count"], [TimeSeriesRangeAggregation.from_json(result) for result in json_dict["Results"]]
         )
