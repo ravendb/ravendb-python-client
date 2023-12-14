@@ -383,3 +383,32 @@ class TestTimeSeriesOperations(TestBase):
         self.assertEqual(base_line + timedelta(minutes=100), range_.entries[10].timestamp)
 
         self.assertEqual(11, range_.total_results)  # full range
+
+    def test_get_multiple_time_series_should_throw_on_missing_name_from_range(self):
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        # append
+
+        base_line = datetime(2023, 8, 20, 21, 30)
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+
+        for i in range(11):
+            time_series_op.append(
+                TimeSeriesOperation.AppendOperation(base_line + timedelta(minutes=i * 10), [72], "watches/fitbit")
+            )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+
+        self.assertRaisesWithMessage(
+            self.store.operations.send,
+            ValueError,
+            "Missing name argument in TimeSeriesRange. Name cannot be None or empty",
+            GetMultipleTimeSeriesOperation(document_id, [TimeSeriesRange(None, base_line, None)]),
+        )
