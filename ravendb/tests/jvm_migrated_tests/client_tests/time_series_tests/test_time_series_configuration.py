@@ -84,3 +84,63 @@ class TestTimeSeriesConfiguration(TestBase):
 
         self.assertEqual(TimeValue.of_years(3), policies[5].retention_time)
         self.assertEqual(TimeValue.of_years(1), policies[5].aggregation_time)
+
+    def test_not_valid_configure_should_throw(self):
+        config = TimeSeriesConfiguration()
+        collections_config = {}
+        config.collections = collections_config
+
+        time_series_collection_configuration = TimeSeriesCollectionConfiguration()
+        collections_config["Users"] = time_series_collection_configuration
+
+        time_series_collection_configuration.raw_policy = RawTimeSeriesPolicy(TimeValue.of_months(1))
+        time_series_collection_configuration.policies = [
+            TimeSeriesPolicy("By30DaysFor5Years", TimeValue.of_days(30), TimeValue.of_years(5))
+        ]
+
+        self.assertRaisesWithMessage(
+            self.store.maintenance.send,
+            Exception,
+            "Unable to compare 1 month with 30 days, since a month might have different number of days.",
+            ConfigureTimeSeriesOperation(config),
+        )
+
+        config2 = TimeSeriesConfiguration()
+        collections_config = {}
+        config2.collections = collections_config
+
+        time_series_collection_configuration = TimeSeriesCollectionConfiguration()
+        collections_config["Users"] = time_series_collection_configuration
+
+        time_series_collection_configuration.raw_policy = RawTimeSeriesPolicy(TimeValue.of_months(12))
+        time_series_collection_configuration.policies = [
+            TimeSeriesPolicy("By365DaysFor5Years", TimeValue.of_seconds(365 * 24 * 3600), TimeValue.of_years(5))
+        ]
+
+        self.assertRaisesWithMessage(
+            self.store.maintenance.send,
+            Exception,
+            "Unable to compare 1 year with 365 days, since a month might have different number of days.",
+            ConfigureTimeSeriesOperation(config2),
+        )
+
+        config3 = TimeSeriesConfiguration()
+        collections_config = {}
+        config3.collections = collections_config
+
+        time_series_collection_configuration = TimeSeriesCollectionConfiguration()
+        collections_config["Users"] = time_series_collection_configuration
+
+        time_series_collection_configuration.raw_policy = RawTimeSeriesPolicy(TimeValue.of_months(1))
+        time_series_collection_configuration.policies = [
+            TimeSeriesPolicy("By27DaysFor1Year", TimeValue.of_days(27), TimeValue.of_years(1)),
+            TimeSeriesPolicy("By364daysFor5Years", TimeValue.of_days(364), TimeValue.of_years(5)),
+        ]
+
+        self.assertRaisesWithMessage(
+            self.store.maintenance.send,
+            Exception,
+            "The aggregation time of the policy 'By364daysFor5Years' (364 days) "
+            "must be divided by the aggregation time of 'By27DaysFor1Year' (27 days) without a remainder.",
+            ConfigureTimeSeriesOperation(config3),
+        )
