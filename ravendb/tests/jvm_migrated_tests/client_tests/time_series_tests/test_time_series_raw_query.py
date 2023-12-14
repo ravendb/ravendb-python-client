@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from ravendb import AbstractIndexCreationTask
-from ravendb.documents.queries.time_series import TimeSeriesAggregationResult
+from ravendb.documents.queries.time_series import TimeSeriesAggregationResult, TimeSeriesRawResult
 from ravendb.tests.test_base import TestBase
 
 document_id = "users/ayende"
@@ -96,7 +96,9 @@ class RawQueryResult:
     def from_json(cls, json_dict: Dict[str, Any]) -> RawQueryResult:
         return cls(
             TimeSeriesAggregationResult.from_json(json_dict["heart_rate"]),
-            TimeSeriesAggregationResult.from_json(json_dict["blood_pressure"]) if "blood_pressure" in json_dict else None,
+            TimeSeriesAggregationResult.from_json(json_dict["blood_pressure"])
+            if "blood_pressure" in json_dict
+            else None,
             json_dict["name"],
         )
 
@@ -169,3 +171,98 @@ class TestTimeSeriesRawQuery(TestBase):
                 self.assertEqual(base_line + timedelta(minutes=60), val.from_date)
                 self.assertEqual(base_line + timedelta(minutes=120), val.to_date)
 
+    def test_can_query_time_series_aggregation_no_select_or_group_by_multiple_values(self):
+        with self.store.open_session() as session:
+            for i in range(4):
+                id = f"people/{i}"
+                person = Person("Oren", i * 30)
+
+                session.store(person, id)
+
+                tsf = session.time_series_for(id, ts_name_1)
+
+                tsf.append(base_line + timedelta(minutes=61), [59, 159], tag1)
+                tsf.append(base_line + timedelta(minutes=62), [79, 179], tag1)
+                tsf.append_single(base_line + timedelta(minutes=63), 69, tag2)
+
+                tsf.append(base_line + timedelta(days=31, minutes=61), [159, 259], tag1)
+                tsf.append(base_line + timedelta(days=31, minutes=62), [179], tag2)
+                tsf.append(base_line + timedelta(days=31, minutes=63), [169, 269], tag1)
+
+                session.save_changes()
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out(x)\n"
+                    "{\n"
+                    "    from x.HeartRate between $start and $end\n"
+                    "}\n"
+                    "from People as doc\n"
+                    "where doc.age > 49\n"
+                    "select out(doc)"
+                    "",
+                    TimeSeriesRawResult,
+                )
+                .add_parameter("start", base_line)
+                .add_parameter("end", base_line + timedelta(days=62))
+            )
+
+            result = list(query)
+            self.assertEqual(2, len(result))
+
+            for i in range(2):
+                agg = result[i]
+                self.assertEqual(6, len(agg.results))
+
+                val = agg.results[0]
+
+                self.assertEqual(2, len(val.values))
+                self.assertEqual(59, val.values[0])
+                self.assertEqual(159, val.values[1])
+
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=61), val.timestamp)
+
+                val = agg.results[1]
+
+                self.assertEqual(2, len(val.values))
+                self.assertEqual(79, val.values[0])
+                self.assertEqual(179, val.values[1])
+
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=62), val.timestamp)
+
+                val = agg.results[2]
+
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(69, val.values[0])
+
+                self.assertEqual(tag2, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=63), val.timestamp)
+
+                val = agg.results[3]
+
+                self.assertEqual(2, len(val.values))
+                self.assertEqual(159, val.values[0])
+                self.assertEqual(259, val.values[1])
+
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=61, days=31), val.timestamp)
+
+                val = agg.results[4]
+
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(179, val.values[0])
+
+                self.assertEqual(tag2, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=62, days=31), val.timestamp)
+
+                val = agg.results[5]
+
+                self.assertEqual(2, len(val.values))
+                self.assertEqual(169, val.values[0])
+                self.assertEqual(269, val.values[1])
+
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=63, days=31), val.timestamp)

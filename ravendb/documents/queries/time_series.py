@@ -25,7 +25,8 @@ class TimeSeriesRawResult(TimeSeriesQueryResult):
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesQueryResult:
-        json_dict = json_dict["__timeSeriesQueryFunction"]
+        if "Count" not in json_dict:
+            json_dict = json_dict["__timeSeriesQueryFunction"]
         return cls(
             json_dict["Count"],
             [TimeSeriesEntry.from_json(time_series_entry_json) for time_series_entry_json in json_dict["Results"]],
