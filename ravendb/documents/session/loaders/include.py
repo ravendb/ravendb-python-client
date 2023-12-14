@@ -140,7 +140,6 @@ class IncludeBuilderBase:
                         "after using 'includeAllTimeSeries'."
                     )
 
-    # todo: more time series methods
     def _include_time_series_from_to(
         self, alias: str, name: str, from_date: datetime.datetime, to_date: datetime.datetime
     ):

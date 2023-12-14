@@ -922,3 +922,29 @@ class TestTimeSeriesIncludes(TestBase):
             )
 
         self.assertEqual(0, session.advanced.number_of_requests)
+
+    def test_should_throw_on_including_time_series_with_last_range_zero_or_negative_time(self):
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Time range type cannot be set to LAST when time is negative or zero.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_time(
+                    TimeSeriesRangeType.LAST, TimeValue.MIN_VALUE()
+                ),
+            )
+
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Time range type cannot be set to LAST when time is negative or zero.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_time(
+                    TimeSeriesRangeType.LAST, TimeValue.ZERO()
+                ),
+            )
+
+            self.assertEqual(0, session.advanced.number_of_requests)
