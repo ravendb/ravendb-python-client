@@ -266,3 +266,59 @@ class TestTimeSeriesRawQuery(TestBase):
 
                 self.assertEqual(tag1, val.tag)
                 self.assertEqual(base_line + timedelta(minutes=63, days=31), val.timestamp)
+
+    def test_can_query_time_series_aggregation_declare_syntax_with_other_fields(self):
+        with self.store.open_session() as session:
+            for i in range(4):
+                id = f"people/{i}"
+                person = Person("Oren", i * 30)
+
+                session.store(person, id)
+
+                tsf = session.time_series_for(id, ts_name_1)
+
+                tsf.append_single(base_line + timedelta(minutes=61), 59, tag1)
+                tsf.append_single(base_line + timedelta(minutes=62), 79, tag1)
+                tsf.append_single(base_line + timedelta(minutes=63), 69, tag1)
+
+                session.save_changes()
+
+        PeopleIndex().execute(self.store)
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out(p)\n"
+                    "{\n"
+                    "    from p.HeartRate between $start and $end\n"
+                    "    group by 1h\n"
+                    "    select min(), max()\n"
+                    "}\n"
+                    "from index 'People' as p\n"
+                    "where p.age > 49\n"
+                    "select out(p) as heart_rate, p.name",
+                    RawQueryResult,
+                )
+                .add_parameter("start", base_line)
+                .add_parameter("end", base_line + timedelta(days=1))
+            )
+
+            result = list(query)
+
+            self.assertEqual(2, len(result))
+
+            for i in range(2):
+                agg = result[i]
+                self.assertEqual("Oren", agg.name)
+                heartrate = agg.heart_rate
+
+                self.assertEqual(3, heartrate.count)
+                self.assertEqual(1, len(heartrate.results))
+
+                val = heartrate.results[0]
+                self.assertEqual(59, val.min[0])
+                self.assertEqual(79, val.max[0])
+
+                self.assertEqual(base_line + timedelta(minutes=60), val.from_date)
+                self.assertEqual(base_line + timedelta(minutes=120), val.to_date)
