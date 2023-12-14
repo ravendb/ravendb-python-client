@@ -872,3 +872,53 @@ class TestTimeSeriesIncludes(TestBase):
             self.assertEqual(91, len(vals))
             self.assertEqual(base_line, vals[0].timestamp)
             self.assertEqual(base_line + timedelta(minutes=30), vals[90].timestamp)
+
+    def test_should_throw_on_including_time_series_with_none_range(self):
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Time range type cannot be set to NONE when time is specified.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_time(
+                    TimeSeriesRangeType.NONE, TimeValue.of_minutes(-30)
+                ),
+            )
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Time range type cannot be set to NONE when time is specified.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_time(
+                    TimeSeriesRangeType.NONE, TimeValue.ZERO()
+                ),
+            )
+
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Time range type cannot be set to NONE when count is specified.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_count(
+                    TimeSeriesRangeType.NONE, 1024
+                ),
+            )
+
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Time range type cannot be set to NONE when time is specified.",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_time(
+                    TimeSeriesRangeType.NONE, TimeValue.of_minutes(30)
+                ),
+            )
+
+        self.assertEqual(0, session.advanced.number_of_requests)

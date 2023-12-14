@@ -212,7 +212,7 @@ class IncludeBuilderBase:
     @staticmethod
     def _assert_valid_type_and_count(type_: TimeSeriesRangeType, count: int) -> None:
         if type_ == TimeSeriesRangeType.NONE:
-            raise ValueError("Time range type cannot be set to NONE when time is specified.")
+            raise ValueError("Time range type cannot be set to NONE when count is specified.")
         elif type_ == TimeSeriesRangeType.LAST:
             if count <= 0:
                 raise ValueError("Count have to be positive")
