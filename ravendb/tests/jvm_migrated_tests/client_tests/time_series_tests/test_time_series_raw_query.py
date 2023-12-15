@@ -95,11 +95,11 @@ class RawQueryResult:
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> RawQueryResult:
         return cls(
-            TimeSeriesAggregationResult.from_json(json_dict["heart_rate"]),
+            TimeSeriesAggregationResult.from_json(json_dict["heart_rate"]) if "heart_rate" in json_dict else None,
             TimeSeriesAggregationResult.from_json(json_dict["blood_pressure"])
             if "blood_pressure" in json_dict
             else None,
-            json_dict["name"],
+            json_dict["name"] if "name" in json_dict else None,
         )
 
 
