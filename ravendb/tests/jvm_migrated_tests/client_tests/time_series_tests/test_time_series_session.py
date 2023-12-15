@@ -631,3 +631,13 @@ class TestTimeSeriesSession(TestBase):
             self.assertEqual([79], vals[1].values)
             self.assertEqual("watches/fitbit", vals[1].tag)
             self.assertEqual(base_line + timedelta(minutes=3), vals[1].timestamp)
+
+    def test_get_all_time_series_names_when_no_time_series(self):
+        with self.store.open_session() as session:
+            session.store(User(), "users/karmel")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/karmel", User)
+            ts_names = session.advanced.get_time_series_for(user)
+            self.assertEqual(0, len(ts_names))
