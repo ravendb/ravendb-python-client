@@ -1171,3 +1171,16 @@ class TestTimeSeriesIncludes(TestBase):
             )
 
             self.assertEqual(0, session.advanced.number_of_requests)
+
+    def test_should_throw_on_including_time_series_with_negative_count(self):
+        with self.store.open_session() as session:
+            self.assertRaisesWithMessage(
+                session.load,
+                ValueError,
+                "Count have to be positive",
+                "orders/1-A",
+                Order,
+                lambda i: i.include_documents("company").include_all_time_series_by_count(
+                    TimeSeriesRangeType.LAST, -1024
+                ),
+            )
