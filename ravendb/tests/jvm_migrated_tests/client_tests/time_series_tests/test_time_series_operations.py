@@ -562,3 +562,18 @@ class TestTimeSeriesOperations(TestBase):
                 self.assertEqual(real_index * 360 + 1, item.min[0])
                 self.assertEqual(real_index * 360 + 1, item.first[0])
                 self.assertEqual((real_index + 1) * 360, item.last[0])
+
+    def test_should_throw_on_attempt_to_create_time_series_on_missing_document(self):
+        base_line = datetime(2023, 8, 20, 21, 30)
+        time_series_op = TimeSeriesOperation("Heartrate")
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=1), [59], "watches/fitbit")
+        )
+
+        time_series_batch = TimeSeriesBatchOperation("users/ayende", time_series_op)
+        self.assertRaisesWithMessage(
+            self.store.operations.send,
+            RuntimeError,
+            "Document 'users/ayende' does not exist. Cannot operate on time series of a missing document",
+            time_series_batch,
+        )
