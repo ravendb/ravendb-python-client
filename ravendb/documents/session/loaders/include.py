@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import datetime
-from typing import Set, Tuple, Dict, Union, Optional, List
+from typing import Set, Tuple, Dict, Union, Optional, List, TYPE_CHECKING
 
 from ravendb.primitives import constants
-from ravendb.documents.conventions import DocumentConventions
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 
@@ -14,6 +13,9 @@ from ravendb.documents.session.time_series import (
     TimeSeriesRangeType,
     TimeSeriesCountRange,
 )
+
+if TYPE_CHECKING:
+    from ravendb.documents.conventions import DocumentConventions
 
 
 class IncludeBuilderBase:

@@ -10,12 +10,13 @@ from ravendb.documents.operations.definitions import VoidMaintenanceOperation, M
 from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import RaftCommand
-from ravendb.serverwide.operations.common import ServerOperation, VoidServerOperation
 from ravendb.util.util import RaftIdGenerator
 from ravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
+
+from ravendb.serverwide.operations.common import ServerOperation, VoidServerOperation
 
 
 class StudioEnvironment(Enum):

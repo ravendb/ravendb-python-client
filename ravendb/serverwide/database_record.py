@@ -28,6 +28,8 @@ from ravendb.documents.operations.revisions.configuration import (
 
 from ravendb.documents.queries.sorting import SorterDefinition
 
+from ravendb.documents.operations.time_series import TimeSeriesConfiguration
+
 if TYPE_CHECKING:
     from ravendb.serverwide import (
         ConflictSolver,
@@ -36,7 +38,6 @@ if TYPE_CHECKING:
         DatabaseTopology,
     )
     from ravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
-    from ravendb.documents.operations.time_series import TimeSeriesConfiguration
 
 
 class DatabaseRecord:
@@ -142,7 +143,8 @@ class DatabaseRecord:
         }
         record.settings = json_dict.get("Settings", None)
         record.revisions = json_dict.get("Revisions", None)
-        record.time_series = json_dict.get("TimeSeries", None)
+        if json_dict.get("TimeSeries", None):
+            record.time_series = TimeSeriesConfiguration.from_json(json_dict["TimeSeries"])
         record.revisions_for_conflicts = json_dict.get("RevisionsForConflicts", None)
         record.expiration = json_dict.get("Expiration", None)
         record.refresh = json_dict.get("Refresh", None)

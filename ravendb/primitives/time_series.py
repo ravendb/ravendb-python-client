@@ -198,7 +198,7 @@ class TimeValue:
         return result
 
     def __eq__(self, o: object):
-        if self == o:
+        if id(self) == id(o):
             return True
         if o is None or self.__class__ != o.__class__:
             return False
