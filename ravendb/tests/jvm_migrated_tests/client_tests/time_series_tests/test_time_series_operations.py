@@ -436,3 +436,31 @@ class TestTimeSeriesOperations(TestBase):
 
         with self.assertRaises(ValueError):
             self.store.operations.send(GetMultipleTimeSeriesOperation(document_id, []))
+
+    def test_get_time_series_should_throw_on_missing_name(self):
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        base_line = datetime(2023, 8, 20, 21, 30)
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+
+        for i in range(11):
+            time_series_op.append(
+                TimeSeriesOperation.AppendOperation(base_line + timedelta(minutes=i * 10), [72], "watches/fitbit")
+            )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+        failed = False
+        try:
+            GetTimeSeriesOperation(document_id, "", base_line, base_line + timedelta(days=3650))
+        except ValueError as ex:
+            failed = True
+            self.assertIn(ex.args[0], "Timeseries cannot be None or empty")
+
+        self.assertTrue(failed)
