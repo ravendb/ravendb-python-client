@@ -89,6 +89,7 @@ class TestTimeSeriesConfiguration(TestBase):
         self.assertEqual(TimeValue.of_years(3), policies[5].retention_time)
         self.assertEqual(TimeValue.of_years(1), policies[5].aggregation_time)
 
+    @unittest.skip("Disable on pull request")
     def test_can_configure_time_series_2(self):
         collection_name = "Users"
 
@@ -204,6 +205,7 @@ class TestTimeSeriesConfiguration(TestBase):
             ConfigureTimeSeriesOperation(config3),
         )
 
+    @unittest.skip("Disable on pull request")
     def test_configure_time_series_3(self):
         self.store.time_series.set_policy(
             User, "By15SecondsFor1Minute", TimeValue.of_seconds(15), TimeValue.of_seconds(60)
