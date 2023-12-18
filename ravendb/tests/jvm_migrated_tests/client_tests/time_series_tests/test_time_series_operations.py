@@ -599,3 +599,30 @@ class TestTimeSeriesOperations(TestBase):
             )
         )
         self.assertEqual(0, len(time_series_range_result.entries))
+
+    def test_can_create_and_get_simple_time_series_using_store_operations(self):
+        document_id = "users/ayende"
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        base_line = RavenTestHelper.utc_this_month()
+
+        append1 = TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=1), [59], "watches/fitbit")
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+
+        time_series_op.append(append1)
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+
+        time_series_range_result = self.store.operations.send(GetTimeSeriesOperation(document_id, "Heartrate"))
+
+        self.assertEqual(1, len(time_series_range_result.entries))
+
+        value = time_series_range_result.entries[0]
+        self.assertEqual(59, value.values[0])
+        self.assertEqual("watches/fitbit", value.tag)
+        self.assertEqual(base_line + timedelta(seconds=1), value.timestamp)
