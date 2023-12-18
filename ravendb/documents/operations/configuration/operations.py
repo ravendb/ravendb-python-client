@@ -1,86 +1,21 @@
 from __future__ import annotations
 
 import json
-from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import requests
 
+from ravendb.documents.operations.configuration.definitions import ClientConfiguration
 from ravendb.documents.operations.definitions import VoidMaintenanceOperation, MaintenanceOperation
 from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import RaftCommand
 from ravendb.util.util import RaftIdGenerator
-from ravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
 
 from ravendb.serverwide.operations.common import ServerOperation, VoidServerOperation
-
-
-class StudioEnvironment(Enum):
-    NONE = "NONE"
-    DEVELOPMENT = "DEVELOPMENT"
-    TESTING = "TESTING"
-    PRODUCTION = "PRODUCTION"
-
-
-class StudioConfiguration:
-    def __init__(self, disabled: Optional[bool] = None, environment: Optional[StudioEnvironment] = None):
-        self.disabled = disabled
-        self.environment = environment
-
-
-class ClientConfiguration:
-    def __init__(self):
-        self.__identity_parts_separator: Union[None, str] = None
-        self.etag: int = 0
-        self.disabled: bool = False
-        self.max_number_of_requests_per_session: Union[None, int] = None
-        self.read_balance_behavior: Union[None, "ReadBalanceBehavior"] = None
-        self.load_balance_behavior: Union[None, "LoadBalanceBehavior"] = None
-        self.load_balancer_context_seed: Union[None, int] = None
-
-    @property
-    def identity_parts_separator(self) -> str:
-        return self.__identity_parts_separator
-
-    @identity_parts_separator.setter
-    def identity_parts_separator(self, value: str):
-        if value is not None and "|" == value:
-            raise ValueError("Cannot set identity parts separator to '|'")
-        self.__identity_parts_separator = value
-
-    def to_json(self) -> dict:
-        return {
-            "IdentityPartsSeparator": self.__identity_parts_separator,
-            "Etag": self.etag,
-            "Disabled": self.disabled,
-            "MaxNumberOfRequestsPerSession": self.max_number_of_requests_per_session,
-            "ReadBalanceBehavior": self.read_balance_behavior.value
-            if self.read_balance_behavior
-            else ReadBalanceBehavior.NONE,
-            "LoadBalanceBehavior": self.load_balance_behavior.value
-            if self.load_balance_behavior
-            else LoadBalanceBehavior.NONE,
-            "LoadBalancerContextSeed": self.load_balancer_context_seed,
-        }
-
-    @classmethod
-    def from_json(cls, json_dict: dict) -> Optional[ClientConfiguration]:
-        if json_dict is None:
-            return None
-        config = cls()
-        config.__identity_parts_separator = json_dict["IdentityPartsSeparator"]
-        config.etag = json_dict["Etag"]
-        config.disabled = json_dict["Disabled"]
-        config.max_number_of_requests_per_session = json_dict["MaxNumberOfRequestsPerSession"]
-        config.read_balance_behavior = ReadBalanceBehavior(json_dict["ReadBalanceBehavior"])
-        config.load_balance_behavior = LoadBalanceBehavior(json_dict["LoadBalanceBehavior"])
-        config.load_balancer_context_seed = json_dict["LoadBalancerContextSeed"]
-
-        return config
 
 
 class GetClientConfigurationOperation(MaintenanceOperation):

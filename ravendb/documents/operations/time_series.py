@@ -16,10 +16,10 @@ from ravendb.documents.operations.definitions import MaintenanceOperation, IOper
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.util.util import RaftIdGenerator
+from ravendb.documents.conventions import DocumentConventions
 
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import DocumentStore
-    from ravendb.documents.conventions import DocumentConventions
 
 
 class TimeSeriesPolicy:

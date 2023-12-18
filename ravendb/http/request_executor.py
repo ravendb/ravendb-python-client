@@ -21,7 +21,7 @@ from ravendb.exceptions.exceptions import (
     AuthorizationException,
     RequestedNodeUnavailableException,
 )
-from ravendb.documents.operations.configuration import GetClientConfigurationOperation
+from ravendb.documents.operations.configuration.operations import GetClientConfigurationOperation
 from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from ravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 

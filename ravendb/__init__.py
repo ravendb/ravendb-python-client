@@ -63,15 +63,15 @@ from ravendb.documents.operations.compare_exchange.operations import (
     GetCompareExchangeValuesOperation,
     DeleteCompareExchangeValueOperation,
 )
-from ravendb.documents.operations.configuration import (
+from ravendb.documents.operations.configuration.operations import (
     GetServerWideClientConfigurationOperation,
     PutServerWideClientConfigurationOperation,
     ClientConfiguration,
     GetClientConfigurationOperation,
     PutClientConfigurationOperation,
-    StudioConfiguration,
-    StudioEnvironment,
 )
+from ravendb.documents.operations.configuration.definitions import StudioConfiguration, StudioEnvironment
+
 from ravendb.documents.operations.connection_strings import ConnectionString
 from ravendb.documents.operations.etl.configuration import EtlConfiguration, RavenEtlConfiguration
 from ravendb.documents.operations.etl.olap import OlapEtlConfiguration

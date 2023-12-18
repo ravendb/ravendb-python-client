@@ -1,9 +1,9 @@
 import unittest
 
-from ravendb.documents.operations.configuration import ClientConfiguration, PutClientConfigurationOperation
+from ravendb.documents.operations.configuration.definitions import ClientConfiguration
+from ravendb.documents.operations.configuration.operations import PutClientConfigurationOperation
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.session.misc import SessionOptions, TransactionMode
-from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
 

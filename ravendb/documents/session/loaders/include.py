@@ -14,8 +14,7 @@ from ravendb.documents.session.time_series import (
     TimeSeriesCountRange,
 )
 
-if TYPE_CHECKING:
-    from ravendb.documents.conventions import DocumentConventions
+from ravendb.documents.conventions import DocumentConventions
 
 
 class IncludeBuilderBase:

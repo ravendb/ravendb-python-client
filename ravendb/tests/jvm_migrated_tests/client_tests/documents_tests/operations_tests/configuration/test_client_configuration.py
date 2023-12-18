@@ -1,5 +1,5 @@
-from ravendb.documents.operations.configuration import (
-    ClientConfiguration,
+from ravendb.documents.operations.configuration.definitions import ClientConfiguration
+from ravendb.documents.operations.configuration.operations import (
     PutServerWideClientConfigurationOperation,
     GetServerWideClientConfigurationOperation,
     GetClientConfigurationOperation,
