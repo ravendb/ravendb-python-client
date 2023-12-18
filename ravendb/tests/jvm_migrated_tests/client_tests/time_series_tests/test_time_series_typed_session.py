@@ -42,6 +42,14 @@ class HeartRateMeasure(ITimeSeriesValuesBindable):
         return {0: ("heart_rate", None)}
 
 
+class HeartRateMeasureWithCustomName(ITimeSeriesValuesBindable):
+    def __init__(self, value: float):
+        self.heart_rate = value
+
+    def get_time_series_mapping(self) -> Dict[int, Tuple[str, Optional[str]]]:
+        return {0: ("heart_rate", "HR")}
+
+
 class BigMeasure(ITimeSeriesValuesBindable):
     def __init__(self, m1, m2, m3, m4, m5, m6):
         self.measure1 = m1
@@ -612,4 +620,16 @@ class TestTimeSeriesTypedSession(TestBase):
 
         stock = updated.get_names("users", "StockPrices")
         self.assertEqual(5, len(stock))
-        self.assertEqual(stock, ["open", "close", "high", "low", "volume"])
+        self.assertEqual(["open", "close", "high", "low", "volume"], stock)
+
+    def test_can_register_time_series_with_custom_name(self):
+        self.store.time_series.register_type(User, HeartRateMeasureWithCustomName, "cn")
+
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        ).time_series
+
+        # this method is case-insensitive
+        heart_rate = updated.get_names("users", "cn")
+        self.assertEqual(1, len(heart_rate))
+        self.assertEqual("HR", heart_rate[0])
