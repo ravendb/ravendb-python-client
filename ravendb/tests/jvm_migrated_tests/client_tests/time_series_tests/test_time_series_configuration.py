@@ -205,7 +205,9 @@ class TestTimeSeriesConfiguration(TestBase):
         )
 
     def test_configure_time_series_3(self):
-        self.store.time_series.set_policy(User, "By15SecondsFor1Minute", TimeValue.of_seconds(15), TimeValue.of_seconds(60))
+        self.store.time_series.set_policy(
+            User, "By15SecondsFor1Minute", TimeValue.of_seconds(15), TimeValue.of_seconds(60)
+        )
         self.store.time_series.set_policy(User, "ByMinuteFor3Hours", TimeValue.of_minutes(1), TimeValue.of_minutes(180))
         self.store.time_series.set_policy(User, "ByHourFor12Hours", TimeValue.of_hours(1), TimeValue.of_hours(48))
         self.store.time_series.set_policy(User, "ByDayFor1Month", TimeValue.of_days(1), TimeValue.of_months(1))
@@ -259,9 +261,13 @@ class TestTimeSeriesConfiguration(TestBase):
         )
 
         self.store.time_series.set_raw_policy(User, TimeValue.of_minutes(120))
-        self.store.time_series.set_policy(User, "By15SecondsFor1Minute", TimeValue.of_seconds(30), TimeValue.of_seconds(120))
+        self.store.time_series.set_policy(
+            User, "By15SecondsFor1Minute", TimeValue.of_seconds(30), TimeValue.of_seconds(120)
+        )
 
-        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(GetDatabaseRecordOperation(self.store.database)).time_series
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        ).time_series
         collection = updated.collections.get("Users")
         policies = collection.policies
 
@@ -271,12 +277,12 @@ class TestTimeSeriesConfiguration(TestBase):
 
         self.store.time_series.remove_policy(User, "By15SecondsFor1Minute")
 
-        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(GetDatabaseRecordOperation(self.store.database)).time_series
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        ).time_series
         collection = updated.collections.get("Users")
         policies = collection.policies
 
         self.assertEqual(5, len(policies))
 
         self.store.time_series.remove_policy(User, RawTimeSeriesPolicy.POLICY_STRING)
-
-

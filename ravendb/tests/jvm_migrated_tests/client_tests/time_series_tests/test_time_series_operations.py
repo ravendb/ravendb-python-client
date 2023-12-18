@@ -12,6 +12,7 @@ from ravendb.documents.operations.time_series import (
 from ravendb.documents.session.time_series import TimeSeriesRange
 from ravendb.tests.jvm_migrated_tests.client_tests.time_series_tests.test_time_series_raw_query import RawQueryResult
 from ravendb.tests.test_base import TestBase, User
+from ravendb.tools.raven_test_helper import RavenTestHelper
 
 
 class TestTimeSeriesOperations(TestBase):
@@ -577,3 +578,24 @@ class TestTimeSeriesOperations(TestBase):
             "Document 'users/ayende' does not exist. Cannot operate on time series of a missing document",
             time_series_batch,
         )
+
+    def test_can_get_non_existing_range(self):
+        with self.store.open_session() as session:
+            session.store(User(), "users/ayende")
+            session.save_changes()
+
+        base_line = RavenTestHelper.utc_today()
+        time_series_op = TimeSeriesOperation("Heartrate")
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=1), [59], "waches/fitbit")
+        )
+
+        time_series_batch = TimeSeriesBatchOperation("users/ayende", time_series_op)
+        self.store.operations.send(time_series_batch)
+
+        time_series_range_result = self.store.operations.send(
+            GetTimeSeriesOperation(
+                "users/ayende", "Heartrate", base_line - timedelta(days=62), base_line - timedelta(days=31)
+            )
+        )
+        self.assertEqual(0, len(time_series_range_result.entries))
