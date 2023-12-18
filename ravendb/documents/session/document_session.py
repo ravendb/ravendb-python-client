@@ -2281,6 +2281,9 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values
     def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
         self.append(entry.timestamp, entry.value, entry.tag)
 
+    def append_single(self, timestamp: datetime, value: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
+        self.append(timestamp, value, tag)
+
 
 class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
     def __init__(

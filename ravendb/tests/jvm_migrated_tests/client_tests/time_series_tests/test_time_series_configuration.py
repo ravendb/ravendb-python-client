@@ -7,7 +7,9 @@ from ravendb.documents.operations.time_series import (
     TimeSeriesConfiguration,
     TimeSeriesCollectionConfiguration,
     TimeSeriesPolicy,
-    RawTimeSeriesPolicy, ConfigureTimeSeriesPolicyOperation, ConfigureRawTimeSeriesPolicyOperation,
+    RawTimeSeriesPolicy,
+    ConfigureTimeSeriesPolicyOperation,
+    ConfigureRawTimeSeriesPolicyOperation,
     ConfigureTimeSeriesValueNamesOperation,
 )
 from ravendb.primitives.time_series import TimeValue, TimeValueUnit
@@ -86,10 +88,8 @@ class TestTimeSeriesConfiguration(TestBase):
         self.assertEqual(TimeValue.of_years(3), policies[5].retention_time)
         self.assertEqual(TimeValue.of_years(1), policies[5].aggregation_time)
 
-
     def test_can_configure_time_series_2(self):
         collection_name = "Users"
-
 
         p1 = TimeSeriesPolicy("BySecondFor1Minute", TimeValue.of_seconds(1), TimeValue.of_seconds(60))
         p2 = TimeSeriesPolicy("ByMinuteFor3Hours", TimeValue.of_minutes(1), TimeValue.of_minutes(180))
@@ -98,13 +98,14 @@ class TestTimeSeriesConfiguration(TestBase):
         p5 = TimeSeriesPolicy("ByMonthFor1Year", TimeValue.of_months(1), TimeValue.of_years(1))
         p6 = TimeSeriesPolicy("ByYearFor3Years", TimeValue.of_years(1), TimeValue.of_years(3))
 
-
-        policies = [p1,p2,p3,p4,p5,p6]
+        policies = [p1, p2, p3, p4, p5, p6]
 
         for policy in policies:
             self.store.maintenance.send(ConfigureTimeSeriesPolicyOperation(collection_name, policy))
 
-        self.store.maintenance.send(ConfigureRawTimeSeriesPolicyOperation(collection_name, RawTimeSeriesPolicy(TimeValue.of_hours(96))))
+        self.store.maintenance.send(
+            ConfigureRawTimeSeriesPolicyOperation(collection_name, RawTimeSeriesPolicy(TimeValue.of_hours(96)))
+        )
 
         parameters = ConfigureTimeSeriesValueNamesOperation.Parameters(None, None, None, None)
         parameters.collection = collection_name

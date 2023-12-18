@@ -10,7 +10,7 @@ from ravendb.documents.operations.time_series import (
     ConfigureTimeSeriesOperation,
     RawTimeSeriesPolicy,
 )
-from ravendb.documents.queries.time_series import TimeSeriesRawResult
+from ravendb.documents.queries.time_series import TimeSeriesRawResult, TimeSeriesAggregationResult
 from ravendb.documents.session.time_series import (
     ITimeSeriesValuesBindable,
     TypedTimeSeriesEntry,
@@ -446,3 +446,128 @@ class TestTimeSeriesTypedSession(TestBase):
             Company,
             StockPriceWithBadAttributes,
         )
+
+    def test_can_query_time_series_aggregation_declare_syntax_all_docs_query(self):
+        base_line = RavenTestHelper.utc_today()
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            tsf = session.typed_time_series_for(HeartRateMeasure, document_id)
+            m = HeartRateMeasure(59)
+            tsf.append(base_line + timedelta(minutes=61), m, tag1)
+            m.heart_rate = 79
+            tsf.append(base_line + timedelta(minutes=62), m, tag1)
+            m.heart_rate = 69
+            tsf.append(base_line + timedelta(minutes=63), m, tag1)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out(u)\n"
+                    "    {\n"
+                    "        from u.HeartRateMeasures between $start and $end\n"
+                    "        group by 1h\n"
+                    "        select min(), max(), first(), last()\n"
+                    "    }\n"
+                    "    from @all_docs as u\n"
+                    "    where id() == 'users/gracjan'\n"
+                    "    select out(u)",
+                    TimeSeriesAggregationResult,
+                )
+                .add_parameter("start", base_line)
+                .add_parameter("end", base_line + timedelta(days=1))
+            )
+
+            agg = query.first().as_typed_result(HeartRateMeasure)
+
+            self.assertEqual(3, agg.count)
+            self.assertEqual(1, len(agg.results))
+
+            val = agg.results[0]
+            self.assertEqual(59, val.first.heart_rate)
+            self.assertEqual(59, val.min.heart_rate)
+
+            self.assertEqual(69, val.last.heart_rate)
+            self.assertEqual(79, val.max.heart_rate)
+
+            self.assertEqual(base_line + timedelta(minutes=60), val.from_date)
+            self.assertEqual(base_line + timedelta(minutes=120), val.to_date)
+
+    def test_can_query_time_series_aggregation_no_select_or_group_by(self):
+        base_line = RavenTestHelper.utc_today()
+        with self.store.open_session() as session:
+            for i in range(1, 4):
+                id = f"people/{i}"
+                session.store(User(name="Oren", age=i * 30), id)
+                tsf = session.typed_time_series_for(HeartRateMeasure, id)
+                tsf.append(base_line + timedelta(minutes=61), HeartRateMeasure(59), tag1)
+                tsf.append(base_line + timedelta(minutes=62), HeartRateMeasure(79), tag1)
+                tsf.append(base_line + timedelta(minutes=63), HeartRateMeasure(69), tag2)
+                tsf.append(base_line + timedelta(minutes=61, days=31), HeartRateMeasure(159), tag1)
+                tsf.append(base_line + timedelta(minutes=62, days=31), HeartRateMeasure(179), tag2)
+                tsf.append(base_line + timedelta(minutes=63, days=31), HeartRateMeasure(169), tag1)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out(x)\n"
+                    "{\n"
+                    "    from x.HeartRateMeasures between $start and $end\n"
+                    "}\n"
+                    "from Users as doc\n"
+                    "where doc.age > 49\n"
+                    "select out(doc)",
+                    TimeSeriesRawResult,
+                )
+                .add_parameter("start", base_line)
+                .add_parameter("end", base_line + timedelta(days=62))
+            )
+
+            result = list(query)
+
+            self.assertEqual(2, len(result))
+
+            for i in range(2):
+                agg_raw = result[i]
+                agg = agg_raw.as_typed_result(HeartRateMeasure)
+
+                self.assertEqual(6, len(agg.results))
+
+                val = agg.results[0]
+
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(59, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=61), val.timestamp)
+
+                val = agg.results[1]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(79, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=62), val.timestamp)
+
+                val = agg.results[2]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(69, val.value.heart_rate)
+                self.assertEqual(tag2, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=63), val.timestamp)
+
+                val = agg.results[3]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(159, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=61, days=31), val.timestamp)
+
+                val = agg.results[4]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(179, val.value.heart_rate)
+                self.assertEqual(tag2, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=62, days=31), val.timestamp)
+
+                val = agg.results[5]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(169, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=63, days=31), val.timestamp)

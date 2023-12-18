@@ -44,11 +44,11 @@ class TimeSeriesPolicy:
         self.name = name
 
     @classmethod
-    def from_json(cls, json_dict: Dict[str,Any]) -> TimeSeriesPolicy:
+    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesPolicy:
         return cls(
             json_dict["Name"],
             TimeValue.from_json(json_dict["AggregationTime"]),
-            TimeValue.from_json(json_dict["RetentionTime"])
+            TimeValue.from_json(json_dict["RetentionTime"]),
         )
 
     def get_time_series_name(self, raw_name: str) -> str:
@@ -66,10 +66,8 @@ class RawTimeSeriesPolicy(TimeSeriesPolicy):
     POLICY_STRING = "rawpolicy"  # must be lower case
 
     @classmethod
-    def from_json(cls, json_dict: Dict[str,Any]) -> RawTimeSeriesPolicy:
-        return cls(
-            TimeValue.from_json(json_dict["RetentionTime"])
-        )
+    def from_json(cls, json_dict: Dict[str, Any]) -> RawTimeSeriesPolicy:
+        return cls(TimeValue.from_json(json_dict["RetentionTime"]))
 
     @classmethod
     def DEFAULT_POLICY(cls) -> RawTimeSeriesPolicy:
@@ -91,12 +89,13 @@ class TimeSeriesCollectionConfiguration:
         self.disabled = disabled
         self.policies = policies
         self.raw_policy = raw_policy
+
     @classmethod
-    def from_json(cls, json_dict: Dict[str, Any])->TimeSeriesCollectionConfiguration:
+    def from_json(cls, json_dict: Dict[str, Any]) -> TimeSeriesCollectionConfiguration:
         return cls(
             json_dict["Disabled"],
             [TimeSeriesPolicy.from_json(policy_json) for policy_json in json_dict["Policies"]],
-            RawTimeSeriesPolicy.from_json(json_dict["RawPolicy"])
+            RawTimeSeriesPolicy.from_json(json_dict["RawPolicy"]),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -116,7 +115,9 @@ class TimeSeriesConfiguration:
         json_dict: Dict[str, Any] = None,
     ) -> TimeSeriesConfiguration:
         configuration = cls()
-        configuration.collections = {key:TimeSeriesCollectionConfiguration.from_json(value) for key,value in json_dict["Collections"].items()}
+        configuration.collections = {
+            key: TimeSeriesCollectionConfiguration.from_json(value) for key, value in json_dict["Collections"].items()
+        }
         configuration.policy_check_frequency = Utils.string_to_timedelta(json_dict["PolicyCheckFrequency"])
         configuration.named_values = json_dict["NamedValues"]
         configuration._internal_post_json_deserialization()
