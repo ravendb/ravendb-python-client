@@ -118,7 +118,11 @@ class TimeSeriesConfiguration:
         configuration.collections = {
             key: TimeSeriesCollectionConfiguration.from_json(value) for key, value in json_dict["Collections"].items()
         }
-        configuration.policy_check_frequency = Utils.string_to_timedelta(json_dict["PolicyCheckFrequency"])
+        configuration.policy_check_frequency = (
+            Utils.string_to_timedelta(json_dict["PolicyCheckFrequency"])
+            if "PolicyCheckFrequency" in json_dict and json_dict["PolicyCheckFrequency"]
+            else None
+        )
         configuration.named_values = json_dict["NamedValues"]
         configuration._internal_post_json_deserialization()
         return configuration
@@ -134,6 +138,20 @@ class TimeSeriesConfiguration:
             "PolicyCheckFrequency": Utils.timedelta_to_str(self.policy_check_frequency),
             "NamedValues": self.named_values,
         }
+
+    def get_names(self, collection: str, time_series: str) -> Optional[List[str]]:
+        if self.named_values is None:
+            return None
+
+        ts_holder = self.named_values.get(collection, None)
+        if ts_holder is None:
+            return None
+
+        names = ts_holder.get(time_series, None)
+        if names is None:
+            return None
+
+        return names
 
     def _internal_post_json_deserialization(self) -> None:
         self._populate_named_values()

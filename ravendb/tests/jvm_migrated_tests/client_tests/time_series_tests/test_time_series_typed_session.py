@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 
+from ravendb import GetDatabaseRecordOperation
 from ravendb.documents.operations.time_series import (
     TimeSeriesPolicy,
     TimeSeriesCollectionConfiguration,
@@ -571,3 +572,27 @@ class TestTimeSeriesTypedSession(TestBase):
                 self.assertEqual(169, val.value.heart_rate)
                 self.assertEqual(tag1, val.tag)
                 self.assertEqual(base_line + timedelta(minutes=63, days=31), val.timestamp)
+
+    def test_can_register_time_series_for_other_database(self):
+        with self.get_document_store() as store2:
+            self.store.time_series.for_database(store2.database).register_type(User, StockPrice)
+            self.store.time_series.for_database(store2.database).register("Users", "HeartRateMeasures", ["HeartRate"])
+
+            updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+                GetDatabaseRecordOperation(store2.database)
+            ).time_series
+
+            self.assertIsNotNone(updated)
+
+            heartrate = updated.get_names("users", "HeartRateMeasures")
+            self.assertEqual(1, len(heartrate))
+            self.assertEqual("HeartRate", heartrate[0])
+
+            stock = updated.get_names("users", "StockPrices")
+
+            self.assertEqual(5, len(stock))
+            self.assertEqual("open", stock[0])
+            self.assertEqual("close", stock[1])
+            self.assertEqual("high", stock[2])
+            self.assertEqual("low", stock[3])
+            self.assertEqual("volume", stock[4])
