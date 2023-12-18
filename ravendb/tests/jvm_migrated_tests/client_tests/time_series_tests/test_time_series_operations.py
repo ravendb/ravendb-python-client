@@ -626,3 +626,46 @@ class TestTimeSeriesOperations(TestBase):
         self.assertEqual(59, value.values[0])
         self.assertEqual("watches/fitbit", value.tag)
         self.assertEqual(base_line + timedelta(seconds=1), value.timestamp)
+
+    def test_can_store_and_read_multiple_timestamp_using_store_operations(self):
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        base_line = RavenTestHelper.utc_this_month()
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=1), [59], "watches/fitbit")
+        )
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=2), [61], "watches/fitbit")
+        )
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=5), [60], "watches/apple-watch")
+        )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+
+        time_Series_range_result = self.store.operations.send(GetTimeSeriesOperation(document_id, "Heartrate"))
+
+        self.assertEqual(3, len(time_Series_range_result.entries))
+
+        value = time_Series_range_result.entries[0]
+        self.assertEqual(59, value.values[0])
+        self.assertEqual("watches/fitbit", value.tag)
+        self.assertEqual(base_line + timedelta(seconds=1), value.timestamp)
+
+        value = time_Series_range_result.entries[1]
+        self.assertEqual(61, value.values[0])
+        self.assertEqual("watches/fitbit", value.tag)
+        self.assertEqual(base_line + timedelta(seconds=2), value.timestamp)
+
+        value = time_Series_range_result.entries[2]
+        self.assertEqual(60, value.values[0])
+        self.assertEqual("watches/apple-watch", value.tag)
+        self.assertEqual(base_line + timedelta(seconds=5), value.timestamp)
