@@ -651,21 +651,92 @@ class TestTimeSeriesOperations(TestBase):
 
         self.store.operations.send(time_series_batch)
 
-        time_Series_range_result = self.store.operations.send(GetTimeSeriesOperation(document_id, "Heartrate"))
+        time_series_range_result = self.store.operations.send(GetTimeSeriesOperation(document_id, "Heartrate"))
 
-        self.assertEqual(3, len(time_Series_range_result.entries))
+        self.assertEqual(3, len(time_series_range_result.entries))
 
-        value = time_Series_range_result.entries[0]
+        value = time_series_range_result.entries[0]
         self.assertEqual(59, value.values[0])
         self.assertEqual("watches/fitbit", value.tag)
         self.assertEqual(base_line + timedelta(seconds=1), value.timestamp)
 
-        value = time_Series_range_result.entries[1]
+        value = time_series_range_result.entries[1]
         self.assertEqual(61, value.values[0])
         self.assertEqual("watches/fitbit", value.tag)
         self.assertEqual(base_line + timedelta(seconds=2), value.timestamp)
 
-        value = time_Series_range_result.entries[2]
+        value = time_series_range_result.entries[2]
         self.assertEqual(60, value.values[0])
         self.assertEqual("watches/apple-watch", value.tag)
         self.assertEqual(base_line + timedelta(seconds=5), value.timestamp)
+
+    def test_can_append_and_remove_timestamp_in_single_batch(self):
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            session.save_changes()
+
+        base_line = RavenTestHelper.utc_this_month()
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=1), [59], "watches/fitbit")
+        )
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=2), [61], "watches/fitbit")
+        )
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=3), [61.5], "watches/fitbit")
+        )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+
+        time_series_range_result = self.store.operations.send(
+            GetTimeSeriesOperation(document_id, "Heartrate", None, None)
+        )
+
+        self.assertEqual(3, len(time_series_range_result.entries))
+
+        time_series_op = TimeSeriesOperation("Heartrate")
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=4), [60], "watches/fitbit")
+        )
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=5), [62.5], "watches/fitbit")
+        )
+        time_series_op.append(
+            TimeSeriesOperation.AppendOperation(base_line + timedelta(seconds=6), [62], "watches/fitbit")
+        )
+
+        time_series_op.delete(
+            TimeSeriesOperation.DeleteOperation(base_line + timedelta(seconds=2), base_line + timedelta(seconds=3))
+        )
+
+        time_series_batch = TimeSeriesBatchOperation(document_id, time_series_op)
+
+        self.store.operations.send(time_series_batch)
+
+        time_series_range_result = self.store.operations.send(
+            GetTimeSeriesOperation(document_id, "Heartrate", None, None)
+        )
+
+        self.assertEqual(4, len(time_series_range_result.entries))
+
+        value = time_series_range_result.entries[0]
+        self.assertEqual(59, value.values[0])
+        self.assertEqual(base_line + timedelta(seconds=1), value.timestamp)
+
+        value = time_series_range_result.entries[1]
+        self.assertEqual(60, value.values[0])
+        self.assertEqual(base_line + timedelta(seconds=4), value.timestamp)
+
+        value = time_series_range_result.entries[2]
+        self.assertEqual(62.5, value.values[0])
+        self.assertEqual(base_line + timedelta(seconds=5), value.timestamp)
+
+        value = time_series_range_result.entries[3]
+        self.assertEqual(62, value.values[0])
+        self.assertEqual(base_line + timedelta(seconds=6), value.timestamp)
