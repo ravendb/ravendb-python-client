@@ -12,6 +12,7 @@ from ravendb.documents.operations.time_series import (
     ConfigureRawTimeSeriesPolicyOperation,
     ConfigureTimeSeriesValueNamesOperation,
 )
+from ravendb.infrastructure.entities import User
 from ravendb.primitives.time_series import TimeValue, TimeValueUnit
 from ravendb.tests.test_base import TestBase
 
@@ -202,3 +203,80 @@ class TestTimeSeriesConfiguration(TestBase):
             "must be divided by the aggregation time of 'By27DaysFor1Year' (27 days) without a remainder.",
             ConfigureTimeSeriesOperation(config3),
         )
+
+    def test_configure_time_series_3(self):
+        self.store.time_series.set_policy(User, "By15SecondsFor1Minute", TimeValue.of_seconds(15), TimeValue.of_seconds(60))
+        self.store.time_series.set_policy(User, "ByMinuteFor3Hours", TimeValue.of_minutes(1), TimeValue.of_minutes(180))
+        self.store.time_series.set_policy(User, "ByHourFor12Hours", TimeValue.of_hours(1), TimeValue.of_hours(48))
+        self.store.time_series.set_policy(User, "ByDayFor1Month", TimeValue.of_days(1), TimeValue.of_months(1))
+        self.store.time_series.set_policy(User, "ByMonthFor1Year", TimeValue.of_months(1), TimeValue.of_years(1))
+        self.store.time_series.set_policy(User, "ByYearFor3Years", TimeValue.of_years(1), TimeValue.of_years(3))
+
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        ).time_series
+        collection = updated.collections.get("Users")
+        policies = collection.policies
+
+        self.assertEqual(6, len(policies))
+
+        self.assertEqual(6, len(policies))
+
+        self.assertEqual(TimeValue.of_seconds(60), policies[0].retention_time)
+        self.assertEqual(TimeValue.of_seconds(15), policies[0].aggregation_time)
+
+        self.assertEqual(TimeValue.of_minutes(180), policies[1].retention_time)
+        self.assertEqual(TimeValue.of_minutes(1), policies[1].aggregation_time)
+
+        self.assertEqual(TimeValue.of_hours(48), policies[2].retention_time)
+        self.assertEqual(TimeValue.of_hours(1), policies[2].aggregation_time)
+
+        self.assertEqual(TimeValue.of_months(1), policies[3].retention_time)
+        self.assertEqual(TimeValue.of_days(1), policies[3].aggregation_time)
+
+        self.assertEqual(TimeValue.of_years(1), policies[4].retention_time)
+        self.assertEqual(TimeValue.of_months(1), policies[4].aggregation_time)
+
+        self.assertEqual(TimeValue.of_years(3), policies[5].retention_time)
+        self.assertEqual(TimeValue.of_years(1), policies[5].aggregation_time)
+
+        self.assertRaisesWithMessage(
+            self.store.time_series.remove_policy,
+            Exception,
+            "The policy 'By15SecondsFor1Minute' has a retention time of '60 seconds' "
+            "but should be aggregated by policy 'ByHourFor12Hours' with the aggregation time frame of 60 minutes",
+            User,
+            "ByMinuteFor3Hours",
+        )
+
+        self.assertRaisesWithMessage(
+            self.store.time_series.set_raw_policy,
+            Exception,
+            "The policy 'rawpolicy' has a retention time of '10 seconds' but should be aggregated by policy "
+            "'By15SecondsFor1Minute' with the aggregation time frame of 15 seconds",
+            User,
+            TimeValue.of_seconds(10),
+        )
+
+        self.store.time_series.set_raw_policy(User, TimeValue.of_minutes(120))
+        self.store.time_series.set_policy(User, "By15SecondsFor1Minute", TimeValue.of_seconds(30), TimeValue.of_seconds(120))
+
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(GetDatabaseRecordOperation(self.store.database)).time_series
+        collection = updated.collections.get("Users")
+        policies = collection.policies
+
+        self.assertEqual(6, len(policies))
+        self.assertEqual(TimeValue.of_seconds(120), policies[0].retention_time)
+        self.assertEqual(TimeValue.of_seconds(30), policies[0].aggregation_time)
+
+        self.store.time_series.remove_policy(User, "By15SecondsFor1Minute")
+
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(GetDatabaseRecordOperation(self.store.database)).time_series
+        collection = updated.collections.get("Users")
+        policies = collection.policies
+
+        self.assertEqual(5, len(policies))
+
+        self.store.time_series.remove_policy(User, RawTimeSeriesPolicy.POLICY_STRING)
+
+
