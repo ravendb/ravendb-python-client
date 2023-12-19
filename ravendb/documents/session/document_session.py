@@ -1991,16 +1991,16 @@ class SessionTimeSeriesBase(abc.ABC):
         )
 
         if not self.session.no_tracking:
-            from_date = min(
-                [
-                    from_date
-                    for from_date in [x.from_date for x in details.values.get(self.name)]
-                    if from_date is not None
-                ]
-            )
-            to_date = max(
-                [to_date for to_date in [x.to_date for x in details.values.get(self.name)] if to_date is not None]
-            )
+            from_dates = [
+                from_date for from_date in [x.from_date for x in details.values.get(self.name)] if from_date is not None
+            ]
+            from_date = None if not any(from_dates) else min(from_dates)
+
+            to_dates = [
+                to_date for to_date in [x.to_date for x in details.values.get(self.name)] if to_date is not None
+            ]
+            to_date = None if not any(to_dates) else max(to_dates)
+
             InMemoryDocumentSessionOperations.add_to_cache(
                 self.name, from_date, to_date, from_range_index, to_range_index, ranges, cache, merged_values
             )
