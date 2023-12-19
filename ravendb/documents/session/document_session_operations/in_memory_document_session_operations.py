@@ -710,7 +710,7 @@ class InMemoryDocumentSessionOperations:
             )
 
     def _assert_no_non_unique_instance(self, entity: object, key: str) -> None:
-        if (not key) or key[-1] == "|" or key[-1] == self.conventions.identity_parts_separator:
+        if not key or key[-1] == "|" or key[-1] == self.conventions.identity_parts_separator:
             return
 
         info = self._documents_by_id.get(key)
@@ -931,7 +931,7 @@ class InMemoryDocumentSessionOperations:
             document=None,
         )
         self._documents_by_entity[entity] = document_info
-        if key:
+        if key is not None:
             self._documents_by_id[key] = document_info
 
     def prepare_for_save_changes(self) -> SaveChangesData:
@@ -1882,7 +1882,8 @@ class InMemoryDocumentSessionOperations:
 
             def clear_session_state_after_successful_save_changes(self):
                 for key in self.__documents_by_id_to_remove:
-                    self.__session._documents_by_id.pop(key)
+                    if key in self.__session.documents_by_id:
+                        self.__session._documents_by_id.pop(key)
                 for key in self.__documents_by_entity_to_remove:
                     self.__session._documents_by_entity.pop(key)
 
