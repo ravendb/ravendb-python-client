@@ -202,3 +202,83 @@ class TestRavenDB15246(TestBase):
         self.assertEqual(0, len(res.values.get("raven")[0].entries))
         self.assertEqual(0, len(res.values.get("raven")[1].entries))
         self.assertEqual(3, len(res.values.get("raven")[2].entries))
+
+    def test_ranges(self):
+        base_line = RavenTestHelper.utc_this_month()
+        id_ = "users/1-A"
+
+        with self.store.open_session() as session:
+            session.store(User(), id_)
+            tsf = session.time_series_for(id_, "raven")
+            for i in range(11):
+                tsf.append_single(base_line + timedelta(minutes=i), i, "watches/apple")
+            for i in range(12, 14):
+                tsf.append_single(base_line + timedelta(minutes=i), i, "watches/apple")
+            for i in range(16, 21):
+                tsf.append_single(base_line + timedelta(minutes=i), i, "watches/apple")
+
+            session.save_changes()
+
+            ranges_list = []
+            time_series_range = TimeSeriesRange(
+                "raven", base_line + timedelta(minutes=1), base_line + timedelta(milliseconds=7)
+            )
+            ranges_list.append(time_series_range)
+
+            re = self.store.get_request_executor()
+            ts_command = GetMultipleTimeSeriesOperation.GetMultipleTimeSeriesCommand(id_, ranges_list)
+            re.execute_command(ts_command)
+            res = ts_command.result
+
+            self.assertEqual(1, len(res.values))
+            self.assertEqual(1, len(res.values.get("raven")))
+
+            ranges_list = [
+                TimeSeriesRange("raven", base_line + timedelta(minutes=8), base_line + timedelta(minutes=11))
+            ]
+            ts_command = GetMultipleTimeSeriesOperation.GetMultipleTimeSeriesCommand(id_, ranges_list)
+            re.execute_command(ts_command)
+            res = ts_command.result
+
+            self.assertEqual(1, len(res.values))
+            self.assertEqual(1, len(res.values.get("raven")))
+
+            ranges_list = [
+                TimeSeriesRange("raven", base_line + timedelta(minutes=8), base_line + timedelta(minutes=17))
+            ]
+            ts_command = GetMultipleTimeSeriesOperation.GetMultipleTimeSeriesCommand(id_, ranges_list)
+            re.execute_command(ts_command)
+            res = ts_command.result
+
+            self.assertEqual(1, len(res.values))
+            self.assertEqual(1, len(res.values.get("raven")))
+
+            ranges_list = [
+                TimeSeriesRange("raven", base_line + timedelta(minutes=14), base_line + timedelta(minutes=15))
+            ]
+            ts_command = GetMultipleTimeSeriesOperation.GetMultipleTimeSeriesCommand(id_, ranges_list)
+            re.execute_command(ts_command)
+            res = ts_command.result
+
+            self.assertEqual(1, len(res.values))
+            self.assertEqual(1, len(res.values.get("raven")))
+
+            ranges_list = [
+                TimeSeriesRange("raven", base_line + timedelta(minutes=23), base_line + timedelta(minutes=25))
+            ]
+            ts_command = GetMultipleTimeSeriesOperation.GetMultipleTimeSeriesCommand(id_, ranges_list)
+            re.execute_command(ts_command)
+            res = ts_command.result
+
+            self.assertEqual(1, len(res.values))
+            self.assertEqual(1, len(res.values.get("raven")))
+
+            ranges_list = [
+                TimeSeriesRange("raven", base_line + timedelta(minutes=20), base_line + timedelta(minutes=26))
+            ]
+            ts_command = GetMultipleTimeSeriesOperation.GetMultipleTimeSeriesCommand(id_, ranges_list)
+            re.execute_command(ts_command)
+            res = ts_command.result
+
+            self.assertEqual(1, len(res.values))
+            self.assertEqual(1, len(res.values.get("raven")))
