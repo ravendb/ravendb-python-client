@@ -282,3 +282,41 @@ class TestRavenDB15246(TestBase):
 
             self.assertEqual(1, len(res.values))
             self.assertEqual(1, len(res.values.get("raven")))
+
+    def test_client_cache_with_page_size(self):
+        base_line = RavenTestHelper.utc_this_month()
+
+        with self.store.open_session() as session:
+            session.store(User(), "users/1-A")
+            tsf = session.time_series_for("users/1-A", "Heartrate")
+            for i in range(21):
+                tsf.append_single(base_line + timedelta(minutes=i), i, "watches/apple")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A", User)
+            ts = session.time_series_for_entity(user, "Heartrate")
+            res = ts.get(None, None, 0, 0)
+            self.assertEqual(0, len(res))
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            res = ts.get(start=0, page_size=10)
+            self.assertEqual(10, len(res))
+
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            res = ts.get(start=0, page_size=7)
+            self.assertEqual(7, len(res))
+
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            res = ts.get(start=0, page_size=20)
+            self.assertEqual(20, len(res))
+
+            self.assertEqual(3, session.advanced.number_of_requests)
+
+            res = ts.get(start=0, page_size=25)
+            self.assertEqual(21, len(res))
+
+            self.assertEqual(3, session.advanced.number_of_requests)
