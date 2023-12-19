@@ -2205,9 +2205,9 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
         start: int = 0,
         page_size: int = int_max,
     ) -> Optional[List[TimeSeriesEntry]]:
-        return self.get_include(from_date, to_date, None, start, page_size)
+        return self.get_with_include(from_date, to_date, None, start, page_size)
 
-    def get_include(
+    def get_with_include(
         self,
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
