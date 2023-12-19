@@ -405,3 +405,91 @@ class TestRavenDB14164(TestBase):
             self.assertEqual(5, session.advanced.number_of_requests)
             self.assertEqual("Sony", watch.name)
             self.assertEqual(0.78, watch.accuracy)
+
+    def test_can_get_multiple_ranges_with_includes(self):
+        tags = [tag1, tag2, tag3]
+        with self.store.open_session() as session:
+            session.store(User(name="poisson"), document_id)
+            session.store(Watch("FitBit", 0.855), tags[0])
+            session.store(Watch("Apple", 0.9), tags[1])
+            session.store(Watch("Sony", 0.78), tags[2])
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for(document_id, ts_name1)
+            for i in range(121):
+                tsf.append_single(base_line + timedelta(minutes=i), i, tags[i % 3])
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            # get [21:30 - 22:00]
+            get_results = session.time_series_for(document_id, ts_name1).get(
+                base_line, base_line + timedelta(minutes=30)
+            )
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(31, len(get_results))
+            self.assertEqual(base_line, get_results[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=30), get_results[-1].timestamp)
+
+            # get [22:15 - 22:30]
+            get_results = session.time_series_for(document_id, ts_name1).get(
+                base_line + timedelta(minutes=45), base_line + timedelta(minutes=60)
+            )
+
+            self.assertEqual(2, session.advanced.number_of_requests)
+
+            self.assertEqual(16, len(get_results))
+            self.assertEqual(base_line + timedelta(minutes=45), get_results[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=60), get_results[-1].timestamp)
+
+            # get [22:15 - 22:30]
+            get_results = session.time_series_for(document_id, ts_name1).get(
+                base_line + timedelta(minutes=90), base_line + timedelta(minutes=120)
+            )
+
+            self.assertEqual(3, session.advanced.number_of_requests)
+
+            self.assertEqual(31, len(get_results))
+            self.assertEqual(base_line + timedelta(minutes=90), get_results[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=120), get_results[-1].timestamp)
+
+            # get multiple ranges with includes
+            # ask for entire range [00:00 - 02:00] with includes
+            # this will go to server to get the "missing parts" - [00:30 - 00:45] and [01:00 - 01:30]
+
+            get_results = session.time_series_for(document_id, ts_name1).get_with_include(
+                base_line, base_line + timedelta(minutes=120), lambda x: x.include_tags().include_document()
+            )
+
+            self.assertEqual(4, session.advanced.number_of_requests)
+
+            self.assertEqual(121, len(get_results))
+            self.assertEqual(base_line + timedelta(minutes=0), get_results[0].timestamp)
+            self.assertEqual(base_line + timedelta(minutes=120), get_results[-1].timestamp)
+
+            # should not go to server
+            user = session.load(document_id, User)
+            self.assertEqual(4, session.advanced.number_of_requests)
+            self.assertEqual("poisson", user.name)
+
+            # should not go to server
+            tag_documents = session.load(tags, Watch)
+            self.assertEqual(4, session.advanced.number_of_requests)
+
+            # assert tag documents
+
+            self.assertEqual(3, len(tag_documents))
+
+            tag_doc = tag_documents.get("watches/fitbit")
+            self.assertEqual("FitBit", tag_doc.name)
+            self.assertEqual(0.855, tag_doc.accuracy)
+
+            tag_doc = tag_documents.get("watches/apple")
+            self.assertEqual("Apple", tag_doc.name)
+            self.assertEqual(0.9, tag_doc.accuracy)
+
+            tag_doc = tag_documents.get("watches/sony")
+            self.assertEqual("Sony", tag_doc.name)
+            self.assertEqual(0.78, tag_doc.accuracy)
