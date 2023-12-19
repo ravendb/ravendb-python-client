@@ -506,9 +506,9 @@ class TestTimeSeriesTypedSession(TestBase):
         base_line = RavenTestHelper.utc_today()
         with self.store.open_session() as session:
             for i in range(1, 4):
-                id = f"people/{i}"
-                session.store(User(name="Oren", age=i * 30), id)
-                tsf = session.typed_time_series_for(HeartRateMeasure, id)
+                id_ = f"people/{i}"
+                session.store(User(name="Oren", age=i * 30), id_)
+                tsf = session.typed_time_series_for(HeartRateMeasure, id_)
                 tsf.append(base_line + timedelta(minutes=61), HeartRateMeasure(59), tag1)
                 tsf.append(base_line + timedelta(minutes=62), HeartRateMeasure(79), tag1)
                 tsf.append(base_line + timedelta(minutes=63), HeartRateMeasure(69), tag2)

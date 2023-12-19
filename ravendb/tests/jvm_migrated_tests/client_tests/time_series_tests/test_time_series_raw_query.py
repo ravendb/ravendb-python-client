@@ -110,18 +110,18 @@ class TestTimeSeriesRawQuery(TestBase):
     def test_can_query_time_series_aggregation_declare_syntax_multiple_series(self):
         with self.store.open_session() as session:
             for i in range(4):
-                id = f"people/{i}"
+                id_ = f"people/{i}"
                 person = Person("Oren", i * 30)
 
-                session.store(person, id)
+                session.store(person, id_)
 
-                tsf = session.time_series_for(id, ts_name_1)
+                tsf = session.time_series_for(id_, ts_name_1)
 
                 tsf.append_single(base_line + timedelta(minutes=61), 59, tag1)
                 tsf.append_single(base_line + timedelta(minutes=62), 79, tag1)
                 tsf.append_single(base_line + timedelta(minutes=63), 69, tag1)
 
-                tsf = session.time_series_for(id, ts_name_2)
+                tsf = session.time_series_for(id_, ts_name_2)
 
                 tsf.append_single(base_line + timedelta(minutes=61), 159, tag2)
                 tsf.append_single(base_line + timedelta(minutes=62), 179, tag2)
@@ -174,12 +174,12 @@ class TestTimeSeriesRawQuery(TestBase):
     def test_can_query_time_series_aggregation_no_select_or_group_by_multiple_values(self):
         with self.store.open_session() as session:
             for i in range(4):
-                id = f"people/{i}"
+                id_ = f"people/{i}"
                 person = Person("Oren", i * 30)
 
-                session.store(person, id)
+                session.store(person, id_)
 
-                tsf = session.time_series_for(id, ts_name_1)
+                tsf = session.time_series_for(id_, ts_name_1)
 
                 tsf.append(base_line + timedelta(minutes=61), [59, 159], tag1)
                 tsf.append(base_line + timedelta(minutes=62), [79, 179], tag1)
@@ -270,12 +270,12 @@ class TestTimeSeriesRawQuery(TestBase):
     def test_can_query_time_series_aggregation_declare_syntax_with_other_fields(self):
         with self.store.open_session() as session:
             for i in range(4):
-                id = f"people/{i}"
+                id_ = f"people/{i}"
                 person = Person("Oren", i * 30)
 
-                session.store(person, id)
+                session.store(person, id_)
 
-                tsf = session.time_series_for(id, ts_name_1)
+                tsf = session.time_series_for(id_, ts_name_1)
 
                 tsf.append_single(base_line + timedelta(minutes=61), 59, tag1)
                 tsf.append_single(base_line + timedelta(minutes=62), 79, tag1)

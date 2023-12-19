@@ -27,8 +27,8 @@ class TestAdvanced(TestBase):
             user = User("U", 1)
             s.store(user, "test/")
             s.save_changes()
-            id = s.advanced.get_document_id(user)
-            self.assertFalse(id.endswith("/"))
+            id_ = s.advanced.get_document_id(user)
+            self.assertFalse(id_.endswith("/"))
 
     @unittest.skip("Query streaming")
     def test_stream_query(self):
