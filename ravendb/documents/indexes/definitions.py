@@ -625,7 +625,7 @@ class IndexDefinitionHelper:
 
             tokens = [token for token in map_lower.split(" ", 4) if token]
 
-            if len(tokens) > 4 and tokens[2].lower() == "in":
+            if len(tokens) >= 4 and tokens[2].lower() == "in":
                 if tokens[3].startswith("timeseries"):
                     return IndexSourceType.TIME_SERIES
                 if tokens[3].startswith("counters"):
