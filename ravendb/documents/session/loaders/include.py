@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import datetime
-from typing import Set, Tuple, Dict, Union, Optional, List
+from typing import Set, Tuple, Dict, Union, Optional, List, TYPE_CHECKING
 
 from ravendb.primitives import constants
-from ravendb.documents.conventions import DocumentConventions
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tools.utils import CaseInsensitiveDict, CaseInsensitiveSet
 
@@ -14,6 +13,8 @@ from ravendb.documents.session.time_series import (
     TimeSeriesRangeType,
     TimeSeriesCountRange,
 )
+
+from ravendb.documents.conventions import DocumentConventions
 
 
 class IncludeBuilderBase:
@@ -140,7 +141,6 @@ class IncludeBuilderBase:
                         "after using 'includeAllTimeSeries'."
                     )
 
-    # todo: more time series methods
     def _include_time_series_from_to(
         self, alias: str, name: str, from_date: datetime.datetime, to_date: datetime.datetime
     ):
@@ -212,7 +212,7 @@ class IncludeBuilderBase:
     @staticmethod
     def _assert_valid_type_and_count(type_: TimeSeriesRangeType, count: int) -> None:
         if type_ == TimeSeriesRangeType.NONE:
-            raise ValueError("Time range type cannot be set to NONE when time is specified.")
+            raise ValueError("Time range type cannot be set to NONE when count is specified.")
         elif type_ == TimeSeriesRangeType.LAST:
             if count <= 0:
                 raise ValueError("Count have to be positive")

@@ -9,6 +9,7 @@ from ravendb.documents.operations.time_series import (
 import unittest
 
 from ravendb.tests.test_base import TestBase, User
+from ravendb.tools.raven_test_helper import RavenTestHelper
 
 
 class TestTimeSeriesOperations(TestBase):
@@ -82,6 +83,23 @@ class TestTimeSeriesOperations(TestBase):
 
         ts_range_result = self.store.operations.send(GetTimeSeriesOperation("users/1-A", self.ts_name))
         self.assertEqual(len(ts_range_result.entries), 3)
+
+    def test_appending_second_time_series_value_at_the_same_timestamp_will_replace_the_previous_value(self):
+        base_line = RavenTestHelper.utc_this_month()
+        with self.store.open_session() as session:
+            session.store(User("Gracjan"), "users/gracjan")
+            tsf = session.time_series_for("users/gracjan", "stonks")
+            tsf.append_single(base_line, 1)
+            tsf.append_single(base_line, 2)
+            tsf.append_single(base_line, 3)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            gracjan = session.load("users/gracjan", User)
+            ts = session.time_series_for_entity(gracjan, "stonks").get()
+            self.assertEqual(1, len(ts))
+            self.assertEqual(1, len(ts[0].values))
+            self.assertEqual(3, ts[0].values[0])
 
 
 if __name__ == "__main__":

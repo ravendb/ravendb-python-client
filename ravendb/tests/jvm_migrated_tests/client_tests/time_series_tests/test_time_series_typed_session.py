@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 
+from ravendb import GetDatabaseRecordOperation
 from ravendb.documents.operations.time_series import (
     TimeSeriesPolicy,
     TimeSeriesCollectionConfiguration,
@@ -10,13 +11,14 @@ from ravendb.documents.operations.time_series import (
     ConfigureTimeSeriesOperation,
     RawTimeSeriesPolicy,
 )
-from ravendb.documents.queries.time_series import TimeSeriesRawResult
+from ravendb.documents.queries.time_series import TimeSeriesRawResult, TimeSeriesAggregationResult
 from ravendb.documents.session.time_series import (
     ITimeSeriesValuesBindable,
     TypedTimeSeriesEntry,
     TypedTimeSeriesRollupEntry,
 )
 from ravendb.infrastructure.entities import User
+from ravendb.infrastructure.orders import Company
 from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.raven_test_helper import RavenTestHelper
@@ -38,6 +40,14 @@ class HeartRateMeasure(ITimeSeriesValuesBindable):
 
     def get_time_series_mapping(self) -> Dict[int, Tuple[str, Optional[str]]]:
         return {0: ("heart_rate", None)}
+
+
+class HeartRateMeasureWithCustomName(ITimeSeriesValuesBindable):
+    def __init__(self, value: float):
+        self.heart_rate = value
+
+    def get_time_series_mapping(self) -> Dict[int, Tuple[str, Optional[str]]]:
+        return {0: ("heart_rate", "HR")}
 
 
 class BigMeasure(ITimeSeriesValuesBindable):
@@ -82,6 +92,31 @@ class StockPrice(ITimeSeriesValuesBindable):
             2: ("high", None),
             3: ("low", None),
             4: ("volume", None),
+        }
+
+
+class StockPriceWithBadAttributes(ITimeSeriesValuesBindable):
+    def __init__(
+        self,
+        open: Optional[float] = None,
+        close: Optional[float] = None,
+        high: Optional[float] = None,
+        low: Optional[float] = None,
+        volume: Optional[float] = None,
+    ):
+        self.open = open
+        self.close = close
+        self.high = high
+        self.low = low
+        self.volume = volume
+
+    def get_time_series_mapping(self) -> Dict[int, Tuple[str, Optional[str]]]:
+        return {
+            1: ("open", None),
+            2: ("close", None),
+            3: ("high", None),
+            4: ("low", None),
+            5: ("volume", None),
         }
 
 
@@ -411,3 +446,190 @@ class TestTimeSeriesTypedSession(TestBase):
             res = ts.get(now - timedelta(milliseconds=1), now + timedelta(days=1))
             self.assertEqual(1, len(res))
             self.assertEqual(1, res[0].max.close)
+
+    def test_mapping_needs_to_contain_consecutive_values_starting_from_zero(self):
+        self.assertRaisesWithMessage(
+            self.store.time_series.register_type,
+            RuntimeError,
+            "The mapping of 'StockPriceWithBadAttributes' must contain consecutive values starting from 0.",
+            Company,
+            StockPriceWithBadAttributes,
+        )
+
+    def test_can_query_time_series_aggregation_declare_syntax_all_docs_query(self):
+        base_line = RavenTestHelper.utc_today()
+        with self.store.open_session() as session:
+            session.store(User(), document_id)
+            tsf = session.typed_time_series_for(HeartRateMeasure, document_id)
+            m = HeartRateMeasure(59)
+            tsf.append(base_line + timedelta(minutes=61), m, tag1)
+            m.heart_rate = 79
+            tsf.append(base_line + timedelta(minutes=62), m, tag1)
+            m.heart_rate = 69
+            tsf.append(base_line + timedelta(minutes=63), m, tag1)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out(u)\n"
+                    "    {\n"
+                    "        from u.HeartRateMeasures between $start and $end\n"
+                    "        group by 1h\n"
+                    "        select min(), max(), first(), last()\n"
+                    "    }\n"
+                    "    from @all_docs as u\n"
+                    "    where id() == 'users/gracjan'\n"
+                    "    select out(u)",
+                    TimeSeriesAggregationResult,
+                )
+                .add_parameter("start", base_line)
+                .add_parameter("end", base_line + timedelta(days=1))
+            )
+
+            agg = query.first().as_typed_result(HeartRateMeasure)
+
+            self.assertEqual(3, agg.count)
+            self.assertEqual(1, len(agg.results))
+
+            val = agg.results[0]
+            self.assertEqual(59, val.first.heart_rate)
+            self.assertEqual(59, val.min.heart_rate)
+
+            self.assertEqual(69, val.last.heart_rate)
+            self.assertEqual(79, val.max.heart_rate)
+
+            self.assertEqual(base_line + timedelta(minutes=60), val.from_date)
+            self.assertEqual(base_line + timedelta(minutes=120), val.to_date)
+
+    def test_can_query_time_series_aggregation_no_select_or_group_by(self):
+        base_line = RavenTestHelper.utc_today()
+        with self.store.open_session() as session:
+            for i in range(1, 4):
+                id_ = f"people/{i}"
+                session.store(User(name="Oren", age=i * 30), id_)
+                tsf = session.typed_time_series_for(HeartRateMeasure, id_)
+                tsf.append(base_line + timedelta(minutes=61), HeartRateMeasure(59), tag1)
+                tsf.append(base_line + timedelta(minutes=62), HeartRateMeasure(79), tag1)
+                tsf.append(base_line + timedelta(minutes=63), HeartRateMeasure(69), tag2)
+                tsf.append(base_line + timedelta(minutes=61, days=31), HeartRateMeasure(159), tag1)
+                tsf.append(base_line + timedelta(minutes=62, days=31), HeartRateMeasure(179), tag2)
+                tsf.append(base_line + timedelta(minutes=63, days=31), HeartRateMeasure(169), tag1)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            query = (
+                session.advanced.raw_query(
+                    "declare timeseries out(x)\n"
+                    "{\n"
+                    "    from x.HeartRateMeasures between $start and $end\n"
+                    "}\n"
+                    "from Users as doc\n"
+                    "where doc.age > 49\n"
+                    "select out(doc)",
+                    TimeSeriesRawResult,
+                )
+                .add_parameter("start", base_line)
+                .add_parameter("end", base_line + timedelta(days=62))
+            )
+
+            result = list(query)
+
+            self.assertEqual(2, len(result))
+
+            for i in range(2):
+                agg_raw = result[i]
+                agg = agg_raw.as_typed_result(HeartRateMeasure)
+
+                self.assertEqual(6, len(agg.results))
+
+                val = agg.results[0]
+
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(59, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=61), val.timestamp)
+
+                val = agg.results[1]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(79, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=62), val.timestamp)
+
+                val = agg.results[2]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(69, val.value.heart_rate)
+                self.assertEqual(tag2, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=63), val.timestamp)
+
+                val = agg.results[3]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(159, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=61, days=31), val.timestamp)
+
+                val = agg.results[4]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(179, val.value.heart_rate)
+                self.assertEqual(tag2, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=62, days=31), val.timestamp)
+
+                val = agg.results[5]
+                self.assertEqual(1, len(val.values))
+                self.assertEqual(169, val.value.heart_rate)
+                self.assertEqual(tag1, val.tag)
+                self.assertEqual(base_line + timedelta(minutes=63, days=31), val.timestamp)
+
+    def test_can_register_time_series_for_other_database(self):
+        with self.get_document_store() as store2:
+            self.store.time_series.for_database(store2.database).register_type(User, StockPrice)
+            self.store.time_series.for_database(store2.database).register("Users", "HeartRateMeasures", ["HeartRate"])
+
+            updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+                GetDatabaseRecordOperation(store2.database)
+            ).time_series
+
+            self.assertIsNotNone(updated)
+
+            heartrate = updated.get_names("users", "HeartRateMeasures")
+            self.assertEqual(1, len(heartrate))
+            self.assertEqual("HeartRate", heartrate[0])
+
+            stock = updated.get_names("users", "StockPrices")
+
+            self.assertEqual(5, len(stock))
+            self.assertEqual("open", stock[0])
+            self.assertEqual("close", stock[1])
+            self.assertEqual("high", stock[2])
+            self.assertEqual("low", stock[3])
+            self.assertEqual("volume", stock[4])
+
+    def test_can_register_time_series(self):
+        self.store.time_series.register_type(User, StockPrice)
+        self.store.time_series.register("Users", "HeartRateMeasures", ["heartRate"])
+
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        ).time_series
+
+        # this method is case-insensitive
+        heart_rate = updated.get_names("users", "HeartRateMeasures")
+        self.assertEqual(1, len(heart_rate))
+        self.assertEqual("heartRate", heart_rate[0])
+
+        stock = updated.get_names("users", "StockPrices")
+        self.assertEqual(5, len(stock))
+        self.assertEqual(["open", "close", "high", "low", "volume"], stock)
+
+    def test_can_register_time_series_with_custom_name(self):
+        self.store.time_series.register_type(User, HeartRateMeasureWithCustomName, "cn")
+
+        updated: TimeSeriesConfiguration = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        ).time_series
+
+        # this method is case-insensitive
+        heart_rate = updated.get_names("users", "cn")
+        self.assertEqual(1, len(heart_rate))
+        self.assertEqual("HR", heart_rate[0])

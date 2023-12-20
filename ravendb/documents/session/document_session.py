@@ -1913,9 +1913,13 @@ class SessionTimeSeriesBase(abc.ABC):
         from_range_index = -1
         ranges_to_get_from_server: Optional[List[TimeSeriesRange]] = None
         to_range_index = -1
+        cache_includes_whole_range = False
 
-        for i in range(len(ranges)):
+        while True:
             to_range_index += 1
+            if to_range_index >= len(ranges):
+                break
+
             if TSRangeHelper.left(ranges[to_range_index].from_date) <= TSRangeHelper.left(from_date):
                 if (
                     TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date)
@@ -1941,7 +1945,7 @@ class SessionTimeSeriesBase(abc.ABC):
                 from_date
                 if (
                     to_range_index == 0
-                    or TSRangeHelper.left(from_date) < TSRangeHelper.right(ranges[to_range_index - 1].to_date)
+                    or TSRangeHelper.right(ranges[to_range_index - 1].to_date) < TSRangeHelper.left(from_date)
                 )
                 else ranges[to_range_index - 1].to_date
             )
@@ -1954,9 +1958,10 @@ class SessionTimeSeriesBase(abc.ABC):
             ranges_to_get_from_server.append(TimeSeriesRange(self.name, from_to_use, to_to_use))
 
             if TSRangeHelper.right(ranges[to_range_index].to_date) >= TSRangeHelper.right(to_date):
+                cache_includes_whole_range = True
                 break
 
-        if to_range_index == len(ranges) - 1:
+        if not cache_includes_whole_range:
             # requested_range [from, to] ends after all ranges in cache
             # add the missing part between the last range end and 'to'
             # to the list of ranges we need to get from server
@@ -1986,16 +1991,16 @@ class SessionTimeSeriesBase(abc.ABC):
         )
 
         if not self.session.no_tracking:
-            from_date = min(
-                [
-                    from_date
-                    for from_date in [x.from_date for x in details.values.get(self.name)]
-                    if from_date is not None
-                ]
-            )
-            to_date = max(
-                [to_date for to_date in [x.to_date for x in details.values.get(self.name)] if to_date is not None]
-            )
+            from_dates = [
+                from_date for from_date in [x.from_date for x in details.values.get(self.name)] if from_date is not None
+            ]
+            from_date = None if not any(from_dates) else min(from_dates)
+
+            to_dates = [
+                to_date for to_date in [x.to_date for x in details.values.get(self.name)] if to_date is not None
+            ]
+            to_date = None if not any(to_dates) else max(to_dates)
+
             InMemoryDocumentSessionOperations.add_to_cache(
                 self.name, from_date, to_date, from_range_index, to_range_index, ranges, cache, merged_values
             )
@@ -2200,9 +2205,9 @@ class SessionDocumentTimeSeries(SessionTimeSeriesBase):
         start: int = 0,
         page_size: int = int_max,
     ) -> Optional[List[TimeSeriesEntry]]:
-        return self.get_include(from_date, to_date, None, start, page_size)
+        return self.get_with_include(from_date, to_date, None, start, page_size)
 
-    def get_include(
+    def get_with_include(
         self,
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
@@ -2275,6 +2280,9 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values
 
     def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
         self.append(entry.timestamp, entry.value, entry.tag)
+
+    def append_single(self, timestamp: datetime, value: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
+        self.append(timestamp, value, tag)
 
 
 class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):

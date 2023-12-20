@@ -28,6 +28,8 @@ from ravendb.documents.operations.revisions.configuration import (
 
 from ravendb.documents.queries.sorting import SorterDefinition
 
+from ravendb.documents.operations.time_series import TimeSeriesConfiguration
+
 if TYPE_CHECKING:
     from ravendb.serverwide import (
         ConflictSolver,
@@ -36,7 +38,6 @@ if TYPE_CHECKING:
         DatabaseTopology,
     )
     from ravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
-    from ravendb.documents.operations.time_series import TimeSeriesConfiguration
 
 
 class DatabaseRecord:
@@ -45,19 +46,19 @@ class DatabaseRecord:
         self.disabled: bool = False
         self.encrypted: bool = False
         self.settings: Dict[str, str] = {}
-        self.conflict_solver_config: Union[None, ConflictSolver] = None
-        self.documents_compression: Union[None, DocumentsCompressionConfiguration] = None
-        self.etag_for_backup: Union[None, int] = None
-        self.deletion_in_progress: Union[None, Dict[str, DeletionInProgressStatus]] = None
-        self.rolling_indexes: Union[None, Dict[str, RollingIndex]] = None
-        self.topology: Union[None, DatabaseTopology] = None
+        self.conflict_solver_config: Optional[ConflictSolver] = None
+        self.documents_compression: Optional[DocumentsCompressionConfiguration] = None
+        self.etag_for_backup: Optional[int] = None
+        self.deletion_in_progress: Optional[Dict[str, DeletionInProgressStatus]] = None
+        self.rolling_indexes: Optional[Dict[str, RollingIndex]] = None
+        self.topology: Optional[DatabaseTopology] = None
         self.sorters: Dict[str, SorterDefinition] = {}
         self.analyzers: Dict[str, AnalyzerDefinition] = {}
-        self.indexes: Union[None, Dict[str, IndexDefinition]] = {}
-        self.auto_indexes: Union[None, Dict[str, AutoIndexDefinition]] = None
-        self.revisions: Union[None, RevisionsConfiguration] = None
-        self.time_series: Union[None, "TimeSeriesConfiguration"] = None
-        self.expiration: Union[None, ExpirationConfiguration] = None
+        self.indexes: Optional[Dict[str, IndexDefinition]] = {}
+        self.auto_indexes: Optional[Dict[str, AutoIndexDefinition]] = None
+        self.revisions: Optional[RevisionsConfiguration] = None
+        self.time_series: Optional["TimeSeriesConfiguration"] = None
+        self.expiration: Optional[ExpirationConfiguration] = None
         self.periodic_backups: List[PeriodicBackupConfiguration] = []
         self.external_replications: List[ExternalReplication] = []
         self.sink_pull_replications: List[PullReplicationAsSink] = []
@@ -68,15 +69,15 @@ class DatabaseRecord:
         self.raven_etls: List[RavenEtlConfiguration] = []
         self.sql_etls: List[SqlEtlConfiguration] = []
         self.olap_etls: List[OlapEtlConfiguration] = []
-        self.client: Union[None, ClientConfiguration] = None
-        self.studio: Union[None, StudioConfiguration] = None
+        self.client: Optional[ClientConfiguration] = None
+        self.studio: Optional[StudioConfiguration] = None
         self.truncated_cluster_transaction_commands_count: int = 0
-        self.database_state: Union[None, DatabaseRecord.DatabaseStateStatus] = None
-        self.lock_mode: Union[None, DatabaseRecord.DatabaseLockMode] = None
-        self.indexes_history_story: Union[None, List[DatabaseRecord.IndexHistoryEntry]] = None
-        self.revisions_for_conflicts: Union[None, RevisionsCollectionConfiguration] = None
-        self.refresh: Union[None, RefreshConfiguration] = None
-        self.unused_database_ids: Union[None, Set[str]] = None
+        self.database_state: Optional[DatabaseRecord.DatabaseStateStatus] = None
+        self.lock_mode: Optional[DatabaseRecord.DatabaseLockMode] = None
+        self.indexes_history_story: Optional[List[DatabaseRecord.IndexHistoryEntry]] = None
+        self.revisions_for_conflicts: Optional[RevisionsCollectionConfiguration] = None
+        self.refresh: Optional[RefreshConfiguration] = None
+        self.unused_database_ids: Optional[Set[str]] = None
 
     def to_json(self):
         return {
@@ -142,7 +143,8 @@ class DatabaseRecord:
         }
         record.settings = json_dict.get("Settings", None)
         record.revisions = json_dict.get("Revisions", None)
-        record.time_series = json_dict.get("TimeSeries", None)
+        if json_dict.get("TimeSeries", None):
+            record.time_series = TimeSeriesConfiguration.from_json(json_dict["TimeSeries"])
         record.revisions_for_conflicts = json_dict.get("RevisionsForConflicts", None)
         record.expiration = json_dict.get("Expiration", None)
         record.refresh = json_dict.get("Refresh", None)

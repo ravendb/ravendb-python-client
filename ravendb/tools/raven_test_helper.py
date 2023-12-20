@@ -12,6 +12,11 @@ class RavenTestHelper:
         return datetime(today.year, today.month, today.day, 0, 0, 0, 0)
 
     @staticmethod
+    def utc_this_month() -> datetime:
+        today = datetime.today()
+        return datetime(today.year, today.month, 1, 0, 0, 0, 0)
+
+    @staticmethod
     def assert_no_index_errors(store: DocumentStore, database_name: Optional[str] = None) -> None:
         errors = store.maintenance.for_database(database_name).send(GetIndexErrorsOperation())
 

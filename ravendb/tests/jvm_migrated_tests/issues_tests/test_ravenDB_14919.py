@@ -11,9 +11,9 @@ class TestRavenDB14919(TestBase):
         with self.store.open_session() as session:
             ids = []
             for i in range(1000):
-                id = f"users/{i}"
-                ids.append(id)
-                session.store(User(), id)
+                id_ = f"users/{i}"
+                ids.append(id_)
+                session.store(User(), id_)
             session.save_changes()
 
         ids.extend([None for _ in range(24)])
@@ -30,9 +30,9 @@ class TestRavenDB14919(TestBase):
         with self.store.open_session() as session:
             ids = []
             for i in range(100):
-                id = f"users/{i}"
-                ids.append(id)
-                session.store(User(), id)
+                id_ = f"users/{i}"
+                ids.append(id_)
+                session.store(User(), id_)
             session.save_changes()
 
         ids.extend([None for _ in range(24)])

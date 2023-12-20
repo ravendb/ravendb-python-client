@@ -1,7 +1,7 @@
 import sys
 
-int_min = 0x80000000
 int_max = 0x7FFFFFFF
+int_min = -int_max - 1
 min_normal = sys.float_info.min
 json_serialize_method_name = "to_json"
 nan_value = float("nan")

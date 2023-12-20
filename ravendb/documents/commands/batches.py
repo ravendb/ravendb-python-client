@@ -15,7 +15,6 @@ from ravendb.documents.operations.counters import (
 )
 from ravendb.documents.operations.time_series import TimeSeriesOperation
 from ravendb.documents.session.misc import TransactionMode, ForceRevisionStrategy
-from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.json.result import BatchCommandResult
