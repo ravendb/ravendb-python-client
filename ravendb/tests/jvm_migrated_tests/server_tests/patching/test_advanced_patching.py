@@ -6,6 +6,16 @@ from ravendb import PatchRequest, PatchOperation
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.utils import Utils
 
+_SAMPLE_SCRIPT = (
+    "this.comments.splice(2, 1);\n"
+    "    this.owner = 'Something new';\n"
+    "    this.value++;\n"
+    '    this.newValue = "err!!";\n'
+    "    this.comments = this.comments.map(function(comment) {\n"
+    '        return (comment == "one") ? comment + " test" : comment;\n'
+    "    });"
+)
+
 
 class CustomType:
     def __init__(
@@ -58,3 +68,20 @@ class TestAdvancedPatching(TestBase):
         with self.store.open_session() as session:
             loaded = session.load("customTypes/1-A", CustomType)
             self.assertEqual("not-me", loaded.owner)
+
+    def test_can_apply_basic_script_as_patch(self):
+        with self.store.open_session() as session:
+            test = CustomType("someId", "bob", 12143, ["one", "two", "seven"])
+            session.store(test)
+            session.save_changes()
+
+        self.store.operations.send(PatchOperation("someId", None, PatchRequest.for_script(_SAMPLE_SCRIPT)))
+
+        with self.store.open_session() as session:
+            result = session.load("someId", CustomType)
+
+            self.assertEqual("Something new", result.owner)
+            self.assertEqual(2, len(result.comments))
+            self.assertEqual("one test", result.comments[0])
+            self.assertEqual("two", result.comments[1])
+            self.assertEqual(12144, result.value)
