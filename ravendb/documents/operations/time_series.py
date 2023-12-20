@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import Dict, Optional, List, Any, TYPE_CHECKING, Callable
+from typing import Dict, Optional, List, Any, TYPE_CHECKING, Callable, Set
 import requests
 
 from ravendb.primitives.constants import int_max
@@ -357,6 +357,12 @@ class TimeSeriesOperation:
             self.values = values
             self.tag = tag
 
+        def __eq__(self, other):
+            return isinstance(other, TimeSeriesOperation.AppendOperation) and other.timestamp == self.timestamp
+
+        def __hash__(self):
+            return hash(self.timestamp)
+
         def to_json(self) -> Dict[str, Any]:
             json_dict = {
                 "Timestamp": Utils.datetime_to_string(self.timestamp),
@@ -382,7 +388,7 @@ class TimeSeriesOperation:
 
     def __init__(self, name: Optional[str] = None):
         self.name = name
-        self._appends: List[TimeSeriesOperation.AppendOperation] = []
+        self._appends: Set[TimeSeriesOperation.AppendOperation] = set()
         self._deletes: List[TimeSeriesOperation.DeleteOperation] = []
 
     def to_json(self) -> Dict[str, Any]:
@@ -395,14 +401,13 @@ class TimeSeriesOperation:
 
     def append(self, append_operation: AppendOperation) -> None:
         if self._appends is None:
-            self._appends = []  # todo: perf
-        filtered = self._appends
+            self._appends = set()
 
-        # if len(filtered) != 0:
-        #     # element with given timestamp already exists - remove and retry add operation
-        #     self._appends.remove(filtered.pop())
+        if append_operation in self._appends:
+            # __eq__ override lets us discard old one by passing new one due to the same timestamps
+            self._appends.discard(append_operation)
 
-        self._appends.append(append_operation)
+        self._appends.add(append_operation)
 
     def delete(self, delete_operation: DeleteOperation) -> None:
         if self._deletes is None:
