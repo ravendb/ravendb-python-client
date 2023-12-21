@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 import json
-from typing import List, TYPE_CHECKING, Optional
+from typing import List, TYPE_CHECKING, Optional, Tuple
 
 import requests
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class PutIndexesOperation(MaintenanceOperation):
-    def __init__(self, *indexes_to_add):
+    def __init__(self, *indexes_to_add: IndexDefinition):
         if len(indexes_to_add) == 0:
             raise ValueError("Invalid indexes_to_add")
 
@@ -29,10 +29,10 @@ class PutIndexesOperation(MaintenanceOperation):
         self.__all_java_script_indexes = True  # todo: set it in the command
 
     def get_command(self, conventions: "DocumentConventions") -> RavenCommand[List]:
-        return self.__PutIndexesCommand(conventions, *self._indexes_to_add)
+        return self.__PutIndexesCommand(conventions, self._indexes_to_add)
 
     class __PutIndexesCommand(RavenCommand[List], RaftCommand):
-        def __init__(self, conventions: "DocumentConventions", *index_to_add):
+        def __init__(self, conventions: "DocumentConventions", index_to_add: Tuple[IndexDefinition]):
             super().__init__(list)
             if conventions is None:
                 raise ValueError("Conventions cannot be None")

@@ -2,7 +2,7 @@ import time
 import unittest
 from typing import Optional
 
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.session.loaders.include import QueryIncludeBuilder
 from ravendb.documents.session.misc import TransactionMode, SessionOptions
 from ravendb.documents.session.query import QueryStatistics

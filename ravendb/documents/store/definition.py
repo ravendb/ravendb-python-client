@@ -8,6 +8,7 @@ from typing import Callable, Union, Optional, TypeVar, List, Dict, TYPE_CHECKING
 
 from ravendb.changes.database_changes import DatabaseChanges
 from ravendb.documents.bulk_insert_operation import BulkInsertOperation, BulkInsertOptions
+from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, OperationExecutor
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.session.event_args import (
@@ -42,7 +43,7 @@ from ravendb.documents.conventions import DocumentConventions
 T = TypeVar("T")
 
 if TYPE_CHECKING:
-    from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask, IndexCreation
+    from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 
 
 class DocumentStoreBase:
@@ -475,7 +476,7 @@ class DocumentStore(DocumentStoreBase):
         self.assert_initialized()
         indexes_to_add = IndexCreation.create_indexes_to_add(tasks, self.conventions)
 
-        self.maintenance.for_database(self.get_effective_database(database)).send(PutIndexesOperation(indexes_to_add))
+        self.maintenance.for_database(self.get_effective_database(database)).send(PutIndexesOperation(*indexes_to_add))
 
     def changes(self, database=None, on_error=None, executor=None) -> DatabaseChanges:  # todo: sync with java
         self.assert_initialized()

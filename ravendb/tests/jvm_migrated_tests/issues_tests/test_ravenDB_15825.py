@@ -1,7 +1,7 @@
 import random
 from typing import Optional, List, Dict, Callable
 
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.queries.facets.misc import FacetResult, FacetOptions
 from ravendb.documents.queries.index_query import Parameters
 from ravendb.documents.queries.utils import HashCalculator

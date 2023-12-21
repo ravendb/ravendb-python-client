@@ -3,7 +3,7 @@ from abc import ABC
 from typing import Optional
 
 from ravendb import GetIndexOperation
-from ravendb.documents.indexes.index_creation import AbstractMultiMapIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractMultiMapIndexCreationTask
 from ravendb.tests.test_base import TestBase
 
 

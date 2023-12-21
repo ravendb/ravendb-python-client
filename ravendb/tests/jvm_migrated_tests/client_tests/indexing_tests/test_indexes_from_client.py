@@ -1,6 +1,8 @@
-from ravendb import MoreLikeThisOptions
+from ravendb.documents.indexes.index_creation import IndexCreation
+from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
+from ravendb.documents.operations.indexes import GetIndexNamesOperation
 from ravendb.documents.indexes.definitions import FieldIndexing, FieldStorage
-from ravendb.documents.indexes.index_creation import IndexCreation, AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.infrastructure.entities import User, Post
 from ravendb.tests.test_base import TestBase
 
@@ -27,6 +29,12 @@ class Posts_ByTitleAndDesc(AbstractIndexCreationTask):
         self._index("desc", FieldIndexing.SEARCH)
         self._store("desc", FieldStorage.YES)
         self._analyze("desc", "Lucene.Net.Analysis.SimpleAnalyzer")
+
+
+class UsersIndex(AbstractIndexCreationTask):
+    def __init__(self):
+        super().__init__()
+        self.map = "from user in docs.users select new { user.name }"
 
 
 class TestIndexesFromClient(TestBase):
@@ -80,3 +88,9 @@ class TestIndexesFromClient(TestBase):
             self.assertEqual("love programming", results[1].desc)
             self.assertEqual("We do", results[2].title)
             self.assertEqual("prototype", results[2].desc)
+
+    def test_can_execute_many_indexes(self):
+        self.store.execute_indexes([UsersIndex()])
+        index_names_operation = GetIndexNamesOperation(0, 10)
+        index_names = self.store.maintenance.send(index_names_operation)
+        self.assertEqual(1, len(index_names))

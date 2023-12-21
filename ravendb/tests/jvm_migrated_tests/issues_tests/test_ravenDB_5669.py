@@ -1,5 +1,5 @@
 from ravendb.documents.indexes.definitions import FieldIndexing
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.tests.test_base import TestBase
 
 
