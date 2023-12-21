@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import http
 from typing import Union, Optional, TYPE_CHECKING, TypeVar
 
+from ravendb.documents.session.entity_to_json import EntityToJson
+from ravendb.documents.operations.patch import PatchOperation, PatchStatus
 from ravendb.documents.operations.definitions import (
     IOperation,
     OperationIdResult,
@@ -26,50 +29,79 @@ _Operation_T = TypeVar("_Operation_T")
 
 
 class OperationExecutor:
-    def __init__(self, store: DocumentStore, database_name: str = None):
-        self.__store = store
-        self.__database_name = database_name if database_name else store.database
-        if not self.__database_name.isspace():
-            self.__request_executor = store.get_request_executor(self.__database_name)
-        else:
+    def __init__(self, store: "DocumentStore", database_name: str = None):
+        self._store = store
+        self._database_name = database_name if database_name else store.database
+        if self._database_name.isspace():
             raise ValueError("Cannot use operations without a database defined, did you forget to call 'for_database'?")
+        self._request_executor = store.get_request_executor(self._database_name)
 
     def for_database(self, database_name: str) -> OperationExecutor:
-        if self.__database_name.lower() == database_name.lower():
+        if self._database_name.lower() == database_name.lower():
             return self
-        return OperationExecutor(self.__store, database_name)
+        return OperationExecutor(self._store, database_name)
 
     def send(self, operation: IOperation[_Operation_T], session_info: SessionInfo = None) -> _Operation_T:
-        command = operation.get_command(
-            self.__store, self.__request_executor.conventions, self.__request_executor.cache
-        )
-        self.__request_executor.execute_command(command, session_info)
+        command = operation.get_command(self._store, self._request_executor.conventions, self._request_executor.cache)
+        self._request_executor.execute_command(command, session_info)
         return None if isinstance(operation, VoidOperation) else command.result
 
     def send_async(self, operation: IOperation[OperationIdResult]) -> Operation:
-        command = operation.get_command(
-            self.__store, self.__request_executor.conventions, self.__request_executor.cache
-        )
-        self.__request_executor.execute_command(command)
+        command = operation.get_command(self._store, self._request_executor.conventions, self._request_executor.cache)
+        self._request_executor.execute_command(command)
         node = command.selected_node_tag if command.selected_node_tag else command.result.operation_node_tag
         return Operation(
-            self.__request_executor,
+            self._request_executor,
             lambda: None,
-            self.__request_executor.conventions,
+            self._request_executor.conventions,
             command.result.operation_id,
             node,
         )
 
-    # todo: send patch operations - create send_patch method
-    #  or
-    #  refactor 'send' methods above to act different while taking different sets of args
-    #  (see jvmravendb OperationExecutor.java line 83-EOF)
+    def send_patch_operation(self, operation: PatchOperation, session_info: SessionInfo) -> PatchStatus:
+        command = operation.get_command(self._store, self._request_executor.conventions, self._request_executor.cache)
+
+        self._request_executor.execute_command(command, session_info)
+
+        if command.status_code == http.HTTPStatus.NOT_MODIFIED:
+            return PatchStatus.NOT_MODIFIED
+
+        if command.status_code == http.HTTPStatus.NOT_FOUND:
+            return PatchStatus.DOCUMENT_DOES_NOT_EXIST
+
+        return command.result.status
+
+    def send_patch_operation_with_entity_class(
+        self, entity_class: _T, operation: PatchOperation, session_info: Optional[SessionInfo] = None
+    ) -> PatchOperation.Result[_T]:
+        command = operation.get_command(self._store, self._request_executor.conventions, self._request_executor.cache)
+
+        self._request_executor.execute_command(command, session_info)
+
+        result = PatchOperation.Result()
+
+        if command.status_code == http.HTTPStatus.NOT_MODIFIED:
+            result.status = PatchStatus.NOT_MODIFIED
+            return result
+
+        if command.status_code == http.HTTPStatus.NOT_FOUND:
+            result.status = PatchStatus.DOCUMENT_DOES_NOT_EXIST
+            return result
+
+        try:
+            result.status = command.result.status
+            result.document = EntityToJson.convert_to_entity_static(
+                command.result.modified_document, entity_class, self._request_executor.conventions
+            )
+            return result
+        except Exception as e:
+            raise RuntimeError(f"Unable to read patch result: {e.args[0]}", e)
 
 
 class SessionOperationExecutor(OperationExecutor):
     def __init__(self, session: InMemoryDocumentSessionOperations):
         super().__init__(session._document_store, session.database_name)
-        self.__session = session
+        self._session = session
 
     def for_database(self, database_name: str) -> OperationExecutor:
         raise RuntimeError("The method is not supported")
@@ -77,59 +109,58 @@ class SessionOperationExecutor(OperationExecutor):
 
 class MaintenanceOperationExecutor:
     def __init__(self, store: DocumentStore, database_name: Optional[str] = None):
-        self.__store = store
-        self.__database_name = database_name or store.database
-        self.__request_executor: Union[None, RequestExecutor] = None
-        self.__server_operation_executor: Union[ServerOperationExecutor, None] = None
+        self._store = store
+        self._database_name = database_name or store.database
+        self._request_executor: Union[None, RequestExecutor] = None
+        self._server_operation_executor: Union[ServerOperationExecutor, None] = None
 
-    def __get_request_executor(self) -> RequestExecutor:
-        if self.__request_executor is not None:
-            return self.__request_executor
+    @property
+    def request_executor(self) -> RequestExecutor:
+        if self._request_executor is not None:
+            return self._request_executor
 
-        self.__request_executor = (
-            self.__store.get_request_executor(self.__database_name) if self.__database_name else None
-        )
-        return self.__request_executor
+        self._request_executor = self._store.get_request_executor(self._database_name) if self._database_name else None
+        return self._request_executor
 
     @property
     def server(self) -> ServerOperationExecutor:
-        if self.__server_operation_executor is not None:
-            return self.__server_operation_executor
-        self.__server_operation_executor = ServerOperationExecutor(self.__store)
-        return self.__server_operation_executor
+        if self._server_operation_executor is not None:
+            return self._server_operation_executor
+        self._server_operation_executor = ServerOperationExecutor(self._store)
+        return self._server_operation_executor
 
     def for_database(self, database_name: str) -> MaintenanceOperationExecutor:
-        if database_name is not None and self.__database_name.lower() == database_name.lower():
+        if database_name is not None and self._database_name.lower() == database_name.lower():
             return self
 
-        return MaintenanceOperationExecutor(self.__store, database_name)
+        return MaintenanceOperationExecutor(self._store, database_name)
 
     def send(
         self, operation: Union[VoidMaintenanceOperation, MaintenanceOperation[_Operation_T]]
     ) -> Optional[_Operation_T]:
-        self.__assert_database_name_set()
-        command = operation.get_command(self.__get_request_executor().conventions)
-        self.__get_request_executor().execute_command(command)
+        self._assert_database_name_set()
+        command = operation.get_command(self.request_executor.conventions)
+        self.request_executor.execute_command(command)
         return None if isinstance(operation, VoidMaintenanceOperation) else command.result
 
     def send_async(self, operation: MaintenanceOperation[OperationIdResult]) -> Operation:
-        self.__assert_database_name_set()
-        command = operation.get_command(self.__get_request_executor().conventions)
+        self._assert_database_name_set()
+        command = operation.get_command(self.request_executor.conventions)
 
-        self.__get_request_executor().execute_command(command)
+        self.request_executor.execute_command(command)
         node = command.selected_node_tag if command.selected_node_tag else command.result.operation_node_tag
         return Operation(
-            self.__get_request_executor(),
+            self.request_executor,
             #  todo : changes
             #  lambda: self.__store.changes(self.__database_name, node),
             lambda: None,
-            self.__get_request_executor().conventions,
+            self.request_executor.conventions,
             command.result.operation_id,
             node,
         )
 
-    def __assert_database_name_set(self) -> None:
-        if self.__database_name is None:
+    def _assert_database_name_set(self) -> None:
+        if self._database_name is None:
             raise ValueError(
                 "Cannot use maintenance without a database defined, did you forget to call 'for_database'?"
             )

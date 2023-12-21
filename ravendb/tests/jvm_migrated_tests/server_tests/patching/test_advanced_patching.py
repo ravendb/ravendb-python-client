@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Any, Dict
 
-from ravendb import PatchRequest, PatchOperation
+from ravendb import PatchRequest, PatchOperation, PatchStatus
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.utils import Utils
 
@@ -85,3 +85,23 @@ class TestAdvancedPatching(TestBase):
             self.assertEqual("one test", result.comments[0])
             self.assertEqual("two", result.comments[1])
             self.assertEqual(12144, result.value)
+
+    def test_can_deserialize_modified_document(self):
+        custom_type = CustomType(owner="somebody@somewhere.com")
+        with self.store.open_session() as session:
+            session.store(custom_type, "doc")
+            session.save_changes()
+
+        patch1 = PatchOperation("doc", None, PatchRequest.for_script("this.owner = '123';"))
+
+        result = self.store.operations.send_patch_operation_with_entity_class(CustomType, patch1)
+
+        self.assertEqual(PatchStatus.PATCHED, result.status)
+        self.assertEqual("123", result.document.owner)
+
+        patch2 = PatchOperation("doc", None, PatchRequest.for_script("this.owner = '123';"))
+
+        result = self.store.operations.send_patch_operation_with_entity_class(CustomType, patch2)
+
+        self.assertEqual(PatchStatus.NOT_MODIFIED, result.status)
+        self.assertEqual("123", result.document.owner)

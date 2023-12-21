@@ -71,28 +71,28 @@ class PatchResult:
             json_dict.get("ModifiedDocument", None),
             json_dict.get("OriginalDocument", None),
             json_dict.get("Debug", None),
-            Utils.string_to_datetime(json_dict["LastModified"]),
-            json_dict["ChangeVector"],
-            json_dict["Collection"],
+            Utils.string_to_datetime(json_dict["LastModified"]) if "LastModified" in json_dict else None,
+            json_dict.get("ChangeVector", None),
+            json_dict.get("Collection", None),
         )
 
 
 class PatchOperation(IOperation[PatchResult]):
     class Payload:
         def __init__(self, patch: PatchRequest, patch_if_missing: PatchResult):
-            self.__patch = patch
-            self.__patch_if_missing = patch_if_missing
+            self._patch = patch
+            self._patch_if_missing = patch_if_missing
 
         @property
         def patch(self):
-            return self.__patch
+            return self._patch
 
         @property
         def patch_if_missing(self):
-            return self.__patch_if_missing
+            return self._patch_if_missing
 
     class Result(Generic[_Operation_T]):
-        def __init__(self, status: PatchStatus, document: _Operation_T):
+        def __init__(self, status: PatchStatus = None, document: _Operation_T = None):
             self.status = status
             self.document = document
 
@@ -113,11 +113,11 @@ class PatchOperation(IOperation[PatchResult]):
         if patch_if_missing and patch_if_missing.script.isspace():
             raise ValueError("PatchIfMissing script cannot be None or whitespace")
 
-        self.__key = key
-        self.__change_vector = change_vector
-        self.__patch = patch
-        self.__patch_if_missing = patch_if_missing
-        self.__skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
+        self._key = key
+        self._change_vector = change_vector
+        self._patch = patch
+        self._patch_if_missing = patch_if_missing
+        self._skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
 
     def get_command(
         self,
@@ -129,11 +129,11 @@ class PatchOperation(IOperation[PatchResult]):
     ) -> RavenCommand[_Operation_T]:
         return self.PatchCommand(
             conventions,
-            self.__key,
-            self.__change_vector,
-            self.__patch,
-            self.__patch_if_missing,
-            self.__skip_patch_if_change_vector_mismatch,
+            self._key,
+            self._change_vector,
+            self._patch,
+            self._patch_if_missing,
+            self._skip_patch_if_change_vector_mismatch,
             return_debug_information,
             test,
         )
@@ -164,31 +164,31 @@ class PatchOperation(IOperation[PatchResult]):
                 raise ValueError("Document_id canoot be None")
 
             super().__init__(PatchResult)
-            self.__conventions = conventions
-            self.__document_id = document_id
-            self.__change_vector = change_vector
-            self.__patch = patch
-            self.__patch_if_missing = patch_if_missing
-            self.__skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
-            self.__return_debug_information = return_debug_information
-            self.__test = test
+            self._conventions = conventions
+            self._document_id = document_id
+            self._change_vector = change_vector
+            self._patch = patch
+            self._patch_if_missing = patch_if_missing
+            self._skip_patch_if_change_vector_mismatch = skip_patch_if_change_vector_mismatch
+            self._return_debug_information = return_debug_information
+            self._test = test
 
         def create_request(self, server_node: ServerNode) -> requests.Request:
-            path = f"docs?id={Utils.quote_key(self.__document_id)}"
-            if self.__skip_patch_if_change_vector_mismatch:
+            path = f"docs?id={Utils.quote_key(self._document_id)}"
+            if self._skip_patch_if_change_vector_mismatch:
                 path += "&skipPatchIfChangeVectorMismatch=true"
-            if self.__return_debug_information:
+            if self._return_debug_information:
                 path += "&debug=true"
-            if self.__test:
+            if self._test:
                 path += "&test=true"
             url = f"{server_node.url}/databases/{server_node.database}/{path}"
             request = requests.Request("PATCH", url)
-            if self.__change_vector is not None:
-                request.headers = {"If-Match": f'"{self.__change_vector}"'}
+            if self._change_vector is not None:
+                request.headers = {"If-Match": f'"{self._change_vector}"'}
 
             request.data = {
-                "Patch": self.__patch.serialize(),
-                "PatchIfMissing": self.__patch_if_missing.serialize() if self.__patch_if_missing else None,
+                "Patch": self._patch.serialize(),
+                "PatchIfMissing": self._patch_if_missing.serialize() if self._patch_if_missing else None,
             }
 
             return request
@@ -210,39 +210,39 @@ class PatchByQueryOperation(IOperation[OperationIdResult]):
         super().__init__()
         if isinstance(query_to_update, str):
             query_to_update = IndexQuery(query=query_to_update)
-        self.__query_to_update = query_to_update
+        self._query_to_update = query_to_update
         if options is None:
             options = QueryOperationOptions()
-        self.__options = options
+        self._options = options
 
     def get_command(
         self, store: "DocumentStore", conventions: "DocumentConventions", cache: Optional[HttpCache] = None
     ) -> RavenCommand[OperationIdResult]:
-        return self.__PatchByQueryCommand(conventions, self.__query_to_update, self.__options)
+        return self.__PatchByQueryCommand(conventions, self._query_to_update, self._options)
 
     class __PatchByQueryCommand(RavenCommand[OperationIdResult]):
         def __init__(
             self, conventions: "DocumentConventions", query_to_update: IndexQuery, options: QueryOperationOptions
         ):
             super().__init__(OperationIdResult)
-            self.__conventions = conventions
-            self.__query_to_update = query_to_update
-            self.__options = options
+            self._conventions = conventions
+            self._query_to_update = query_to_update
+            self._options = options
 
         def create_request(self, server_node) -> requests.Request:
-            if not isinstance(self.__query_to_update, IndexQuery):
+            if not isinstance(self._query_to_update, IndexQuery):
                 raise ValueError("query must be IndexQuery Type")
 
             url = server_node.url + "/databases/" + server_node.database + "/queries"
             path = (
-                f"?allowStale={self.__options.allow_stale}&maxOpsPerSec={self.__options.max_ops_per_sec or ''}"
-                f"&details={self.__options.retrieve_details}"
+                f"?allowStale={self._options.allow_stale}&maxOpsPerSec={self._options.max_ops_per_sec or ''}"
+                f"&details={self._options.retrieve_details}"
             )
-            if self.__options.stale_timeout is not None:
-                path += "&staleTimeout=" + str(self.__options.stale_timeout)
+            if self._options.stale_timeout is not None:
+                path += "&staleTimeout=" + str(self._options.stale_timeout)
 
             url += path
-            data = {"Query": self.__query_to_update.to_json()}
+            data = {"Query": self._query_to_update.to_json()}
             return requests.Request("PATCH", url, data=data)
 
         def set_response(self, response: str, from_cache: bool) -> None:
