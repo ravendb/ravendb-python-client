@@ -3,6 +3,7 @@ from ravendb.documents.operations.configuration.operations import (
     PutServerWideClientConfigurationOperation,
     GetServerWideClientConfigurationOperation,
     GetClientConfigurationOperation,
+    PutClientConfigurationOperation,
 )
 from ravendb.http.misc import ReadBalanceBehavior, LoadBalanceBehavior
 from ravendb.tests.test_base import TestBase
@@ -39,3 +40,23 @@ class ClientConfigurationTest(TestBase):
         result = self.store.maintenance.send(operation)
 
         self.assertIsNotNone(result.etag)
+
+    def test_can_save_and_read_client_configuration(self):
+        configuration_to_save = ClientConfiguration()
+        configuration_to_save.etag = 123
+        configuration_to_save.max_number_of_requests_per_session = 80
+        configuration_to_save.read_balance_behavior = ReadBalanceBehavior.FASTEST_NODE
+        configuration_to_save.disabled = True
+        save_operation = PutClientConfigurationOperation(configuration_to_save)
+        self.store.maintenance.send(save_operation)
+
+        operation = GetClientConfigurationOperation()
+        result = self.store.maintenance.send(operation)
+
+        self.assertIsNotNone(result.etag)
+        new_configuration: ClientConfiguration = result.configuration
+
+        self.assertIsNotNone(new_configuration)
+        self.assertTrue(new_configuration.disabled)
+        self.assertEqual(80, new_configuration.max_number_of_requests_per_session)
+        self.assertEqual(ReadBalanceBehavior.FASTEST_NODE, new_configuration.read_balance_behavior)
