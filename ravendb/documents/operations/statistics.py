@@ -16,105 +16,6 @@ if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
 
 
-class GetStatisticsOperation(MaintenanceOperation[dict]):
-    def __init__(self, debug_tag: str = None, node_tag: str = None):
-        self.debug_tag = debug_tag
-        self.node_tag = node_tag
-
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DatabaseStatistics]:
-        return self._GetStatisticsCommand(self.debug_tag, self.node_tag)
-
-    class _GetStatisticsCommand(RavenCommand["DatabaseStatistics"]):
-        def __init__(self, debug_tag: Optional[str] = None, node_tag: Optional[str] = None):
-            super().__init__(dict)
-            self.debug_tag = debug_tag
-            self.node_tag = node_tag
-
-        def create_request(self, node: ServerNode) -> requests.Request:
-            return requests.Request(
-                "GET",
-                f"{node.url}/databases/{node.database}"
-                f"/stats{f'?{self.debug_tag}' if self.debug_tag is not None else ''}",
-            )
-
-        def set_response(self, response: str, from_cache: bool) -> None:
-            self.result = DatabaseStatistics.from_json(json.loads(response))
-
-        def is_read_request(self) -> bool:
-            return True
-
-
-class CollectionStatistics:
-    def __init__(
-        self,
-        count_of_documents: Optional[int] = None,
-        count_of_conflicts: Optional[int] = None,
-        collections: Optional[Dict[str, int]] = None,
-    ):
-        self.count_of_documents = count_of_documents
-        self.count_of_conflicts = count_of_conflicts
-        self.collections = collections
-
-    @classmethod
-    def from_json(cls, json_dict: dict) -> CollectionStatistics:
-        return cls(json_dict["CountOfDocuments"], json_dict["CountOfConflicts"], json_dict["Collections"])
-
-
-class GetCollectionStatisticsOperation(MaintenanceOperation[CollectionStatistics]):
-    def get_command(self, conventions) -> RavenCommand[CollectionStatistics]:
-        return self.__GetCollectionStatisticsCommand()
-
-    class __GetCollectionStatisticsCommand(RavenCommand[CollectionStatistics]):
-        def __init__(self):
-            super().__init__(CollectionStatistics)
-
-        def create_request(self, server_node: ServerNode) -> requests.Request:
-            return requests.Request("GET", f"{server_node.url}/databases/{server_node.database}/collections/stats")
-
-        def is_read_request(self) -> bool:
-            return True
-
-        def set_response(self, response: str, from_cache: bool) -> None:
-            if response is None:
-                self._throw_invalid_response()
-            self.result = CollectionStatistics.from_json(json.loads(response))
-
-
-class IndexInformation:
-    def __init__(
-        self,
-        stale: bool = None,
-        lock_mode: IndexLockMode = None,
-        priority: IndexPriority = None,
-        index_type: IndexType = None,
-        last_indexing_time: datetime.datetime = None,
-        source_type: IndexSourceType = None,
-        index_state: IndexState = None,
-        name: str = None
-    ):
-        self.stale = stale
-        self.lock_mode = lock_mode
-        self.priority = priority
-        self.type = index_type
-        self.last_indexing_time: datetime.datetime = last_indexing_time
-        self.source_type = source_type
-        self.state = index_state
-        self.name = name
-
-    @classmethod
-    def from_json(cls, json_dict) -> IndexInformation:
-        return cls(
-            json_dict["IsStale"] if "IsStale" in json_dict else None,
-            IndexLockMode(json_dict["LockMode"]),
-            IndexPriority(json_dict["IndexPriority"]) if "IndexPriority" in json_dict else None,
-            IndexType(json_dict["IndexType"]) if "IndexType" in json_dict else None,
-            Utils.string_to_datetime(json_dict["LastIndexingTime"]) if "LastIndexingTime" in json_dict else None,
-            IndexSourceType(json_dict["SourceType"]) if "SourceType" in json_dict else None,
-            IndexState(json_dict["IndexState"]) if "IndexState" in json_dict else None,
-            json_dict["Name"] if "Name" in json_dict else None
-        )
-
-
 class DatabaseStatistics:
     def __init__(
         self,
@@ -192,6 +93,105 @@ class DatabaseStatistics:
             Size.from_json(json_dict.get("SizeOnDisk", None)),
             Size.from_json(json_dict.get("TempBuffersSizeOnDisk", None)),
             json_dict.get("NumberOfTransactionMergerQueueOperations", None),
+        )
+
+
+class GetStatisticsOperation(MaintenanceOperation[DatabaseStatistics]):
+    def __init__(self, debug_tag: str = None, node_tag: str = None):
+        self.debug_tag = debug_tag
+        self.node_tag = node_tag
+
+    def get_command(self, conventions: "DocumentConventions") -> _GetStatisticsCommand[DatabaseStatistics]:
+        return self._GetStatisticsCommand(self.debug_tag, self.node_tag)
+
+    class _GetStatisticsCommand(RavenCommand[DatabaseStatistics]):
+        def __init__(self, debug_tag: Optional[str] = None, node_tag: Optional[str] = None):
+            super().__init__(dict)
+            self.debug_tag = debug_tag
+            self.node_tag = node_tag
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "GET",
+                f"{node.url}/databases/{node.database}"
+                f"/stats{f'?{self.debug_tag}' if self.debug_tag is not None else ''}",
+            )
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            self.result = DatabaseStatistics.from_json(json.loads(response))
+
+        def is_read_request(self) -> bool:
+            return True
+
+
+class CollectionStatistics:
+    def __init__(
+        self,
+        count_of_documents: Optional[int] = None,
+        count_of_conflicts: Optional[int] = None,
+        collections: Optional[Dict[str, int]] = None,
+    ):
+        self.count_of_documents = count_of_documents
+        self.count_of_conflicts = count_of_conflicts
+        self.collections = collections
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> CollectionStatistics:
+        return cls(json_dict["CountOfDocuments"], json_dict["CountOfConflicts"], json_dict["Collections"])
+
+
+class GetCollectionStatisticsOperation(MaintenanceOperation[CollectionStatistics]):
+    def get_command(self, conventions) -> RavenCommand[CollectionStatistics]:
+        return self.__GetCollectionStatisticsCommand()
+
+    class __GetCollectionStatisticsCommand(RavenCommand[CollectionStatistics]):
+        def __init__(self):
+            super().__init__(CollectionStatistics)
+
+        def create_request(self, server_node: ServerNode) -> requests.Request:
+            return requests.Request("GET", f"{server_node.url}/databases/{server_node.database}/collections/stats")
+
+        def is_read_request(self) -> bool:
+            return True
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            if response is None:
+                self._throw_invalid_response()
+            self.result = CollectionStatistics.from_json(json.loads(response))
+
+
+class IndexInformation:
+    def __init__(
+        self,
+        stale: bool = None,
+        lock_mode: IndexLockMode = None,
+        priority: IndexPriority = None,
+        index_type: IndexType = None,
+        last_indexing_time: datetime.datetime = None,
+        source_type: IndexSourceType = None,
+        index_state: IndexState = None,
+        name: str = None,
+    ):
+        self.stale = stale
+        self.lock_mode = lock_mode
+        self.priority = priority
+        self.type = index_type
+        self.last_indexing_time: datetime.datetime = last_indexing_time
+        self.source_type = source_type
+        self.state = index_state
+        self.name = name
+
+    @classmethod
+    def from_json(cls, json_dict) -> IndexInformation:
+        return cls(
+            json_dict["IsStale"] if "IsStale" in json_dict else None,
+            IndexLockMode(json_dict["LockMode"]),
+            IndexPriority(json_dict["IndexPriority"]) if "IndexPriority" in json_dict else None,
+            IndexType(json_dict["IndexType"]) if "IndexType" in json_dict else None,
+            Utils.string_to_datetime(json_dict["LastIndexingTime"]) if "LastIndexingTime" in json_dict else None,
+            IndexSourceType(json_dict["SourceType"]) if "SourceType" in json_dict else None,
+            IndexState(json_dict["IndexState"]) if "IndexState" in json_dict else None,
+            json_dict["Name"] if "Name" in json_dict else None,
         )
 
 

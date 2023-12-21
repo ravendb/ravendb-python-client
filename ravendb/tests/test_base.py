@@ -357,9 +357,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         timestamp = datetime.datetime.now()
         while datetime.datetime.now() - timestamp < timeout:
             database_statistics = admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
-            indexes = list(
-                filter(lambda index: index.state != str(IndexState.DISABLED), database_statistics.indexes)
-            )
+            indexes = list(filter(lambda index: index.state != str(IndexState.DISABLED), database_statistics.indexes))
             if all(
                 [
                     not index.stale

@@ -635,3 +635,25 @@ class IndexHasChangedOperation(MaintenanceOperation[bool]):
                 raise ValueError("Response is invalid")
 
             self.result = json.loads(response)["Changed"]
+
+
+class ResetIndexOperation(VoidMaintenanceOperation):
+    def __init__(self, index_name: str):
+        if index_name is None:
+            raise ValueError("Index name cannot be None")
+
+        self._index_name = index_name
+
+    def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
+        return ResetIndexOperation.ResetIndexCommand(self._index_name)
+
+    class ResetIndexCommand(VoidRavenCommand):
+        def __init__(self, index_name: str):
+            super().__init__()
+            if index_name is None:
+                raise ValueError("Index name cannot be None")
+
+            self._index_name = index_name
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request("RESET", f"{node.url}/databases/{node.database}/indexes?name={self._index_name}")

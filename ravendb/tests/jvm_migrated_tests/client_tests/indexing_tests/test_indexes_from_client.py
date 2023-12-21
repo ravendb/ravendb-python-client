@@ -1,7 +1,9 @@
+import time
+
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
-from ravendb.documents.operations.indexes import GetIndexNamesOperation, DeleteIndexOperation
+from ravendb.documents.operations.indexes import GetIndexNamesOperation, DeleteIndexOperation, ResetIndexOperation
 from ravendb.documents.indexes.definitions import FieldIndexing, FieldStorage
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.infrastructure.entities import User, Post
@@ -107,3 +109,36 @@ class TestIndexesFromClient(TestBase):
 
         self.assertEqual(0, len(statistics.indexes))
 
+    def test_can_reset(self):
+        with self.store.open_session() as session:
+            user1 = User()
+            user1.name = "Marcin"
+            session.store(user1, "users/1")
+            session.save_changes()
+
+        self.store.execute_index(UsersIndex())
+        self.wait_for_indexing(self.store)
+
+        command = GetStatisticsOperation._GetStatisticsCommand()
+        self.store.get_request_executor().execute_command(command)
+
+        statistics = command.result
+
+        first_indexing_time = statistics.indexes[0].last_indexing_time
+
+        index_name = UsersIndex().index_name
+
+        # now reset index
+
+        time.sleep(0.02)  # avoid the same millisecond
+
+        self.store.maintenance.send(ResetIndexOperation(index_name))
+        self.wait_for_indexing(self.store)
+
+        command = GetStatisticsOperation._GetStatisticsCommand()
+        self.store.get_request_executor().execute_command(command)
+
+        statistics = command.result
+
+        second_indexing_time = statistics.last_indexing_time
+        self.assertLess(first_indexing_time, second_indexing_time)
