@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, TYPE_CHECKING
 
 import requests
 
-from ravendb.documents.indexes.definitions import IndexPriority, IndexLockMode, IndexType, IndexSourceType
+from ravendb.documents.indexes.definitions import IndexPriority, IndexLockMode, IndexType, IndexSourceType, IndexState
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
@@ -21,11 +21,11 @@ class GetStatisticsOperation(MaintenanceOperation[dict]):
         self.debug_tag = debug_tag
         self.node_tag = node_tag
 
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[dict]:
-        return self.__GetStatisticsCommand(self.debug_tag, self.node_tag)
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DatabaseStatistics]:
+        return self._GetStatisticsCommand(self.debug_tag, self.node_tag)
 
-    class __GetStatisticsCommand(RavenCommand[dict]):
-        def __init__(self, debug_tag: str, node_tag: str):
+    class _GetStatisticsCommand(RavenCommand["DatabaseStatistics"]):
+        def __init__(self, debug_tag: Optional[str] = None, node_tag: Optional[str] = None):
             super().__init__(dict)
             self.debug_tag = debug_tag
             self.node_tag = node_tag
@@ -38,7 +38,7 @@ class GetStatisticsOperation(MaintenanceOperation[dict]):
             )
 
         def set_response(self, response: str, from_cache: bool) -> None:
-            self.result = json.loads(response)
+            self.result = DatabaseStatistics.from_json(json.loads(response))
 
         def is_read_request(self) -> bool:
             return True
@@ -89,6 +89,8 @@ class IndexInformation:
         index_type: IndexType = None,
         last_indexing_time: datetime.datetime = None,
         source_type: IndexSourceType = None,
+        index_state: IndexState = None,
+        name: str = None
     ):
         self.stale = stale
         self.lock_mode = lock_mode
@@ -96,16 +98,20 @@ class IndexInformation:
         self.type = index_type
         self.last_indexing_time: datetime.datetime = last_indexing_time
         self.source_type = source_type
+        self.state = index_state
+        self.name = name
 
     @classmethod
     def from_json(cls, json_dict) -> IndexInformation:
         return cls(
-            json_dict["Stale"],
+            json_dict["IsStale"] if "IsStale" in json_dict else None,
             IndexLockMode(json_dict["LockMode"]),
-            IndexPriority(json_dict["IndexPriority"]),
-            IndexType(json_dict["IndexType"]),
-            Utils.string_to_datetime(json_dict["LastIndexingTime"]),
-            IndexSourceType(json_dict["SourceType"]),
+            IndexPriority(json_dict["IndexPriority"]) if "IndexPriority" in json_dict else None,
+            IndexType(json_dict["IndexType"]) if "IndexType" in json_dict else None,
+            Utils.string_to_datetime(json_dict["LastIndexingTime"]) if "LastIndexingTime" in json_dict else None,
+            IndexSourceType(json_dict["SourceType"]) if "SourceType" in json_dict else None,
+            IndexState(json_dict["IndexState"]) if "IndexState" in json_dict else None,
+            json_dict["Name"] if "Name" in json_dict else None
         )
 
 
@@ -177,7 +183,7 @@ class DatabaseStatistics:
             json_dict.get("CountOfUniqueAttachments", None),
             json_dict.get("CountOfCounterEntries", None),
             json_dict.get("CountOfTimeSeriesSegments", None),
-            list(map(lambda x: IndexInformation.from_json(x), json_dict.get("Indexes", None))),
+            [IndexInformation.from_json(x) for x in json_dict["Indexes"]] if "Indexes" in json_dict else None,
             json_dict.get("DatabaseChangeVector", None),
             json_dict.get("DatabaseId", None),
             json_dict.get("Is64Bit", None),

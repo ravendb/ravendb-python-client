@@ -358,17 +358,17 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         while datetime.datetime.now() - timestamp < timeout:
             database_statistics = admin.send(GetStatisticsOperation("wait-for-indexing", node_tag))
             indexes = list(
-                filter(lambda index: index["State"] != str(IndexState.DISABLED), database_statistics["Indexes"])
+                filter(lambda index: index.state != str(IndexState.DISABLED), database_statistics.indexes)
             )
             if all(
                 [
-                    not index["IsStale"]
-                    and not index["Name"].startswith(constants.Documents.Indexing.SIDE_BY_SIDE_INDEX_NAME_PREFIX)
+                    not index.stale
+                    and not index.name.startswith(constants.Documents.Indexing.SIDE_BY_SIDE_INDEX_NAME_PREFIX)
                     for index in indexes
                 ]
             ):
                 return
-            if any([IndexState.ERROR == index["State"] for index in indexes]):
+            if any([IndexState.ERROR == index.state for index in indexes]):
                 break
             try:
                 time.sleep(0.1)

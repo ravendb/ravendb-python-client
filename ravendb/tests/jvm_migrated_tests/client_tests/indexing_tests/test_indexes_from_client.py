@@ -1,6 +1,7 @@
+from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
-from ravendb.documents.operations.indexes import GetIndexNamesOperation
+from ravendb.documents.operations.indexes import GetIndexNamesOperation, DeleteIndexOperation
 from ravendb.documents.indexes.definitions import FieldIndexing, FieldStorage
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.infrastructure.entities import User, Post
@@ -94,3 +95,15 @@ class TestIndexesFromClient(TestBase):
         index_names_operation = GetIndexNamesOperation(0, 10)
         index_names = self.store.maintenance.send(index_names_operation)
         self.assertEqual(1, len(index_names))
+
+    def test_can_delete(self):
+        self.store.execute_index(UsersIndex())
+        self.store.maintenance.send(DeleteIndexOperation(UsersIndex().index_name))
+
+        command = GetStatisticsOperation._GetStatisticsCommand()
+        self.store.get_request_executor().execute_command(command)
+
+        statistics = command.result
+
+        self.assertEqual(0, len(statistics.indexes))
+
