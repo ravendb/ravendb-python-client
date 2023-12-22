@@ -4,7 +4,7 @@ import datetime
 import enum
 import json
 from abc import abstractmethod
-from typing import Generic, TypeVar, TYPE_CHECKING, Optional, List, Dict
+from typing import Generic, TypeVar, TYPE_CHECKING, Optional, List, Dict, Any
 import requests
 
 from ravendb.primitives import constants
@@ -12,13 +12,13 @@ from ravendb.documents.operations.operation import Operation
 from ravendb.serverwide.database_record import DatabaseRecordWithEtag, DatabaseRecord
 from ravendb.serverwide.misc import DatabaseTopology
 from ravendb.tools.utils import Utils
-from ravendb.http.raven_command import RavenCommand
+from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.util.util import RaftIdGenerator
 from ravendb.http.topology import RaftCommand
 
+
 if TYPE_CHECKING:
     from ravendb.http.server_node import ServerNode
-    from ravendb.http.raven_command import VoidRavenCommand
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents.conventions import DocumentConventions
 
@@ -369,3 +369,44 @@ class ModifyOngoingTaskResult:
 class DatabaseSettings:
     def __init__(self, settings: Dict[str, str] = None):
         self.settings = settings
+
+
+class ReorderDatabaseMembersOperation(VoidServerOperation):
+    class Parameters:
+        def __init__(self, members_order: List[str] = None, fixed: bool = None):
+            self.members_order = members_order
+            self.fixed = fixed
+
+        def to_json(self) -> Dict[str, Any]:
+            return {"MembersOrder": self.members_order, "Fixed": self.fixed}
+
+    def __init__(self, database: str = None, order: List[str] = None, fixed: bool = False):
+        if not order:
+            raise ValueError("Order list must contain values")
+
+        self._database = database
+        self._parameters = self.Parameters(order, fixed)
+
+    def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
+        return self.ReorderDatabaseMemberCommand(self._database, self._parameters)
+
+    class ReorderDatabaseMemberCommand(VoidRavenCommand, RaftCommand):
+        def __init__(self, database_name: str, parameters: Optional[ReorderDatabaseMembersOperation.Parameters] = None):
+            super().__init__()
+            if not database_name:
+                raise ValueError("Database cannot be empty")
+
+            self._database_name = database_name
+            self._parameters = parameters
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            url = f"{node.url}/admin/databases/reorder?name={self._database_name}"
+            request = requests.Request("POST", url)
+            request.data = self._parameters.to_json()
+            return request
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def get_raft_unique_request_id(self) -> str:
+            return RaftIdGenerator.new_id()
