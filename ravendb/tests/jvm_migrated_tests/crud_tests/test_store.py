@@ -5,6 +5,21 @@ class TestStore(TestBase):
     def setUp(self):
         super(TestStore, self).setUp()
 
+    def test_refresh(self):
+        with self.store.open_session() as session:
+            user = User("RavenDB")
+            session.store(user, "users/1")
+            session.save_changes()
+
+            with self.store.open_session() as inner_session:
+                inner_user = inner_session.load("users/1", User)
+                inner_user.name = "RavenDB 4.0"
+                inner_session.save_changes()
+
+            user = session.advanced.refresh(user)
+
+            self.assertEqual("RavenDB 4.0", user.name)
+
     def test_store_document(self):
         with self.store.open_session() as session:
             user = User("Jacex", 10)
