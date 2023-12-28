@@ -109,8 +109,8 @@ class DatabasePutResult:
         return cls(
             json_dict["RaftCommandIndex"],
             json_dict["Name"],
-            DatabaseTopology.from_json(json_dict["Topology"]),
-            json_dict["NodesAddedTo"],
+            DatabaseTopology.from_json(json_dict["Topology"]) if "Topology" in json_dict else None,
+            json_dict["NodesAddedTo"] if "NodesAddedTo" in json_dict else None,
         )
 
 
@@ -404,6 +404,44 @@ class ReorderDatabaseMembersOperation(VoidServerOperation):
             request = requests.Request("POST", url)
             request.data = self._parameters.to_json()
             return request
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def get_raft_unique_request_id(self) -> str:
+            return RaftIdGenerator.new_id()
+
+
+class PromoteDatabaseNodeOperation(ServerOperation[DatabasePutResult]):
+    def __init__(self, database_name: str = None, node: str = None):
+        self._database_name = database_name
+        self._node = node
+
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[DatabasePutResult]:
+        return self._PromoteDatabaseNodeCommand(self._database_name, self._node)
+
+    class _PromoteDatabaseNodeCommand(RavenCommand[DatabasePutResult], RaftCommand):
+        def __init__(self, database_name: str = None, node: str = None):
+            super().__init__(DatabasePutResult)
+            if not database_name:
+                raise ValueError("Database name cannot be None")
+
+            if not node:
+                raise ValueError("Node cannot be None")
+
+            self._database_name = database_name
+            self._node = node
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "POST", f"{node.url}/admin/databases/promote?name={self._database_name}&node={self._node}"
+            )
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            if response is None:
+                self._throw_invalid_response()
+
+            self.result = DatabasePutResult.from_json(json.loads(response))
 
         def is_read_request(self) -> bool:
             return False
