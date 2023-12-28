@@ -186,11 +186,11 @@ class IndexInformation:
         return cls(
             json_dict["IsStale"] if "IsStale" in json_dict else None,
             IndexLockMode(json_dict["LockMode"]),
-            IndexPriority(json_dict["IndexPriority"]) if "IndexPriority" in json_dict else None,
-            IndexType(json_dict["IndexType"]) if "IndexType" in json_dict else None,
+            IndexPriority(json_dict["Priority"]) if "Priority" in json_dict else None,
+            IndexType(json_dict["Type"]) if "Type" in json_dict else None,
             Utils.string_to_datetime(json_dict["LastIndexingTime"]) if "LastIndexingTime" in json_dict else None,
             IndexSourceType(json_dict["SourceType"]) if "SourceType" in json_dict else None,
-            IndexState(json_dict["IndexState"]) if "IndexState" in json_dict else None,
+            IndexState(json_dict["State"]) if "State" in json_dict else None,
             json_dict["Name"] if "Name" in json_dict else None,
         )
 
