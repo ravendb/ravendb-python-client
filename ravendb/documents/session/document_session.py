@@ -927,6 +927,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             script_map = JavaScriptMap(self.__custom_count, path_to_object)
             self.__custom_count += 1
 
+            dictionary_adder(script_map)
+
             patch_request = PatchRequest()
             patch_request.script = script_map.script
             patch_request.values = script_map.parameters
