@@ -1061,7 +1061,11 @@ class RequestExecutor:
             )
 
         elif response.status_code == HTTPStatus.CONFLICT:
-            raise NotImplementedError("Handle conflict")  # todo: handle conflict (exception dispatcher involved)
+            data = json.loads(response.text)
+            message = data.get("Message", None)
+            err_type = data.get("Type", None)
+
+            raise RuntimeError(f"{err_type}: {message}")  # todo: handle conflict (exception dispatcher involved)
 
         elif response.status_code == 425:  # too early
             if not should_retry:
