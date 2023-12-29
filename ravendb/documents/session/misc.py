@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 _T_Key = TypeVar("_T_Key")
 _T_Value = TypeVar("_T_Value")
 
+
 class TransactionMode(Enum):
     SINGLE_NODE = "single_node"
     CLUSTER_WIDE = "cluster_wide"
@@ -233,7 +234,7 @@ class JavaScriptMap(Generic[_T_Key, _T_Value]):
         self._arg_counter += 1
         return f"val_{self._arg_counter - 1}_{self._suffix}"
 
-    def put(self, key: _T_Key, value:_T_Value) -> JavaScriptMap[_T_Key, _T_Value]:
+    def put(self, key: _T_Key, value: _T_Value) -> JavaScriptMap[_T_Key, _T_Value]:
         argument_name = self._get_next_argument_name()
 
         self._script_lines.append(f"this.{self._path_to_map}.{key} = args.{argument_name};")
