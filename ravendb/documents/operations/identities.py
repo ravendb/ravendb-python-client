@@ -64,3 +64,55 @@ class NextIdentityForOperation(MaintenanceOperation[int]):
 
     def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[int]":
         return NextIdentityForCommand(self._identity_name)
+
+
+class SeedIdentityForCommand(RavenCommand[int], RaftCommand):
+    def __init__(self, id_: str, value: int = None, forced: bool = False):
+        super().__init__(int)
+        if id_ is None:
+            raise ValueError("Id cannot be None")
+
+        self._id = id_
+        self._value = value
+        self._forced = forced
+
+    def is_read_request(self) -> bool:
+        return False
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        self.ensure_is_not_null_or_string(self._id, "id")
+
+        url = f"{node.url}/databases/{node.database}/identity/seed?name={self._id}&value={self._value}"
+
+        if self._forced:
+            url += "&force=true"
+
+        return requests.Request("POST", url)
+
+    def set_response(self, response: Optional[str], from_cache: bool) -> None:
+        if response is None:
+            self._throw_invalid_response()
+
+        json_node = json.loads(response)
+
+        if "NewSeedValue" not in json_node:
+            self._throw_invalid_response()
+
+        self.result = json_node["NewSeedValue"]
+
+    def get_raft_unique_request_id(self) -> str:
+        return RaftIdGenerator.new_id()
+
+
+class SeedIdentityForOperation(MaintenanceOperation[int]):
+    def __init__(self, name: str, value: int, force_update: bool = False):
+        super().__init__()
+        if not name or name.isspace():
+            raise ValueError("The field name cannot be None or whitespace")
+
+        self._identity_name = name
+        self._identity_value = value
+        self._force_update = force_update
+
+    def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[_T]":
+        return SeedIdentityForCommand(self._identity_name, self._identity_value, self._force_update)
