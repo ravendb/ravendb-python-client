@@ -423,32 +423,30 @@ class InMemoryDocumentSessionOperations:
         self.close()
 
     def __init__(self, store: "DocumentStore", key: uuid.UUID, options: SessionOptions):
-        self.__id = key
-        self.__database_name = options.database if options.database else store.database if store.database else None
-        if not self.__database_name:
+        self._id = key
+        self._database_name = options.database if options.database else store.database if store.database else None
+        if not self._database_name:
             InMemoryDocumentSessionOperations.raise_no_database()
 
         self._request_executor = (
-            options.request_executor if options.request_executor else store.get_request_executor(self.__database_name)
+            options.request_executor if options.request_executor else store.get_request_executor(self._database_name)
         )
         self._operation_executor: Union[None, OperationExecutor] = None
 
         self._pending_lazy_operations: List[LazyOperation] = []
         self._on_evaluate_lazy = {}
 
-        self.__no_tracking = options.no_tracking
+        self._no_tracking = options.no_tracking
 
-        self.__use_optimistic_concurrency = self._request_executor.conventions.use_optimistic_concurrency
-        self.__max_number_of_requests_per_session = (
-            self._request_executor.conventions.max_number_of_requests_per_session
-        )
-        self.__generate_entity_id_on_client = GenerateEntityIdOnTheClient(
+        self._use_optimistic_concurrency = self._request_executor.conventions.use_optimistic_concurrency
+        self._max_number_of_requests_per_session = self._request_executor.conventions.max_number_of_requests_per_session
+        self._generate_entity_id_on_client = GenerateEntityIdOnTheClient(
             self._request_executor.conventions, self._generate_id
         )
         self.entity_to_json = EntityToJson(self)
         self._document_store: DocumentStore = store
         self.session_info = SessionInfo(self, options, self._document_store)
-        self.__save_changes_options = BatchOptions()
+        self._save_changes_options = BatchOptions()
 
         self.transaction_mode = options.transaction_mode
         self.disable_atomic_document_writes_in_cluster_wide_transaction = (
@@ -472,124 +470,124 @@ class InMemoryDocumentSessionOperations:
         # todo: pendingLazyOperations, onEvaluateLazy
         self._generate_document_keys_on_store: bool = True
         self._save_changes_options: Union[None, BatchOptions] = None
-        self.__hash: int = self.__instances_counter.__add__(1)
-        self.__is_disposed: Union[None, bool] = None
+        self._hash: int = self.__instances_counter.__add__(1)
+        self._is_disposed: Union[None, bool] = None
 
-        self.__number_of_requests: int = 0
-        self.__max_number_of_requests_per_session: int = (
+        self._number_of_requests: int = 0
+        self._max_number_of_requests_per_session: int = (
             self._request_executor.conventions.max_number_of_requests_per_session
         )
 
         # --- EVENTS ---
-        self.__before_store: List[Callable[[BeforeStoreEventArgs], None]] = []
-        self.__after_save_changes: List[Callable[[AfterSaveChangesEventArgs], None]] = []
-        self.__before_delete: List[Callable[[BeforeDeleteEventArgs], None]] = []
-        self.__before_query: List[Callable[[BeforeQueryEventArgs], None]] = []
-        self.__before_conversion_to_document: List[Callable[[BeforeConversionToDocumentEventArgs], None]] = []
-        self.__after_conversion_to_document: List[Callable[[AfterConversionToDocumentEventArgs], None]] = []
+        self._before_store: List[Callable[[BeforeStoreEventArgs], None]] = []
+        self._after_save_changes: List[Callable[[AfterSaveChangesEventArgs], None]] = []
+        self._before_delete: List[Callable[[BeforeDeleteEventArgs], None]] = []
+        self._before_query: List[Callable[[BeforeQueryEventArgs], None]] = []
+        self._before_conversion_to_document: List[Callable[[BeforeConversionToDocumentEventArgs], None]] = []
+        self._after_conversion_to_document: List[Callable[[AfterConversionToDocumentEventArgs], None]] = []
 
-        self.__before_conversion_to_entity: List[Callable[[BeforeConversionToEntityEventArgs], None]] = []
+        self._before_conversion_to_entity: List[Callable[[BeforeConversionToEntityEventArgs], None]] = []
 
-        self.__after_conversion_to_entity: List[Callable[[AfterConversionToEntityEventArgs], None]] = []
+        self._after_conversion_to_entity: List[Callable[[AfterConversionToEntityEventArgs], None]] = []
 
-        self.__session_closing: List[Callable[[SessionClosingEventArgs], None]] = []
+        self._session_closing: List[Callable[[SessionClosingEventArgs], None]] = []
 
     def add_before_store(self, event: Callable[[BeforeStoreEventArgs], None]):
-        self.__before_store.append(event)
+        self._before_store.append(event)
 
     def remove_before_store(self, event: Callable[[BeforeStoreEventArgs], None]):
-        self.__before_store.remove(event)
+        self._before_store.remove(event)
 
     def add_session_closing(self, event: Callable[[SessionClosingEventArgs], None]):
-        self.__session_closing.append(event)
+        self._session_closing.append(event)
 
     def remove_session_closing(self, event: Callable[[SessionClosingEventArgs], None]):
-        self.__session_closing.remove(event)
+        self._session_closing.remove(event)
 
     def add_before_conversion_to_document(self, event: Callable[[BeforeConversionToDocumentEventArgs], None]):
-        self.__before_conversion_to_document.append(event)
+        self._before_conversion_to_document.append(event)
 
     def remove_before_conversion_to_document(self, event: Callable[[BeforeConversionToDocumentEventArgs], None]):
-        self.__before_conversion_to_document.remove(event)
+        self._before_conversion_to_document.remove(event)
 
     def add_after_conversion_to_document(self, event: Callable[[AfterConversionToDocumentEventArgs], None]):
-        self.__after_conversion_to_document.append(event)
+        self._after_conversion_to_document.append(event)
 
     def remove_after_conversion_to_document(self, event: Callable[[AfterConversionToDocumentEventArgs], None]):
-        self.__after_conversion_to_document.remove(event)
+        self._after_conversion_to_document.remove(event)
 
     def add_before_conversion_to_entity(self, event: Callable[[BeforeConversionToEntityEventArgs], None]):
-        self.__before_conversion_to_entity.append(event)
+        self._before_conversion_to_entity.append(event)
 
     def remove_before_conversion_to_entity(self, event: Callable[[BeforeConversionToEntityEventArgs], None]):
-        self.__before_conversion_to_entity.remove(event)
+        self._before_conversion_to_entity.remove(event)
 
     def add_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
-        self.__after_conversion_to_entity.append(event)
+        self._after_conversion_to_entity.append(event)
 
     def remove_after_conversion_to_entity(self, event: Callable[[AfterConversionToEntityEventArgs], None]):
-        self.__after_conversion_to_entity.remove(event)
+        self._after_conversion_to_entity.remove(event)
 
     def add_after_save_changes(self, event: Callable[[AfterSaveChangesEventArgs], None]):
-        self.__after_save_changes.append(event)
+        self._after_save_changes.append(event)
 
     def remove_after_save_changes(self, event: Callable[[AfterSaveChangesEventArgs], None]):
-        self.__after_save_changes.remove(event)
+        self._after_save_changes.remove(event)
 
     def add_before_delete(self, event: Callable[[BeforeDeleteEventArgs], None]):
-        self.__before_delete.append(event)
+        self._before_delete.append(event)
 
     def remove_before_delete_entity(self, event: Callable[[BeforeDeleteEventArgs], None]):
-        self.__before_delete.remove(event)
+        self._before_delete.remove(event)
 
     def add_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
-        self.__before_query.append(event)
+        self._before_query.append(event)
 
     def remove_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
-        self.__before_query.append(event)
+        self._before_query.append(event)
 
     def before_store_invoke(self, before_store_event_args: BeforeStoreEventArgs):
-        for event in self.__before_store:
+        for event in self._before_store:
             event(before_store_event_args)
 
     def session_closing_invoke(self, session_closing_event_args: SessionClosingEventArgs):
-        for event in self.__session_closing:
+        for event in self._session_closing:
             event(session_closing_event_args)
 
     def before_conversion_to_document_invoke(
         self, before_conversion_to_document_event_args: BeforeConversionToDocumentEventArgs
     ):
-        for event in self.__before_conversion_to_document:
+        for event in self._before_conversion_to_document:
             event(before_conversion_to_document_event_args)
 
     def after_conversion_to_document_invoke(
         self, after_conversion_to_document_event_args: AfterConversionToDocumentEventArgs
     ):
-        for event in self.__after_conversion_to_document:
+        for event in self._after_conversion_to_document:
             event(after_conversion_to_document_event_args)
 
     def before_conversion_to_entity_invoke(
         self, before_conversion_to_entity_event_args: BeforeConversionToEntityEventArgs
     ):
-        for event in self.__before_conversion_to_entity:
+        for event in self._before_conversion_to_entity:
             event(before_conversion_to_entity_event_args)
 
     def after_conversion_to_entity_invoke(
         self, after_conversion_to_entity_event_args: AfterConversionToEntityEventArgs
     ):
-        for event in self.__after_conversion_to_entity:
+        for event in self._after_conversion_to_entity:
             event(after_conversion_to_entity_event_args)
 
     def after_save_changes_invoke(self, after_save_changes_event_args: AfterSaveChangesEventArgs):
-        for event in self.__after_save_changes:
+        for event in self._after_save_changes:
             event(after_save_changes_event_args)
 
     def before_delete_invoke(self, before_delete_event_args: BeforeDeleteEventArgs):
-        for event in self.__before_delete:
+        for event in self._before_delete:
             event(before_delete_event_args)
 
     def before_query_invoke(self, before_query_event_args: BeforeQueryEventArgs):
-        for event in self.__before_query:
+        for event in self._before_query:
             event(before_query_event_args)
 
     @property
@@ -622,11 +620,11 @@ class InMemoryDocumentSessionOperations:
 
     @property
     def database_name(self):
-        return self.__database_name
+        return self._database_name
 
     @property
     def generate_entity_id_on_the_client(self) -> GenerateEntityIdOnTheClient:
-        return self.__generate_entity_id_on_client
+        return self._generate_entity_id_on_client
 
     @property
     def counters_by_doc_id(self):
@@ -640,15 +638,15 @@ class InMemoryDocumentSessionOperations:
 
     @property
     def number_of_requests(self) -> int:
-        return self.__number_of_requests
+        return self._number_of_requests
 
     @property
     def no_tracking(self) -> bool:
-        return self.__no_tracking
+        return self._no_tracking
 
     @no_tracking.setter
     def no_tracking(self, value: bool):
-        self.__no_tracking = value
+        self._no_tracking = value
 
     # def counters_for(self, entity_or_document_id):
     #     """
@@ -673,7 +671,7 @@ class InMemoryDocumentSessionOperations:
         if document_info:
             return document_info
 
-        found, value = self.__generate_entity_id_on_client.try_get_id_from_instance(entity)
+        found, value = self._generate_entity_id_on_client.try_get_id_from_instance(entity)
         if not found:
             raise ValueError(f"Could not find the document id for {entity}")
         self._assert_no_non_unique_instance(entity, value)
@@ -695,10 +693,10 @@ class InMemoryDocumentSessionOperations:
         return key in self._known_missing_ids
 
     def increment_requests_count(self) -> None:
-        self.__number_of_requests += 1
-        if self.__number_of_requests > self.__max_number_of_requests_per_session:
+        self._number_of_requests += 1
+        if self._number_of_requests > self._max_number_of_requests_per_session:
             raise ValueError(
-                f"The maximum number of requests {self.__max_number_of_requests_per_session} allowed for this session"
+                f"The maximum number of requests {self._max_number_of_requests_per_session} allowed for this session"
                 "has been reached. "
                 "Raven limits the number of remote calls that a session is allowed to make as an early warning system. "
                 "Sessions are expected to be short lived, and Raven provides facilities like load(String[] keys) "
@@ -819,7 +817,7 @@ class InMemoryDocumentSessionOperations:
                 change_vector = document_info.change_vector
 
             self._known_missing_ids.add(key)
-            change_vector = change_vector if self.__use_optimistic_concurrency else None
+            change_vector = change_vector if self._use_optimistic_concurrency else None
             if self._counters_by_doc_id:
                 self._counters_by_doc_id.pop(key, None)
             self.defer(
@@ -849,7 +847,7 @@ class InMemoryDocumentSessionOperations:
 
     def store(self, entity: object, key: Optional[str] = None, change_vector: Optional[str] = None) -> None:
         if all([entity, not key, not change_vector]):
-            has_id = self.__generate_entity_id_on_client.try_get_id_from_instance(entity)[0]
+            has_id = self._generate_entity_id_on_client.try_get_id_from_instance(entity)[0]
             checkmode = ConcurrencyCheckMode.FORCED if not has_id else ConcurrencyCheckMode.AUTO
         elif all([entity, key, not change_vector]):
             checkmode = ConcurrencyCheckMode.AUTO
@@ -875,11 +873,11 @@ class InMemoryDocumentSessionOperations:
 
         if key is None:
             if self._generate_document_keys_on_store:
-                key = self.__generate_entity_id_on_client.generate_document_key_for_storage(entity)
+                key = self._generate_entity_id_on_client.generate_document_key_for_storage(entity)
             else:
                 self._remember_entity_for_document_id_generation(entity)
         else:
-            self.__generate_entity_id_on_client.try_set_identity(entity, key)
+            self._generate_entity_id_on_client.try_set_identity(entity, key)
 
         if IdTypeAndName.create(key, CommandType.CLIENT_ANY_COMMAND, None) in self._deferred_commands_map.keys():
             raise InvalidOperationException(
@@ -959,7 +957,7 @@ class InMemoryDocumentSessionOperations:
         if self.transaction_mode != TransactionMode.CLUSTER_WIDE:
             return
 
-        if self.__use_optimistic_concurrency:
+        if self._use_optimistic_concurrency:
             raise RuntimeError(
                 f"useOptimisticConcurrency is not supported with TransactionMode set to {TransactionMode.CLUSTER_WIDE}"
             )
@@ -1042,7 +1040,7 @@ class InMemoryDocumentSessionOperations:
 
                     result.on_success.remove_document_by_id(document_info.key)
 
-                change_vector = change_vector if self.__use_optimistic_concurrency else None
+                change_vector = change_vector if self._use_optimistic_concurrency else None
                 self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
                 result.session_commands.append(
                     DeleteCommandData(document_info.key, change_vector, document_info.change_vector)
@@ -1078,7 +1076,7 @@ class InMemoryDocumentSessionOperations:
             if command:
                 self.__throw_invalid_modified_document_with_deferred_command(command)
 
-            if self.__before_store and entity.execute_on_before_store:
+            if self._before_store and entity.execute_on_before_store:
                 before_store_event_args = BeforeStoreEventArgs(self, entity.value.key, entity.key)
                 self.before_store_invoke(before_store_event_args)
 
@@ -1097,7 +1095,7 @@ class InMemoryDocumentSessionOperations:
 
             change_vector = (
                 (entity.value.change_vector if entity.value.change_vector else "")
-                if self.__use_optimistic_concurrency
+                if self._use_optimistic_concurrency
                 else (
                     entity.value.change_vector
                     if entity.value.concurrency_check_mode == ConcurrencyCheckMode.FORCED
@@ -1202,11 +1200,11 @@ class InMemoryDocumentSessionOperations:
             )
 
     def __close(self, is_disposing: bool) -> None:
-        if self.__is_disposed:
+        if self._is_disposed:
             return
 
         self.session_closing_invoke(SessionClosingEventArgs(self))
-        self.__is_disposed = True
+        self._is_disposed = True
 
     def close(self) -> None:
         self.__close(True)
@@ -1693,7 +1691,7 @@ class InMemoryDocumentSessionOperations:
         local_range.entries = new_values
 
     def hash_code(self) -> int:
-        return self.__hash
+        return self._hash
 
     def __deserialize_from_transformer(
         self, object_type: Type[_T], key: Union[None, str], document: dict, track_entity: bool

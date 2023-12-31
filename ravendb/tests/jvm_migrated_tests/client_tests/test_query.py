@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.session.query_group_by import GroupByField
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase

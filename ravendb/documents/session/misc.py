@@ -4,7 +4,7 @@ import hashlib
 import threading
 from abc import ABC
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING, List, Dict
+from typing import Union, Optional, TYPE_CHECKING, List, Dict, Generic, TypeVar
 
 from ravendb.http.misc import LoadBalanceBehavior
 
@@ -16,6 +16,10 @@ if TYPE_CHECKING:
         InMemoryDocumentSessionOperations,
     )
     from ravendb.documents import DocumentStore
+
+
+_T_Key = TypeVar("_T_Key")
+_T_Value = TypeVar("_T_Value")
 
 
 class TransactionMode(Enum):
@@ -210,32 +214,35 @@ class JavaScriptArray:
         return self
 
 
-class JavaScriptMap:
+class JavaScriptMap(Generic[_T_Key, _T_Value]):
     def __init__(self, suffix: int, path_to_map: str):
-        self.__suffix = suffix
-        self.__path_to_map = path_to_map
-        self.__arg_counter = 0
-        self.__script_lines = []
-        self.__parameters: Dict[str, object] = {}
+        self._suffix = suffix
+        self._path_to_map = path_to_map
+        self._arg_counter = 0
+        self._script_lines = []
+        self._parameters: Dict[str, object] = {}
 
     @property
     def script(self) -> str:
-        return "\r".join(self.__script_lines)
+        return "\r".join(self._script_lines)
 
     @property
     def parameters(self) -> Dict[str, object]:
-        return self.__parameters
+        return self._parameters
 
-    def __get_next_argument_name(self) -> str:
-        self.__arg_counter += 1
-        return f"val_{self.__arg_counter - 1}_{self.__suffix}"
+    def _get_next_argument_name(self) -> str:
+        self._arg_counter += 1
+        return f"val_{self._arg_counter - 1}_{self._suffix}"
 
-    def put(self, key, value) -> JavaScriptMap:
-        argument_name = self.__get_next_argument_name()
+    def put(self, key: _T_Key, value: _T_Value) -> JavaScriptMap[_T_Key, _T_Value]:
+        argument_name = self._get_next_argument_name()
 
-        self.__script_lines.append(f"this.{self.__path_to_map}.{key} = args.{argument_name};")
+        self._script_lines.append(f"this.{self._path_to_map}.{key} = args.{argument_name};")
         self.parameters[argument_name] = value
         return self
+
+    def remove(self, key: _T_Key) -> JavaScriptMap[_T_Key, _T_Value]:
+        self._script_lines.append(f"delete this.{self._path_to_map}.{key};")
 
 
 class MethodCall(ABC):

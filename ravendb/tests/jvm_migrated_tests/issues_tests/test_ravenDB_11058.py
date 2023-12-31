@@ -21,8 +21,8 @@ class TestRavenDB_11058(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(2, stats.get("CountOfAttachments"))
-        self.assertEqual(2, stats.get("CountOfUniqueAttachments"))
+        self.assertEqual(2, stats.count_of_attachments)
+        self.assertEqual(2, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             new_company = Company(name="CF")
@@ -33,18 +33,8 @@ class TestRavenDB_11058(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            3,
-            stats.get(
-                "CountOfAttachments",
-            ),
-        )
-        self.assertEqual(
-            2,
-            stats.get(
-                "CountOfUniqueAttachments",
-            ),
-        )
+        self.assertEqual(3, stats.count_of_attachments)
+        self.assertEqual(2, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             self.assertTrue(session.advanced.attachments.exists("companies/1", "file1"))
@@ -69,14 +59,8 @@ class TestRavenDB_11058(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            2,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            2,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(2, stats.count_of_attachments)
+        self.assertEqual(2, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             company = session.load("companies/1-A", Company)
@@ -84,14 +68,8 @@ class TestRavenDB_11058(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            2,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            2,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(2, stats.count_of_attachments)
+        self.assertEqual(2, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             self.assertFalse(session.advanced.attachments.exists("companies/1-A", "file1"))
@@ -103,14 +81,8 @@ class TestRavenDB_11058(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            2,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            2,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(2, stats.count_of_attachments)
+        self.assertEqual(2, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             self.assertFalse(session.advanced.attachments.exists("companies/1-A", "file2"))
@@ -124,14 +96,8 @@ class TestRavenDB_11058(TestBase):
                 session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            2,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            2,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(2, stats.count_of_attachments)
+        self.assertEqual(2, stats.count_of_unique_attachments)
 
     def test_can_move_attachment(self):
         with self.store.open_session() as session:
@@ -148,14 +114,8 @@ class TestRavenDB_11058(TestBase):
             session.save_changes()
 
         stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            3,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            3,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(3, stats.count_of_attachments)
+        self.assertEqual(3, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             new_company = Company(name="CF")
@@ -166,14 +126,8 @@ class TestRavenDB_11058(TestBase):
             session.advanced.attachments.move(old_company, "file1", new_company, "file2")
             session.save_changes()
 
-        self.assertEqual(
-            3,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            3,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(3, stats.count_of_attachments)
+        self.assertEqual(3, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             self.assertFalse(session.advanced.attachments.exists("companies/1", "file1"))
@@ -190,15 +144,8 @@ class TestRavenDB_11058(TestBase):
             session.advanced.attachments.move("companies/1", "file10", "companies/2", "file3")
             session.save_changes()
 
-        stats = self.store.maintenance.send(GetStatisticsOperation())
-        self.assertEqual(
-            3,
-            stats.get("CountOfAttachments"),
-        )
-        self.assertEqual(
-            3,
-            stats.get("CountOfUniqueAttachments"),
-        )
+        self.assertEqual(3, stats.count_of_attachments)
+        self.assertEqual(3, stats.count_of_unique_attachments)
 
         with self.store.open_session() as session:
             self.assertFalse(session.advanced.attachments.exists("companies/1", "file1"))

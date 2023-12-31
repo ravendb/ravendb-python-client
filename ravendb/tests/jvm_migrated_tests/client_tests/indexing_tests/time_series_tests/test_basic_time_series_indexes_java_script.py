@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from ravendb import GetTermsOperation
-from ravendb.documents.indexes.index_creation import AbstractJavaScriptIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractJavaScriptIndexCreationTask
 from ravendb.documents.indexes.time_series import AbstractJavaScriptTimeSeriesIndexCreationTask
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company, Employee, Address

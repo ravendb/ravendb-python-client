@@ -1,7 +1,7 @@
 from __future__ import annotations
 import enum
 import json
-from typing import List, TYPE_CHECKING, Optional
+from typing import List, TYPE_CHECKING, Optional, Tuple
 
 import requests
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class PutIndexesOperation(MaintenanceOperation):
-    def __init__(self, *indexes_to_add):
+    def __init__(self, *indexes_to_add: IndexDefinition):
         if len(indexes_to_add) == 0:
             raise ValueError("Invalid indexes_to_add")
 
@@ -29,10 +29,10 @@ class PutIndexesOperation(MaintenanceOperation):
         self.__all_java_script_indexes = True  # todo: set it in the command
 
     def get_command(self, conventions: "DocumentConventions") -> RavenCommand[List]:
-        return self.__PutIndexesCommand(conventions, *self._indexes_to_add)
+        return self.__PutIndexesCommand(conventions, self._indexes_to_add)
 
     class __PutIndexesCommand(RavenCommand[List], RaftCommand):
-        def __init__(self, conventions: "DocumentConventions", *index_to_add):
+        def __init__(self, conventions: "DocumentConventions", index_to_add: Tuple[IndexDefinition]):
             super().__init__(list)
             if conventions is None:
                 raise ValueError("Conventions cannot be None")
@@ -635,3 +635,25 @@ class IndexHasChangedOperation(MaintenanceOperation[bool]):
                 raise ValueError("Response is invalid")
 
             self.result = json.loads(response)["Changed"]
+
+
+class ResetIndexOperation(VoidMaintenanceOperation):
+    def __init__(self, index_name: str):
+        if index_name is None:
+            raise ValueError("Index name cannot be None")
+
+        self._index_name = index_name
+
+    def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
+        return ResetIndexOperation.ResetIndexCommand(self._index_name)
+
+    class ResetIndexCommand(VoidRavenCommand):
+        def __init__(self, index_name: str):
+            super().__init__()
+            if index_name is None:
+                raise ValueError("Index name cannot be None")
+
+            self._index_name = index_name
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request("RESET", f"{node.url}/databases/{node.database}/indexes?name={self._index_name}")

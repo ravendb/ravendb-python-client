@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.queries.query import QueryResult
 from ravendb.documents.session.query import QueryStatistics
 from ravendb.infrastructure.entities import User

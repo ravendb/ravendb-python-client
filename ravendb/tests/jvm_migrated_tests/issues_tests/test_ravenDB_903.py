@@ -1,7 +1,7 @@
 from typing import Callable
 
 from ravendb.documents.indexes.definitions import FieldIndexing
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTask
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.session.document_session import DocumentSession
 from ravendb.documents.session.query import DocumentQuery
 from ravendb.tests.test_base import TestBase

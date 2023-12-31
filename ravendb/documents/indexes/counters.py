@@ -11,7 +11,10 @@ from ravendb.documents.indexes.definitions import (
     IndexFieldOptions,
     IndexType,
 )
-from ravendb.documents.indexes.index_creation import AbstractIndexCreationTaskBase, AbstractIndexDefinitionBuilder
+from ravendb.documents.indexes.abstract_index_creation_tasks import (
+    AbstractIndexCreationTaskBase,
+    AbstractIndexDefinitionBuilder,
+)
 from ravendb.documents.indexes.spatial.configuration import SpatialOptions, SpatialOptionsFactory
 
 

@@ -588,6 +588,14 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def transaction_mode(self, value: TransactionMode):
             self._session.transaction_mode = value
 
+        @property
+        def use_optimistic_concurrency(self) -> bool:
+            return self._session._use_optimistic_concurrency
+
+        @use_optimistic_concurrency.setter
+        def use_optimistic_concurrency(self, value: bool):
+            self._session._use_optimistic_concurrency = value
+
         def is_loaded(self, key: str) -> bool:
             return self._session.is_loaded_or_deleted(key)
 
@@ -918,6 +926,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             script_map = JavaScriptMap(self.__custom_count, path_to_object)
             self.__custom_count += 1
+
+            dictionary_adder(script_map)
 
             patch_request = PatchRequest()
             patch_request.script = script_map.script

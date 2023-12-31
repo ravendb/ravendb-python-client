@@ -2,7 +2,8 @@ import datetime
 from abc import ABC
 from typing import Optional
 
-from ravendb.documents.indexes.index_creation import AbstractMultiMapIndexCreationTask
+from ravendb import GetIndexOperation
+from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractMultiMapIndexCreationTask
 from ravendb.tests.test_base import TestBase
 
 
@@ -56,3 +57,8 @@ class TestSimpleMultiMap(TestBase):
 
             self.assertTrue(isinstance(have_names[0], Dog))
             self.assertTrue(isinstance(have_names[1], Cat))
+
+    def test_can_create_multi_map_index(self):
+        CatsAndDogs().execute(self.store)
+        index_definition = self.store.maintenance.send(GetIndexOperation("CatsAndDogs"))
+        self.assertEqual(2, len(index_definition.maps))

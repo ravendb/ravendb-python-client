@@ -75,7 +75,7 @@ class TcpConnectionInfo:
     @classmethod
     def from_json(cls, json_dict: Dict) -> TcpConnectionInfo:
         return TcpConnectionInfo(
-            json_dict.get("Port", None),
+            json_dict.get("Port", None) or 0,
             json_dict.get("Url", None),
             json_dict.get("Certificate", None),
             json_dict.get("Urls", None),
