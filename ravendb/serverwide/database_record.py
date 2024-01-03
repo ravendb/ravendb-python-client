@@ -21,7 +21,7 @@ from ravendb.documents.operations.replication.definitions import (
     PullReplicationDefinition,
     PullReplicationAsSink,
 )
-from ravendb.documents.operations.revisions.configuration import (
+from ravendb.documents.operations.revisions import (
     RevisionsConfiguration,
     RevisionsCollectionConfiguration,
 )

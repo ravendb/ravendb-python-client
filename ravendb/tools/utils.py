@@ -762,7 +762,7 @@ class Utils(object):
 
             elif ch == " " or ch == "\t":
                 if make_phrase:
-                    return '"{0}"'.format(Utils.escape(term, allow_wild_cards, False))
+                    return f'"{Utils.escape(term, allow_wild_cards, False)}"'
 
             i += 1
         if length > start:

@@ -10,6 +10,7 @@ import time
 import uuid
 from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Tuple, Generic, Set
 
+from ravendb.documents.session.document_session_revisions import DocumentSessionRevisions
 from ravendb.primitives import constants
 from ravendb.primitives.constants import int_max
 from ravendb.documents.operations.counters import CounterOperation, CounterOperationType, GetCountersOperation
@@ -112,10 +113,11 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         super().__init__(store, key, options)
 
         self._advanced: DocumentSession._Advanced = DocumentSession._Advanced(self)
-        self.__document_query_generator: DocumentSession._DocumentQueryGenerator = (
+        self._document_query_generator: DocumentSession._DocumentQueryGenerator = (
             DocumentSession._DocumentQueryGenerator(self)
         )
-        self.__cluster_transaction: Union[None, ClusterTransactionOperations] = None
+        self._cluster_transaction: Optional[ClusterTransactionOperations] = None
+        self._revisions: Optional[DocumentSessionRevisions] = None
 
     @property
     def advanced(self):
@@ -127,13 +129,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
     @property
     def cluster_transaction(self) -> IClusterTransactionOperations:
-        if self.__cluster_transaction is None:
-            self.__cluster_transaction = ClusterTransactionOperations(self)
-        return self.__cluster_transaction
+        if self._cluster_transaction is None:
+            self._cluster_transaction = ClusterTransactionOperations(self)
+        return self._cluster_transaction
 
     @property
     def has_cluster_session(self) -> bool:
-        return self.__cluster_transaction is not None
+        return self._cluster_transaction is not None
 
     @property
     def operations(self) -> OperationExecutor:
@@ -157,7 +159,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 save_changes_operation.set_result(command.result)
 
     def _has_cluster_session(self) -> bool:
-        return self.__cluster_transaction is not None
+        return self._cluster_transaction is not None
 
     def _clear_cluster_session(self) -> None:
         if not self._has_cluster_session():
@@ -567,6 +569,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if not self.__attachment:
                 self.__attachment = self._Attachment(self._session)
             return self.__attachment
+
+        @property
+        def revisions(self):
+            if self._session._revisions is None:
+                self._session._revisions = DocumentSessionRevisions(self._session)
+            return self._session._revisions
 
         @property
         def cluster_transaction(self) -> IClusterTransactionOperations:

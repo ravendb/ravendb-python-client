@@ -120,7 +120,7 @@ from ravendb.documents.operations.replication.definitions import (
     ReplicationNode,
     ExternalReplicationBase,
 )
-from ravendb.documents.operations.revisions.configuration import (
+from ravendb.documents.operations.revisions import (
     RevisionsCollectionConfiguration,
     RevisionsConfiguration,
 )

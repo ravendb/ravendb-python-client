@@ -28,7 +28,7 @@ class NextIdentityForCommand(RavenCommand, RaftCommand, Broadcast):
         copied = super().from_copy(copy)
 
         copied._raft_unique_request_id = copy._raft_unique_request_id
-        copied._id = copy._id
+        copied.id_ = copy._id
         return copied
 
     def is_read_request(self) -> bool:

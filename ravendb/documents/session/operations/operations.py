@@ -1,11 +1,28 @@
+from __future__ import annotations
+
+import json
 import logging
-from typing import Union, List, Type, TypeVar
-from ravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
+from datetime import datetime
+from typing import Union, List, Type, TypeVar, Optional, Dict, Any, TYPE_CHECKING
+
+import requests
+
+from ravendb.http.server_node import ServerNode
 from ravendb.documents.commands.multi_get import GetRequest, MultiGetCommand
+from ravendb.documents.commands.revisions import GetRevisionsCommand
 from ravendb.documents.session.document_info import DocumentInfo
-from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
-    InMemoryDocumentSessionOperations,
-)
+
+from ravendb.primitives import constants
+from ravendb.tools.utils import Utils, CaseInsensitiveDict
+from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
+from ravendb.http.raven_command import RavenCommand
+
+if TYPE_CHECKING:
+    from ravendb.json.result import JsonArrayResult
+    from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+        InMemoryDocumentSessionOperations,
+    )
+    from ravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
 
 _T = TypeVar("_T")
 
@@ -105,3 +122,227 @@ class LoadStartingWithOperation:
             return self.__session.track_entity_document_info(object_type, doc)
 
         return None
+
+
+class GetRevisionOperation:
+    def __init__(self, session: InMemoryDocumentSessionOperations = None):
+        if session is None:
+            raise ValueError("Session cannot be None")
+        self._session = session
+        self._command: Optional[GetRevisionsCommand] = None
+        self._result: Optional[JsonArrayResult] = None
+
+    @classmethod
+    def from_start_page(
+        cls,
+        session: InMemoryDocumentSessionOperations,
+        id_: str,
+        start: int,
+        page_size: int,
+        metadata_only: bool = False,
+    ) -> GetRevisionOperation:
+        self = cls(session)
+        if id_ is None:
+            raise ValueError("Id cannot be None")
+
+        self._session = session
+        self._command = GetRevisionsCommand.from_start_page(id_, start, page_size, metadata_only)
+        return self
+
+    @classmethod
+    def from_before(
+        cls, session: InMemoryDocumentSessionOperations, id_: str, before: datetime
+    ) -> GetRevisionOperation:
+        self = cls(session)
+        self._command = GetRevisionsCommand.from_before(id_, before)
+        return self
+
+    @classmethod
+    def from_change_vector(cls, session: InMemoryDocumentSessionOperations, change_vector: str) -> GetRevisionOperation:
+        self = cls(session)
+        self._command = GetRevisionsCommand.from_change_vector(change_vector)
+        return self
+
+    @classmethod
+    def from_change_vectors(
+        cls, session: InMemoryDocumentSessionOperations, change_vectors: List[str]
+    ) -> GetRevisionOperation:
+        self = cls(session)
+        self._command = GetRevisionsCommand.from_change_vectors(change_vectors)
+
+    def create_request(self) -> GetRevisionsCommand:
+        if self._command.change_vectors is not None:
+            return (
+                None
+                if self._session.check_if_all_change_vectors_are_already_included(self._command.change_vectors)
+                else self._command
+            )
+
+        if self._command.change_vector is not None:
+            return (
+                None
+                if self._session.check_if_all_change_vectors_are_already_included([self._command.change_vector])
+                else self._command
+            )
+
+        if self._command.before is not None:
+            return (
+                None
+                if self._session.check_if_revisions_by_date_time_before_already_included(
+                    self._command.id, self._command.before
+                )
+                else self._command
+            )
+
+        return self._command
+
+    def set_result(self, result: JsonArrayResult) -> None:
+        self._result = result
+
+    @property
+    def command(self) -> GetRevisionsCommand:
+        return self._command
+
+    def _get_revision(self, document: Dict[str, Any], object_type: Type[_T] = dict) -> _T:
+        if document is None:
+            return Utils.get_default_value(object_type)
+
+        metadata = None
+        id_ = None
+        if constants.Documents.Metadata.KEY in document:
+            metadata = document.get(constants.Documents.Metadata.KEY)
+            id_node = metadata.get(constants.Documents.Metadata.ID, None)
+            if id_node is not None:
+                id_ = id_node
+
+        change_vector = None
+        if metadata is not None and constants.Documents.Metadata.CHANGE_VECTOR in metadata:
+            change_vector_node = metadata.get(constants.Documents.Metadata.CHANGE_VECTOR, None)
+            if change_vector_node is not None:
+                change_vector = change_vector_node
+
+        entity = self._session.entity_to_json.convert_to_entity(
+            object_type, id_, document, not self._session.no_tracking
+        )
+        document_info = DocumentInfo()
+        document_info.key = id_
+        document_info.change_vector = change_vector
+        document_info.document = document
+        document_info.metadata = metadata
+        document_info.entity = entity
+        self._session.documents_by_entity[entity] = document_info
+
+        return entity
+
+    def get_revisions_for(self, object_type: Type[_T]) -> List[_T]:
+        results_count = len(self._result.results)
+        results = []
+        for i in range(results_count):
+            document = self._result.results[i]
+            results.append(self._get_revision(document, object_type))
+
+        return results
+
+    def get_revisions_metadata_for(self) -> List[MetadataAsDictionary]:
+        results_count = len(self._result.results)
+        results = []
+        for i in range(results_count):
+            document = self._result.results[i]
+
+            metadata = None
+            if constants.Documents.Metadata.KEY in document:
+                metadata = document.get(constants.Documents.Metadata.KEY)
+
+            results.append(MetadataAsDictionary(metadata))
+
+        return results
+
+    def get_revision(self, object_type: Type[_T]) -> _T:
+        if self._result is None:
+            revision: DocumentInfo
+
+            if self._command.change_vectors is not None:
+                for change_vector in self._command.change_vectors:
+                    revision = self._session.include_revisions_by_change_vector.get(change_vector, None)
+                    if revision is not None:
+                        return self._get_revision(revision.document, object_type)
+
+            if self._command.change_vector is not None and self._session.include_revisions_by_change_vector is not None:
+                revision = self._session.include_revisions_by_change_vector.get(self._command.change_vector, None)
+                if revision is not None:
+                    return self._get_revision(revision.document, object_type)
+
+            if self._command.before is not None and self._session.include_revisions_by_date_time_before is not None:
+                dictionary_date_time_to_document = self._session.include_revisions_by_date_time_before.get(
+                    self.command.id
+                )
+                if dictionary_date_time_to_document is not None:
+                    revision = dictionary_date_time_to_document.get(self._command.before)
+                    if revision is not None:
+                        return self._get_revision(revision.document, object_type)
+
+            return Utils.get_default_value(object_type)
+
+        document = self._result.results[0]
+        return self._get_revision(document, object_type)
+
+    def get_revisions(self, object_type: Type[_T]) -> Dict[str, _T]:
+        results = CaseInsensitiveDict()
+
+        if self._result is None:
+            for change_vector in self._command.change_vectors:
+                revision = self._session.include_revisions_by_change_vector.get(change_vector)
+                if revision is not None:
+                    results[change_vector] = self._get_revision(revision.document, object_type)
+
+            return results
+
+        for i in range(len(self._command.change_vectors)):
+            change_vector = self._command.change_vectors[i]
+            if change_vector is None:
+                continue
+
+            json_dict = self._result.results[i]
+            results[change_vector] = self._get_revision(json_dict, object_type)
+
+        return results
+
+
+class DocumentRevisionsCount:
+    def __init__(self, revisions_count: int = None):
+        self.revisions_count = revisions_count
+
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> DocumentRevisionsCount:
+        return cls(json_dict["RevisionsCount"])
+
+
+class GetRevisionsCountOperation:
+    def __init__(self, doc_id: str):
+        self._doc_id = doc_id
+
+    def create_request(self) -> RavenCommand[int]:
+        return self.GetRevisionsCountCommand(self._doc_id)
+
+    class GetRevisionsCountCommand(RavenCommand[int]):
+        def __init__(self, id_: str):
+            super().__init__(int)
+            if id_ is None:
+                raise ValueError("Id cannot be None")
+
+            self._id = id_
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "GET", f"{node.url}/databases/{node.database}/revisions/count?&id={Utils.quote_key(self._id)}"
+            )
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            if response is None:
+                self.result = 0
+                return
+
+            self.result = DocumentRevisionsCount.from_json(json.loads(response)).revisions_count
+
+        def is_read_request(self) -> bool:
+            return True
