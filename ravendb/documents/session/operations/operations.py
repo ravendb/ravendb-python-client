@@ -16,13 +16,14 @@ from ravendb.primitives import constants
 from ravendb.tools.utils import Utils, CaseInsensitiveDict
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.http.raven_command import RavenCommand
+from ravendb.documents.commands.crud import GetDocumentsCommand
 
 if TYPE_CHECKING:
     from ravendb.json.result import JsonArrayResult
     from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
         InMemoryDocumentSessionOperations,
     )
-    from ravendb.documents.commands.crud import GetDocumentsCommand, GetDocumentsResult
+    from ravendb.documents.commands.crud import GetDocumentsResult
 
 _T = TypeVar("_T")
 
