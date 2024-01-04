@@ -220,3 +220,19 @@ class TestForceRevisionCreation(TestBase):
 
             # Assert revision contains the value 'Before' the changes...
             self.assertEqual("HR", revisions[0].name)
+
+    def test_force_revision_creation_for_single_untracked_entity_by_ID(self):
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+
+            company_id = company.Id
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.advanced.revisions.force_revision_creation_for_id(company_id)
+            session.save_changes()
+
+            revisions_count = len(session.advanced.revisions.get_for(company_id, Company))
+            self.assertEqual(1, revisions_count)
