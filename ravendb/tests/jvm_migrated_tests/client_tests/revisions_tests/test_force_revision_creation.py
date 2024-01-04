@@ -320,3 +320,31 @@ class TestForceRevisionCreation(TestBase):
                 "Cannot create a revision for the requested entity because it is not tracked by the session",
                 company,
             )
+
+    def test_force_revision_creation_for_multiple_untracked_entities_by_ID(self):
+        with self.store.open_session() as session:
+            company1 = Company()
+            company1.name = "HR1"
+
+            company2 = Company()
+            company2.name = "HR2"
+
+            session.store(company1)
+            session.store(company2)
+
+            companyid1 = company1.Id
+            companyid2 = company2.Id
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.advanced.revisions.force_revision_creation_for_id(companyid1)
+            session.advanced.revisions.force_revision_creation_for_id(companyid2)
+
+            session.save_changes()
+
+            revisions_count_1 = len(session.advanced.revisions.get_for(companyid1, Company))
+            revisions_count_2 = len(session.advanced.revisions.get_for(companyid2, Company))
+
+            self.assertEqual(1, revisions_count_1)
+            self.assertEqual(1, revisions_count_2)
