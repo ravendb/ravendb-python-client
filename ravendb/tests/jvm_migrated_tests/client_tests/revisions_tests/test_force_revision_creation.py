@@ -61,3 +61,35 @@ class TestForceRevisionCreation(TestBase):
             company = session.load(company2id, Company)
             metadata = session.advanced.get_metadata_for(company)
             self.assertEqual("HasRevisions", metadata["@flags"])
+
+    def test_force_revision_creation_for_tracked_entity_with_changes_by_entity(self):
+        company_id = ""
+
+        # 1. Store document
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+            session.save_changes()
+
+            company_id = company.Id
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(0, revisions_count)
+
+        # 2. Load, Make changes & Save
+        with self.store.open_session() as session:
+            company = session.load(company_id, Company)
+            company.name = "HR V2"
+
+            session.advanced.revisions.force_revision_creation_for(company)
+            session.save_changes()
+
+            revisions = session.advanced.revisions.get_for(company.Id, Company)
+            revisions_count = len(revisions)
+
+            self.assertEqual(1, revisions_count)
+
+            # Assert revision contains the value 'Before' the changes...
+            # ('Before' is the default force revision creation strategy)
+            self.assertEqual("HR", revisions[0].name)
