@@ -308,3 +308,15 @@ class TestForceRevisionCreation(TestBase):
 
             revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
             self.assertEqual(1, revisions_count)
+
+    def test_cannot_force_revision_creation_for_untracked_entity_by_entity(self):
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+
+            self.assertRaisesWithMessage(
+                session.advanced.revisions.force_revision_creation_for,
+                RuntimeError,
+                "Cannot create a revision for the requested entity because it is not tracked by the session",
+                company,
+            )
