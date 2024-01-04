@@ -1,3 +1,4 @@
+from ravendb.documents.session.misc import ForceRevisionStrategy
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
 
@@ -7,9 +8,6 @@ class TestForceRevisionCreation(TestBase):
         super().setUp()
 
     def test_has_revisions_flag_is_created_when_forcing_revision_for_document_that_has_no_revisions_yet(self):
-        company1id = ""
-        company2id = ""
-
         with self.store.open_session() as session:
             company1 = Company()
             company1.name = "HR1"
@@ -63,8 +61,6 @@ class TestForceRevisionCreation(TestBase):
             self.assertEqual("HasRevisions", metadata["@flags"])
 
     def test_force_revision_creation_for_tracked_entity_with_changes_by_entity(self):
-        company_id = ""
-
         # 1. Store document
         with self.store.open_session() as session:
             company = Company()
@@ -95,8 +91,6 @@ class TestForceRevisionCreation(TestBase):
             self.assertEqual("HR", revisions[0].name)
 
     def test_force_revision_creation_across_multiple_sessions(self):
-        company_id = ""
-
         with self.store.open_session() as session:
             company = Company()
             company.name = "HR"
@@ -160,3 +154,40 @@ class TestForceRevisionCreation(TestBase):
 
             self.assertEqual(3, revisions_count)
             self.assertEqual("HR V3", revisions[0].name)
+
+    def test_force_revision_creation_multiple_requests(self):
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+            session.save_changes()
+
+            company_id = company.Id
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(0, revisions_count)
+
+        with self.store.open_session() as session:
+            session.advanced.revisions.force_revision_creation_for_id(company_id)
+
+            company = session.load(company_id, Company)
+            company.name = "HR V2"
+
+            session.advanced.revisions.force_revision_creation_for(company)
+            # The above request should not throw - we ignore duplicate requests with SAME strategy
+
+            self.assertRaisesWithMessageContaining(
+                session.advanced.revisions.force_revision_creation_for_id,
+                RuntimeError,
+                "A request for creating a revision was already made for document",
+                company.Id,
+                ForceRevisionStrategy.NONE,
+            )
+
+            session.save_changes()
+
+            revisions = session.advanced.revisions.get_for(company.Id, Company)
+            revisions_count = len(revisions)
+
+            self.assertEqual(1, revisions_count)
+            self.assertEqual("HR", revisions[0].name)

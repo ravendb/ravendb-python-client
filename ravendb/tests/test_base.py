@@ -441,6 +441,15 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         self.assertIsNotNone(e)
         self.assertEqual(msg, e.args[0])
 
+    def assertRaisesWithMessageContaining(self, func, exception, msg, *args, **kwargs):
+        e = None
+        try:
+            func(*args, **kwargs)
+        except exception as ex:
+            e = ex
+        self.assertIsNotNone(e)
+        self.assertIn(msg, e.args[0])
+
     def assertSequenceContainsElements(self, sequence, *args):
         for arg in args:
             self.assertIn(arg, sequence)
