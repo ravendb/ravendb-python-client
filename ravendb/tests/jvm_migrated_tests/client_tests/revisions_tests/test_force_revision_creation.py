@@ -1,3 +1,5 @@
+from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration
+from ravendb.documents.operations.revisions import ConfigureRevisionsOperation
 from ravendb.documents.session.misc import ForceRevisionStrategy
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
@@ -236,3 +238,56 @@ class TestForceRevisionCreation(TestBase):
 
             revisions_count = len(session.advanced.revisions.get_for(company_id, Company))
             self.assertEqual(1, revisions_count)
+
+    def test_force_revision_creation_when_revision_configuration_is_set(self):
+        # Define revisions settings
+        configuration = RevisionsConfiguration()
+
+        companies_configuration = RevisionsCollectionConfiguration()
+        companies_configuration.purge_on_delete = True
+        companies_configuration.minimum_revisions_to_keep = 5
+
+        configuration.collections = {"Companies": companies_configuration}
+
+        result = self.store.maintenance.send(ConfigureRevisionsOperation(configuration))
+
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+            company_id = company.Id
+            session.save_changes()
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(1, revisions_count)  # one revision because configuration is set
+
+            session.advanced.revisions.force_revision_creation_for(company)
+            session.save_changes()
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(
+                1, revisions_count
+            )  # no new revision created - already exists due to configuration settings
+
+            session.advanced.revisions.force_revision_creation_for(company)
+            session.save_changes()
+
+            company.name = "HR V2"
+            session.save_changes()
+
+            revisions = session.advanced.revisions.get_for(company_id, Company)
+            revisions_count = len(revisions)
+
+            self.assertEqual(2, revisions_count)
+            self.assertEqual("HR V2", revisions[0].name)
+
+        with self.store.open_session() as session:
+            session.advanced.revisions.force_revision_creation_for_id(company_id)
+            session.save_changes()
+
+            revisions = session.advanced.revisions.get_for(company_id, Company)
+            revisions_count = len(revisions)
+
+            self.assertEqual(2, revisions_count)
+
+            self.assertEqual("HR V2", revisions[0].name)

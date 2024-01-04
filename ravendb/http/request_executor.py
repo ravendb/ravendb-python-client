@@ -64,7 +64,7 @@ class RequestExecutor:
         self.conventions = copy(conventions)
         self._node_selector: NodeSelector = None
         self.__default_timeout: datetime.timedelta = conventions.request_timeout
-        self.__cache: HttpCache = HttpCache()
+        self._cache: HttpCache = HttpCache()
 
         self.__certificate_path = certificate_path
         self.__trust_store_path = trust_store_path
@@ -75,9 +75,9 @@ class RequestExecutor:
 
         self.__failed_nodes_timers: Dict[ServerNode, NodeStatus] = {}
 
-        self.__database_name = database_name
+        self._database_name = database_name
 
-        self.__last_returned_response: Union[None, datetime.datetime] = None
+        self._last_returned_response: Union[None, datetime.datetime] = None
 
         self._thread_pool_executor = (
             ThreadPoolExecutor(max_workers=10) if not thread_pool_executor else thread_pool_executor
@@ -107,7 +107,7 @@ class RequestExecutor:
         self.__synchronized_lock = Lock()
 
         # --- events ---
-        self.__on_before_request: List[Callable[[BeforeRequestEventArgs], Any]] = []
+        self._on_before_request: List[Callable[[BeforeRequestEventArgs], Any]] = []
         self.__on_failed_request: List[Callable[[FailedRequestEventArgs], None]] = []
         self.__on_succeed_request: List[Callable[[SucceedRequestEventArgs], None]] = []
         self._on_topology_updated: List[Callable[[Topology], None]] = []
@@ -123,7 +123,7 @@ class RequestExecutor:
             return
 
         self._disposed = True
-        self.__cache.close()
+        self._cache.close()
 
         if self.__update_topology_timer:
             self.__update_topology_timer.cancel()
@@ -177,7 +177,7 @@ class RequestExecutor:
 
     @property
     def cache(self) -> HttpCache:
-        return self.__cache
+        return self._cache
 
     @property
     def topology_nodes(self) -> List[ServerNode]:
@@ -215,15 +215,15 @@ class RequestExecutor:
 
     def __on_failed_request_invoke(self, url: str, e: Exception):
         for event in self.__on_failed_request:
-            event(FailedRequestEventArgs(self.__database_name, url, e, None, None))
+            event(FailedRequestEventArgs(self._database_name, url, e, None, None))
 
     def __on_failed_request_invoke_details(
         self, url: str, e: Exception, request: Optional[requests.Request], response: Optional[requests.Response]
     ) -> None:
         for event in self.__on_failed_request:
-            event(FailedRequestEventArgs(self.__database_name, url, e, request, response))
+            event(FailedRequestEventArgs(self._database_name, url, e, request, response))
 
-    def __on_succeed_request_invoke(
+    def _on_succeed_request_invoke(
         self, database: str, url: str, response: requests.Response, request: requests.Request, attempt_number: int
     ):
         for event in self.__on_succeed_request:
@@ -246,10 +246,10 @@ class RequestExecutor:
         self.__on_failed_request.remove(event)
 
     def add_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
-        self.__on_before_request.append(event)
+        self._on_before_request.append(event)
 
     def remove_on_before_request(self, event: Callable[[BeforeRequestEventArgs], None]):
-        self.__on_before_request.remove(event)
+        self._on_before_request.remove(event)
 
     def add_on_topology_updated(self, event: Callable[[Topology], None]):
         self._on_topology_updated.append(event)
@@ -404,7 +404,7 @@ class RequestExecutor:
         def __run(errors: list):
             for url in initial_urls:
                 try:
-                    server_node = ServerNode(url, self.__database_name)
+                    server_node = ServerNode(url, self._database_name)
                     update_parameters = UpdateTopologyParameters(server_node)
                     update_parameters.timeout_in_ms = 0x7FFFFFFF
                     update_parameters.debug_tag = "first-topology-update"
@@ -430,7 +430,7 @@ class RequestExecutor:
                 self._topology_etag,
                 self.topology_nodes
                 if self.topology_nodes
-                else list(map(lambda url_val: ServerNode(url_val, self.__database_name, "!"), initial_urls)),
+                else list(map(lambda url_val: ServerNode(url_val, self._database_name, "!"), initial_urls)),
             )
 
             self._node_selector = NodeSelector(topology, self._thread_pool_executor)
@@ -508,38 +508,38 @@ class RequestExecutor:
 
         no_caching = session_info.no_caching if session_info else False
 
-        cached_item, change_vector, cached_value = self.__get_from_cache(command, not no_caching, url)
+        cached_item, change_vector, cached_value = self._get_from_cache(command, not no_caching, url)
         # todo: if change_vector exists try get from cache - aggressive caching
         with cached_item:
             # todo: try get from cache
-            self.__set_request_headers(session_info, change_vector, request)
+            self._set_request_headers(session_info, change_vector, request)
 
             command.number_of_attempts = command.number_of_attempts + 1
             attempt_num = command.number_of_attempts
-            for func in self.__on_before_request:
-                func(BeforeRequestEventArgs(self.__database_name, url, request, attempt_num))
-            response = self.__send_request_to_server(
+            for func in self._on_before_request:
+                func(BeforeRequestEventArgs(self._database_name, url, request, attempt_num))
+            response = self._send_request_to_server(
                 chosen_node, node_index, command, should_retry, session_info, request, url
             )
 
             if response is None:
                 return
 
-            refresh_tasks = self.__refresh_if_needed(chosen_node, response)
+            refresh_tasks = self._refresh_if_needed(chosen_node, response)
 
             command.status_code = response.status_code
             response_dispose = ResponseDisposeHandling.AUTOMATIC
 
             try:
                 if response.status_code == HTTPStatus.NOT_MODIFIED:
-                    self.__on_succeed_request_invoke(self.__database_name, url, response, request, attempt_num)
+                    self._on_succeed_request_invoke(self._database_name, url, response, request, attempt_num)
                     cached_item.not_modified()
                     if command.response_type == RavenCommandResponseType.OBJECT:
                         command.set_response(cached_value, True)
                     return
 
                 if response.status_code >= 400:
-                    if not self.__handle_unsuccessful_response(
+                    if not self._handle_unsuccessful_response(
                         chosen_node,
                         node_index,
                         command,
@@ -552,11 +552,11 @@ class RequestExecutor:
                         db_missing_header = response.headers.get("Database-Missing", None)
                         if db_missing_header is not None:
                             raise DatabaseDoesNotExistException(db_missing_header)
-                        self.__throw_failed_to_contact_all_nodes(command, request)
+                        self._throw_failed_to_contact_all_nodes(command, request)
                     return  # we either handled this already in the unsuccessful response or we are throwing
-                self.__on_succeed_request_invoke(self.__database_name, url, response, request, attempt_num)
-                response_dispose = command.process_response(self.__cache, response, url)
-                self.__last_returned_response = datetime.datetime.utcnow()
+                self._on_succeed_request_invoke(self._database_name, url, response, request, attempt_num)
+                response_dispose = command.process_response(self._cache, response, url)
+                self._last_returned_response = datetime.datetime.utcnow()
             finally:
                 if response_dispose == ResponseDisposeHandling.AUTOMATIC:
                     response.close()
@@ -566,7 +566,7 @@ class RequestExecutor:
                     except:
                         raise
 
-    def __refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> List[Future]:
+    def _refresh_if_needed(self, chosen_node: ServerNode, response: requests.Response) -> List[Future]:
         refresh_topology = response.headers.get(constants.Headers.REFRESH_TOPOLOGY, False)
         refresh_client_configuration = response.headers.get(constants.Headers.REFRESH_CLIENT_CONFIGURATION, False)
 
@@ -587,7 +587,7 @@ class RequestExecutor:
 
         return [refresh_task, refresh_client_configuration_task]
 
-    def __send_request_to_server(
+    def _send_request_to_server(
         self,
         chosen_node: ServerNode,
         node_index: int,
@@ -617,7 +617,7 @@ class RequestExecutor:
                     if not self.__handle_server_down(
                         url, chosen_node, node_index, command, request, None, t, session_info, should_retry
                     ):
-                        self.__throw_failed_to_contact_all_nodes(command, request)
+                        self._throw_failed_to_contact_all_nodes(command, request)
 
                     return None
         except IOError as e:
@@ -627,7 +627,7 @@ class RequestExecutor:
             if not self.__handle_server_down(
                 url, chosen_node, node_index, command, request, None, e, session_info, should_retry
             ):
-                self.__throw_failed_to_contact_all_nodes(command, request)
+                self._throw_failed_to_contact_all_nodes(command, request)
 
             return None
 
@@ -722,7 +722,7 @@ class RequestExecutor:
 
     def __update_topology_callback(self) -> None:
         time = datetime.datetime.now()
-        if (time - self.__last_returned_response.time) <= datetime.timedelta(minutes=5):
+        if (time - self._last_returned_response.time) <= datetime.timedelta(minutes=5):
             return
 
         try:
@@ -744,7 +744,7 @@ class RequestExecutor:
         except Exception as e:
             self.logger.info("Couldn't update topology from __update_topology_timer", exc_info=e)
 
-    def __set_request_headers(
+    def _set_request_headers(
         self, session_info: SessionInfo, cached_change_vector: Union[None, str], request: requests.Request
     ) -> None:
         if cached_change_vector is not None:
@@ -764,7 +764,7 @@ class RequestExecutor:
         if not request.headers.get(constants.Headers.CLIENT_VERSION):
             request.headers[constants.Headers.CLIENT_VERSION] = RequestExecutor.CLIENT_VERSION
 
-    def __get_from_cache(
+    def _get_from_cache(
         self, command: RavenCommand, use_cache: bool, url: str
     ) -> Tuple[HttpCache.ReleaseCacheItem, Optional[str], Optional[str]]:
         if (
@@ -773,7 +773,7 @@ class RequestExecutor:
             and command.is_read_request
             and command.response_type == RavenCommandResponseType.OBJECT
         ):
-            return self.__cache.get(url)
+            return self._cache.get(url)
 
         return HttpCache.ReleaseCacheItem(), None, None
 
@@ -784,7 +784,7 @@ class RequestExecutor:
         if server_version_header is not None:
             return server_version_header
 
-    def __throw_failed_to_contact_all_nodes(self, command: RavenCommand, request: requests.Request):
+    def _throw_failed_to_contact_all_nodes(self, command: RavenCommand, request: requests.Request):
         if not command.failed_nodes:
             raise RuntimeError(
                 "Received unsuccessful response and couldn't recover from it. "
@@ -856,7 +856,7 @@ class RequestExecutor:
             ) -> (RequestExecutor.IndexAndResponse, int):
                 try:
                     request, str_ref = self.__create_request(nodes[task_number], command)
-                    self.__set_request_headers(None, None, request)
+                    self._set_request_headers(None, None, request)
                     return self.IndexAndResponse(task_number, command.send(self.http_session, request))
                 except Exception as e:
                     single_element_list_number_failed_tasks[0] += 1
@@ -979,7 +979,7 @@ class RequestExecutor:
 
         raise AllTopologyNodesDownException(f"Broadcasting {command.__class__.__name__} failed: {exceptions}")
 
-    def __handle_unsuccessful_response(
+    def _handle_unsuccessful_response(
         self,
         chosen_node: ServerNode,
         node_index: int,
@@ -991,7 +991,7 @@ class RequestExecutor:
         should_retry: bool,
     ) -> bool:
         if response.status_code == HTTPStatus.NOT_FOUND:
-            self.__cache.set_not_found(url, False)  # todo : check if aggressively cached, don't just pass False
+            self._cache.set_not_found(url, False)  # todo : check if aggressively cached, don't just pass False
             if command.response_type == RavenCommandResponseType.EMPTY:
                 return True
             elif command.response_type == RavenCommandResponseType.OBJECT:

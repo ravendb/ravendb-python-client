@@ -68,7 +68,7 @@ class RevisionsConfiguration:
 
     def to_json(self) -> Dict[str, Any]:
         return {
-            "Default": self.default_config.to_json(),
+            "Default": self.default_config.to_json() if self.default_config else None,
             "Collections": {key: value.to_json() for key, value in self.collections.items()}
             if self.collections
             else None,
