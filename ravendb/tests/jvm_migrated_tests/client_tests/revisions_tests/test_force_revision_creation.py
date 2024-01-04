@@ -291,3 +291,20 @@ class TestForceRevisionCreation(TestBase):
             self.assertEqual(2, revisions_count)
 
             self.assertEqual("HR V2", revisions[0].name)
+
+    def test_force_revision_creation_for_new_document_by_entity(self):
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+            session.save_changes()
+
+            session.advanced.revisions.force_revision_creation_for(company)
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(0, revisions_count)
+
+            session.save_changes()
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(1, revisions_count)
