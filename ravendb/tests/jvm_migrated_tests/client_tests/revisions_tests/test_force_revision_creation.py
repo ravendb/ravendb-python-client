@@ -1,6 +1,7 @@
 from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration
 from ravendb.documents.operations.revisions import ConfigureRevisionsOperation
 from ravendb.documents.session.misc import ForceRevisionStrategy
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
 
@@ -212,7 +213,7 @@ class TestForceRevisionCreation(TestBase):
             company = session.load(company_id, Company)
             company.name = "HR V2"
 
-            session.advanced.revisions.force_revision_creation_for(company.Id)
+            session.advanced.revisions.force_revision_creation_for_id(company.Id)
             session.save_changes()
 
             revisions = session.advanced.revisions.get_for(company.Id, Company)
@@ -373,3 +374,20 @@ class TestForceRevisionCreation(TestBase):
 
             revisions_count = len(session.advanced.revisions.get_for(company_id, Company))
             self.assertEqual(1, revisions_count)
+
+    def test_cannot_force_revision_creation_for_new_document_before_saving_to_server_by_entity(self):
+        with self.store.open_session() as session:
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+
+            session.advanced.revisions.force_revision_creation_for(company)
+
+            self.assertRaisesWithMessageContaining(
+                session.save_changes,
+                RuntimeError,
+                "Can't force revision creation - the document was not saved on the server yet",
+            )
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(0, revisions_count)

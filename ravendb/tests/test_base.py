@@ -436,7 +436,9 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         e = None
         try:
             func(*args, **kwargs)
-        except exception as ex:
+        except Exception as ex:
+            if not isinstance(ex, exception):
+                raise AssertionError(f"Expected exception '{exception}' but got '{type(ex)}'.")
             e = ex
         self.assertIsNotNone(e)
         self.assertEqual(msg, e.args[0])
@@ -445,7 +447,9 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         e = None
         try:
             func(*args, **kwargs)
-        except exception as ex:
+        except Exception as ex:
+            if not isinstance(ex, exception):
+                raise AssertionError(f"Expected exception '{exception}' but got '{type(ex)}'.")
             e = ex
         self.assertIsNotNone(e)
         self.assertIn(msg, e.args[0])
