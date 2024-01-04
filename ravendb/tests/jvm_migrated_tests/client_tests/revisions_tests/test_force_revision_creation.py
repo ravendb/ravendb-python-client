@@ -348,3 +348,28 @@ class TestForceRevisionCreation(TestBase):
 
             self.assertEqual(1, revisions_count_1)
             self.assertEqual(1, revisions_count_2)
+
+    def test_force_revision_creation_for_tracked_entity_with_no_changes_by_entity(self):
+        company_id = ""
+
+        with self.store.open_session() as session:
+            # 1. store document
+            company = Company()
+            company.name = "HR"
+            session.store(company)
+            session.save_changes()
+
+            company_id = company.Id
+
+            revisions_count = len(session.advanced.revisions.get_for(company.Id, Company))
+            self.assertEqual(0, revisions_count)
+
+        with self.store.open_session() as session:
+            # 2. Load & Save without making changes to the document
+            company = session.load(company_id, Company)
+
+            session.advanced.revisions.force_revision_creation_for(company)
+            session.save_changes()
+
+            revisions_count = len(session.advanced.revisions.get_for(company_id, Company))
+            self.assertEqual(1, revisions_count)
