@@ -239,20 +239,20 @@ class BatchOperation:
             # no forced revision was created...nothing to update
             return
 
-        key = self.__get_string_field(
-            batch_result, CommandType.FORCE_REVISION_CREATION, constants.Documents.Metadata.KEY
+        id_ = self.__get_string_field(
+            batch_result, CommandType.FORCE_REVISION_CREATION, constants.Documents.Metadata.ID
         )
         change_vector = self.__get_string_field(
             batch_result, CommandType.FORCE_REVISION_CREATION, constants.Documents.Metadata.CHANGE_VECTOR
         )
 
-        document_info = self.__session._documents_by_id.get(key)
+        document_info = self.__session._documents_by_id.get(id_)
         if not document_info:
             return
 
         document_info.change_vector = change_vector
 
-        self.__handle_metadata_modifications(document_info, batch_result, key, change_vector)
+        self.__handle_metadata_modifications(document_info, batch_result, id_, change_vector)
         self.__session.__on_after_save_changes(self.__session, document_info.key, document_info.entity)
 
     def __handle_put(self, index: int, batch_result: dict, is_deferred: bool) -> None:
