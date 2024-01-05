@@ -2,7 +2,8 @@ from time import sleep
 
 from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration
 from ravendb.documents.commands.revisions import GetRevisionsBinEntryCommand
-from ravendb.documents.operations.revisions import ConfigureRevisionsOperation
+from ravendb.documents.operations.revisions import ConfigureRevisionsOperation, GetRevisionsOperation
+from ravendb.documents.session.operations.operations import GetRevisionOperation
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
 from ravendb.primitives import constants
@@ -190,3 +191,24 @@ class TestRevisions(TestBase):
         configuration.collections = {"users": c1, "USERS": c2}
         with self.assertRaises(RuntimeError):
             self.store.maintenance.send(ConfigureRevisionsOperation(configuration))
+
+    def test_can_get_all_revisions_for_document_using_store_operation(self):
+        company = Company(name="Company Name")
+        self.setup_revisions(self.store, False, 123)
+
+        with self.store.open_session() as session:
+            session.store(company)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company3 = session.load(company.Id, Company)
+            company3.name = "Hibernating Rhinos"
+            session.save_changes()
+
+        revisions_result = self.store.operations.send(GetRevisionsOperation(company.Id, Company))
+        self.assertEqual(2, revisions_result.total_results)
+
+        companies_revisions = revisions_result.results
+        self.assertEqual(2, len(companies_revisions))
+        self.assertEqual("Hibernating Rhinos", companies_revisions[0].name)
+        self.assertEqual("Company Name", companies_revisions[1].name)

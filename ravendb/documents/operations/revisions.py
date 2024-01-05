@@ -12,11 +12,13 @@ from ravendb.documents.operations.definitions import IOperation, MaintenanceOper
 from ravendb.http.raven_command import RavenCommand
 from ravendb.util.util import RaftIdGenerator
 from ravendb.http.topology import RaftCommand
+from ravendb.documents.session.entity_to_json import EntityToJson
+from ravendb.documents.conventions import DocumentConventions
+
 
 if TYPE_CHECKING:
     from ravendb.http.http_cache import HttpCache
-    from ravendb import DocumentStore, ServerNode, EntityToJson
-    from ravendb.documents.conventions import DocumentConventions
+    from ravendb import DocumentStore, ServerNode
 
 
 _T = TypeVar("_T")
