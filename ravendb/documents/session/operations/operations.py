@@ -170,6 +170,7 @@ class GetRevisionOperation:
     ) -> GetRevisionOperation:
         self = cls(session)
         self._command = GetRevisionsCommand.from_change_vectors(change_vectors)
+        return self
 
     def create_request(self) -> GetRevisionsCommand:
         if self._command.change_vectors is not None:
