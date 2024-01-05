@@ -123,7 +123,7 @@ class GetRevisionsOperation(Generic[_T], IOperation[RevisionsResult[_T]]):
         self._parameters = parameters
 
     @classmethod
-    def from_parameters(cls, parameters: Parameters, object_type: Type[_T] = None):
+    def from_parameters(cls, parameters: Parameters, object_type: Type[_T] = None) -> GetRevisionsOperation[_T]:
         if parameters is None:
             raise ValueError("Parameters cannot be None")
 
@@ -132,6 +132,7 @@ class GetRevisionsOperation(Generic[_T], IOperation[RevisionsResult[_T]]):
         operation = cls()
         operation._object_type = object_type
         operation._parameters = parameters
+        return operation
 
     def get_command(self, store: DocumentStore, conventions: DocumentConventions, cache: HttpCache) -> RavenCommand[_T]:
         return self.GetRevisionsResultCommand(
