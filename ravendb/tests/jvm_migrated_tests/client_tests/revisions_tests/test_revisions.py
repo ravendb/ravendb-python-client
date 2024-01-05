@@ -80,3 +80,26 @@ class TestRevisions(TestBase):
             revisions = session.advanced.revisions.get_by_change_vectors(change_vectors, User)
             self.assertIsNone(revisions.get("NotExistsChangeVector"))
             self.assertIsNone(session.advanced.revisions.get_by_change_vector("NotExistsChangeVector", User))
+
+    def test_can_get_revisions_count_for(self):
+        company = Company()
+        company.name = "Company Name"
+
+        self.setup_revisions(self.store, False, 100)
+        with self.store.open_session() as session:
+            session.store(company)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company2 = session.load(company.Id, Company)
+            company2.fax = "Israel"
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company3 = session.load(company.Id, Company)
+            company3.name = "Hibernating Rhinos"
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            companies_revisions_count = session.advanced.revisions.get_count_for(company.Id)
+            self.assertEqual(3, companies_revisions_count)
