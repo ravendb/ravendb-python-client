@@ -71,11 +71,11 @@ class LazyStartsWithOperation(LazyOperation):
 
         self.result = None
         self.query_result: Union[None, QueryResult] = None
-        self.requires_retry: Union[None, bool] = None
+        self._requires_retry: Union[None, bool] = None
 
     @property
     def requires_retry(self) -> bool:
-        return self.requires_retry
+        return self._requires_retry
 
     def create_request(self) -> GetRequest:
         request = GetRequest()
