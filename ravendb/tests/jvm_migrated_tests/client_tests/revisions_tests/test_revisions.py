@@ -392,3 +392,36 @@ class TestRevisions(TestBase):
 
             self.assertEqual(1, session.advanced.number_of_requests)
             self.assertIsNone(user)
+
+    def test_can_get_revisions_by_change_vectors_lazily(self):
+        id_ = "users/1"
+
+        self.setup_revisions(self.store, False, 123)
+
+        with self.store.open_session() as session:
+            user = User()
+            user.name = "Omer"
+            session.store(user, id_)
+            session.save_changes()
+
+        for i in range(10):
+            with self.store.open_session() as session:
+                user = session.load(id_, Company)
+                user.name = f"Omer{i}"
+                session.save_changes()
+
+        with self.store.open_session() as session:
+            revisions_metadata = session.advanced.revisions.get_metadata_for(id_)
+            self.assertEqual(11, len(revisions_metadata))
+
+            change_vectors = [x[constants.Documents.Metadata.CHANGE_VECTOR] for x in revisions_metadata]
+            change_vectors2 = [x[constants.Documents.Metadata.CHANGE_VECTOR] for x in revisions_metadata]
+
+            revisions_lazy = session.advanced.revisions.lazily.get_by_change_vectors(change_vectors, User)
+            revisions_lazy2 = session.advanced.revisions.lazily.get_by_change_vectors(change_vectors2, User)
+
+            lazy_result = revisions_lazy.value
+            revisions = session.advanced.revisions.get_by_change_vectors(change_vectors, User)
+
+            self.assertEqual(3, session.advanced.number_of_requests)
+            self.assertEqual(revisions.keys(), lazy_result.keys())
