@@ -1,6 +1,8 @@
 from time import sleep
 
+from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration
 from ravendb.documents.commands.revisions import GetRevisionsBinEntryCommand
+from ravendb.documents.operations.revisions import ConfigureRevisionsOperation
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
 from ravendb.primitives import constants
@@ -125,3 +127,29 @@ class TestRevisions(TestBase):
         self.assertEqual(1, len(result.results))
 
         self.assertEqual("users/1", result.results[0].get("@metadata").get("@id"))
+
+    def test_collection_case_sensitive_test_1(self):
+        id_ = "user/1"
+        configuration = RevisionsConfiguration()
+
+        collection_configuration = RevisionsCollectionConfiguration()
+        collection_configuration.disabled = False
+
+        configuration.collections = {"uSErs": collection_configuration}
+
+        self.store.maintenance.send(ConfigureRevisionsOperation(configuration))
+
+        with self.store.open_session() as session:
+            user = User(name="raven")
+            session.store(user, id_)
+            session.save_changes()
+
+        for i in range(10):
+            with self.store.open_session() as session:
+                user = session.load(id_, Company)
+                user.name = "raven" + str(i)
+                session.save_changes()
+
+        with self.store.open_session() as session:
+            revisions_metadata = session.advanced.revisions.get_metadata_for(id_)
+            self.assertEqual(11, len(revisions_metadata))

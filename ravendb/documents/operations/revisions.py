@@ -28,7 +28,7 @@ class RevisionsCollectionConfiguration:
         minimum_revisions_to_keep: int = None,
         minimum_revisions_age_to_keep: timedelta = None,
         disabled: bool = False,
-        purge_on_delete: bool = None,
+        purge_on_delete: bool = False,
         maximum_revisions_to_delete_upon_document_creation: int = None,
     ):
         self.minimum_revisions_to_keep = minimum_revisions_to_keep
