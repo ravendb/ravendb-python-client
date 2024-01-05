@@ -384,3 +384,11 @@ class TestRevisions(TestBase):
             self.assertEqual(revisions_lazily_result.Id, revision.Id)
             self.assertEqual(revisions_lazily_result.name, revision.name)
             self.assertEqual(2, session.advanced.number_of_requests)
+
+    def test_can_get_non_existing_revisions_by_change_vector_async_lazily(self):
+        with self.store.open_session() as session:
+            lazy = session.advanced.revisions.lazily.get_by_change_vector("dummy", User)
+            user = lazy.value
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+            self.assertIsNone(user)

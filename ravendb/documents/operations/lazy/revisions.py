@@ -97,8 +97,10 @@ class LazyRevisionOperation(LazyOperation):
     def handle_response(self, response: GetResponse) -> None:
         if response.result is None:
             return
-
         response_as_dict = json.loads(response.result)
+
+        if response_as_dict is None:
+            return
         json_array = response_as_dict.get("Results")
 
         json_array_result = JsonArrayResult()
