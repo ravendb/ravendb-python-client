@@ -62,6 +62,7 @@ class GetRevisionsCommand(RavenCommand[JsonArrayResult]):
     def from_before(cls, id_: str, before: datetime) -> GetRevisionsCommand:
         if id_ is None:
             raise ValueError("Id cannot be None")
+        return GetRevisionsCommand(id_=id_, before=before)
 
     @classmethod
     def from_start_page(
