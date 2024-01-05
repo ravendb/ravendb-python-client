@@ -212,3 +212,29 @@ class TestRevisions(TestBase):
         self.assertEqual(2, len(companies_revisions))
         self.assertEqual("Hibernating Rhinos", companies_revisions[0].name)
         self.assertEqual("Company Name", companies_revisions[1].name)
+
+    def test_can_get_revisions_with_paging2_using_store_operation(self):
+        self.setup_revisions(self.store, False, 100)
+        id_ = "companies/1"
+
+        with self.store.open_session() as session:
+            session.store(Company(), id_)
+            session.save_changes()
+
+        for i in range(99):
+            with self.store.open_session() as session:
+                company = session.load(id_, Company)
+                company.name = "HR" + str(i)
+                session.save_changes()
+
+        revisions_result = self.store.operations.send(GetRevisionsOperation(id_, Company, 50, 10))
+
+        self.assertEqual(100, revisions_result.total_results)
+
+        companies_revisions = revisions_result.results
+        self.assertEqual(10, len(companies_revisions))
+
+        count = 0
+        for i in range(48, 38, -1):
+            self.assertEqual("HR" + str(i), companies_revisions[count].name)
+            count += 1
