@@ -312,3 +312,41 @@ class TestRevisions(TestBase):
 
             self.assertEqual(ids, ids_lazily)
             self.assertEqual(2, session.advanced.number_of_requests)
+
+    def test_can_get_for_lazily(self):
+        id_ = "users/1"
+        id_2 = "users/2"
+
+        self.setup_revisions(self.store, False, 100)
+
+        with self.store.open_session() as session:
+            user1 = User()
+            user1.name = "Omer"
+            session.store(user1, id_)
+
+            user2 = User()
+            user2.name = "Rhinos"
+            session.store(user2, id_2)
+
+            session.save_changes()
+
+        for i in range(10):
+            with self.store.open_session() as session:
+                user = session.load(id_, Company)
+                user.name = f"Omer{i}"
+                session.save_changes()
+
+        with self.store.open_session() as session:
+            revision = session.advanced.revisions.get_for("users/1", User)
+            revisions_lazily = session.advanced.revisions.lazily.get_for("users/1", User)
+            session.advanced.revisions.lazily.get_for("users/2", User)
+
+            revisions_lazily_result = revisions_lazily.value
+
+            names = [x.name for x in revision]
+            names_lazily = [x.name for x in revisions_lazily_result]
+            self.assertEqual(names, names_lazily)
+
+            ids = [x.Id for x in revision]
+            ids_lazily = [x.Id for x in revisions_lazily_result]
+            self.assertEqual(ids, ids_lazily)
