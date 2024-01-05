@@ -22,7 +22,7 @@ class LazyRevisionOperations:
     def __init__(self, delegate: "DocumentSession"):
         self._delegate = delegate
 
-    def get_by_change_vector(self, change_vector: str, object_type: Type[_T]) -> "Lazy[List[_T]]":
+    def get_by_change_vector(self, change_vector: str, object_type: Type[_T]) -> "Lazy[_T]":
         operation = GetRevisionOperation.from_change_vector(self._delegate, change_vector)
         lazy_revision_operation = LazyRevisionOperation(operation, LazyRevisionOperation.Mode.SINGLE, object_type)
         return self._delegate.add_lazy_operation(object_type, lazy_revision_operation, None)

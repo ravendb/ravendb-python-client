@@ -1,14 +1,12 @@
 from datetime import datetime
 from time import sleep
 
-from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration
+from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration, GetStatisticsOperation
 from ravendb.documents.commands.revisions import GetRevisionsBinEntryCommand
 from ravendb.documents.operations.revisions import ConfigureRevisionsOperation, GetRevisionsOperation
-from ravendb.documents.session.operations.operations import GetRevisionOperation
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
 from ravendb.primitives import constants
-from ravendb.primitives.constants import int_max
 from ravendb.tests.test_base import TestBase
 
 
@@ -425,3 +423,52 @@ class TestRevisions(TestBase):
 
             self.assertEqual(3, session.advanced.number_of_requests)
             self.assertEqual(revisions.keys(), lazy_result.keys())
+
+    def test_can_get_revisions_by_change_vector_lazily(self):
+        id_ = "users/1"
+        id_2 = "users/2"
+
+        self.setup_revisions(self.store, False, 123)
+
+        with self.store.open_session() as session:
+            user1 = User()
+            user1.name = "Omer"
+            session.store(user1, id_)
+
+            user2 = User()
+            user2.name = "Rhinos"
+            session.store(user2, id_2)
+
+            session.save_changes()
+
+        for i in range(10):
+            with self.store.open_session() as session:
+                user = session.load(id_, Company)
+                user.name = f"Omer{i}"
+                session.save_changes()
+
+        stats = self.store.maintenance.send(GetStatisticsOperation())
+        db_id = stats.database_id
+
+        cv = f"A:23-{db_id}"
+        cv2 = f"A:3-{db_id}"
+
+        with self.store.open_session() as session:
+            revisions = session.advanced.revisions.get_by_change_vector(cv, User)
+            revisions_lazily = session.advanced.revisions.lazily.get_by_change_vector(cv, User)
+            revisions_lazily1 = session.advanced.revisions.lazily.get_by_change_vector(cv2, User)
+
+            revisions_lazily_value = revisions_lazily.value
+
+            self.assertEqual(2, session.advanced.number_of_requests)
+            self.assertEqual(revisions.Id, revisions_lazily_value.Id)
+            self.assertEqual(revisions.name, revisions_lazily_value.name)
+
+        with self.store.open_session() as session:
+            revisions = session.advanced.revisions.get_by_change_vector(cv, User)
+            revisions_lazily = session.advanced.revisions.lazily.get_by_change_vector(cv, User)
+            revisions_lazily_value = revisions_lazily.value
+
+            self.assertEqual(2, session.advanced.number_of_requests)
+            self.assertEqual(revisions.Id, revisions_lazily_value.Id)
+            self.assertEqual(revisions.name, revisions_lazily_value.name)
