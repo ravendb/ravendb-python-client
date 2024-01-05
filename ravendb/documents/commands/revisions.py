@@ -114,3 +114,30 @@ class GetRevisionsCommand(RavenCommand[JsonArrayResult]):
 
     def is_read_request(self) -> bool:
         return True
+
+
+class GetRevisionsBinEntryCommand(RavenCommand[JsonArrayResult]):
+    def __init__(self, etag: int, page_size: int):
+        super().__init__(JsonArrayResult)
+        self._etag = etag
+        self._page_size = page_size
+
+    def create_request(self, node: ServerNode) -> requests.Request:
+        request = requests.Request("GET")
+        path = [node.url, "/databases/", node.database, "/revisions/bin?start=", str(self._etag)]
+        if self._page_size is not None:
+            path.append("&pageSize=")
+            path.append(str(self._page_size))
+
+        request.url = "".join(path)
+
+        return request
+
+    def set_response(self, response: Optional[str], from_cache: bool) -> None:
+        if response is None:
+            self._throw_invalid_response()
+
+        self.result = JsonArrayResult.from_json(json.loads(response))
+
+    def is_read_request(self) -> bool:
+        return True

@@ -1,8 +1,10 @@
 from time import sleep
 
+from ravendb.documents.commands.revisions import GetRevisionsBinEntryCommand
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
 from ravendb.primitives import constants
+from ravendb.primitives.constants import int_max
 from ravendb.tests.test_base import TestBase
 
 
@@ -103,3 +105,23 @@ class TestRevisions(TestBase):
         with self.store.open_session() as session:
             companies_revisions_count = session.advanced.revisions.get_count_for(company.Id)
             self.assertEqual(3, companies_revisions_count)
+
+    def test_can_list_revisions_bin(self):
+        self.setup_revisions(self.store, False, 4)
+
+        with self.store.open_session() as session:
+            user = User(name="user1")
+            session.store(user, "users/1")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.delete("users/1")
+            session.save_changes()
+
+        revisions_bin_entry_command = GetRevisionsBinEntryCommand(0, 20)
+        self.store.get_request_executor().execute_command(revisions_bin_entry_command)
+
+        result = revisions_bin_entry_command.result
+        self.assertEqual(1, len(result.results))
+
+        self.assertEqual("users/1", result.results[0].get("@metadata").get("@id"))
