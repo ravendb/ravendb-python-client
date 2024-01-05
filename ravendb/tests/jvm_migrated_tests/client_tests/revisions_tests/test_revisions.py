@@ -277,3 +277,38 @@ class TestRevisions(TestBase):
         for i in range(48, 38, -1):
             self.assertEqual("HR" + str(i), companies_revisions[count].name)
             count += 1
+
+    def test_can_get_metadata_for_lazily(self):
+        id_ = "users/1"
+        id_2 = "users/2"
+
+        self.setup_revisions(self.store, False, 100)
+
+        with self.store.open_session() as session:
+            user1 = User()
+            user1.name = "Omer"
+            session.store(user1, id_)
+
+            user2 = User()
+            user2.name = "Rhinos"
+            session.store(user2, id_2)
+
+            session.save_changes()
+
+        for i in range(10):
+            with self.store.open_session() as session:
+                user = session.load(id_, Company)
+                user.name = f"Omer{i}"
+                session.save_changes()
+
+        with self.store.open_session() as session:
+            revisions_metadata = session.advanced.revisions.get_metadata_for(id_)
+            revisions_metadata_lazily = session.advanced.revisions.lazily.get_metadata_for(id_)
+            revisions_metadata_lazily_2 = session.advanced.revisions.lazily.get_metadata_for(id_2)
+            revisions_metadata_lazily_result = revisions_metadata_lazily.value
+
+            ids = [x["@id"] for x in revisions_metadata]
+            ids_lazily = [x["@id"] for x in revisions_metadata_lazily_result]
+
+            self.assertEqual(ids, ids_lazily)
+            self.assertEqual(2, session.advanced.number_of_requests)

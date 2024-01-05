@@ -57,7 +57,7 @@ from ravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
 from ravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
-    from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
+    from ravendb.documents.operations.lazy.definition import LazyOperation
     from ravendb.documents.store.definition import DocumentStore
     from ravendb.http.request_executor import RequestExecutor
 

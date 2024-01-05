@@ -1,6 +1,7 @@
 import datetime
 from typing import TYPE_CHECKING, TypeVar, Type, List, Dict
 
+from ravendb.documents.operations.lazy.revisions import LazyRevisionOperations
 from ravendb.documents.session.misc import ForceRevisionStrategy
 from ravendb.documents.session.operations.operations import GetRevisionOperation, GetRevisionsCountOperation
 
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
     )
     from ravendb.documents.commands.batches import CommandData
     from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
+    from ravendb.documents.session.document_session import DocumentSession
+
 
 _T = TypeVar("_T")
 
@@ -73,8 +76,10 @@ class DocumentSessionRevisions(DocumentSessionRevisionsBase):
     def __init__(self, session: "InMemoryDocumentSessionOperations"):
         super().__init__(session)
 
-    # def lazily(self) -> LazyRevisionOperations:
-    #     return LazyRevisionOperations(self.session)
+    @property
+    def lazily(self) -> LazyRevisionOperations:
+        self.session: "DocumentSession"
+        return LazyRevisionOperations(self.session)
 
     def get_for(self, id_: str, object_type: Type[_T] = None, start: int = 0, page_size: int = 25) -> List[_T]:
         operation = GetRevisionOperation.from_start_page(self.session, id_, start, page_size)
@@ -130,7 +135,7 @@ class DocumentSessionRevisions(DocumentSessionRevisionsBase):
         return operation.get_revisions(object_type)
 
     def get_by_before_date(self, id_: str, before_date: datetime.datetime, object_type: Type[_T] = None) -> _T:
-        operation = GetRevisionOperation.from_before(self.session, id_, before_date)
+        operation = GetRevisionOperation.from_before_date(self.session, id_, before_date)
         command = operation.create_request()
         if command is None:
             return operation.get_revision(object_type)

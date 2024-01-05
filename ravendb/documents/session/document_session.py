@@ -99,7 +99,7 @@ from ravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
-    from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
+    from ravendb.documents.operations.lazy.definition import LazyOperation
     from ravendb.http.request_executor import RequestExecutor
     from ravendb.documents.store.definition import DocumentStore
 
@@ -229,7 +229,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 self._pending_lazy_operations[i].handle_response(response)
-                if self._pending_lazy_operations[i].is_requires_retry:
+                if self._pending_lazy_operations[i].requires_retry:
                     return True
 
             return False

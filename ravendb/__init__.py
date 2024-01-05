@@ -103,7 +103,7 @@ from ravendb.documents.operations.indexes import (
     GetIndexErrorsOperation,
     IndexingStatus,
 )
-from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
+from ravendb.documents.operations.lazy.definition import LazyOperation
 from ravendb.documents.operations.misc import DeleteByQueryOperation, GetOperationStateOperation, QueryOperationOptions
 from ravendb.documents.operations.patch import (
     PatchOperation,

@@ -151,7 +151,7 @@ class GetRevisionOperation:
         return self
 
     @classmethod
-    def from_before(
+    def from_before_date(
         cls, session: InMemoryDocumentSessionOperations, id_: str, before: datetime
     ) -> GetRevisionOperation:
         self = cls(session)

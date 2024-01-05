@@ -8,7 +8,7 @@ class BatchCommandResult:
 
 
 class JsonArrayResult:
-    def __init__(self, results: List):
+    def __init__(self, results: List = None):
         self.results = results
 
     @classmethod
