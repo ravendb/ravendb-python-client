@@ -178,3 +178,15 @@ class TestRevisions(TestBase):
         with self.store.open_session() as session:
             revisions_metadata = session.advanced.revisions.get_metadata_for(id_)
             self.assertEqual(11, len(revisions_metadata))
+
+    def test_collection_case_sensitive_test_3(self):
+        configuration = RevisionsConfiguration()
+        c1 = RevisionsCollectionConfiguration()
+        c1.disabled = False
+
+        c2 = RevisionsCollectionConfiguration()
+        c2.disabled = False
+
+        configuration.collections = {"users": c1, "USERS": c2}
+        with self.assertRaises(RuntimeError):
+            self.store.maintenance.send(ConfigureRevisionsOperation(configuration))
