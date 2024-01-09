@@ -41,6 +41,7 @@ class DocumentConventions(object):
         self.max_number_of_requests_per_session = 30
         self._max_http_cache_size = 128 * 1024 * 1024
         self.max_length_of_query_using_get_url = 1024 + 512
+        self.time_series_batch_size = 1024
 
         # Flags
         self.disable_topology_updates = False

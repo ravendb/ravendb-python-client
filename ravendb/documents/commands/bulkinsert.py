@@ -12,6 +12,10 @@ class GetNextOperationIdCommand(RavenCommand[int]):
         super(GetNextOperationIdCommand, self).__init__(int)
         self._node_tag = 0
 
+    @property
+    def node_tag(self):
+        return self._node_tag
+
     def is_read_request(self) -> bool:
         return False  # disable caching
 

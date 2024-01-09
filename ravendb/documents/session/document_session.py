@@ -128,7 +128,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return LazySessionOperations(self)
 
     @property
-    def cluster_transaction(self) -> IClusterTransactionOperations:
+    def cluster_transaction(self) -> ClusterTransactionOperations:
         if self._cluster_transaction is None:
             self._cluster_transaction = ClusterTransactionOperations(self)
         return self._cluster_transaction
@@ -289,7 +289,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         if includes is None:
             load_operation = LoadOperation(self)
-            self.__load_internal_stream(
+            self._load_internal_stream(
                 [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys, load_operation, None
             )
             result = load_operation.get_documents(object_type)
@@ -346,7 +346,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return load_operation.get_documents(object_type)
 
-    def __load_internal_stream(self, keys: List[str], operation: LoadOperation, stream: Optional[bytes] = None) -> None:
+    def _load_internal_stream(self, keys: List[str], operation: LoadOperation, stream: Optional[bytes] = None) -> None:
         operation.by_keys(keys)
 
         command = operation.create_request()
@@ -850,7 +850,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if keys is None:
                 raise ValueError("Keys cannot be None")
 
-            self._session.__load_internal_stream(keys, LoadOperation(self._session), output)
+            self._session._load_internal_stream(keys, LoadOperation(self._session), output)
 
         def __try_merge_patches(self, document_key: str, patch_request: PatchRequest) -> bool:
             command = self._session._deferred_commands_map.get(
@@ -926,7 +926,10 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 self.defer(PatchCommandData(key_or_entity, None, patch_request, None))
 
         def patch_object(
-            self, key_or_entity: Union[object, str], path_to_object: str, dictionary_adder: Callable[[dict], None]
+            self,
+            key_or_entity: Union[object, str],
+            path_to_object: str,
+            dictionary_adder: Callable[[JavaScriptMap], None],
         ) -> None:
             if not isinstance(key_or_entity, str):
                 metadata = self.get_metadata_for(key_or_entity)
@@ -2292,15 +2295,12 @@ class SessionDocumentTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values
         results = self._get_from_cache(from_date, to_date, None, start, page_size)
         return [x.as_typed_entry(self._ts_value_object_type) for x in results]
 
-    def append(self, timestamp: datetime, entry: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
-        values = TimeSeriesValuesHelper.get_values(type(entry), entry)
+    def append_single(self, timestamp: datetime, value: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
+        values = TimeSeriesValuesHelper.get_values(type(value), value)
         super().append(timestamp, values, tag)
 
     def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Values_Bindable]) -> None:
-        self.append(entry.timestamp, entry.value, entry.tag)
-
-    def append_single(self, timestamp: datetime, value: _T_TS_Values_Bindable, tag: Optional[str] = None) -> None:
-        self.append(timestamp, value, tag)
+        self.append_single(entry.timestamp, entry.value, entry.tag)
 
 
 class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_Values_Bindable]):
@@ -2348,10 +2348,6 @@ class SessionDocumentRollupTypedTimeSeries(SessionTimeSeriesBase, Generic[_T_TS_
         results = self._get_from_cache(from_date, to_date, None, start, page_size)
         return [TypedTimeSeriesRollupEntry.from_entry(self._object_type, x) for x in results]
 
-    def append_entry(self, entry: TypedTimeSeriesRollupEntry) -> None:
-        values = entry.get_values_from_members()
-        super().append(entry.timestamp, values, entry.tag)
-
-    def append(self, entry: TypedTimeSeriesRollupEntry[_T_TS_Values_Bindable]) -> None:  # todo: investigate warning
+    def append_entry(self, entry: TypedTimeSeriesRollupEntry[_T_TS_Values_Bindable]) -> None:
         values = entry.get_values_from_members()
         super().append(entry.timestamp, values, entry.tag)

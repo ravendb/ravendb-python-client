@@ -20,7 +20,7 @@ from typing import (
 )
 
 from ravendb.documents.queries.time_series import TimeSeriesQueryBuilder
-from ravendb.documents.session.time_series import TimeSeriesRange
+from ravendb.documents.session.time_series import TimeSeriesRange, ITimeSeriesValuesBindable
 from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.indexes.spatial.configuration import SpatialUnits, SpatialRelation
@@ -94,7 +94,7 @@ from ravendb.tools.utils import Utils
 _T = TypeVar("_T")
 _TResult = TypeVar("_TResult")
 _TProjection = TypeVar("_TProjection")
-_T_TS_Bindable = TypeVar("_T_TS_Bindable")
+_T_TS_Bindable = TypeVar("_T_TS_Bindable", bound=ITimeSeriesValuesBindable)
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import Lazy
     from ravendb.documents.session.document_session import DocumentSession
