@@ -1,6 +1,8 @@
 import uuid
 from datetime import timedelta
+from typing import List
 
+from ravendb.documents.session.time_series import TimeSeriesEntry
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.raven_test_helper import RavenTestHelper
@@ -246,3 +248,55 @@ class TestTimeSeriesBulkInsert(TestBase):
                 self.assertRaisesWithMessageContaining(
                     bulk_insert.time_series_for, RuntimeError, error_message, document_id, "Heartrate"
                 )
+
+    def test_can_store_and_read_multiple_timeseries_for_different_documents(self):
+        base_line = RavenTestHelper.utc_this_month()
+        document_id1 = "users/ayende"
+        document_id2 = "users/grisha"
+
+        with self.store.bulk_insert() as bulk_insert:
+            user1 = User(name="Oren")
+            bulk_insert.store_as(user1, document_id1)
+            with bulk_insert.time_series_for(document_id1, "Heartrate") as time_series_bulk_insert:
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=1), 59, "watches/fitbit")
+
+            user2 = User(name="Grisha")
+            bulk_insert.store_as(user2, document_id2)
+
+            with bulk_insert.time_series_for(document_id2, "Heartrate") as time_series_bulk_insert2:
+                time_series_bulk_insert2.append_single(base_line + timedelta(minutes=1), 59, "watches/fitbit")
+
+        with self.store.bulk_insert() as bulk_insert:
+            with bulk_insert.time_series_for(document_id1, "Heartrate") as time_series_bulk_insert:
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=2), 61, "watches/fitbit")
+
+            with bulk_insert.time_series_for(document_id2, "Heartrate") as time_series_bulk_insert:
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=2), 61, "watches/fitbit")
+
+            with bulk_insert.time_series_for(document_id1, "Heartrate") as time_series_bulk_insert:
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=3), 62, "watches/apple-watch")
+
+            with bulk_insert.time_series_for(document_id2, "Heartrate") as time_series_bulk_insert2:
+                time_series_bulk_insert2.append_single(base_line + timedelta(minutes=3), 62, "watches/apple-watch")
+
+        def __validate_values(vals: List[TimeSeriesEntry]) -> None:
+            self.assertEqual(3, len(vals))
+
+            self.assertEqual([59], vals[0].values)
+            self.assertEqual("watches/fitbit", vals[0].tag)
+            self.assertEqual(base_line + timedelta(minutes=1), vals[0].timestamp)
+
+            self.assertEqual([61], vals[1].values)
+            self.assertEqual("watches/fitbit", vals[1].tag)
+            self.assertEqual(base_line + timedelta(minutes=2), vals[1].timestamp)
+
+            self.assertEqual([62], vals[2].values)
+            self.assertEqual("watches/apple-watch", vals[2].tag)
+            self.assertEqual(base_line + timedelta(minutes=3), vals[2].timestamp)
+
+        with self.store.open_session() as session:
+            vals = session.time_series_for(document_id1, "Heartrate").get()
+            __validate_values(vals)
+
+            vals = session.time_series_for(document_id2, "Heartrate").get()
+            __validate_values(vals)
