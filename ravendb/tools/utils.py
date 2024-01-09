@@ -950,5 +950,5 @@ class Utils(object):
         return date + timedelta(minutes=minutes)
 
     @staticmethod
-    def get_time_value_in_ms(date: datetime) -> int:
-        return int(date.timestamp() * 1000)
+    def get_unix_time_in_ms(date: datetime) -> int:
+        return int(date.timestamp() * 1000) + 3600000

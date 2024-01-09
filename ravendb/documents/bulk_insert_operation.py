@@ -450,7 +450,7 @@ class BulkInsertOperation:
 
                     self._operation._write_string_no_escape("[")
 
-                    self._operation._write_string_no_escape(str(Utils.get_time_value_in_ms(timestamp)))
+                    self._operation._write_string_no_escape(str(Utils.get_unix_time_in_ms(timestamp)))
                     self._operation._write_comma()
 
                     self._operation._write_string_no_escape(str(len(values)))
