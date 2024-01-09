@@ -300,3 +300,36 @@ class TestTimeSeriesBulkInsert(TestBase):
 
             vals = session.time_series_for(document_id2, "Heartrate").get()
             __validate_values(vals)
+
+    def test_can_append_a_lot_of_time_series(self):
+        number_of_time_series = 10 * 1024
+
+        base_line = RavenTestHelper.utc_this_month()
+        document_id = "users/ayende"
+        offset = 0
+
+        with self.store.bulk_insert() as bulk_insert:
+            user = User(name="Oren")
+            bulk_insert.store_as(user, document_id)
+
+            with bulk_insert.time_series_for(document_id, "Heartrate") as time_series_bulk_insert:
+                for j in range(number_of_time_series):
+                    time_series_bulk_insert.append_single(
+                        base_line + timedelta(minutes=offset), offset + 1, "watches/fitbit"
+                    )
+                    offset += 1
+
+        with self.store.open_session() as session:
+            vals = session.time_series_for(document_id, "Heartrate").get()
+            self.assertEqual(number_of_time_series, len(vals))
+
+            for i in range(number_of_time_series):
+                self.assertEqual(base_line + timedelta(minutes=i), vals[i].timestamp)
+                self.assertEqual(1 + i, vals[i].values[0])
+
+        with self.store.open_session() as session:
+            user = session.load("users/ayende", User)
+            ts_names = session.advanced.get_time_series_for(user)
+            self.assertEqual(1, len(ts_names))
+
+            self.assertEqual("Heartrate", ts_names[0])
