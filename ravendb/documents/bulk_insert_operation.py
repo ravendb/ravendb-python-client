@@ -146,6 +146,7 @@ class BulkInsertOperation:
         )
 
         self._attachments_operation = BulkInsertOperation.AttachmentsBulkInsertOperation(self)
+        self._counters_operation = BulkInsertOperation.CountersBulkInsertOperation(self)
 
     def __enter__(self):
         return self
@@ -300,7 +301,7 @@ class BulkInsertOperation:
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
-            pass  # todo: counters
+            self._counters_operation.end_previous_command_if_needed()
         elif self._in_progress_command == CommandType.TIME_SERIES:
             self.TimeSeriesBulkInsert._throw_already_running_time_series()
 
@@ -501,6 +502,94 @@ class BulkInsertOperation:
             if not self._first:
                 self._operation._write_string_no_escape("]}}")
 
+    class CountersBulkInsert:
+        def __init__(self, operation: BulkInsertOperation, id_: str):
+            self._operation = operation
+            self._id = id_
+
+        def increment(self, name: str, delta: int = 1) -> None:
+            self._operation._counters_operation.increment(self._id, name, delta)
+
+    class CountersBulkInsertOperation:
+        _MAX_COUNTERS_IN_BATCH = 1024
+
+        def __init__(self, bulk_insert_operation: BulkInsertOperation):
+            self._operation = bulk_insert_operation
+
+            self._id: Optional[str] = None
+            self._first: bool = True
+            self._counters_in_batch: int = 0
+
+        def increment(self, id_: str, name: str, delta: int = 1) -> None:
+            check_callback = self._operation._concurrency_check()
+            try:
+                self._operation._ensure_ongoing_operation()
+
+                if self._operation._in_progress_command == CommandType.TIME_SERIES:
+                    BulkInsertOperation.TimeSeriesBulkInsert._throw_already_running_time_series()
+
+                try:
+                    is_first = self._id is None
+
+                    if is_first or self._id.lower() != id_.lower():
+                        if not is_first:
+                            # we need to end the command for the previous document id
+                            self._operation._write_string_no_escape("]}},")
+                        elif not self._operation._first:
+                            self._operation._write_comma()
+
+                        self._operation._first = False
+
+                        _id = self._id
+                        self._operation._in_progress_command = CommandType.COUNTERS
+
+                        self._write_prefix_for_new_command()
+
+                    if self._counters_in_batch >= self._MAX_COUNTERS_IN_BATCH:
+                        self._operation._write_string_no_escape("]}},")
+
+                        self._write_prefix_for_new_command()
+
+                    self._counters_in_batch += 1
+
+                    if not self._first:
+                        self._operation._write_comma()
+
+                    self._first = False
+
+                    self._operation._write_string_no_escape('{"Type":"Increment","CounterName":"')
+                    self._operation._write_string(name)
+                    self._operation._write_string_no_escape('","Delta":')
+                    self._operation._write_string_no_escape(str(delta))
+                    self._operation._write_string_no_escape("}")
+
+                    self._operation._flush_if_needed()
+
+                except Exception as e:
+                    self._operation._handle_errors(self._id, e)
+            finally:
+                check_callback()
+
+        def end_previous_command_if_needed(self) -> None:
+            if self._id is None:
+                return
+
+            try:
+                self._operation._write_string_no_escape("]}}")
+                self._id = None
+            except Exception as e:
+                raise RavenException("Unable to write to stream", e)
+
+        def _write_prefix_for_new_command(self):
+            self._first = True
+            self._counters_in_batch = 0
+
+            self._operation._write_string_no_escape('{"Id":"')
+            self._operation._write_string(str(self._id))
+            self._operation._write_string_no_escape('","Type":"Counters","Counters":{"DocumentId":"')
+            self._operation._write_string(str(self._id))
+            self._operation._write_string_no_escape('","Operations":[')
+
     class TimeSeriesBulkInsert(TimeSeriesBulkInsertBase):
         def __init__(self, operation: BulkInsertOperation, id_: str, name: str):
             super().__init__(operation, id_, name)
@@ -571,6 +660,12 @@ class BulkInsertOperation:
             raise ValueError("Document id cannot be None or empty.")
 
         return BulkInsertOperation.AttachmentsBulkInsert(self, key)
+
+    def counters_for(self, id_: str) -> CountersBulkInsert:
+        if not id_:
+            raise ValueError("Document id cannot be None or empty.")
+
+        return self.CountersBulkInsert(self, id_)
 
     def typed_time_series_for(
         self, object_type: Type[_T_TS_Bindable], id_: str, name: str = None
