@@ -470,3 +470,53 @@ class TestTimeSeriesBulkInsert(TestBase):
             for i in range(len(vals)):
                 self.assertEqual(base_line + timedelta(minutes=5 + i), vals[i].timestamp)
                 self.assertEqual(105 + i, vals[i].value)
+
+    def test_can_store_values_out_of_order(self):
+        base_line = RavenTestHelper.utc_this_month()
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            user = User()
+            user.name = "Oren"
+            session.store(user, document_id)
+            session.save_changes()
+
+        retries = 1000
+
+        offset = 0
+
+        with self.store.bulk_insert() as bulk_insert:
+            with bulk_insert.time_series_for(document_id, "Heartrate") as time_series_bulk_insert:
+                for j in range(retries):
+                    time_series_bulk_insert.append_single(
+                        base_line + timedelta(minutes=offset), offset, "watches/fitbit"
+                    )
+                    offset += 5
+
+        offset = 1
+
+        with self.store.bulk_insert() as bulk_insert:
+            with bulk_insert.time_series_for(document_id, "Heartrate") as time_series_bulk_insert2:
+                for j in range(retries):
+                    time_series_bulk_insert2.append_single(
+                        base_line + timedelta(minutes=offset), offset, "watches/fitbit"
+                    )
+                    offset += 5
+
+        with self.store.open_session() as session:
+            vals = session.time_series_for("users/ayende", "Heartrate").get(None, None)
+
+            self.assertEqual(2 * retries, len(vals))
+
+            offset = 0
+            for i in range(0, retries, 2):
+                self.assertEqual(base_line + timedelta(minutes=offset), vals[i].timestamp)
+                self.assertEqual(offset, vals[i].values[0])
+
+                offset += 1
+                i += 1
+
+                self.assertEqual(base_line + timedelta(minutes=offset), vals[i].timestamp)
+                self.assertEqual(offset, vals[i].values[0])
+
+                offset += 4
