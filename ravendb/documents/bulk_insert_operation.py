@@ -464,7 +464,7 @@ class BulkInsertOperation:
                             self._operation._write_comma()
 
                         first_value = False
-                        self._operation._write_string_no_escape(str(value))
+                        self._operation._write_string_no_escape(str(value) if value is not None else "null")
 
                     if tag is not None:
                         self._operation._write_string_no_escape(',"')

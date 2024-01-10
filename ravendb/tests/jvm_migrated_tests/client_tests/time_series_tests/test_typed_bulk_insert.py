@@ -5,6 +5,7 @@ from ravendb.documents.session.time_series import TypedTimeSeriesEntry, TimeSeri
 from ravendb.infrastructure.entities import User
 from ravendb.tests.jvm_migrated_tests.client_tests.time_series_tests.test_time_series_typed_session import (
     HeartRateMeasure,
+    StockPrice,
 )
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.raven_test_helper import RavenTestHelper
@@ -191,3 +192,41 @@ class TestTypedBulkInsert(TestBase):
 
             vals = session.typed_time_series_for(HeartRateMeasure, document_id2, "heartrate").get()
             __validate_values(base_line, vals)
+
+    def test_can_get_time_series_names(self):
+        document_id_1 = "users/karmel"
+        document_id_2 = "users/ayende"
+
+        with self.store.bulk_insert() as bulk_insert:
+            bulk_insert.store_as(User(), document_id_1)
+            with bulk_insert.typed_time_series_for(StockPrice, document_id_1, "nasdaq2") as ts:
+                stock_price = StockPrice()
+                stock_price.open = 7547.31
+                stock_price.close = 7123.5
+                ts.append_single(datetime.utcnow(), stock_price, "web")
+
+        with self.store.bulk_insert() as bulk_insert:
+            with bulk_insert.typed_time_series_for(HeartRateMeasure, document_id_1, "heartrate2") as ts:
+                heart_rate_measure = HeartRateMeasure(76)
+                ts.append_single(datetime.utcnow(), heart_rate_measure, "watches/apple")
+
+        with self.store.bulk_insert() as bulk_insert:
+            bulk_insert.store_as(User(), document_id_2)
+            with bulk_insert.typed_time_series_for(StockPrice, document_id_2, "nasdaq") as ts:
+                stock_price = StockPrice()
+                stock_price.open = 7547.31
+                stock_price.close = 7123.5
+                ts.append_single(datetime.utcnow(), stock_price, "web")
+
+        with self.store.bulk_insert() as bulk_insert:
+            with bulk_insert.typed_time_series_for(HeartRateMeasure, document_id_2, "heartrate") as ts:
+                ts.append_single(datetime.utcnow(), HeartRateMeasure(58), "fitbit")
+
+        with self.store.open_session() as session:
+            user = session.load(document_id_2, User)
+            ts_names = session.advanced.get_time_series_for(user)
+            self.assertEqual(2, len(ts_names))
+
+            # should be sorted
+            self.assertEqual("heartrate", ts_names[0])
+            self.assertEqual("nasdaq", ts_names[1])
