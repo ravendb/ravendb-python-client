@@ -230,3 +230,43 @@ class TestTypedBulkInsert(TestBase):
             # should be sorted
             self.assertEqual("heartrate", ts_names[0])
             self.assertEqual("nasdaq", ts_names[1])
+
+    def test_can_create_time_series_without_passing_name(self):
+        base_line = RavenTestHelper.utc_today()
+        document_id = "users/ayende"
+
+        with self.store.bulk_insert() as bulk_insert:
+            user = User(name="Oren")
+            bulk_insert.store_as(user, document_id)
+
+            with bulk_insert.typed_time_series_for(StockPrice, document_id) as time_series_bulk_insert:
+                measure = TypedTimeSeriesEntry()
+                measure.timestamp = base_line
+                stock_price = StockPrice()
+                stock_price.close = 1
+                stock_price.open = 2
+                stock_price.high = 3
+                stock_price.low = 4
+                stock_price.volume = 55
+                measure.value = stock_price
+                measure.tag = "tag"
+
+                time_series_bulk_insert.append_entry(measure)
+
+        with self.store.open_session() as session:
+            val = session.typed_time_series_for(StockPrice, document_id).get()[0]
+            self.assertEqual(1, val.value.close)
+            self.assertEqual(2, val.value.open)
+            self.assertEqual(3, val.value.high)
+            self.assertEqual(4, val.value.low)
+            self.assertEqual(55, val.value.volume)
+
+            self.assertEqual("tag", val.tag)
+            self.assertEqual(base_line, val.timestamp)
+
+        with self.store.open_session() as session:
+            doc = session.load(document_id, User)
+            names = session.advanced.get_time_series_for(doc)
+
+            self.assertEqual(1, len(names))
+            self.assertEqual("StockPrices", names[0])
