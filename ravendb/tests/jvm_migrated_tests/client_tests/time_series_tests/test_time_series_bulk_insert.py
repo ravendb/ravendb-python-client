@@ -363,3 +363,31 @@ class TestTimeSeriesBulkInsert(TestBase):
             self.assertEqual([69], vals[2].values)
             self.assertEqual("watches/fitbit", vals[2].tag)
             self.assertEqual(base_line + timedelta(minutes=3), vals[2].timestamp)
+
+    def test_can_store_large_number_of_values(self):
+        base_line = RavenTestHelper.utc_this_month()
+        document_id = "users/ayende"
+
+        with self.store.open_session() as session:
+            user = User(name="Oren")
+            session.store(user, document_id)
+            session.save_changes()
+
+        offset = 0
+
+        for i in range(10):
+            with self.store.bulk_insert() as bulk_insert:
+                with bulk_insert.time_series_for(document_id, "Heartrate") as time_series_bulk_insert:
+                    for j in range(1000):
+                        time_series_bulk_insert.append_single(
+                            base_line + timedelta(minutes=offset), 1 + offset, "watches/fitbit"
+                        )
+                        offset += 1
+
+        with self.store.open_session() as session:
+            vals = session.time_series_for("users/ayende", "Heartrate").get(None, None)
+            self.assertEqual(10000, len(vals))
+
+            for i in range(10000):
+                self.assertEqual(base_line + timedelta(minutes=i), vals[i].timestamp)
+                self.assertEqual(1 + i, vals[i].values[0])
