@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from ravendb.documents.session.time_series import TypedTimeSeriesEntry
 from ravendb.infrastructure.entities import User
 from ravendb.tests.jvm_migrated_tests.client_tests.time_series_tests.test_time_series_typed_session import (
     HeartRateMeasure,
@@ -73,3 +74,29 @@ class TestTypedBulkInsert(TestBase):
             self.assertEqual([70], vals[1].values)
             self.assertEqual("watches/apple-watch", vals[1].tag)
             self.assertEqual(base_line + timedelta(minutes=2), vals[1].timestamp)
+
+    def test_can_create_simple_time_series(self):
+        base_line = RavenTestHelper.utc_today()
+        document_id = "users/ayende"
+
+        with self.store.bulk_insert() as bulk_insert:
+            user = User(name="Oren")
+            bulk_insert.store_as(user, document_id)
+
+            with bulk_insert.typed_time_series_for(
+                HeartRateMeasure, document_id, "heartrate"
+            ) as time_series_bulk_insert:
+                measure = TypedTimeSeriesEntry()
+                measure.timestamp = base_line
+                measure2 = HeartRateMeasure(59)
+                measure.value = measure2
+                measure.tag = "watches/fitbit"
+
+                time_series_bulk_insert.append_entry(measure)
+
+        with self.store.open_session() as session:
+            val = session.typed_time_series_for(HeartRateMeasure, document_id, "heartrate").get()[0]
+
+            self.assertEqual(59, val.value.heart_rate)
+            self.assertEqual("watches/fitbit", val.tag)
+            self.assertEqual(base_line, val.timestamp)
