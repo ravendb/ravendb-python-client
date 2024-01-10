@@ -300,3 +300,43 @@ class TestTypedBulkInsert(TestBase):
         with self.store.open_session() as session:
             val = session.typed_time_series_for(HeartRateMeasure, document_id, "heartrate").get()
             self.assertEqual(2, len(val))
+
+    def test_can_delete_timestamp(self):
+        base_line = RavenTestHelper.utc_today()
+        document_id = "users/ayende"
+
+        with self.store.bulk_insert() as bulk_insert:
+            user = User(name="Oren")
+            bulk_insert.store(user)
+            bulk_insert.store_as(user, document_id)
+
+            with bulk_insert.typed_time_series_for(
+                HeartRateMeasure, document_id, "heartrate"
+            ) as time_series_bulk_insert:
+                time_series_bulk_insert.append_single(
+                    base_line + timedelta(minutes=1), HeartRateMeasure(59), "watches/fitbit"
+                )
+                time_series_bulk_insert.append_single(
+                    base_line + timedelta(minutes=2), HeartRateMeasure(69), "watches/fitbit"
+                )
+                time_series_bulk_insert.append_single(
+                    base_line + timedelta(minutes=3), HeartRateMeasure(79), "watches/fitbit"
+                )
+
+        with self.store.open_session() as session:
+            user = User(name="Oren")
+            session.store(user, document_id)
+            session.time_series_for(document_id, "heartrate").delete_at(base_line + timedelta(minutes=2))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            vals = session.time_series_for(document_id, "heartrate").get()
+
+            self.assertEqual(2, len(vals))
+            self.assertEqual([59], vals[0].values)
+            self.assertEqual("watches/fitbit", vals[0].tag)
+            self.assertEqual(base_line + timedelta(minutes=1), vals[0].timestamp)
+
+            self.assertEqual([79], vals[1].values)
+            self.assertEqual("watches/fitbit", vals[1].tag)
+            self.assertEqual(base_line + timedelta(minutes=3), vals[1].timestamp)
