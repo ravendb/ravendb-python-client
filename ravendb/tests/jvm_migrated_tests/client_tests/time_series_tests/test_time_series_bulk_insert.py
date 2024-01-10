@@ -520,3 +520,20 @@ class TestTimeSeriesBulkInsert(TestBase):
                 self.assertEqual(offset, vals[i].values[0])
 
                 offset += 4
+
+    def test_can_create_simple_time_series_2(self):
+        base_line = RavenTestHelper.utc_this_month()
+        document_id = "users/ayende"
+
+        with self.store.bulk_insert() as bulk_insert:
+            user = User(name="Oren")
+            bulk_insert.store_as(user, document_id)
+
+            with bulk_insert.time_series_for(document_id, "Heartrate") as time_series_bulk_insert:
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=1), 59, "watches/fitbit")
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=2), 60, "watches/fitbit")
+                time_series_bulk_insert.append_single(base_line + timedelta(minutes=2), 61, "watches/fitbit")
+
+        with self.store.open_session() as session:
+            val = session.time_series_for(document_id, "Heartrate").get()
+            self.assertEqual(2, len(val))
