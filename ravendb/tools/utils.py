@@ -951,4 +951,4 @@ class Utils(object):
 
     @staticmethod
     def get_unix_time_in_ms(date: datetime) -> int:
-        return int(date.timestamp() * 1000) + 3600000
+        return int(date.timestamp() * 1000)
