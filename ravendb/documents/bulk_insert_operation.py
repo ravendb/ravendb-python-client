@@ -540,7 +540,7 @@ class BulkInsertOperation:
 
                         self._operation._first = False
 
-                        _id = self._id
+                        self._id = id_
                         self._operation._in_progress_command = CommandType.COUNTERS
 
                         self._write_prefix_for_new_command()
