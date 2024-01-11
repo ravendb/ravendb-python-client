@@ -57,8 +57,9 @@ from ravendb.tools.utils import Utils, CaseInsensitiveDict, CaseInsensitiveSet
 from ravendb.documents.store.misc import IdTypeAndName
 
 if TYPE_CHECKING:
-    from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
+    from ravendb.documents.operations.lazy.definition import LazyOperation
     from ravendb.documents.store.definition import DocumentStore
+    from ravendb.http.request_executor import RequestExecutor
 
 
 class RefEq:
@@ -456,6 +457,10 @@ class InMemoryDocumentSessionOperations:
         self._known_missing_ids = CaseInsensitiveSet()
         self._documents_by_id = DocumentsByIdHolder()
         self._included_documents_by_id = CaseInsensitiveDict()
+        self.include_revisions_by_change_vector = CaseInsensitiveDict()
+        self.include_revisions_by_date_time_before: Optional[
+            Dict[str, Dict[datetime.datetime, DocumentInfo]]
+        ] = CaseInsensitiveDict()
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
         self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = CaseInsensitiveDict()
@@ -639,6 +644,18 @@ class InMemoryDocumentSessionOperations:
     @property
     def number_of_requests(self) -> int:
         return self._number_of_requests
+
+    @property
+    def document_store(self) -> DocumentStore:
+        return self._document_store
+
+    @property
+    def request_executor(self) -> RequestExecutor:
+        return self._request_executor
+
+    @property
+    def ids_for_creating_forced_revisions(self):
+        return self._ids_for_creating_forced_revisions
 
     @property
     def no_tracking(self) -> bool:
@@ -1697,6 +1714,26 @@ class InMemoryDocumentSessionOperations:
         self, object_type: Type[_T], key: Union[None, str], document: dict, track_entity: bool
     ) -> _T:
         return self.entity_to_json.convert_to_entity(object_type, key, document, track_entity)
+
+    def check_if_all_change_vectors_are_already_included(self, change_vectors: List[str]) -> bool:
+        if self.include_revisions_by_change_vector is None:
+            return False
+
+        for cv in change_vectors:
+            if cv not in self.include_revisions_by_change_vector:
+                return False
+
+        return True
+
+    def check_if_revisions_by_date_time_before_already_included(self, id_: str, date_time: datetime) -> bool:
+        if self.include_revisions_by_date_time_before is None:
+            return False
+
+        dictionary_date_time_to_document = self.include_revisions_by_date_time_before.get(id_)
+        if dictionary_date_time_to_document is not None:
+            return date_time in dictionary_date_time_to_document
+
+        return False
 
     def check_if_id_already_included(self, ids: List[str], includes: Union[List[List], List[str]]) -> bool:
         if includes and not isinstance(includes[0], str):

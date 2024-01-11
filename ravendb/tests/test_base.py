@@ -9,6 +9,13 @@ from enum import Enum
 from subprocess import Popen
 from typing import Iterable, List, Union, Optional, Set
 from datetime import timedelta
+
+from ravendb.documents.operations.revisions import (
+    ConfigureRevisionsOperationResult,
+    RevisionsConfiguration,
+    RevisionsCollectionConfiguration,
+    ConfigureRevisionsOperation,
+)
 from ravendb.primitives import constants
 from ravendb.documents.operations.indexes import GetIndexErrorsOperation
 from ravendb.exceptions.exceptions import DatabaseDoesNotExistException
@@ -429,11 +436,38 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         e = None
         try:
             func(*args, **kwargs)
-        except exception as ex:
+        except Exception as ex:
+            if not isinstance(ex, exception):
+                raise AssertionError(f"Expected exception '{exception}' but got '{type(ex)}'.")
             e = ex
         self.assertIsNotNone(e)
         self.assertEqual(msg, e.args[0])
 
+    def assertRaisesWithMessageContaining(self, func, exception, msg, *args, **kwargs):
+        e = None
+        try:
+            func(*args, **kwargs)
+        except Exception as ex:
+            if not isinstance(ex, exception):
+                raise AssertionError(f"Expected exception '{exception}' but got '{type(ex)}'.")
+            e = ex
+        self.assertIsNotNone(e)
+        self.assertIn(msg, e.args[0])
+
     def assertSequenceContainsElements(self, sequence, *args):
         for arg in args:
             self.assertIn(arg, sequence)
+
+    @staticmethod
+    def setup_revisions(
+        store: DocumentStore, purge_on_delete: bool = None, minimum_revisions_to_keep: int = None
+    ) -> ConfigureRevisionsOperationResult:
+        revisions_configuration = RevisionsConfiguration()
+        default_collection = RevisionsCollectionConfiguration()
+        default_collection.purge_on_delete = purge_on_delete
+        default_collection.minimum_revisions_to_keep = minimum_revisions_to_keep
+
+        revisions_configuration.default_config = default_collection
+        operation = ConfigureRevisionsOperation(revisions_configuration)
+
+        return store.maintenance.send(operation)

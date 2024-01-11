@@ -1,6 +1,6 @@
 import unittest
 
-from ravendb.documents.commands.crud import PutDocumentCommand, GetDocumentsCommand
+from ravendb.documents.commands.crud import PutDocumentCommand
 from ravendb.tests.test_base import TestBase
 
 

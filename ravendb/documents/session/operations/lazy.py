@@ -23,7 +23,7 @@ from ravendb.extensions.json_extensions import JsonExtensions
 from ravendb.documents.commands.crud import GetDocumentsResult, ConditionalGetResult
 from ravendb.documents.session.operations.load_operation import LoadOperation
 from ravendb.documents.conventions import DocumentConventions
-from ravendb.documents.operations.lazy.lazy_operation import LazyOperation
+from ravendb.documents.operations.lazy.definition import LazyOperation
 from ravendb.documents.commands.multi_get import Content, GetRequest, GetResponse
 
 if TYPE_CHECKING:
@@ -71,11 +71,11 @@ class LazyStartsWithOperation(LazyOperation):
 
         self.result = None
         self.query_result: Union[None, QueryResult] = None
-        self.requires_retry: Union[None, bool] = None
+        self._requires_retry: Union[None, bool] = None
 
     @property
-    def is_requires_retry(self) -> bool:
-        return self.requires_retry
+    def requires_retry(self) -> bool:
+        return self._requires_retry
 
     def create_request(self) -> GetRequest:
         request = GetRequest()
@@ -136,7 +136,7 @@ class LazyConditionalLoadOperation(LazyOperation):
         raise NotImplementedError()
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
     def create_request(self) -> GetRequest:
@@ -285,7 +285,7 @@ class LazyLoadOperation(LazyOperation):
         self.__result = value
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
     def create_request(self) -> Optional[GetRequest]:
@@ -344,7 +344,7 @@ class LazyLoadOperation(LazyOperation):
             LoadOperation(self.__session).by_keys(self.__already_in_session).get_documents(self.__object_type)
 
         self.__load_operation.set_result(load_result)
-        if not self.is_requires_retry:
+        if not self.requires_retry:
             self.result = self.__load_operation.get_documents(self.__object_type)
 
 
@@ -394,7 +394,7 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
         self.__query_result = value
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
     def handle_response(self, response: "GetResponse") -> None:
@@ -460,7 +460,7 @@ class LazyAggregationQueryOperation(LazyOperation):
         self.query_result = query_result
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
 
@@ -506,7 +506,7 @@ class LazySuggestionQueryOperation(LazyOperation):
         self.query_result = query_result
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
 
@@ -542,7 +542,7 @@ class LazyGetCompareExchangeValueOperation(Generic[_T], LazyOperation[_T]):
         raise NotImplementedError("Not implemented")
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
     def create_request(self) -> Optional["GetRequest"]:
@@ -636,7 +636,7 @@ class LazyGetCompareExchangeValuesOperation(LazyOperation[_T], Generic[_T]):
         raise NotImplementedError("Not implemented.")
 
     @property
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         return self.__requires_retry
 
     def create_request(self) -> Optional["GetRequest"]:

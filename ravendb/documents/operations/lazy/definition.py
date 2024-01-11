@@ -16,7 +16,7 @@ class LazyOperation(Generic[_T], ABC):
 
     @property
     @abstractmethod
-    def is_requires_retry(self) -> bool:
+    def requires_retry(self) -> bool:
         pass
 
     @abstractmethod
