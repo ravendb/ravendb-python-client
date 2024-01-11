@@ -3,10 +3,15 @@ from __future__ import annotations
 import datetime
 from typing import Optional, Dict, Any, List, Type, TypeVar, Generic
 
-from ravendb.documents.session.time_series import TimeSeriesEntry, TypedTimeSeriesEntry, TimeSeriesValuesHelper
+from ravendb.documents.session.time_series import (
+    TimeSeriesEntry,
+    TypedTimeSeriesEntry,
+    TimeSeriesValuesHelper,
+    ITimeSeriesValuesBindable,
+)
 from ravendb.tools.utils import Utils
 
-_T_TS_Bindable = TypeVar("_T_TS_Bindable")
+_T_TS_Bindable = TypeVar("_T_TS_Bindable", bound=ITimeSeriesValuesBindable)
 
 
 class TimeSeriesQueryResult:

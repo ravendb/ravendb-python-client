@@ -42,7 +42,7 @@ class TestRavenDB16060(TestBase):
 
             ts = session.typed_time_series_for(HeartRateMeasure, doc_id)
 
-            ts.append(base_line, HeartRateMeasure(59), "watches/fitbit")
+            ts.append_single(base_line, HeartRateMeasure(59), "watches/fitbit")
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -72,7 +72,7 @@ class TestRavenDB16060(TestBase):
             tsf = session.typed_time_series_for(HeartRateMeasure, doc_id)
 
             for i in range(360):
-                tsf.append(base_line + timedelta(seconds=i * 10), HeartRateMeasure(6), "watches/fitbit")
+                tsf.append_single(base_line + timedelta(seconds=i * 10), HeartRateMeasure(6), "watches/fitbit")
 
             session.save_changes()
 
@@ -90,7 +90,7 @@ class TestRavenDB16060(TestBase):
 
             singularity = base_line + timedelta(minutes=3, seconds=3)
 
-            session.typed_time_series_for(HeartRateMeasure, doc_id).append(
+            session.typed_time_series_for(HeartRateMeasure, doc_id).append_single(
                 singularity, HeartRateMeasure(6), "watches/fitbit"
             )
             session.save_changes()
@@ -128,7 +128,7 @@ class TestRavenDB16060(TestBase):
             user = User(name="Gracjan")
             session.store(user, doc_id)
             ts = session.typed_time_series_for(HeartRateMeasure, doc_id)
-            ts.append(base_line, HeartRateMeasure(59), "watches/fitbit")
+            ts.append_single(base_line, HeartRateMeasure(59), "watches/fitbit")
 
             session.save_changes()
 
@@ -156,7 +156,7 @@ class TestRavenDB16060(TestBase):
 
             for i in range(360):
                 typed_measure = HeartRateMeasure(6)
-                tsf.append(base_line + timedelta(seconds=i * 10), typed_measure, "watches/fitbit")
+                tsf.append_single(base_line + timedelta(seconds=i * 10), typed_measure, "watches/fitbit")
 
             session.save_changes()
 

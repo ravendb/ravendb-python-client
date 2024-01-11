@@ -148,7 +148,7 @@ class TestTimeSeriesTypedSession(TestBase):
             session.store(User(), document_id)
             heart_rate_measure = HeartRateMeasure(59)
             ts = session.typed_time_series_for(HeartRateMeasure, document_id)
-            ts.append(base_line, heart_rate_measure, tag1)
+            ts.append_single(base_line, heart_rate_measure, tag1)
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -181,7 +181,7 @@ class TestTimeSeriesTypedSession(TestBase):
             session.store(User(name="Gracjan"), document_id)
             big = session.typed_time_series_for(BigMeasure, document_id)
             for i in range(5):
-                big.append(base_line + timedelta(seconds=i * 3), BigMeasure(i, i, i, i, i, i), tag1)
+                big.append_single(base_line + timedelta(seconds=i * 3), BigMeasure(i, i, i, i, i, i), tag1)
 
             session.save_changes()
 
@@ -217,12 +217,12 @@ class TestTimeSeriesTypedSession(TestBase):
         with self.store.open_session() as session:
             session.store(User(), document_id)
             heart_rate_measure = HeartRateMeasure(66)
-            session.typed_time_series_for(HeartRateMeasure, document_id).append(
+            session.typed_time_series_for(HeartRateMeasure, document_id).append_single(
                 base_line, heart_rate_measure, "MyHeart"
             )
 
             stock_price = StockPrice(66, 55, 113.4, 52.4, 15472)
-            session.typed_time_series_for(StockPrice, document_id).append(base_line, stock_price)
+            session.typed_time_series_for(StockPrice, document_id).append_single(base_line, stock_price)
 
             session.save_changes()
 
@@ -437,7 +437,7 @@ class TestTimeSeriesTypedSession(TestBase):
             ts = session.time_series_rollup_for(StockPrice, "users/karmel", p1.name)
             a = TypedTimeSeriesRollupEntry(StockPrice, datetime.utcnow())
             a.max.close = 1
-            ts.append(a)
+            ts.append_entry(a)
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -462,11 +462,11 @@ class TestTimeSeriesTypedSession(TestBase):
             session.store(User(), document_id)
             tsf = session.typed_time_series_for(HeartRateMeasure, document_id)
             m = HeartRateMeasure(59)
-            tsf.append(base_line + timedelta(minutes=61), m, tag1)
+            tsf.append_single(base_line + timedelta(minutes=61), m, tag1)
             m.heart_rate = 79
-            tsf.append(base_line + timedelta(minutes=62), m, tag1)
+            tsf.append_single(base_line + timedelta(minutes=62), m, tag1)
             m.heart_rate = 69
-            tsf.append(base_line + timedelta(minutes=63), m, tag1)
+            tsf.append_single(base_line + timedelta(minutes=63), m, tag1)
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -509,12 +509,12 @@ class TestTimeSeriesTypedSession(TestBase):
                 id_ = f"people/{i}"
                 session.store(User(name="Oren", age=i * 30), id_)
                 tsf = session.typed_time_series_for(HeartRateMeasure, id_)
-                tsf.append(base_line + timedelta(minutes=61), HeartRateMeasure(59), tag1)
-                tsf.append(base_line + timedelta(minutes=62), HeartRateMeasure(79), tag1)
-                tsf.append(base_line + timedelta(minutes=63), HeartRateMeasure(69), tag2)
-                tsf.append(base_line + timedelta(minutes=61, days=31), HeartRateMeasure(159), tag1)
-                tsf.append(base_line + timedelta(minutes=62, days=31), HeartRateMeasure(179), tag2)
-                tsf.append(base_line + timedelta(minutes=63, days=31), HeartRateMeasure(169), tag1)
+                tsf.append_single(base_line + timedelta(minutes=61), HeartRateMeasure(59), tag1)
+                tsf.append_single(base_line + timedelta(minutes=62), HeartRateMeasure(79), tag1)
+                tsf.append_single(base_line + timedelta(minutes=63), HeartRateMeasure(69), tag2)
+                tsf.append_single(base_line + timedelta(minutes=61, days=31), HeartRateMeasure(159), tag1)
+                tsf.append_single(base_line + timedelta(minutes=62, days=31), HeartRateMeasure(179), tag2)
+                tsf.append_single(base_line + timedelta(minutes=63, days=31), HeartRateMeasure(169), tag1)
 
             session.save_changes()
 

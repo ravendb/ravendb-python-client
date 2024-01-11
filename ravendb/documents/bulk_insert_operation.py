@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from abc import ABC
+
 import _queue
 import concurrent
 import json
@@ -7,9 +10,16 @@ from concurrent.futures import Future
 from copy import deepcopy
 from queue import Queue
 from threading import Lock, Semaphore
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List, TypeVar, Type, Generic, Callable
 
 import requests
+
+from ravendb.documents.session.time_series import (
+    ITimeSeriesValuesBindable,
+    TimeSeriesValuesHelper,
+    TypedTimeSeriesEntry,
+)
+from ravendb.documents.time_series import TimeSeriesOperations
 from ravendb.primitives import constants
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.http.server_node import ServerNode
@@ -22,9 +32,13 @@ from ravendb.documents.commands.batches import CommandType
 from ravendb.documents.commands.bulkinsert import GetNextOperationIdCommand, KillOperationCommand
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException
 from ravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
+from ravendb.tools.utils import Utils
 
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import DocumentStore
+
+
+_T_TS_Bindable = TypeVar("_T_TS_Bindable", bound=ITimeSeriesValuesBindable)
 
 
 class BulkInsertOperation:
@@ -123,7 +137,7 @@ class BulkInsertOperation:
 
         self._current_data_buffer = bytearray()
 
-        # todo: self._time_series_batch_size = self._conventions.time_series_batch_size
+        self._time_series_batch_size = self._conventions.time_series_batch_size
         self._buffer_exposer = BulkInsertOperation._BufferExposer()
 
         self._generate_entity_id_on_the_client = GenerateEntityIdOnTheClient(
@@ -132,6 +146,7 @@ class BulkInsertOperation:
         )
 
         self._attachments_operation = BulkInsertOperation.AttachmentsBulkInsertOperation(self)
+        self._counters_operation = BulkInsertOperation.CountersBulkInsertOperation(self)
 
     def __enter__(self):
         return self
@@ -192,7 +207,7 @@ class BulkInsertOperation:
         bulk_insert_get_id_request = GetNextOperationIdCommand()
         self._request_executor.execute_command(bulk_insert_get_id_request)
         self._operation_id = bulk_insert_get_id_request.result
-        self._node_tag = bulk_insert_get_id_request._node_tag
+        self._node_tag = bulk_insert_get_id_request.node_tag
 
     def _fill_metadata_if_needed(self, entity: object, metadata: MetadataAsDictionary):
         # add collection name to metadata if needed
@@ -257,7 +272,7 @@ class BulkInsertOperation:
 
         self._throw_on_unavailable_stream(document_id, e)
 
-    def _concurrency_check(self):
+    def _concurrency_check(self) -> Callable[[], None]:
         with self._concurrent_check_lock:
             if not self._concurrent_check_flag == 0:
                 raise RuntimeError("Bulk Insert store methods cannot be executed concurrently.")
@@ -286,9 +301,9 @@ class BulkInsertOperation:
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
-            pass  # todo: counters
+            self._counters_operation.end_previous_command_if_needed()
         elif self._in_progress_command == CommandType.TIME_SERIES:
-            pass  # todo: time series
+            self.TimeSeriesBulkInsert._throw_already_running_time_series()
 
     def _write_string(self, input_string: str) -> None:
         for i in range(len(input_string)):
@@ -398,12 +413,204 @@ class BulkInsertOperation:
         self._generate_entity_id_on_the_client.try_set_identity(entity, key)
         return key
 
-    # todo: time_series_for
     # todo: CountersBulkInsert
     # todo: CountersBulkInsertOperation
-    # todo: TimeSeriesBulkInsertBase
-    # todo: TimeSeriesBulkInsert
-    # todo: TypedTimeSeriesBulkInsert
+
+    class TimeSeriesBulkInsertBase(ABC):
+        def __init__(self, operation: Optional[BulkInsertOperation], id_: Optional[str], name: Optional[str]):
+            operation._end_previous_command_if_needed()
+
+            self._operation = operation
+            self._id = id_
+            self._name = name
+
+            self._operation._in_progress_command = CommandType.TIME_SERIES
+            self._first: bool = True
+            self._time_series_in_batch: int = 0
+
+        def _append_internal(self, timestamp: datetime, values: List[float], tag: str) -> None:
+            check_exit_callback = self._operation._concurrency_check()
+            try:
+                self._operation._ensure_ongoing_operation()
+
+                try:
+                    if self._first:
+                        if not self._operation._first:
+                            self._operation._write_comma()
+                        self._write_prefix_for_new_command()
+                    elif self._time_series_in_batch >= self._operation._time_series_batch_size:
+                        self._operation._write_string_no_escape("]}},")
+                        self._write_prefix_for_new_command()
+
+                    self._time_series_in_batch += 1
+
+                    if not self._first:
+                        self._operation._write_comma()
+
+                    self._first = False
+
+                    self._operation._write_string_no_escape("[")
+
+                    self._operation._write_string_no_escape(str(Utils.get_unix_time_in_ms(timestamp)))
+                    self._operation._write_comma()
+
+                    self._operation._write_string_no_escape(str(len(values)))
+                    self._operation._write_comma()
+
+                    first_value = True
+
+                    for value in values:
+                        if not first_value:
+                            self._operation._write_comma()
+
+                        first_value = False
+                        self._operation._write_string_no_escape(str(value) if value is not None else "null")
+
+                    if tag is not None:
+                        self._operation._write_string_no_escape(',"')
+                        self._operation._write_string(tag)
+                        self._operation._write_string_no_escape('"')
+
+                    self._operation._write_string_no_escape("]")
+
+                    self._operation._flush_if_needed()
+                except Exception as e:
+                    self._operation._handle_errors(self._id, e)
+            finally:
+                check_exit_callback()
+
+        def _write_prefix_for_new_command(self):
+            self._first = True
+            self._time_series_in_batch = 0
+
+            self._operation._write_string_no_escape('{"Id":"')
+            self._operation._write_string(self._id)
+            self._operation._write_string_no_escape('","Type":"TimeSeriesBulkInsert","TimeSeries":{"Name":"')
+            self._operation._write_string(self._name)
+            self._operation._write_string_no_escape('","TimeFormat":"UnixTimeInMs","Appends":[')
+
+        @staticmethod
+        def _throw_already_running_time_series():
+            raise RuntimeError("There is an already running time series operation, did you forget to close it?")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self._operation._in_progress_command = CommandType.NONE
+
+            if not self._first:
+                self._operation._write_string_no_escape("]}}")
+
+    class CountersBulkInsert:
+        def __init__(self, operation: BulkInsertOperation, id_: str):
+            self._operation = operation
+            self._id = id_
+
+        def increment(self, name: str, delta: int = 1) -> None:
+            self._operation._counters_operation.increment(self._id, name, delta)
+
+    class CountersBulkInsertOperation:
+        _MAX_COUNTERS_IN_BATCH = 1024
+
+        def __init__(self, bulk_insert_operation: BulkInsertOperation):
+            self._operation = bulk_insert_operation
+
+            self._id: Optional[str] = None
+            self._first: bool = True
+            self._counters_in_batch: int = 0
+
+        def increment(self, id_: str, name: str, delta: int = 1) -> None:
+            check_callback = self._operation._concurrency_check()
+            try:
+                self._operation._ensure_ongoing_operation()
+
+                if self._operation._in_progress_command == CommandType.TIME_SERIES:
+                    BulkInsertOperation.TimeSeriesBulkInsert._throw_already_running_time_series()
+
+                try:
+                    is_first = self._id is None
+
+                    if is_first or self._id.lower() != id_.lower():
+                        if not is_first:
+                            # we need to end the command for the previous document id
+                            self._operation._write_string_no_escape("]}},")
+                        elif not self._operation._first:
+                            self._operation._write_comma()
+
+                        self._operation._first = False
+
+                        self._id = id_
+                        self._operation._in_progress_command = CommandType.COUNTERS
+
+                        self._write_prefix_for_new_command()
+
+                    if self._counters_in_batch >= self._MAX_COUNTERS_IN_BATCH:
+                        self._operation._write_string_no_escape("]}},")
+
+                        self._write_prefix_for_new_command()
+
+                    self._counters_in_batch += 1
+
+                    if not self._first:
+                        self._operation._write_comma()
+
+                    self._first = False
+
+                    self._operation._write_string_no_escape('{"Type":"Increment","CounterName":"')
+                    self._operation._write_string(name)
+                    self._operation._write_string_no_escape('","Delta":')
+                    self._operation._write_string_no_escape(str(delta))
+                    self._operation._write_string_no_escape("}")
+
+                    self._operation._flush_if_needed()
+
+                except Exception as e:
+                    self._operation._handle_errors(self._id, e)
+            finally:
+                check_callback()
+
+        def end_previous_command_if_needed(self) -> None:
+            if self._id is None:
+                return
+
+            try:
+                self._operation._write_string_no_escape("]}}")
+                self._id = None
+            except Exception as e:
+                raise RavenException("Unable to write to stream", e)
+
+        def _write_prefix_for_new_command(self):
+            self._first = True
+            self._counters_in_batch = 0
+
+            self._operation._write_string_no_escape('{"Id":"')
+            self._operation._write_string(str(self._id))
+            self._operation._write_string_no_escape('","Type":"Counters","Counters":{"DocumentId":"')
+            self._operation._write_string(str(self._id))
+            self._operation._write_string_no_escape('","Operations":[')
+
+    class TimeSeriesBulkInsert(TimeSeriesBulkInsertBase):
+        def __init__(self, operation: BulkInsertOperation, id_: str, name: str):
+            super().__init__(operation, id_, name)
+
+        def append_single(self, timestamp: datetime, value: float, tag: Optional[str] = None) -> None:
+            self._append_internal(timestamp, [value], tag)
+
+        def append(self, timestamp: datetime, values: List[float], tag: str = None) -> None:
+            self._append_internal(timestamp, values, tag)
+
+    class TypedTimeSeriesBulkInsert(TimeSeriesBulkInsertBase, Generic[_T_TS_Bindable]):
+        def __init__(self, operation: BulkInsertOperation, object_type: Type[_T_TS_Bindable], id_: str, name: str):
+            super().__init__(operation, id_, name)
+            self._object_type = object_type
+
+        def append_single(self, timestamp: datetime, value: _T_TS_Bindable, tag: str = None) -> None:
+            values = TimeSeriesValuesHelper.get_values(self._object_type, value)
+            self._append_internal(timestamp, values, tag)
+
+        def append_entry(self, entry: TypedTimeSeriesEntry[_T_TS_Bindable]) -> None:
+            self.append_single(entry.timestamp, entry.value, entry.tag)
 
     class AttachmentsBulkInsert:
         def __init__(self, operation: BulkInsertOperation, key: str):
@@ -453,6 +660,36 @@ class BulkInsertOperation:
             raise ValueError("Document id cannot be None or empty.")
 
         return BulkInsertOperation.AttachmentsBulkInsert(self, key)
+
+    def counters_for(self, id_: str) -> CountersBulkInsert:
+        if not id_:
+            raise ValueError("Document id cannot be None or empty.")
+
+        return self.CountersBulkInsert(self, id_)
+
+    def typed_time_series_for(
+        self, object_type: Type[_T_TS_Bindable], id_: str, name: str = None
+    ) -> BulkInsertOperation.TypedTimeSeriesBulkInsert[_T_TS_Bindable]:
+        if not id_:
+            raise ValueError("Document id cannot be None or empty")
+
+        ts_name = name
+        if ts_name is None:
+            ts_name = TimeSeriesOperations.get_time_series_name(object_type, self._conventions)
+
+        if not ts_name:
+            raise ValueError("Time series name cannot be None or empty")
+
+        return self.TypedTimeSeriesBulkInsert(self, object_type, id_, ts_name)
+
+    def time_series_for(self, id_: str, name: str) -> BulkInsertOperation.TimeSeriesBulkInsert:
+        if not id_:
+            raise ValueError("Document id cannot be None or empty")
+
+        if not name:
+            raise ValueError("Time series name cannot be None or empty")
+
+        return self.TimeSeriesBulkInsert(self, id_, name)
 
 
 class BulkInsertOptions:

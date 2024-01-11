@@ -948,3 +948,7 @@ class Utils(object):
     @staticmethod
     def add_minutes(date: datetime, minutes: int):
         return date + timedelta(minutes=minutes)
+
+    @staticmethod
+    def get_unix_time_in_ms(date: datetime) -> int:
+        return int(date.timestamp() * 1000)

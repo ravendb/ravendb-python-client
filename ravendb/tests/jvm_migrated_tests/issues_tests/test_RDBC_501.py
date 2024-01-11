@@ -43,9 +43,9 @@ class TestRDBC501(TestBase):
             price3 = SymbolPrice(34, 37, 310, 321)
 
             tsf = session.typed_time_series_for_entity(SymbolPrice, symbol, "history")
-            tsf.append(base_line + timedelta(hours=1), price1)
-            tsf.append(base_line + timedelta(hours=2), price2)
-            tsf.append(base_line + timedelta(days=2), price3)
+            tsf.append_single(base_line + timedelta(hours=1), price1)
+            tsf.append_single(base_line + timedelta(hours=2), price2)
+            tsf.append_single(base_line + timedelta(days=2), price3)
 
             session.save_changes()
 
