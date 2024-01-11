@@ -91,3 +91,32 @@ class TestBulkInsertCounters(TestBase):
 
         for counter in counters:
             self.assertEqual(int(counter.counter_name), counter.total_value)
+
+    def test_increment_counter_in_separate_bulk_inserts(self):
+        with self.store.bulk_insert() as bulk_insert:
+            user1 = User(name="Aviv1")
+            bulk_insert.store(user1)
+            user1_id = user1.Id
+
+            user2 = User(name="Aviv2")
+            bulk_insert.store(user2)
+            user2_id = user2.Id
+
+        with self.store.bulk_insert() as bulk_insert:
+            counter = bulk_insert.counters_for(user1_id)
+            counter.increment("likes", 100)
+            bulk_insert.counters_for(user2_id).increment("votes", 1000)
+            counter.increment("downloads", 500)
+
+        counters = self.store.operations.send(GetCountersOperation(user1_id, ["likes", "downloads"])).counters
+
+        self.assertEqual(2, len(counters))
+
+        counters.sort(key=lambda counter: counter.counter_name)
+
+        self.assertEqual(500, counters[0].total_value)
+        self.assertEqual(100, counters[1].total_value)
+
+        val = self.store.operations.send(GetCountersOperation(user2_id, "votes"))
+
+        self.assertEqual(1000, val.counters[0].total_value)
