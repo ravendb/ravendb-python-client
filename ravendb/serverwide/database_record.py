@@ -148,7 +148,9 @@ class DatabaseRecord:
         record.revisions_for_conflicts = json_dict.get("RevisionsForConflicts", None)
         record.expiration = json_dict.get("Expiration", None)
         record.refresh = json_dict.get("Refresh", None)
-        record.periodic_backups = json_dict.get("PeriodicBackups", None)
+        record.periodic_backups = [
+            PeriodicBackupConfiguration.from_json(pb_json) for pb_json in json_dict.get("PeriodicBackups", [])
+        ]
         record.external_replications = json_dict.get("ExternalReplications", None)
         record.sink_pull_replications = json_dict.get("SinkPullReplications", None)
         record.hub_pull_replications = json_dict.get("HubPullReplications", None)
