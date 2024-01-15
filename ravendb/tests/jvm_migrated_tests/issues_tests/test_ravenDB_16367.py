@@ -79,6 +79,70 @@ class TestRavenDB16367(TestBase):
 
         self.store.maintenance.server.send(DeleteDatabaseOperation(database_name, True))
 
+    def test_can_lock_database_multiple(self):
+        database_name1 = self.store.database + "_LockMode_1"
+        database_name2 = self.store.database + "_LockMode_2"
+        database_name3 = self.store.database + "_LockMode_3"
+
+        databases = [database_name1, database_name2, database_name3]
+
+        with self.assertRaises(RuntimeError):
+            parameters = SetDatabasesLockOperation.Parameters()
+            parameters.database_names = [databases]
+            parameters.mode = DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR
+            self.store.maintenance.server.send(SetDatabasesLockOperation.from_parameters(parameters))
+
+        self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(database_name1)))
+
+        with self.assertRaises(RuntimeError):
+            parameters = SetDatabasesLockOperation.Parameters()
+            parameters.database_names = databases
+            parameters.mode = DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR
+            self.store.maintenance.server.send(SetDatabasesLockOperation.from_parameters(parameters))
+
+        self._assert_lock_mode(self.store, database_name1, DatabaseRecord.DatabaseLockMode.UNLOCK)
+
+        self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(database_name2)))
+        self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(database_name3)))
+
+        self._assert_lock_mode(self.store, database_name2, DatabaseRecord.DatabaseLockMode.UNLOCK)
+        self._assert_lock_mode(self.store, database_name3, DatabaseRecord.DatabaseLockMode.UNLOCK)
+
+        p2 = SetDatabasesLockOperation.Parameters()
+        p2.database_names = databases
+        p2.mode = DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR
+        self.store.maintenance.server.send(SetDatabasesLockOperation.from_parameters(p2))
+
+        self._assert_lock_mode(self.store, database_name1, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR)
+        self._assert_lock_mode(self.store, database_name2, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR)
+        self._assert_lock_mode(self.store, database_name3, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR)
+
+        self.store.maintenance.server.send(
+            SetDatabasesLockOperation(database_name2, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_IGNORE)
+        )
+
+        self._assert_lock_mode(self.store, database_name1, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR)
+        self._assert_lock_mode(self.store, database_name2, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_IGNORE)
+        self._assert_lock_mode(self.store, database_name3, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_ERROR)
+
+        p2.database_names = databases
+        p2.mode = DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_IGNORE
+
+        self.store.maintenance.server.send(SetDatabasesLockOperation.from_parameters(p2))
+
+        self._assert_lock_mode(self.store, database_name1, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_IGNORE)
+        self._assert_lock_mode(self.store, database_name2, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_IGNORE)
+        self._assert_lock_mode(self.store, database_name3, DatabaseRecord.DatabaseLockMode.PREVENT_DELETES_IGNORE)
+
+        p2.database_names = databases
+        p2.mode = DatabaseRecord.DatabaseLockMode.UNLOCK
+
+        self.store.maintenance.server.send(SetDatabasesLockOperation.from_parameters(p2))
+
+        self.store.maintenance.server.send(DeleteDatabaseOperation(database_name1, True))
+        self.store.maintenance.server.send(DeleteDatabaseOperation(database_name2, True))
+        self.store.maintenance.server.send(DeleteDatabaseOperation(database_name3, True))
+
     def _assert_lock_mode(
         self, store: DocumentStore, database_name: str, mode: DatabaseRecord.DatabaseLockMode
     ) -> None:
