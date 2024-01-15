@@ -1,3 +1,4 @@
+import unittest
 from typing import List
 
 from ravendb import FtpSettings, AzureSettings, GetDatabaseRecordOperation, CreateDatabaseOperation, DocumentStore
@@ -18,6 +19,7 @@ class TestServerWideBackup(TestBase):
     def setUp(self):
         super().setUp()
 
+    @unittest.skip("Skipping due to license on CI/CD")
     def test_can_crud_server_wide_backup(self):
         try:
             put_configuration = ServerWideBackupConfiguration()

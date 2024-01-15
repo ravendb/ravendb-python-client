@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb import SorterDefinition
 from ravendb.infrastructure.orders import Company
 from ravendb.serverwide.operations.sorters import PutServerWideSortersOperation, DeleteServerWideSorterOperation
@@ -56,6 +58,7 @@ class TestRavenDB16328(TestBase):
     def setUp(self):
         super().setUp()
 
+    @unittest.skip("Skipping due to license on CI/CD")
     def test_can_use_custom_sorter(self):
         with self.store.open_session() as session:
             c1 = Company(name="C1")
