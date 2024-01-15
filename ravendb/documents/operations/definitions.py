@@ -1,5 +1,6 @@
+from __future__ import annotations
 from abc import abstractmethod
-from typing import TypeVar, TYPE_CHECKING, Generic
+from typing import TypeVar, TYPE_CHECKING, Generic, Dict, Any
 
 from ravendb.http.http_cache import HttpCache
 
@@ -44,6 +45,10 @@ class OperationIdResult:
         self.operation_id = operation_id
         self.operation_node_tag = operation_node_tag
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "OperationIdResult":
+        return cls(json_dict["OperationId"], json_dict["OperationNodeTag"])
+
 
 class OperationExceptionResult:
     def __init__(self, type: str, message: str, error: str, status_code: int):
@@ -51,3 +56,7 @@ class OperationExceptionResult:
         self.message = message
         self.error = error
         self.status_code = status_code
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> OperationExceptionResult:
+        return cls(json_dict["Type"], json_dict["Message"], json_dict["Error"], json_dict["StatusCode"])

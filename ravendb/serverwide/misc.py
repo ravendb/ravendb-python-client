@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import enum
-from typing import List, Optional, Dict, TYPE_CHECKING
+from typing import List, Optional, Dict, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ravendb.serverwide.operations.common import DatabasePromotionStatus
@@ -98,3 +98,13 @@ class LeaderStamp:
     @classmethod
     def from_json(cls, json_dict: Dict) -> LeaderStamp:
         return cls(json_dict["Index"], json_dict["Term"], json_dict["LeadersTicks"])
+
+
+class CompactSettings:
+    def __init__(self, database_name: str = None, documents: bool = None, indexes: List[str] = None):
+        self.database_name = database_name
+        self.documents = documents
+        self.indexes = indexes
+
+    def to_json(self) -> Dict[str, Any]:
+        return {"DatabaseName": self.database_name, "Documents": self.documents, "Indexes": self.indexes}

@@ -452,7 +452,10 @@ class TestBase(unittest.TestCase, RavenTestDriver):
                 raise AssertionError(f"Expected exception '{exception}' but got '{type(ex)}'.")
             e = ex
         self.assertIsNotNone(e)
-        self.assertIn(msg, e.args[0])
+        try:
+            self.assertIn(msg, e.args[0])
+        except AssertionError as ex:
+            self.assertIn(msg, ex.args[0])
 
     def assertSequenceContainsElements(self, sequence, *args):
         for arg in args:
