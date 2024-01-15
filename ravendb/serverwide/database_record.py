@@ -130,7 +130,7 @@ class DatabaseRecord:
         record.deletion_in_progress = json_dict.get("DeletionInProgress", None)
         record.rolling_indexes = json_dict.get("RollingIndexes", None)
         record.database_state = json_dict.get("DatabaseState", None)
-        record.lock_mode = json_dict.get("LockMode", None)
+        record.lock_mode = DatabaseRecord.DatabaseLockMode(json_dict.get("LockMode", None))
         record.topology = json_dict.get("Topology", None)
         record.conflict_solver_config = json_dict.get("ConflictSolverConfig", None)
         record.documents_compression = json_dict.get("DocumentCompression", None)
@@ -179,16 +179,16 @@ class DatabaseRecord:
             self.rolling_deployment = rolling_deployment
 
     class DatabaseLockMode(enum.Enum):
-        UNLOCK = "UNLOCK"
-        PREVENT_DELETES_IGNORE = "PREVENT_DELETES_IGNORE"
-        PREVENT_DELETES_ERROR = "PREVENT_DELETES_ERROR"
+        UNLOCK = "Unlock"
+        PREVENT_DELETES_IGNORE = "PreventDeletesIgnore"
+        PREVENT_DELETES_ERROR = "PreventDeletesError"
 
         def __str__(self):
             return self.value
 
     class DatabaseStateStatus(enum.Enum):
-        NORMAL = "NORMAL"
-        RESTORE_IN_PROGRESS = "RESTORE_IN_PROGRESS"
+        NORMAL = "Normal"
+        RESTORE_IN_PROGRESS = "RestoreInProgress"
 
         def __str__(self):
             return self.value
