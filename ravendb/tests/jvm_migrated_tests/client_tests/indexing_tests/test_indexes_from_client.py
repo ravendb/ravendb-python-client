@@ -3,7 +3,16 @@ import time
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
-from ravendb.documents.operations.indexes import GetIndexNamesOperation, DeleteIndexOperation, ResetIndexOperation
+from ravendb.documents.operations.indexes import (
+    GetIndexNamesOperation,
+    DeleteIndexOperation,
+    ResetIndexOperation,
+    GetIndexingStatusOperation,
+    IndexRunningStatus,
+    StopIndexingOperation,
+    StartIndexingOperation,
+    StopIndexOperation,
+)
 from ravendb.documents.indexes.definitions import FieldIndexing, FieldStorage
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.infrastructure.entities import User, Post
@@ -142,3 +151,42 @@ class TestIndexesFromClient(TestBase):
 
         second_indexing_time = statistics.last_indexing_time
         self.assertLess(first_indexing_time, second_indexing_time)
+
+    def test_can_stop_and_start(self):
+        Users_ByName().execute(self.store)
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.status)
+
+        self.assertEquals(1, len(status.indexes))
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.indexes[0].status)
+
+        self.store.maintenance.send(StopIndexingOperation())
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.PAUSED, status.status)
+
+        self.assertEqual(IndexRunningStatus.PAUSED, status.indexes[0].status)
+
+        self.store.maintenance.send(StartIndexingOperation())
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.status)
+
+        self.assertEqual(1, len(status.indexes))
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.indexes[0].status)
+
+        self.store.maintenance.send(StopIndexOperation(status.indexes[0].name))
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.status)
+
+        self.assertEqual(1, len(status.indexes))
+
+        self.assertEqual(IndexRunningStatus.PAUSED, status.indexes[0].status)
