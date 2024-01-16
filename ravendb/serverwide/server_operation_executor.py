@@ -44,7 +44,7 @@ class ServerOperationExecutor:
         store.register_events_for_request_executor(self.__request_executor)
         store.add_after_close(self.close)
 
-    def send(self, operation: ServerOperation[_T_OperationResult]) -> Optional[None, _T_OperationResult]:
+    def send(self, operation: ServerOperation[_T_OperationResult]) -> Optional[_T_OperationResult]:
         command = operation.get_command(self.__request_executor.conventions)
         self.__request_executor.execute_command(command)
 

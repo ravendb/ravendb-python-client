@@ -4,7 +4,6 @@ from ravendb.serverwide.operations.logs import (
     GetLogsConfigurationOperation,
     GetLogsConfigurationResult,
     LogMode,
-    Parameters,
     SetLogsConfigurationOperation,
 )
 from ravendb.tests.test_base import TestBase
@@ -28,7 +27,7 @@ class TestRavenDB11440(TestBase):
 
             time = timedelta(days=1000)
 
-            parameters = Parameters(mode_to_set, time)
+            parameters = SetLogsConfigurationOperation.Parameters(mode_to_set, time)
             set_logs_operation = SetLogsConfigurationOperation(parameters)
             self.store.maintenance.server.send(set_logs_operation)
 
@@ -43,5 +42,7 @@ class TestRavenDB11440(TestBase):
             self.assertEqual(configuration.use_utc_time, configuration2.use_utc_time)
 
         finally:
-            parameters = Parameters(configuration.current_mode, configuration.retention_time)
+            parameters = SetLogsConfigurationOperation.Parameters(
+                configuration.current_mode, configuration.retention_time
+            )
             self.store.maintenance.server.send(SetLogsConfigurationOperation(parameters))

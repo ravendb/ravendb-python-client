@@ -74,29 +74,32 @@ class GetLogsConfigurationOperation(ServerOperation[GetLogsConfigurationResult])
             self.result = GetLogsConfigurationResult.from_json(json.loads(response))
 
 
-class Parameters:
-    def __init__(
-        self, mode: LogMode = None, retention_time: timedelta = None, retention_size: int = None, compress: bool = None
-    ) -> None:
-        self.mode = mode
-        self.retention_time = retention_time
-        self.retention_size = retention_size
-        self.compress = compress
-
-    @classmethod
-    def from_get_logs(cls, get_logs: GetLogsConfigurationResult) -> Parameters:
-        return cls(get_logs.mode, get_logs.retention_time, get_logs.retention_size, get_logs.compress)
-
-    def to_json(self) -> Dict[str, Any]:
-        return {
-            "Mode": self.mode.value,
-            "RetentionTime": Utils.timedelta_to_str(self.retention_time),
-            "RetentionSize": self.retention_size,
-            "Compress": self.compress,
-        }
-
-
 class SetLogsConfigurationOperation(VoidServerOperation):
+    class Parameters:
+        def __init__(
+            self,
+            mode: LogMode = None,
+            retention_time: timedelta = None,
+            retention_size: int = None,
+            compress: bool = None,
+        ) -> None:
+            self.mode = mode
+            self.retention_time = retention_time
+            self.retention_size = retention_size
+            self.compress = compress
+
+        @classmethod
+        def from_get_logs(cls, get_logs: GetLogsConfigurationResult) -> "SetLogsConfigurationOperation.Parameters":
+            return cls(get_logs.mode, get_logs.retention_time, get_logs.retention_size, get_logs.compress)
+
+        def to_json(self) -> Dict[str, Any]:
+            return {
+                "Mode": self.mode.value,
+                "RetentionTime": Utils.timedelta_to_str(self.retention_time),
+                "RetentionSize": self.retention_size,
+                "Compress": self.compress,
+            }
+
     def __init__(self, parameters: Parameters) -> None:
         if parameters is None:
             raise ValueError("Parameters cannot be None")
@@ -107,7 +110,7 @@ class SetLogsConfigurationOperation(VoidServerOperation):
         return self.SetLogsConfigurationCommand(self._parameters)
 
     class SetLogsConfigurationCommand(VoidRavenCommand):
-        def __init__(self, parameters: Parameters):
+        def __init__(self, parameters: "SetLogsConfigurationOperation.Parameters"):
             if parameters is None:
                 raise ValueError("Parameters must be None")
 
