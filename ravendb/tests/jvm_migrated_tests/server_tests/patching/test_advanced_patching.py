@@ -2,7 +2,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Any, Dict
 
-from ravendb import PatchRequest, PatchOperation, PatchStatus
+from ravendb import (
+    PatchRequest,
+    PatchOperation,
+    PatchStatus,
+    IndexDefinition,
+    PutIndexesOperation,
+    PatchByQueryOperation,
+)
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.utils import Utils
 
@@ -105,3 +112,36 @@ class TestAdvancedPatching(TestBase):
 
         self.assertEqual(PatchStatus.NOT_MODIFIED, result.status)
         self.assertEqual("123", result.document.owner)
+
+    def test_can_create_documents_if_patching_applied_by_index(self):
+        with self.store.open_session() as new_session:
+            type1 = CustomType(Id="Item/1")
+            type1.value = 1
+
+            type2 = CustomType(Id="Item/2")
+            type2.value = 2
+
+            new_session.store(type1)
+            new_session.store(type2)
+            new_session.save_changes()
+
+        def1 = IndexDefinition()
+        def1.name = "TestIndex"
+        def1.maps = {"from doc in docs.CustomTypes select new { doc.value }"}
+
+        self.store.maintenance.send(PutIndexesOperation(def1))
+
+        with self.store.open_session() as session:
+            list(session.advanced.document_query("TestIndex", None, CustomType, False).wait_for_non_stale_results())
+
+        operation = self.store.operations.send_async(
+            PatchByQueryOperation(
+                "FROM INDEX 'TestIndex' WHERE value = 1 update { put('NewItem/3', {'copiedValue': this.value });}"
+            )
+        )
+
+        operation.wait_for_completion()
+
+        with self.store.open_session() as session:
+            json_document = session.load("NewItem/3", dict)
+            self.assertEqual(1.0, json_document.get("copiedValue"))
