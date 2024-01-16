@@ -1,9 +1,15 @@
 import unittest
+from datetime import timedelta
+from typing import Type
 
-from ravendb import SorterDefinition
+from ravendb import SorterDefinition, AbstractIndexCreationTask, AnalyzerDefinition, DocumentStore
+from ravendb.documents.indexes.definitions import FieldIndexing
+from ravendb.documents.operations.indexes import ResetIndexOperation
 from ravendb.infrastructure.orders import Company
+from ravendb.serverwide.operations.analyzers import PutServerWideAnalyzersOperation, DeleteServerWideAnalyzerOperation
 from ravendb.serverwide.operations.sorters import PutServerWideSortersOperation, DeleteServerWideSorterOperation
 from ravendb.tests.test_base import TestBase
+
 
 sorter_code = (
     "using System;\n"
@@ -96,3 +102,95 @@ class TestRavenDB16328(TestBase):
     @staticmethod
     def get_sorter(name) -> str:
         return sorter_code.replace("MySorter", name)
+
+    analyzer = (
+        "using System.IO;\n"
+        "using Lucene.Net.Analysis;\n"
+        "using Lucene.Net.Analysis.Standard;\n"
+        "\n"
+        "namespace SlowTests.Data.RavenDB_14939\n"
+        "{\n"
+        "    public class MyAnalyzer : StandardAnalyzer\n"
+        "    {\n"
+        "        public MyAnalyzer()\n"
+        "            : base(Lucene.Net.Util.Version.LUCENE_30)\n"
+        "        {\n"
+        "        }\n"
+        "\n"
+        "        public override TokenStream TokenStream(string fieldName, TextReader reader)\n"
+        "        {\n"
+        "            return new ASCIIFoldingFilter(base.TokenStream(fieldName, reader));\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
+    @staticmethod
+    def _fill(store: DocumentStore) -> None:
+        with store.open_session() as session:
+            session.store(Customer(name="Rogério"))
+            session.store(Customer(name="Rogerio"))
+            session.store(Customer(name="Paulo Rogerio"))
+            session.store(Customer(name="Paulo Rogério"))
+            session.save_changes()
+
+    def _assert_count(
+        self, store: DocumentStore, index: Type[AbstractIndexCreationTask], expected_count: int = 4
+    ) -> None:
+        self.wait_for_indexing(store)
+
+        with store.open_session() as session:
+            results = list(session.query_index_type(index, Customer).no_caching().search("name", "Rogério*"))
+            self.assertEqual(expected_count, len(results))
+
+    def test_can_use_custom_analyzer(self):
+        analyzer_name = "MyAnalyzer"
+
+        self.assertRaisesWithMessageContaining(
+            self.store.execute_index,
+            Exception,
+            "Cannot find analyzer type '" + analyzer_name + "' for field: name",
+            self.MyIndex(analyzer_name),
+        )
+
+        try:
+            analyzer_definition = AnalyzerDefinition()
+            analyzer_definition.name = analyzer_name
+            analyzer_definition.code = self.analyzer
+
+            self.store.maintenance.server.send(PutServerWideAnalyzersOperation(analyzer_definition))
+
+            self.store.execute_index(self.MyIndex(analyzer_name))
+
+            self._fill(self.store)
+
+            self.wait_for_indexing(self.store)
+
+            self._assert_count(self.store, self.MyIndex)
+
+            self.store.maintenance.server.send(DeleteServerWideAnalyzerOperation(analyzer_name))
+
+            self.store.maintenance.send(ResetIndexOperation(self.MyIndex().index_name))
+
+            errors = self.wait_for_indexing_errors(self.store, timedelta(seconds=10))
+            self.assertEqual(1, len(errors))
+            self.assertEqual(1, len(errors[0].errors))
+            self.assertIn(
+                "Cannot find analyzer type '" + analyzer_name + "' for field: name", errors[0].errors[0].error
+            )
+        finally:
+            self.store.maintenance.server.send(DeleteServerWideAnalyzerOperation(analyzer_name))
+
+    class MyIndex(AbstractIndexCreationTask):
+        def __init__(self, analyzer_name: str = "MyAnalyzer"):
+            super().__init__()
+            self.map = "from customer in docs.Customers select new { customer.name }"
+
+            self._index("name", FieldIndexing.SEARCH)
+            self._analyze("name", analyzer_name)
+
+
+class Customer:
+    def __init__(self, Id: str = None, name: str = None):
+        self.Id = Id
+        self.name = name
