@@ -5,6 +5,7 @@ import requests
 from ravendb import SorterDefinition, RaftCommand, ServerNode
 from ravendb.documents.operations.definitions import VoidMaintenanceOperation
 from ravendb.http.raven_command import VoidRavenCommand
+from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
@@ -46,6 +47,32 @@ class PutSortersOperation(VoidMaintenanceOperation):
 
         def is_read_request(self) -> bool:
             return False
+
+        def get_raft_unique_request_id(self) -> str:
+            return RaftIdGenerator.new_id()
+
+
+class DeleteSorterOperation(VoidMaintenanceOperation):
+    def __init__(self, sorter_name: str = None):
+        if sorter_name is None:
+            raise ValueError("SorterName cannot be None")
+
+        self._sorter_name = sorter_name
+
+    def get_command(self, conventions: "DocumentConventions") -> "DeleteSorterOperation.DeleteSorterCommand":
+        return self.DeleteSorterCommand(self._sorter_name)
+
+    class DeleteSorterCommand(VoidRavenCommand, RaftCommand):
+        def __init__(self, sorter_name: str = None):
+            if sorter_name is None:
+                raise ValueError("SorterName cannot be None")
+
+            super().__init__()
+            self._sorter_name = sorter_name
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            url = f"{node.url}/databases/{node.database}/admin/sorters?name={Utils.quote_key(self._sorter_name)}"
+            return requests.Request("DELETE", url)
 
         def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()

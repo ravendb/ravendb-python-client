@@ -1,7 +1,7 @@
 from typing import Type
 
 from ravendb import SorterDefinition, DocumentStore, RawDocumentQuery, DocumentQuery
-from ravendb.documents.operations.sorters import PutSortersOperation
+from ravendb.documents.operations.sorters import PutSortersOperation, DeleteSorterOperation
 from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
@@ -76,7 +76,9 @@ class TestRavenDB8355(TestBase):
 
         self._can_use_sorter_internal(RuntimeError, self.store, "Catch me: name:2:0:False", "Catch me: name:2:0:True")
 
-    def _can_use_sorter_internal(self, expected_class: Type[Exception], store: DocumentStore, asc: str, desc: str) -> None:
+    def _can_use_sorter_internal(
+        self, expected_class: Type[Exception], store: DocumentStore, asc: str, desc: str
+    ) -> None:
         with store.open_session() as session:
             self.assertRaisesWithMessageContaining(
                 RawDocumentQuery.__iter__,
@@ -105,3 +107,59 @@ class TestRavenDB8355(TestBase):
                     field="name", sorter_name_or_ordering_type="MySorter"
                 ),
             )
+
+    def test_can_use_custom_sorter_with_operations(self):
+        with self.store.open_session() as session:
+            company1 = Company(name="C1")
+            session.store(company1)
+
+            company2 = Company(name="C2")
+            session.store(company2)
+
+            session.save_changes()
+
+        self._can_use_sorter_internal(
+            RuntimeError,
+            self.store,
+            "There is no sorter with 'MySorter' name",
+            "There is no sorter with 'MySorter' name",
+        )
+
+        sorter_definition = SorterDefinition("MySorter", sorter_code)
+
+        operation = PutSortersOperation(sorter_definition)
+        self.store.maintenance.send(operation)
+
+        # checking if we can send again same sorter
+        self.store.maintenance.send(PutSortersOperation(sorter_definition))
+
+        self._can_use_sorter_internal(RuntimeError, self.store, "Catch me: name:2:0:False", "Catch me: name:2:0:True")
+
+        _sorter_code = sorter_code.replace("Catch me", "Catch me 2")
+
+        # checking if we can update sorter
+        sorter_definition2 = SorterDefinition("MySorter", _sorter_code)
+        self.store.maintenance.send(PutSortersOperation(sorter_definition2))
+
+        other_definition = SorterDefinition("MySorter_OtherName", _sorter_code)
+
+        # We should not be able to add sorter with non-matching name
+        self.assertRaisesWithMessageContaining(
+            self.store.maintenance.send,
+            RuntimeError,
+            "Could not find type 'MySorter_OtherName' in given assemly.",
+            PutSortersOperation(other_definition),
+        )
+
+        self._can_use_sorter_internal(
+            RuntimeError, self.store, "Catch me 2: name:2:0:False", "Catch me 2: name:2:0:True"
+        )
+
+        self.store.maintenance.send(DeleteSorterOperation("MySorter"))
+
+        self._can_use_sorter_internal(
+            RuntimeError,
+            self.store,
+            "There is no sorter with 'MySorter' name",
+            "There is no sorter with 'MySorter' name",
+        )
