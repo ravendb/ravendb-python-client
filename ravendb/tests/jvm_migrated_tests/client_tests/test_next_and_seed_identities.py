@@ -1,4 +1,8 @@
-from ravendb.documents.operations.identities import NextIdentityForOperation, SeedIdentityForOperation
+from ravendb.documents.operations.identities import (
+    NextIdentityForOperation,
+    SeedIdentityForOperation,
+    GetIdentitiesOperation,
+)
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
 
@@ -48,3 +52,36 @@ class TestNextAndSeedIdentities(TestBase):
 
         result3 = self.store.maintenance.send(SeedIdentityForOperation("users", 1975, True))
         self.assertEqual(1975, result3)
+
+    def test_next_identity_for(self):
+        with self.store.open_session() as session:
+            user = User(last_name="Adi")
+            session.store(user, "users|")
+            session.save_changes()
+
+        self.store.maintenance.send(NextIdentityForOperation("users"))
+
+        with self.store.open_session() as session:
+            user = User(last_name="Avivi")
+
+            session.store(user, "users|")
+            session.save_changes()
+
+        identities = self.store.maintenance.send(GetIdentitiesOperation())
+
+        self.assertEqual(1, len(identities))
+        self.assertEqual(identities, {"users|": 3})
+
+        with self.store.open_session() as session:
+            entity_with_id_1 = session.load("users/1", User)
+            entity_with_id_2 = session.load("users/2", User)
+            entity_with_id_3 = session.load("users/3", User)
+            entity_with_id_4 = session.load("users/4", User)
+
+            self.assertIsNotNone(entity_with_id_1)
+            self.assertIsNotNone(entity_with_id_3)
+            self.assertIsNone(entity_with_id_2)
+            self.assertIsNone(entity_with_id_4)
+
+            self.assertEqual("Adi", entity_with_id_1.last_name)
+            self.assertEqual("Avivi", entity_with_id_3.last_name)

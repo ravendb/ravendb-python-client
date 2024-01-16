@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Union, TypeVar
+from typing import Optional, Union, TypeVar, Dict
 
 import requests
 
@@ -116,3 +116,22 @@ class SeedIdentityForOperation(MaintenanceOperation[int]):
 
     def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[_T]":
         return SeedIdentityForCommand(self._identity_name, self._identity_value, self._force_update)
+
+
+class GetIdentitiesOperation(MaintenanceOperation[Dict[str, int]]):
+    def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[Dict[str, int]]":
+        return self.GetIdentitiesCommand()
+
+    class GetIdentitiesCommand(RavenCommand[Dict[str, int]]):
+        def __init__(self):
+            super().__init__(dict)
+
+        def is_read_request(self) -> bool:
+            return True
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            url = f"{node.url}/databases/{node.database}/debug/identities"
+            return requests.Request(method="GET", url=url)
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            self.result = json.loads(response)
