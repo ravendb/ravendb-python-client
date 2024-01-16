@@ -3,9 +3,6 @@ from typing import Optional
 
 
 class RaftIdGenerator:
-    def __init__(self):
-        pass
-
     @staticmethod
     def new_id() -> str:
         return str(uuid.uuid4())

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import datetime
 import enum
-from typing import Optional, Dict, Union, List, Set, TYPE_CHECKING
+from typing import Optional, Dict, List, Set, TYPE_CHECKING
 
 from ravendb.documents.indexes.analysis.definitions import AnalyzerDefinition
 from ravendb.documents.indexes.definitions import (
@@ -29,15 +29,15 @@ from ravendb.documents.operations.revisions import (
 from ravendb.documents.queries.sorting import SorterDefinition
 
 from ravendb.documents.operations.time_series import TimeSeriesConfiguration
+from ravendb.serverwide.misc import (
+    ConflictSolver,
+    DocumentsCompressionConfiguration,
+    DeletionInProgressStatus,
+    DatabaseTopology,
+)
 
 if TYPE_CHECKING:
-    from ravendb.serverwide import (
-        ConflictSolver,
-        DocumentsCompressionConfiguration,
-        DeletionInProgressStatus,
-        DatabaseTopology,
-    )
-    from ravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
+    from ravendb import ClientConfiguration, StudioConfiguration
 
 
 class DatabaseRecord:
@@ -133,7 +133,11 @@ class DatabaseRecord:
         record.lock_mode = DatabaseRecord.DatabaseLockMode(json_dict.get("LockMode", None))
         record.topology = json_dict.get("Topology", None)
         record.conflict_solver_config = json_dict.get("ConflictSolverConfig", None)
-        record.documents_compression = json_dict.get("DocumentCompression", None)
+        record.documents_compression = (
+            DocumentsCompressionConfiguration.from_json(json_dict.get("DocumentsCompression"))
+            if json_dict.get("DocumentsCompression", None) is not None
+            else None
+        )
         record.sorters = json_dict.get("Sorters", None)
         record.analyzers = json_dict.get("Analyzers", None)
         record.indexes = json_dict.get("Indexes", None)

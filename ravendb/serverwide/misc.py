@@ -9,9 +9,26 @@ if TYPE_CHECKING:
 
 
 class DocumentsCompressionConfiguration:
-    def __init__(self, compress_revisions: Optional[bool] = None, connections: Optional[List[str]] = None):
+    def __init__(
+        self,
+        compress_revisions: Optional[bool] = None,
+        compress_all_collections: Optional[bool] = None,
+        collections: Optional[List[str]] = None,
+    ):
         self.compress_revisions = compress_revisions
-        self.connections = connections
+        self.compress_all_collections = compress_all_collections
+        self.collections = collections
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> DocumentsCompressionConfiguration:
+        return cls(json_dict["CompressRevisions"], json_dict["CompressAllCollections"], json_dict["Collections"])
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "CompressRevisions": self.compress_revisions,
+            "CompressAllCollections": self.compress_all_collections,
+            "Collections": self.collections,
+        }
 
 
 class DeletionInProgressStatus(enum.Enum):
