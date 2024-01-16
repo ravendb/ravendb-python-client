@@ -657,3 +657,29 @@ class ResetIndexOperation(VoidMaintenanceOperation):
 
         def create_request(self, node: ServerNode) -> requests.Request:
             return requests.Request("RESET", f"{node.url}/databases/{node.database}/indexes?name={self._index_name}")
+
+
+class DeleteIndexErrorsOperation(VoidMaintenanceOperation):
+    def __init__(self, index_names: List[str] = None):
+        self._index_names = index_names
+
+    def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
+        return self.DeleteIndexErrorsCommand(self._index_names)
+
+    class DeleteIndexErrorsCommand(VoidRavenCommand):
+        def __init__(self, index_names: List[str]):
+            super().__init__()
+            self._index_names = index_names
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            url = f"{node.url}/databases/{node.database}/indexes/errors"
+
+            if self._index_names is not None and len(self._index_names) > 0:
+                url = f"{url}?"
+                for index_name in self._index_names:
+                    url = f"{url}&name={Utils.quote_key(index_name)}"
+
+            return requests.Request("DELETE", url)
+
+        def is_read_request(self) -> bool:
+            return False
