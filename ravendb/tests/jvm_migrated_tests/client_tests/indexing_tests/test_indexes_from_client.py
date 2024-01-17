@@ -1,5 +1,7 @@
 import time
+from typing import Optional
 
+from ravendb import QueryStatistics
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
@@ -190,3 +192,29 @@ class TestIndexesFromClient(TestBase):
         self.assertEqual(1, len(status.indexes))
 
         self.assertEqual(IndexRunningStatus.PAUSED, status.indexes[0].status)
+
+    def test_get_index_names(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            stats: Optional[QueryStatistics] = None
+
+            def _stats_callback(qs: QueryStatistics) -> None:
+                nonlocal stats
+                stats = qs
+
+            users = list(
+                session.query(object_type=User)
+                .wait_for_non_stale_results()
+                .statistics(_stats_callback)
+                .where_equals("name", "Arek")
+            )
+            index_name = stats.index_name
+
+        with self.store.open_session() as session:
+            index_names = self.store.maintenance.send(GetIndexNamesOperation(0, 10))
+            self.assertEqual(1, len(index_names))
+            self.assertIn(index_name, index_names)
