@@ -245,3 +245,41 @@ class TestFirstClassPatch(TestBase):
         with self.store.open_session() as session:
             loaded = session.load(self.doc_id, User)
             self.assertEqual(3, loaded.stuff[0].key)
+
+    def test_should_merge_patch_calls(self):
+        stuff = [Stuff(6), None, None]
+
+        user = User(stuff, numbers=[66])
+        user2 = User(stuff, numbers=[1, 2, 3])
+
+        docid2 = "users/2-A"
+
+        with self.store.open_session() as session:
+            session.store(user)
+            session.store(user2, docid2)
+            session.save_changes()
+
+        now = datetime.utcnow()
+
+        with self.store.open_session() as session:
+            session.advanced.patch(self.doc_id, "numbers[0]", 31)
+            self.assertEqual(1, len(session._deferred_commands))
+            session.advanced.patch(self.doc_id, "last_login", now)
+            self.assertEqual(1, len(session._deferred_commands))
+            session.advanced.patch(docid2, "numbers[0]", 123)
+            self.assertEqual(2, len(session._deferred_commands))
+            session.advanced.patch(docid2, "last_login", now)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.advanced.increment(self.doc_id, "numbers[0]", 1)
+            self.assertEqual(1, len(session._deferred_commands))
+            session.advanced.patch_array(self.doc_id, "numbers", lambda r: r.add(77))
+            self.assertEqual(1, len(session._deferred_commands))
+            session.advanced.patch_array(self.doc_id, "numbers", lambda r: r.add(88))
+            self.assertEqual(1, len(session._deferred_commands))
+            session.advanced.patch_array(self.doc_id, "numbers", lambda r: r.remove_at(1))
+            self.assertEqual(1, len(session._deferred_commands))
+
+            session.save_changes()
