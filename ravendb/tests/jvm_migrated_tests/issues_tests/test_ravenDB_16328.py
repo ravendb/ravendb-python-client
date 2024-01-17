@@ -143,6 +143,7 @@ class TestRavenDB16328(TestBase):
             results = list(session.query_index_type(index, Customer).no_caching().search("name", "Rogério*"))
             self.assertEqual(expected_count, len(results))
 
+    @unittest.skip("Skipping due to license on CI/CD")
     def test_can_use_custom_analyzer(self):
         analyzer_name = "MyAnalyzer"
 
