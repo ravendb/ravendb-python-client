@@ -1,7 +1,8 @@
 import time
 from typing import Optional
 
-from ravendb import QueryStatistics
+from ravendb import QueryStatistics, IndexQuery
+from ravendb.documents.commands.explain import ExplainQueryCommand
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
@@ -218,3 +219,27 @@ class TestIndexesFromClient(TestBase):
             index_names = self.store.maintenance.send(GetIndexNamesOperation(0, 10))
             self.assertEqual(1, len(index_names))
             self.assertIn(index_name, index_names)
+
+    def test_can_explain(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+
+            def _stats_callback(qs: QueryStatistics) -> None:
+                stats = qs
+
+            users = list(session.query(object_type=User).statistics(_stats_callback).where_equals("name", "Arek"))
+            users = list(session.query(object_type=User).statistics(_stats_callback).where_greater_than("age", 10))
+
+            index_query = IndexQuery("from users")
+            command = ExplainQueryCommand(self.store.conventions, index_query)
+
+            self.store.get_request_executor().execute_command(command)
+
+            explanations = command.result
+            self.assertEqual(1, len(explanations))
+            self.assertIsNotNone(explanations[0].index)
+            self.assertIsNotNone(explanations[0].reason)
