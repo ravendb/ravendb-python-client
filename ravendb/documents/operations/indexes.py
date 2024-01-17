@@ -1,5 +1,4 @@
 from __future__ import annotations
-import enum
 import json
 from typing import List, TYPE_CHECKING, Optional, Tuple
 
@@ -7,13 +6,15 @@ import requests
 
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import ErrorResponseException
-from ravendb.documents.indexes.definitions import IndexDefinition, IndexErrors, IndexLockMode, IndexPriority
+from ravendb.documents.indexes.definitions import IndexDefinition, IndexErrors, IndexLockMode, IndexPriority, \
+    IndexRunningStatus
 from ravendb.documents.operations.definitions import MaintenanceOperation, VoidMaintenanceOperation
 from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import RaftCommand
 from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
+from ravendb.documents.indexes.stats import IndexStats
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
@@ -270,13 +271,6 @@ class StopIndexOperation(VoidMaintenanceOperation):
             )
 
 
-class IndexRunningStatus(enum.Enum):
-    RUNNING = "Running"
-    PAUSED = "Paused"
-    DISABLED = "Disabled"
-    PENDING = "Pending"
-
-
 class IndexStatus:
     def __init__(self, name: str = None, status: IndexRunningStatus = None):
         self.name = name
@@ -290,7 +284,7 @@ class IndexStatus:
 class IndexingStatus:
     def __init__(
         self, status: IndexRunningStatus = None, indexes: List[IndexStatus] = None
-    ):  # todo: Optional typehints
+    ):
         self.status = status
         self.indexes = indexes
 
@@ -325,17 +319,17 @@ class GetIndexingStatusOperation(MaintenanceOperation[IndexingStatus]):
             self.result = IndexingStatus.from_json(response)
 
 
-class GetIndexStatisticsOperation(MaintenanceOperation[dict]):  # replace returned type with IndexStats -> its enormous
+class GetIndexStatisticsOperation(MaintenanceOperation["IndexStats"]):
     def __init__(self, name):
         if name is None:
             raise ValueError("Index name cannot be None")
         super().__init__()
         self.__index_name = name
 
-    def get_command(self, conventions) -> RavenCommand[dict]:
-        return self.__GetIndexStatisticsCommand(self.__index_name)
+    def get_command(self, conventions) -> RavenCommand["IndexStats"]:
+        return self._GetIndexStatisticsCommand(self.__index_name)
 
-    class __GetIndexStatisticsCommand(RavenCommand[dict]):
+    class _GetIndexStatisticsCommand(RavenCommand["IndexStats"]):
         def __init__(self, index_name: str):
             if not index_name:
                 raise ValueError("Index name can't be None or empty")
@@ -343,10 +337,10 @@ class GetIndexStatisticsOperation(MaintenanceOperation[dict]):  # replace return
             self.__index_name = index_name
 
         def create_request(self, server_node) -> requests.Request:
+            url = f"{server_node.url}/databases/{server_node.database}/indexes/stats?name={Utils.quote_key(self.__index_name)}"
             return requests.Request(
                 "GET",
-                f"{server_node.url}/databases/{server_node.database}"
-                f"/indexes/stats?name={Utils.escape(self.__index_name, False, False)}",
+                url,
             )
 
         def is_read_request(self) -> bool:
@@ -354,14 +348,15 @@ class GetIndexStatisticsOperation(MaintenanceOperation[dict]):  # replace return
 
         def set_response(self, response: str, from_cache: bool) -> None:
             if response is None:
-                raise ValueError("Invalid response")
+                self._throw_invalid_response()
 
             response = json.loads(response)
-            if "Error" in response:
-                raise exceptions.ErrorResponseException(response["Error"])
-            if "Results" not in response or len(response["Results"]) > 1:
-                raise ValueError("Invalid response")
-            self.result = response["Results"]
+            results = response["Results"]
+
+            if len(results) != 1:
+                self._throw_invalid_response()
+
+            self.result = IndexStats.from_json(results[0])
 
 
 class GetIndexesStatisticsOperation(
