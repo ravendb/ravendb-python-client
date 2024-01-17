@@ -2,8 +2,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, Any
 
-from ravendb.documents.indexes.definitions import IndexState, IndexPriority, IndexLockMode, IndexType, IndexSourceType, \
-    IndexRunningStatus
+from ravendb.documents.indexes.definitions import (
+    IndexState,
+    IndexPriority,
+    IndexLockMode,
+    IndexType,
+    IndexSourceType,
+    IndexRunningStatus,
+)
 from ravendb.tools.utils import Utils
 
 

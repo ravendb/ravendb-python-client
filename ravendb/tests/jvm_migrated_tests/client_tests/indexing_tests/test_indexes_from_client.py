@@ -16,10 +16,18 @@ from ravendb.documents.operations.indexes import (
     StartIndexingOperation,
     StopIndexOperation,
     GetIndexesOperation,
-    GetIndexStatisticsOperation, SetIndexesLockOperation, SetIndexesPriorityOperation,
+    GetIndexStatisticsOperation,
+    SetIndexesLockOperation,
+    SetIndexesPriorityOperation,
+    GetTermsOperation,
 )
-from ravendb.documents.indexes.definitions import FieldIndexing, FieldStorage, IndexLockMode, IndexRunningStatus, \
-    IndexPriority
+from ravendb.documents.indexes.definitions import (
+    FieldIndexing,
+    FieldStorage,
+    IndexLockMode,
+    IndexRunningStatus,
+    IndexPriority,
+)
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.infrastructure.entities import User, Post
 from ravendb.tests.test_base import TestBase
@@ -271,9 +279,37 @@ class TestIndexesFromClient(TestBase):
         self.assertEqual(stats.priority, IndexPriority.NORMAL)
 
         self.store.maintenance.send(SetIndexesLockOperation(IndexLockMode.LOCKED_IGNORE, index.name))
-        self.store.maintenance.send(SetIndexesPriorityOperation(IndexPriority.LOW,index.name ))
+        self.store.maintenance.send(SetIndexesPriorityOperation(IndexPriority.LOW, index.name))
 
         stats = self.store.maintenance.send(GetIndexStatisticsOperation(index.name))
 
         self.assertEqual(IndexLockMode.LOCKED_IGNORE, stats.lock_mode)
         self.assertEqual(IndexPriority.LOW, stats.priority)
+
+    def test_get_terms(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            stats: Optional[QueryStatistics] = None
+
+            def _stats(s: QueryStatistics):
+                nonlocal stats
+                stats = s
+
+            users = list(
+                session.query(object_type=User)
+                .wait_for_non_stale_results()
+                .statistics(_stats)
+                .where_equals("name", "Arek")
+            )
+            index_name = stats.index_name
+
+        terms = self.store.maintenance.send(GetTermsOperation(index_name, "name", None, 128))
+
+        self.assertEqual(2, len(terms))
+
+        self.assertIn("arek", terms)
+        self.assertIn("fitzchak", terms)

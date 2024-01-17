@@ -6,8 +6,13 @@ import requests
 
 from ravendb.exceptions import exceptions
 from ravendb.exceptions.exceptions import ErrorResponseException
-from ravendb.documents.indexes.definitions import IndexDefinition, IndexErrors, IndexLockMode, IndexPriority, \
-    IndexRunningStatus
+from ravendb.documents.indexes.definitions import (
+    IndexDefinition,
+    IndexErrors,
+    IndexLockMode,
+    IndexPriority,
+    IndexRunningStatus,
+)
 from ravendb.documents.operations.definitions import MaintenanceOperation, VoidMaintenanceOperation
 from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.http.server_node import ServerNode
@@ -282,9 +287,7 @@ class IndexStatus:
 
 
 class IndexingStatus:
-    def __init__(
-        self, status: IndexRunningStatus = None, indexes: List[IndexStatus] = None
-    ):
+    def __init__(self, status: IndexRunningStatus = None, indexes: List[IndexStatus] = None):
         self.status = status
         self.indexes = indexes
 
