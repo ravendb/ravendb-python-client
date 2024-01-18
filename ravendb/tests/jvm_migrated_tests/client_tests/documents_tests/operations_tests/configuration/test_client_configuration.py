@@ -13,7 +13,7 @@ class ClientConfigurationTest(TestBase):
     def setUp(self):
         super(ClientConfigurationTest, self).setUp()
 
-    def test_can_save_and_read_server_wide_configuration(self):
+    def test_can_save_and_read_server_wide_client_configuration(self):
         configuration_to_save = ClientConfiguration()
         configuration_to_save.max_number_of_requests_per_session = 80
         configuration_to_save.read_balance_behavior = ReadBalanceBehavior.FASTEST_NODE

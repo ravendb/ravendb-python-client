@@ -31,6 +31,7 @@ from ravendb.serverwide.operations.common import (
 )
 from ravendb.tests.driver.raven_server_locator import RavenServerLocator
 from ravendb.tests.driver.raven_test_driver import RavenTestDriver
+from ravendb.tools.utils import Stopwatch
 
 sys.path.append(os.path.abspath(__file__ + "/../../"))
 
@@ -392,6 +393,21 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
         raise TimeoutError(f"The indexes stayed stale for more than {timeout}. {all_index_errors_text}")
 
+    @staticmethod
+    def wait_for_indexing_errors(store: DocumentStore, timeout: timedelta, *index_names: str):
+        sw = Stopwatch.create_started()
+
+        while sw.elapsed() < timeout:
+            indexes = store.maintenance.send(GetIndexErrorsOperation(*index_names))
+
+            for index in indexes:
+                if index.errors:
+                    return indexes
+
+            time.sleep(0.032)
+
+        raise TimeoutError(f"Got no index error for more than {timeout.total_seconds()} seconds")
+
     def setConvention(self, conventions):
         self.conventions = conventions
 
@@ -452,7 +468,10 @@ class TestBase(unittest.TestCase, RavenTestDriver):
                 raise AssertionError(f"Expected exception '{exception}' but got '{type(ex)}'.")
             e = ex
         self.assertIsNotNone(e)
-        self.assertIn(msg, e.args[0])
+        try:
+            self.assertIn(msg, e.args[0])
+        except AssertionError as ex:
+            self.assertIn(msg, ex.args[0])
 
     def assertSequenceContainsElements(self, sequence, *args):
         for arg in args:

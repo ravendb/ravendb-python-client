@@ -1,4 +1,4 @@
-from ravendb.documents.indexes.definitions import IndexDefinition, IndexLockMode, IndexPriority
+from ravendb.documents.indexes.definitions import IndexDefinition, IndexLockMode, IndexPriority, IndexRunningStatus
 from ravendb.documents.operations.indexes import (
     PutIndexesOperation,
     GetIndexNamesOperation,
@@ -8,7 +8,6 @@ from ravendb.documents.operations.indexes import (
     IndexingStatus,
     EnableIndexOperation,
     IndexStatus,
-    IndexRunningStatus,
     GetIndexStatisticsOperation,
     StopIndexOperation,
     StartIndexOperation,
@@ -86,7 +85,7 @@ class TestIndexOperation(TestBase):
             session.save_changes()
         self.wait_for_indexing(self.store, self.store.database)
         stats = self.store.maintenance.send(GetIndexStatisticsOperation(index.name))
-        self.assertEqual(1, len(stats))
+        self.assertEqual(1, stats.entries_count)
 
     def test_can_list_errors(self):
         index = UsersInvalidIndex()

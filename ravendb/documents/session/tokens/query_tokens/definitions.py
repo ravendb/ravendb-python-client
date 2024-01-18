@@ -274,7 +274,10 @@ class OrderByToken(QueryToken):
     def __init__(self, field_name: str, descending: bool, ordering_or_sorter_name: Union[OrderingType, str]):
         self.__field_name = field_name
         self.__descending = descending
+
+        # duck typing the arg
         is_ordering = isinstance(ordering_or_sorter_name, OrderingType)
+
         self.__ordering = ordering_or_sorter_name if is_ordering else None
         self.__sorter_name = None if is_ordering else ordering_or_sorter_name
 

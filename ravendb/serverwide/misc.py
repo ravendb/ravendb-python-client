@@ -2,16 +2,33 @@ from __future__ import annotations
 
 import datetime
 import enum
-from typing import List, Optional, Dict, TYPE_CHECKING
+from typing import List, Optional, Dict, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ravendb.serverwide.operations.common import DatabasePromotionStatus
 
 
 class DocumentsCompressionConfiguration:
-    def __init__(self, compress_revisions: Optional[bool] = None, connections: Optional[List[str]] = None):
+    def __init__(
+        self,
+        compress_revisions: Optional[bool] = None,
+        compress_all_collections: Optional[bool] = None,
+        collections: Optional[List[str]] = None,
+    ):
         self.compress_revisions = compress_revisions
-        self.connections = connections
+        self.compress_all_collections = compress_all_collections
+        self.collections = collections
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> DocumentsCompressionConfiguration:
+        return cls(json_dict["CompressRevisions"], json_dict["CompressAllCollections"], json_dict["Collections"])
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "CompressRevisions": self.compress_revisions,
+            "CompressAllCollections": self.compress_all_collections,
+            "Collections": self.collections,
+        }
 
 
 class DeletionInProgressStatus(enum.Enum):
@@ -98,3 +115,13 @@ class LeaderStamp:
     @classmethod
     def from_json(cls, json_dict: Dict) -> LeaderStamp:
         return cls(json_dict["Index"], json_dict["Term"], json_dict["LeadersTicks"])
+
+
+class CompactSettings:
+    def __init__(self, database_name: str = None, documents: bool = None, indexes: List[str] = None):
+        self.database_name = database_name
+        self.documents = documents
+        self.indexes = indexes
+
+    def to_json(self) -> Dict[str, Any]:
+        return {"DatabaseName": self.database_name, "Documents": self.documents, "Indexes": self.indexes}

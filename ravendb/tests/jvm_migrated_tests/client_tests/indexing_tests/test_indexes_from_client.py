@@ -1,10 +1,33 @@
 import time
+from typing import Optional
 
+from ravendb.documents.session.query import QueryStatistics
+from ravendb.documents.queries.index_query import IndexQuery
+from ravendb.documents.commands.explain import ExplainQueryCommand
 from ravendb.documents.operations.statistics import GetStatisticsOperation
 from ravendb.documents.indexes.index_creation import IndexCreation
 from ravendb.documents.queries.more_like_this import MoreLikeThisOptions
-from ravendb.documents.operations.indexes import GetIndexNamesOperation, DeleteIndexOperation, ResetIndexOperation
-from ravendb.documents.indexes.definitions import FieldIndexing, FieldStorage
+from ravendb.documents.operations.indexes import (
+    GetIndexNamesOperation,
+    DeleteIndexOperation,
+    ResetIndexOperation,
+    GetIndexingStatusOperation,
+    StopIndexingOperation,
+    StartIndexingOperation,
+    StopIndexOperation,
+    GetIndexesOperation,
+    GetIndexStatisticsOperation,
+    SetIndexesLockOperation,
+    SetIndexesPriorityOperation,
+    GetTermsOperation,
+)
+from ravendb.documents.indexes.definitions import (
+    FieldIndexing,
+    FieldStorage,
+    IndexLockMode,
+    IndexRunningStatus,
+    IndexPriority,
+)
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.infrastructure.entities import User, Post
 from ravendb.tests.test_base import TestBase
@@ -142,3 +165,151 @@ class TestIndexesFromClient(TestBase):
 
         second_indexing_time = statistics.last_indexing_time
         self.assertLess(first_indexing_time, second_indexing_time)
+
+    def test_can_stop_and_start(self):
+        Users_ByName().execute(self.store)
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.status)
+
+        self.assertEquals(1, len(status.indexes))
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.indexes[0].status)
+
+        self.store.maintenance.send(StopIndexingOperation())
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.PAUSED, status.status)
+
+        self.assertEqual(IndexRunningStatus.PAUSED, status.indexes[0].status)
+
+        self.store.maintenance.send(StartIndexingOperation())
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.status)
+
+        self.assertEqual(1, len(status.indexes))
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.indexes[0].status)
+
+        self.store.maintenance.send(StopIndexOperation(status.indexes[0].name))
+
+        status = self.store.maintenance.send(GetIndexingStatusOperation())
+
+        self.assertEqual(IndexRunningStatus.RUNNING, status.status)
+
+        self.assertEqual(1, len(status.indexes))
+
+        self.assertEqual(IndexRunningStatus.PAUSED, status.indexes[0].status)
+
+    def test_get_index_names(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            stats: Optional[QueryStatistics] = None
+
+            def _stats_callback(qs: QueryStatistics) -> None:
+                nonlocal stats
+                stats = qs
+
+            users = list(
+                session.query(object_type=User)
+                .wait_for_non_stale_results()
+                .statistics(_stats_callback)
+                .where_equals("name", "Arek")
+            )
+            index_name = stats.index_name
+
+        with self.store.open_session() as session:
+            index_names = self.store.maintenance.send(GetIndexNamesOperation(0, 10))
+            self.assertEqual(1, len(index_names))
+            self.assertIn(index_name, index_names)
+
+    def test_can_explain(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+
+            def _stats_callback(qs: QueryStatistics) -> None:
+                stats = qs
+
+            users = list(session.query(object_type=User).statistics(_stats_callback).where_equals("name", "Arek"))
+            users = list(session.query(object_type=User).statistics(_stats_callback).where_greater_than("age", 10))
+
+            index_query = IndexQuery("from users")
+            command = ExplainQueryCommand(self.store.conventions, index_query)
+
+            self.store.get_request_executor().execute_command(command)
+
+            explanations = command.result
+            self.assertEqual(1, len(explanations))
+            self.assertIsNotNone(explanations[0].index)
+            self.assertIsNotNone(explanations[0].reason)
+
+    def test_set_lock_mode_and_set_priority(self):
+        Users_ByName().execute(self.store)
+
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            users = list(
+                session.query_index_type(Users_ByName, User).wait_for_non_stale_results().where_equals("name", "Arek")
+            )
+            self.assertEqual(1, len(users))
+
+        indexes = self.store.maintenance.send(GetIndexesOperation(0, 128))
+        self.assertEqual(1, len(indexes))
+
+        index = indexes[0]
+        stats = self.store.maintenance.send(GetIndexStatisticsOperation(index.name))
+
+        self.assertEqual(stats.lock_mode, IndexLockMode.UNLOCK)
+        self.assertEqual(stats.priority, IndexPriority.NORMAL)
+
+        self.store.maintenance.send(SetIndexesLockOperation(IndexLockMode.LOCKED_IGNORE, index.name))
+        self.store.maintenance.send(SetIndexesPriorityOperation(IndexPriority.LOW, index.name))
+
+        stats = self.store.maintenance.send(GetIndexStatisticsOperation(index.name))
+
+        self.assertEqual(IndexLockMode.LOCKED_IGNORE, stats.lock_mode)
+        self.assertEqual(IndexPriority.LOW, stats.priority)
+
+    def test_get_terms(self):
+        with self.store.open_session() as session:
+            session.store(User(name="Fitzchak"))
+            session.store(User(name="Arek"))
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            stats: Optional[QueryStatistics] = None
+
+            def _stats(s: QueryStatistics):
+                nonlocal stats
+                stats = s
+
+            users = list(
+                session.query(object_type=User)
+                .wait_for_non_stale_results()
+                .statistics(_stats)
+                .where_equals("name", "Arek")
+            )
+            index_name = stats.index_name
+
+        terms = self.store.maintenance.send(GetTermsOperation(index_name, "name", None, 128))
+
+        self.assertEqual(2, len(terms))
+
+        self.assertIn("arek", terms)
+        self.assertIn("fitzchak", terms)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import datetime
 import enum
-from typing import Optional, Dict, Union, List, Set, TYPE_CHECKING
+from typing import Optional, Dict, List, Set, TYPE_CHECKING
 
 from ravendb.documents.indexes.analysis.definitions import AnalyzerDefinition
 from ravendb.documents.indexes.definitions import (
@@ -29,15 +29,15 @@ from ravendb.documents.operations.revisions import (
 from ravendb.documents.queries.sorting import SorterDefinition
 
 from ravendb.documents.operations.time_series import TimeSeriesConfiguration
+from ravendb.serverwide.misc import (
+    ConflictSolver,
+    DocumentsCompressionConfiguration,
+    DeletionInProgressStatus,
+    DatabaseTopology,
+)
 
 if TYPE_CHECKING:
-    from ravendb.serverwide import (
-        ConflictSolver,
-        DocumentsCompressionConfiguration,
-        DeletionInProgressStatus,
-        DatabaseTopology,
-    )
-    from ravendb.documents.operations.configuration import ClientConfiguration, StudioConfiguration
+    from ravendb import ClientConfiguration, StudioConfiguration
 
 
 class DatabaseRecord:
@@ -130,10 +130,14 @@ class DatabaseRecord:
         record.deletion_in_progress = json_dict.get("DeletionInProgress", None)
         record.rolling_indexes = json_dict.get("RollingIndexes", None)
         record.database_state = json_dict.get("DatabaseState", None)
-        record.lock_mode = json_dict.get("LockMode", None)
+        record.lock_mode = DatabaseRecord.DatabaseLockMode(json_dict.get("LockMode", None))
         record.topology = json_dict.get("Topology", None)
         record.conflict_solver_config = json_dict.get("ConflictSolverConfig", None)
-        record.documents_compression = json_dict.get("DocumentCompression", None)
+        record.documents_compression = (
+            DocumentsCompressionConfiguration.from_json(json_dict.get("DocumentsCompression"))
+            if json_dict.get("DocumentsCompression", None) is not None
+            else None
+        )
         record.sorters = json_dict.get("Sorters", None)
         record.analyzers = json_dict.get("Analyzers", None)
         record.indexes = json_dict.get("Indexes", None)
@@ -148,7 +152,9 @@ class DatabaseRecord:
         record.revisions_for_conflicts = json_dict.get("RevisionsForConflicts", None)
         record.expiration = json_dict.get("Expiration", None)
         record.refresh = json_dict.get("Refresh", None)
-        record.periodic_backups = json_dict.get("PeriodicBackups", None)
+        record.periodic_backups = [
+            PeriodicBackupConfiguration.from_json(pb_json) for pb_json in json_dict.get("PeriodicBackups", [])
+        ]
         record.external_replications = json_dict.get("ExternalReplications", None)
         record.sink_pull_replications = json_dict.get("SinkPullReplications", None)
         record.hub_pull_replications = json_dict.get("HubPullReplications", None)
@@ -177,16 +183,16 @@ class DatabaseRecord:
             self.rolling_deployment = rolling_deployment
 
     class DatabaseLockMode(enum.Enum):
-        UNLOCK = "UNLOCK"
-        PREVENT_DELETES_IGNORE = "PREVENT_DELETES_IGNORE"
-        PREVENT_DELETES_ERROR = "PREVENT_DELETES_ERROR"
+        UNLOCK = "Unlock"
+        PREVENT_DELETES_IGNORE = "PreventDeletesIgnore"
+        PREVENT_DELETES_ERROR = "PreventDeletesError"
 
         def __str__(self):
             return self.value
 
     class DatabaseStateStatus(enum.Enum):
-        NORMAL = "NORMAL"
-        RESTORE_IN_PROGRESS = "RESTORE_IN_PROGRESS"
+        NORMAL = "Normal"
+        RESTORE_IN_PROGRESS = "RestoreInProgress"
 
         def __str__(self):
             return self.value

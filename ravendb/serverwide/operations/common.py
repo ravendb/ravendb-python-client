@@ -251,7 +251,7 @@ class DeleteDatabaseOperation(ServerOperation[DeleteDatabaseResult]):
             return request
 
         def set_response(self, response: str, from_cache: bool) -> None:
-            DeleteDatabaseResult.from_json(json.loads(response))
+            self.result = DeleteDatabaseResult.from_json(json.loads(response))
 
 
 class BuildNumber:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+import enum
 import re
 from enum import Enum
 from abc import ABC
@@ -641,3 +642,10 @@ class IndexDefinitionHelper:
     @staticmethod
     def _unify_white_space(map_str: str) -> str:
         return re.sub("\\s+", " ", map_str)
+
+
+class IndexRunningStatus(enum.Enum):
+    RUNNING = "Running"
+    PAUSED = "Paused"
+    DISABLED = "Disabled"
+    PENDING = "Pending"
