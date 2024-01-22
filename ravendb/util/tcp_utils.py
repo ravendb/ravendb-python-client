@@ -17,11 +17,13 @@ class TcpUtils:
     ) -> socket.socket:
         hostname, port = url_string.replace("tcp://", "").split(":")
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
         is_ssl_socket = server_certificate_base64 and client_certificate_pem_path
-        if server_certificate_base64 and client_certificate_pem_path:
+        if is_ssl_socket:
             context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
             context.load_cert_chain(client_certificate_pem_path, password=certificate_private_key_password)
             s = context.wrap_socket(s)
+
         s.connect((hostname, int(port)))
         if is_ssl_socket and base64.b64decode(server_certificate_base64) != s.getpeercert(True):
             raise ConnectionError("Failed to validate public server certificate.")

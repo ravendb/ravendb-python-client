@@ -1,5 +1,8 @@
+import ssl
 from threading import Lock
 from typing import TYPE_CHECKING, Dict
+
+from websocket import WebSocket
 
 from ravendb.changes.observers import Observable
 from ravendb.changes.types import (
@@ -66,16 +69,16 @@ class DatabaseChanges:
         while not self._closed:
             try:
                 if not self.client_websocket.connected:
-                    # todo: certificates
-                    # if self._request_executor.certificate:
-                    #    if isinstance(self._request_executor.certificate, tuple):
-                    #        (crt, key) = self._request_executor.certificate
-                    #        self.client_websocket.sock_opt.sslopt.update({"certfile": crt, "keyfile": key})
-                    #    else:
-                    #        self.client_websocket.sock_opt.sslopt.update(
-                    #            {"ca_certs": self._request_executor.certificate}
-                    #        )
-                    self.client_websocket.connect(url)
+                    # Get certificate and wrap socket into secured socket
+                    if self._request_executor.certificate_path:
+                        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+                        ssl_context.load_cert_chain(self._request_executor.certificate_path)
+                        self.client_websocket = WebSocket(sslopt={"context": ssl_context})
+
+                        self.client_websocket.connect(url, suppress_origin=True)
+                    else:
+                        self.client_websocket.connect(url)
+
                     for observables in self._observables.values():
                         for observer in observables.values():
                             observer.set(self._executor.submit(observer.on_connect))

@@ -143,7 +143,8 @@ class CreateDatabaseOperation(ServerOperation):
 
         def create_request(self, node: ServerNode) -> requests.Request:
             url = (
-                f"{node.url}/admin/databases?name={self.__database_name}&replicationFactor={self.__replication_factor}"
+                f"{node.url}/admin/databases?name={self.__database_name}"
+                f"&replicationFactor={self.__replication_factor}&?raft-request-id={self.get_raft_unique_request_id}"
             )
 
             request = requests.Request("PUT")
