@@ -1,7 +1,7 @@
 from __future__ import annotations
-from concurrent.futures import Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Lock
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, TypeVar, Optional
 
 from ravendb.tools.concurrentset import ConcurrentSet
 
@@ -9,7 +9,12 @@ _T_Change = TypeVar("_T_Change")
 
 
 class Observable(Generic[_T_Change]):
-    def __init__(self, on_connect=None, on_disconnect=None, executor=None):
+    def __init__(
+        self,
+        on_connect: Optional[Callable[[], None]] = None,
+        on_disconnect: Optional[Callable[[], None]] = None,
+        executor: Optional[ThreadPoolExecutor] = None,
+    ):
         self.on_connect = on_connect
         self._on_disconnect = on_disconnect
         self.last_exception = None
@@ -75,7 +80,7 @@ class Observable(Generic[_T_Change]):
             if self._value == 0:
                 self.set(self._executor.submit(self._on_disconnect))
 
-    def set(self, future):
+    def set(self, future: Future) -> None:
         if not self._future_set.done():
 
             def done_callback(f):
@@ -92,7 +97,7 @@ class Observable(Generic[_T_Change]):
             future.add_done_callback(done_callback)
         self._future = future
 
-    def error(self, exception):
+    def error(self, exception: Exception):
         future = Future()
         self.set(future)
         future.set_exception(exception)

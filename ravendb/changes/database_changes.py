@@ -1,7 +1,7 @@
 import base64
 import ssl
 from threading import Lock
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional, Callable, Any, List
 
 from websocket import WebSocket
 
@@ -13,6 +13,7 @@ from ravendb.changes.types import (
     CounterChange,
     OperationStatusChange,
     TopologyChange,
+    DatabaseChange,
 )
 from ravendb.serverwide.commands import GetTcpInfoCommand
 from ravendb.tools.parsers import IncrementalJsonParser
@@ -31,7 +32,14 @@ if TYPE_CHECKING:
 
 
 class DatabaseChanges:
-    def __init__(self, request_executor: "RequestExecutor", database_name, on_close, on_error=None, executor=None):
+    def __init__(
+        self,
+        request_executor: "RequestExecutor",
+        database_name: str,
+        on_close: Callable[[str], None],
+        on_error: Optional[Callable[[Exception], None]] = None,
+        executor: Optional[ThreadPoolExecutor] = None,
+    ):
         self._request_executor = request_executor
         self._conventions = request_executor.conventions
         self._database_name = database_name
@@ -41,13 +49,13 @@ class DatabaseChanges:
         self._closed = False
         self._on_close = on_close
         self.on_error = on_error
-        self._observables = dict()
+        self._observables_by_group: Dict[str, Dict[str, Observable[DatabaseChange]]] = {}
 
         self._executor = executor if executor else ThreadPoolExecutor(max_workers=10)
         self._worker = self._executor.submit(self.do_work)
         self.send_lock = Lock()
         self._confirmations_lock = Lock()
-        self._confirmations = {}
+        self._confirmations: Dict[int, Future] = {}
 
         self._command_id = 0
         self._immediate_connection = 0
@@ -59,13 +67,41 @@ class DatabaseChanges:
         self._logger.addHandler(handler)
         self._logger.setLevel(logging.DEBUG)
 
+    def _ensure_websocket_connected(self, url: str) -> None:
+        if self._request_executor.certificate_path:
+            self._connect_websocket_secured(url)
+        else:
+            self.client_websocket.connect(url)
+
+        for observables_by_name in self._observables_by_group.values():
+            for observer in observables_by_name.values():
+                observer.set(self._executor.submit(observer.on_connect))
+        self._immediate_connection = 1
+
     def _get_server_certificate(self) -> Optional[str]:
         cmd = GetTcpInfoCommand(self._request_executor.url)
         self._request_executor.execute_command(cmd)
         return cmd.result.certificate
 
+    def _connect_websocket_secured(self, url: str) -> None:
+        # Get server certificate via HTTPS and prepare SSL context
+        server_certificate = base64.b64decode(self._get_server_certificate())
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        ssl_context.load_cert_chain(self._request_executor.certificate_path)
+        ssl_context.load_verify_locations(self._request_executor.trust_store_path)
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+
+        # Create SSL WebSocket and connect it
+        self.client_websocket = WebSocket(sslopt={"context": ssl_context})
+        self.client_websocket.connect(url, suppress_origin=True)
+
+        # Server certificate authentication
+        server_certificate_from_tls = self.client_websocket.sock.getpeercert(True)
+        if server_certificate != server_certificate_from_tls:
+            raise ValueError("Certificates don't match")
+
     def do_work(self):
-        preferred_node = self._request_executor.preferred_node.current_node  # todo: refactor, protected access
+        preferred_node = self._request_executor.preferred_node.current_node
         url = (
             f"{preferred_node.url}/databases/{self._database_name}/changes".replace("http://", "ws://")
             .lower()
@@ -76,29 +112,7 @@ class DatabaseChanges:
         while not self._closed:
             try:
                 if not self.client_websocket.connected:
-                    if self._request_executor.certificate_path:
-                        # Get server certificate via HTTPS and prepare SSL context
-                        server_certificate = base64.b64decode(self._get_server_certificate())
-                        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-                        ssl_context.load_cert_chain(self._request_executor.certificate_path)
-                        ssl_context.load_verify_locations(self._request_executor.trust_store_path)
-                        ssl_context.verify_mode = ssl.CERT_REQUIRED
-
-                        # Connect WebSocket providing SSL
-                        self.client_websocket = WebSocket(sslopt={"context": ssl_context})
-                        self.client_websocket.connect(url, suppress_origin=True)
-
-                        # Server certificate authentication
-                        server_certificate_from_tls = self.client_websocket.sock.getpeercert(True)
-                        if server_certificate != server_certificate_from_tls:
-                            raise ValueError("Certificates don't match")
-                    else:
-                        self.client_websocket.connect(url)
-
-                    for observables in self._observables.values():
-                        for observer in observables.values():
-                            observer.set(self._executor.submit(observer.on_connect))
-                    self._immediate_connection = 1
+                    self._ensure_websocket_connected(url)
                 self.process_changes()
             except ChangeProcessingException as e:
                 self.notify_about_error(e)
@@ -119,39 +133,46 @@ class DatabaseChanges:
         while not self._closed:
             try:
                 response = parser.next_object()
-                if response:
-                    response_type = response.get("Type", None)
-                    if not response_type:
+                if not response:
+                    continue
+
+                response_type: Optional[str] = response.get("Type", None)
+                if not response_type:
+                    continue
+
+                if response_type == "Error":
+                    exception = response["Exception"]
+                    self.notify_about_error(Exception(exception))
+                elif response_type == "Confirm":
+                    command_id: Optional[int] = response.get("CommandId", None)
+                    if not command_id or command_id not in self._confirmations:
                         continue
-                    if response_type == "Error":
-                        exception = response["Exception"]
-                        self.notify_about_error(Exception(exception))
-                    elif response_type == "Confirm":
-                        command_id = response.get("CommandId", None)
-                        if command_id and command_id in self._confirmations:
-                            with self._confirmations_lock:
-                                future = self._confirmations.pop(command_id)
-                                future.set_result("done complete future")
-                    else:
-                        value = response.get("Value", None)
-                        self._notify_subscribers(response_type, value, copy.copy(self._observables[response_type]))
+                    with self._confirmations_lock:
+                        future = self._confirmations.pop(command_id)
+                        future.set_result("done complete future")
+                else:
+                    change_json_dict: Optional[Dict[str, Any]] = response.get("Value", None)
+                    self._notify_subscribers(
+                        response_type, change_json_dict, copy.copy(self._observables_by_group[response_type])
+                    )
             except Exception as e:
                 self.notify_about_error(e)
                 raise ChangeProcessingException(e)
 
-    def _notify_subscribers(self, type_of_change: str, value: Dict, observables: Dict[str, Observable]):
+    @staticmethod
+    def _notify_subscribers(type_of_change: str, change_json_dict: Dict[str, Any], observables: Dict[str, Observable]):
         if type_of_change == "DocumentChange":
-            result = DocumentChange.from_json(value)
+            result = DocumentChange.from_json(change_json_dict)
         elif type_of_change == "IndexChange":
-            result = IndexChange.from_json(value)
+            result = IndexChange.from_json(change_json_dict)
         elif type_of_change == "TimeSeriesChange":
-            result = TimeSeriesChange.from_json(value)
+            result = TimeSeriesChange.from_json(change_json_dict)
         elif type_of_change == "CounterChange":
-            result = CounterChange.from_json(value)
+            result = CounterChange.from_json(change_json_dict)
         elif type_of_change == "OperationStatusChange":
-            result = OperationStatusChange.from_json(value)
+            result = OperationStatusChange.from_json(change_json_dict)
         elif type_of_change == "TopologyChange":
-            result = TopologyChange.from_json(value)
+            result = TopologyChange.from_json(change_json_dict)
         else:
             raise NotSupportedException(type_of_change)
 
@@ -162,7 +183,7 @@ class DatabaseChanges:
         self._closed = True
         self.client_websocket.close()
 
-        for observable in self._observables.values():
+        for observable in self._observables_by_group.values():
             for observer in observable.values():
                 observer.close()
 
@@ -170,23 +191,22 @@ class DatabaseChanges:
             for confirmation in self._confirmations.values():
                 confirmation.cancel()
 
-        self._observables.clear()
+        self._observables_by_group.clear()
         if self._on_close:
             self._on_close(self._database_name)
 
         self._executor.shutdown(wait=True)
 
-    def notify_about_error(self, e):
+    def notify_about_error(self, e: Exception):
         if self.on_error:
             self.on_error(e)
 
-        for _, observables in self._observables.items():
+        for _, observables in self._observables_by_group.items():
             for observer in observables.values():
                 observer.error(e)
 
     def for_all_documents(self) -> Observable[DocumentChange]:
-        # todo: ResourceWarning: unclosed socket
-        observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs", None)(
+        observable = self.get_or_add_observable("DocumentChange", "all-docs", "watch-docs", "unwatch-docs")(
             lambda x: True
         )
         return observable
@@ -197,17 +217,16 @@ class DatabaseChanges:
             "all-operations",
             "watch-operations",
             "unwatch-operations",
-            None,
         )(lambda x: True)
         return observable
 
     def for_all_indexes(self) -> Observable[IndexChange]:
-        observable = self.get_or_add_observable("IndexChange", "all-indexes", "watch-indexes", "unwatch-indexes", None)(
+        observable = self.get_or_add_observable("IndexChange", "all-indexes", "watch-indexes", "unwatch-indexes")(
             lambda x: True
         )
         return observable
 
-    def for_index(self, index_name) -> Observable[IndexChange]:
+    def for_index(self, index_name: str) -> Observable[IndexChange]:
         observable = self.get_or_add_observable(
             "IndexChange",
             "indexes/" + index_name,
@@ -217,7 +236,7 @@ class DatabaseChanges:
         )(lambda x: x.name.casefold() == index_name.casefold())
         return observable
 
-    def for_operation_id(self, operation_id) -> Observable[OperationStatusChange]:
+    def for_operation_id(self, operation_id: int) -> Observable[OperationStatusChange]:
         observable = self.get_or_add_observable(
             "OperationsStatusChange",
             "operations/" + str(operation_id),
@@ -227,13 +246,13 @@ class DatabaseChanges:
         )(lambda x: x.operation_id == str(operation_id))
         return observable
 
-    def for_document(self, doc_id) -> Observable[DocumentChange]:
+    def for_document(self, doc_id: str) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable("DocumentChange", "docs/" + doc_id, "watch-doc", "unwatch-doc", doc_id)(
             lambda x: x.key.casefold() == doc_id.casefold()
         )
         return observable
 
-    def for_documents_start_with(self, doc_id_prefix) -> Observable[DocumentChange]:
+    def for_documents_start_with(self, doc_id_prefix: str) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable(
             "DocumentChange",
             "prefixes/" + doc_id_prefix,
@@ -243,7 +262,7 @@ class DatabaseChanges:
         )(lambda x: x.key is not None and x.key.casefold().startswith(doc_id_prefix.casefold()))
         return observable
 
-    def for_documents_in_collection(self, collection_name) -> Observable[DocumentChange]:
+    def for_documents_in_collection(self, collection_name: str) -> Observable[DocumentChange]:
         observable = self.get_or_add_observable(
             "DocumentChange",
             "collections/" + collection_name,
@@ -259,11 +278,10 @@ class DatabaseChanges:
             "all-timeseries",
             "watch-all-timeseries",
             "unwatch-all-timeseries",
-            None,
         )(lambda x: True)
         return observable
 
-    def for_time_series(self, time_series_name) -> Observable[TimeSeriesChange]:
+    def for_time_series(self, time_series_name: str) -> Observable[TimeSeriesChange]:
         if not time_series_name:
             raise ValueError("time_series_name cannot be None or empty")
         observable = self.get_or_add_observable(
@@ -275,7 +293,7 @@ class DatabaseChanges:
         )(lambda x: x.name.casefold() == time_series_name.casefold())
         return observable
 
-    def for_time_series_of_document(self, doc_id, time_series_name=None) -> Observable[TimeSeriesChange]:
+    def for_time_series_of_document(self, doc_id: str, time_series_name: str = None) -> Observable[TimeSeriesChange]:
         """
         Can subscribe to all time series changes that associated with the document or
         by passing the time series name only for a specific time series
@@ -298,18 +316,18 @@ class DatabaseChanges:
             name,
             watch_command,
             unwatch_command,
-            value=value,
-            values=values,
+            resource_name=value,
+            resources_names=values,
         )(get_lambda())
         return observable
 
     def for_all_counters(self) -> Observable[CounterChange]:
-        observable = self.get_or_add_observable(
-            "CounterChange", "all-counters", "watch-counters", "unwatch-counters", None
-        )(lambda x: True)
+        observable = self.get_or_add_observable("CounterChange", "all-counters", "watch-counters", "unwatch-counters")(
+            lambda x: True
+        )
         return observable
 
-    def for_counter(self, counter_name) -> Observable[CounterChange]:
+    def for_counter(self, counter_name: str) -> Observable[CounterChange]:
         if not counter_name:
             raise ValueError("counter_name cannot be None or empty")
         observable = self.get_or_add_observable(
@@ -321,7 +339,7 @@ class DatabaseChanges:
         )(lambda x: x.name.casefold() == counter_name.casefold())
         return observable
 
-    def for_counters_of_document(self, doc_id) -> Observable[CounterChange]:
+    def for_counters_of_document(self, doc_id: str) -> Observable[CounterChange]:
         """
         Can subscribe to all counters changes that associated with the document or
         """
@@ -333,12 +351,11 @@ class DatabaseChanges:
             f"document/{doc_id}/counter",
             "watch-document-counters",
             "unwatch-document-counters",
-            value=doc_id,
-            values=None,
+            resource_name=doc_id,
         )(lambda x: x.document_id.casefold() == doc_id.casefold())
         return observable
 
-    def for_counter_of_document(self, doc_id, counter_name) -> Observable[CounterChange]:
+    def for_counter_of_document(self, doc_id: str, counter_name: str) -> Observable[CounterChange]:
         """
         Can subscribe to all counters changes that associated with the document and for counter name
         """
@@ -352,38 +369,45 @@ class DatabaseChanges:
             f"document/{doc_id}/counter/{counter_name}",
             "watch-document-counter",
             "unwatch-document-counter",
-            value=None,
-            values=[doc_id, counter_name],
+            resources_names=[doc_id, counter_name],
         )(lambda x: x.document_id.casefold() == doc_id.casefold() and x.name.casefold())
         return observable
 
-    def get_or_add_observable(self, group, name, watch_command, unwatch_command, value, values=None):
-        if group not in self._observables:
-            self._observables[group] = {}
+    def get_or_add_observable(
+        self,
+        group: str,
+        name: str,
+        watch_command: str,
+        unwatch_command: str,
+        resource_name: Optional[str] = None,
+        resources_names: Optional[List[str]] = None,
+    ):
+        if group not in self._observables_by_group:
+            self._observables_by_group[group] = {}
 
-        if name not in self._observables[group]:
+        if name not in self._observables_by_group[group]:
 
             def on_disconnect():
                 try:
                     if self.client_websocket.connected:
-                        self.send(unwatch_command, value, values)
+                        self.send(unwatch_command, resource_name, resources_names)
                 except websocket.WebSocketException:
                     pass
 
             def on_connect():
-                self.send(watch_command, value, values)
+                self.send(watch_command, resource_name, resources_names)
 
             observable = Observable(
                 on_connect=on_connect,
                 on_disconnect=on_disconnect,
                 executor=self._executor,
             )
-            self._observables[group][name] = observable
+            self._observables_by_group[group][name] = observable
             if self._immediate_connection != 0:
                 observable.set(self._executor.submit(observable.on_connect))
-        return self._observables[group][name]
+        return self._observables_by_group[group][name]
 
-    def send(self, command, value, values=None):
+    def send(self, command: str, value: Optional[str], values: Optional[List[str]] = None):
         current_command_id = 0
         future = Future()
         try:

@@ -1,4 +1,6 @@
 from decimal import InvalidOperation
+from typing import Any, Dict, Optional
+
 from ijson.common import integer_or_decimal, IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol
 from _elementtree import ParseError
@@ -112,7 +114,7 @@ class IncrementalJsonParser:
 
         raise ParseError("End object expected, but the generator ended before we got it")
 
-    def next_object(self):
+    def next_object(self) -> Optional[Dict[str, Any]]:
         try:
             (_, text) = next(self.lexer)
             if IS_WEBSOCKET and text == ",":
