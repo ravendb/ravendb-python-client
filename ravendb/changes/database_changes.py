@@ -81,6 +81,8 @@ class DatabaseChanges:
                         server_certificate = base64.b64decode(self._get_server_certificate())
                         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
                         ssl_context.load_cert_chain(self._request_executor.certificate_path)
+                        ssl_context.load_verify_locations(self._request_executor.trust_store_path)
+                        ssl_context.verify_mode = ssl.CERT_REQUIRED
 
                         # Connect WebSocket providing SSL
                         self.client_websocket = WebSocket(sslopt={"context": ssl_context})
@@ -90,8 +92,6 @@ class DatabaseChanges:
                         server_certificate_from_tls = self.client_websocket.sock.getpeercert(True)
                         if server_certificate != server_certificate_from_tls:
                             raise ValueError("Certificates don't match")
-
-                        pass
                     else:
                         self.client_websocket.connect(url)
 
