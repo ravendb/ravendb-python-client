@@ -6,9 +6,9 @@ import unittest
 import sys
 import os
 from enum import Enum
-from subprocess import Popen
-from typing import Iterable, List, Union, Optional, Set
+from typing import Iterable, List, Optional, Set
 from datetime import timedelta
+from ravendb_embedded.embedded_server import EmbeddedServer
 
 from ravendb.documents.operations.revisions import (
     ConfigureRevisionsOperationResult,
@@ -147,17 +147,20 @@ class Patch(object):
 
 
 class TestBase(unittest.TestCase, RavenTestDriver):
-    __global_server: Union[None, DocumentStore] = None
-    __global_server_process: Union[None, Popen] = None
+    _global_embedded_server: Optional[EmbeddedServer] = None
+    _global_secured_embedded_server: Optional[EmbeddedServer] = None
 
-    __global_secured_server: Union[None, DocumentStore] = None
-    __global_secured_server_process: Union[None, Popen] = None
+    _global_server_store: Optional[DocumentStore] = None
+    _global_secured_server_store: Optional[DocumentStore] = None
 
     __run_server_lock = threading.Lock()
 
     index = 0
 
-    class __TestServiceLocator(RavenServerLocator):
+    class TestServiceLocator(RavenServerLocator):
+        def get_server_path(self) -> str:
+            return super().get_server_path()
+
         @property
         def server_path(self) -> str:
             return super().get_server_path()
@@ -170,7 +173,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
                 "--Features.Availability=Experimental",
             ]
 
-    class __TestSecuredServiceLocator(RavenServerLocator):
+    class TestSecuredServiceLocator(RavenServerLocator):
         ENV_CLIENT_CERTIFICATE_PATH = "RAVENDB_PYTHON_TEST_CLIENT_CERTIFICATE_PATH"
         ENV_SERVER_CERTIFICATE_PATH = "RAVENDB_PYTHON_TEST_SERVER_CERTIFICATE_PATH"
         ENV_TEST_CA_PATH = "RAVENDB_PYTHON_TEST_CA_PATH"
@@ -181,7 +184,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
         @property
         def command_arguments(self) -> List[str]:
-            https_server_url = self.__https_server_url
+            https_server_url = self.https_server_url
             tcp_server_url = https_server_url.replace("https", "tcp", 1).rsplit(":", 1)[0] + ":38882"
             return [
                 f"--Security.Certificate.Path={self.server_certificate_path}",
@@ -190,7 +193,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
             ]
 
         @property
-        def __https_server_url(self) -> str:
+        def https_server_url(self) -> str:
             https_server_url = os.environ[self.ENV_HTTPS_SERVER_URL]
             if https_server_url.isspace():
                 raise ValueError(
@@ -226,27 +229,23 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         def server_ca_path(self) -> str:
             return os.getenv(self.ENV_TEST_CA_PATH)
 
-    def __get_locator(self, secured: bool):
-        return self.__secured_locator if secured else self.__locator
+    def _get_locator(self, secured: bool):
+        return self._secured_locator if secured else self._locator
 
-    def __get_global_server(self, secured: bool):
-        return self.__global_secured_server if secured else self.__global_server
+    def _get_global_server_store(self, secured: bool):
+        return self._global_secured_server_store if secured else self._global_server_store
 
-    def __run_server(self, secured: bool):
-        def __configure_store(s: DocumentStore) -> None:
-            if secured:
-                s.certificate_pem_path = self.test_client_certificate_url
-                s.trust_store_path = self.test_ca_certificate_url
-
-        store, process = self._run_server_internal(self.__get_locator(secured), __configure_store)
-        self.__set_global_server_process(secured, process)
+    def _run_embedded_server(self, secured: bool):
+        store, embedded_server = self._run_embedded_server_internal(self._get_locator(secured))
 
         if secured:
-            TestBase.__global_secured_server = store
+            TestBase._global_secured_server_store = store
+            TestBase._global_secured_embedded_server = embedded_server
         else:
-            TestBase.__global_server = store
+            TestBase._global_server_store = store
+            TestBase._global_embedded_server = embedded_server
 
-        atexit.register(threading.Thread(target=self.__kill_global_server_process, args=[secured]).run)
+        atexit.register(threading.Thread(target=self._discard_embedded_server, args=[secured]).run)
         return store
 
     def _customize_db_record(self, db_record: DatabaseRecord) -> None:
@@ -264,11 +263,11 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
     @property
     def test_client_certificate_url(self) -> str:
-        return self.__secured_locator.client_certificate_path
+        return self._secured_locator.client_certificate_path
 
     @property
     def test_ca_certificate_url(self) -> str:
-        return self.__secured_locator.server_ca_path
+        return self._secured_locator.server_ca_path
 
     def get_document_store(
         self,
@@ -280,12 +279,12 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         name = f"{database}_{TestBase.index}"
         TestBase._report_info(f"get_document_store for db {database}.")
 
-        if self.__get_global_server(secured) is None:
+        if self._get_global_server_store(secured) is None:
             with self.__run_server_lock:
-                if self.__get_global_server(secured) is None:
-                    self.__run_server(secured)
+                if self._get_global_server_store(secured) is None:
+                    self._run_embedded_server(secured)
 
-        document_store = self.__get_global_server(secured)
+        document_store = self._get_global_server_store(secured)
         database_record = DatabaseRecord(name)
 
         self._customize_db_record(database_record)
@@ -303,7 +302,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         store.initialize()
 
         def __after_close():
-            if store not in self.__document_stores:
+            if store not in self._document_stores:
                 return
 
             try:
@@ -317,30 +316,21 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         if wait_for_indexing_timeout is not None:
             self.wait_for_indexing(store, name, wait_for_indexing_timeout)
 
-        self.__document_stores.add(store)
+        self._document_stores.add(store)
         return store
 
-    @staticmethod
-    def __kill_global_server_process(secured: bool) -> None:
+    @classmethod
+    def _discard_embedded_server(cls, secured: bool) -> None:
         if secured:
-            p = TestBase.__global_secured_server_process
-            TestBase.__global_secured_server_process = None
-            TestBase.__global_secured_server.close()
-            TestBase.__global_secured_server = None
+            cls._global_secured_server_store.close()
+            cls._global_secured_server_store = None
+            cls._global_secured_embedded_server.close()
+            cls._global_secured_embedded_server = None
         else:
-            p = TestBase.__global_server_process
-            TestBase.__global_server_process = None
-            TestBase.__global_server.close()
-            TestBase.__global_server = None
-
-        RavenTestDriver._kill_process(p)
-
-    @staticmethod
-    def __set_global_server_process(secured: bool, process: Popen) -> None:
-        if secured:
-            TestBase.__global_secured_server_process = process
-        else:
-            TestBase.__global_server_process = process
+            cls._global_server_store.close()
+            cls._global_server_store = None
+            cls._global_embedded_server.close()
+            cls._global_embedded_server = None
 
     @staticmethod
     def delete_all_topology_files():
@@ -412,11 +402,10 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         self.conventions = conventions
 
     def setUp(self):
-        # todo: investigate if line below is replaceable by more sophisticated code, we don't want to call TestCase init
         RavenTestDriver.__init__(self)
-        self.__locator = TestBase.__TestServiceLocator()
-        self.__secured_locator = TestBase.__TestSecuredServiceLocator()
-        self.__document_stores: Set[DocumentStore] = set()
+        self._locator = TestBase.TestServiceLocator()
+        self._secured_locator = TestBase.TestSecuredServiceLocator()
+        self._document_stores: Set[DocumentStore] = set()
         conventions = getattr(self, "conventions", None)
         self.default_urls = ["http://127.0.0.1:8080"]
         self.default_database = "NorthWindTest"
@@ -435,7 +424,7 @@ class TestBase(unittest.TestCase, RavenTestDriver):
 
         exceptions = []
 
-        for document_store in self.__document_stores:
+        for document_store in self._document_stores:
             try:
                 document_store.close()
             except Exception as e:
