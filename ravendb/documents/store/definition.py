@@ -320,7 +320,7 @@ class DocumentStore(DocumentStoreBase):
         self.__multi_db_hilo: Optional[MultiDatabaseHiLoGenerator] = None
         self.__identifier: Optional[str] = None
         self.__add_change_lock = threading.Lock()
-        self.__database_changes = {}
+        self.__database_changes: Dict[str, DatabaseChanges] = {}
         self.__after_close: List[Callable[[], None]] = []
         self.__before_close: List[Callable[[], None]] = []
         self.__time_series_operation: Optional[TimeSeriesOperations] = None
@@ -493,8 +493,8 @@ class DocumentStore(DocumentStoreBase):
                 )
             return self.__database_changes[database]
 
-    def __on_close_change(self, database):
-        self.__database_changes.pop(database, None)
+    def __on_close_change(self, database_name: str):
+        self.__database_changes.pop(database_name, None)
 
     def set_request_timeout(self, timeout: datetime.timedelta, database: Optional[str] = None) -> Callable[[], None]:
         self.assert_initialized()

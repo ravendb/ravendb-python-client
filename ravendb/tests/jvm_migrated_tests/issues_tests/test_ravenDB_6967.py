@@ -78,7 +78,7 @@ class TestRavenDB6967(TestBase):
         index_errors3 = self.store.maintenance.send(GetIndexErrorsOperation("Index3"))
 
         self.assertGreater(sum([len(x.errors) for x in index_errors1]), 0)
-        self.assertEquals(sum([len(x.errors) for x in index_errors2]), 0)
+        self.assertEqual(sum([len(x.errors) for x in index_errors2]), 0)
         self.assertGreater(sum([len(x.errors) for x in index_errors3]), 0)
 
         self.store.maintenance.send(DeleteIndexErrorsOperation())
@@ -87,8 +87,8 @@ class TestRavenDB6967(TestBase):
         index_errors2 = self.store.maintenance.send(GetIndexErrorsOperation("Index2"))
         index_errors3 = self.store.maintenance.send(GetIndexErrorsOperation("Index3"))
 
-        self.assertEquals(sum([len(x.errors) for x in index_errors1]), 0)
-        self.assertEquals(sum([len(x.errors) for x in index_errors2]), 0)
-        self.assertEquals(sum([len(x.errors) for x in index_errors3]), 0)
+        self.assertEqual(sum([len(x.errors) for x in index_errors1]), 0)
+        self.assertEqual(sum([len(x.errors) for x in index_errors2]), 0)
+        self.assertEqual(sum([len(x.errors) for x in index_errors3]), 0)
 
         RavenTestHelper.assert_no_index_errors(self.store)

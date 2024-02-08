@@ -173,7 +173,7 @@ class TestIndexesFromClient(TestBase):
 
         self.assertEqual(IndexRunningStatus.RUNNING, status.status)
 
-        self.assertEquals(1, len(status.indexes))
+        self.assertEqual(1, len(status.indexes))
 
         self.assertEqual(IndexRunningStatus.RUNNING, status.indexes[0].status)
 

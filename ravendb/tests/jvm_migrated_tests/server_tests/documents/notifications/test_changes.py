@@ -3,7 +3,7 @@ from typing import Optional, List
 
 from ravendb import AbstractIndexCreationTask, SetIndexesPriorityOperation
 from ravendb.changes.observers import ActionObserver
-from ravendb.changes.types import DocumentChange, IndexChange
+from ravendb.changes.types import DocumentChange, IndexChange, DocumentChangeType
 from ravendb.documents.indexes.definitions import IndexPriority
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Order
@@ -235,3 +235,62 @@ class TestChanges(TestBase):
         self.assertEqual("users/2", document_changes[1].key)
 
         close_action()
+
+    def test_changes_with_https(self):
+        event = Event()
+        changes_list = []
+        exception = None
+
+        def _on_error(e):
+            nonlocal exception
+            exception = e
+
+        changes = self.secured_document_store.changes(on_error=_on_error)
+        observable = changes.for_document("users/1")
+
+        def __ev(value: DocumentChange):
+            changes_list.append(value)
+            event.set()
+
+        observer = ActionObserver(__ev)
+        close_action = observable.subscribe_with_observer(observer)
+        try:
+            observable.ensure_subscribe_now()
+        except Exception:
+            raise exception
+
+        with self.secured_document_store.open_session() as session:
+            user = User()
+            session.store(user, "users/1")
+            session.save_changes()
+
+        event.wait(2)
+        document_change = changes_list[0]
+        self.assertIsNotNone(document_change)
+        self.assertEqual("users/1", document_change.key)
+        self.assertEqual(DocumentChangeType.PUT, document_change.type_of_change)
+
+        changes_list.clear()
+
+        try:
+            event.wait(1)
+        except Exception:
+            pass
+
+        self.assertEqual(0, len(changes_list))
+        close_action()
+        # at this point we should be unsubscribed from changes on 'users/1'
+
+        with self.secured_document_store.open_session() as session:
+            user = User()
+            user.name = "another name"
+            session.store(user, "users/1")
+            session.save_changes()
+
+        # it should be empty
+        try:
+            event.wait(1)
+        except Exception:
+            pass
+
+        self.assertEqual(0, len(changes_list))
