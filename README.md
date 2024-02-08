@@ -28,6 +28,9 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 ## What's new?
 
+###### 5.2.5+
+- Changes available in the [releases](https://github.com/ravendb/ravendb-python-client/releases) section.
+
 ###### 5.2.4
 - Bulk insert dependencies [bugfix](https://github.com/ravendb/ravendb-python-client/pull/184) 
 
