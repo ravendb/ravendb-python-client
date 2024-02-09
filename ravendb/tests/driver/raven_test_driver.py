@@ -1,12 +1,12 @@
-import os
 import subprocess
-import time
-from typing import Callable
-
+from typing import TYPE_CHECKING, Tuple
+from ravendb_embedded.embedded_server import EmbeddedServer
 from ravendb.documents.store.definition import DocumentStore
 from ravendb.infrastructure.graph import Genre, Movie, User
-from ravendb.tests.driver.raven_server_locator import RavenServerLocator
 from ravendb.tests.driver.raven_server_runner import RavenServerRunner
+
+if TYPE_CHECKING:
+    from ravendb.tests.driver.raven_server_locator import RavenServerLocator
 
 
 class RavenTestDriver:
@@ -19,46 +19,13 @@ class RavenTestDriver:
     def disposed(self) -> bool:
         return self._disposed
 
-    def _run_server_internal(
-        self, locator: RavenServerLocator, configure_store: Callable[[DocumentStore], None]
-    ) -> (DocumentStore, subprocess.Popen):
-        process = RavenServerRunner.run(locator)
-        self._report_info("Starting global server")
-        url = None
-        stdout = process.stdout
-        startup_duration = time.perf_counter()
-        read_lines = []
-        while True:
-            line = stdout.readline().decode("utf-8")
-            read_lines.append(line)
-
-            if line is None:
-                raise RuntimeError(str.join(os.linesep, read_lines) + process.stdin.read().decode("utf-8"))
-
-            if time.perf_counter() - startup_duration > 60:
-                break
-
-            prefix = "Server available on: "
-            if line.startswith(prefix):
-                url = line[len(prefix) :].rstrip()
-                break
-
-        if url is None:
-            self._report_info("Url is None")
-            try:
-                process.kill()
-            except Exception as e:
-                self._report_error(e)
-
-            raise RuntimeError("Unable to start server")
-        print(url)
-        store = DocumentStore([url], "test.manager")
+    @staticmethod
+    def _run_embedded_server_internal(locator: "RavenServerLocator") -> Tuple[DocumentStore, EmbeddedServer]:
+        embedded_server = RavenServerRunner.get_embedded_server(locator)
+        store = embedded_server.get_document_store("test.manager")
         store.conventions.disable_topology_updates = True
 
-        if configure_store is not None:
-            configure_store(store)
-
-        return store.initialize(), process
+        return store, embedded_server
 
     @staticmethod
     def _kill_process(p: subprocess.Popen) -> None:

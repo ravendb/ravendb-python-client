@@ -72,6 +72,9 @@ jobs:
       - name: Install client deps
         run: pip install -e .
 
+      - name: Install embedded RavenDB
+        run: pip install ravendb-embedded
+
       - name: Run certifi script
         run: python ./.github/workflows/add_ca.py
 
