@@ -2,6 +2,7 @@ import os
 from typing import Optional, Type, TypeVar, Dict, List, TYPE_CHECKING
 
 from ravendb.documents.operations.ongoing_tasks import ToggleOngoingTaskStateOperation, OngoingTaskType
+from ravendb.documents.session.tokens.query_tokens.definitions import CounterIncludesToken, TimeSeriesIncludesToken
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.utils.includes_util import IncludesUtil
 from ravendb.documents.commands.subscriptions import (
@@ -96,11 +97,11 @@ class DocumentSubscriptions:
 
             number_of_includes_added = 0
 
-            if builder._documents_to_include is not None and not len(builder._documents_to_include) == 0:
+            if builder.documents_to_include is not None and not len(builder.documents_to_include) == 0:
                 query_builder.append(os.linesep)
                 query_builder.append("include ")
 
-                for inc in builder._documents_to_include:
+                for inc in builder.documents_to_include:
                     include = "doc." + inc
                     if number_of_includes_added > 0:
                         query_builder.append(",")
@@ -115,41 +116,41 @@ class DocumentSubscriptions:
                         query_builder.append(f"'{include}'" if QueryToken.is_keyword(include) else include)
 
                     number_of_includes_added += 1
-            # todo: uncomment on Counters and TimeSeries development
-            # if builder._is_all_counters:
-            #     if number_of_includes_added == 0:
-            #         query_builder.append(os.linesep)
-            #         query_builder.append("include ")
-            #
-            #     token = CountersIncludesToken.all("")
-            #     token.write_to(query_builder)
-            #     number_of_includes_added += 1
-            #
-            # elif builder._counters_to_include:
-            #     if number_of_includes_added:
-            #         query_builder.append(os.linesep)
-            #         query_builder.append("include ")
-            #
-            #     for counter_name in builder._counters_to_include:
-            #         if number_of_includes_added > 0:
-            #             query_builder.append(",")
-            #
-            #         token = CountersToIncludeToken.create("", counter_name)
-            #         token.write_to(query_builder)
-            #
-            #         number_of_includes_added += 1
-            #
-            # if builder._time_series_to_include:
-            #     for time_series_range in builder._time_series_to_include:
-            #         if number_of_includes_added == 0:
-            #             query_builder.append(os.linesep)
-            #             query_builder.append("include ")
-            #
-            #         if number_of_includes_added > 0:
-            #             query_builder.append(",")
-            #
-            #         token = TimeSeriesIncludeToken.create("", time_series_range)
-            #         token.write_to(query_builder)
+
+            if builder.is_all_counters:
+                if number_of_includes_added == 0:
+                    query_builder.append(os.linesep)
+                    query_builder.append("include ")
+
+                token = CounterIncludesToken.all("")
+                token.write_to(query_builder)
+                number_of_includes_added += 1
+
+            elif builder.counters_to_include:
+                if number_of_includes_added:
+                    query_builder.append(os.linesep)
+                    query_builder.append("include ")
+
+                for counter_name in builder.counters_to_include:
+                    if number_of_includes_added > 0:
+                        query_builder.append(",")
+
+                    token = CounterIncludesToken.create("", counter_name)
+                    token.write_to(query_builder)
+
+                    number_of_includes_added += 1
+
+            if builder.time_series_to_include:
+                for time_series_range in builder.time_series_to_include:
+                    if number_of_includes_added == 0:
+                        query_builder.append(os.linesep)
+                        query_builder.append("include ")
+
+                    if number_of_includes_added > 0:
+                        query_builder.append(",")
+
+                    token = TimeSeriesIncludesToken.create("", time_series_range)
+                    token.write_to(query_builder)
 
         criteria.query = "".join(query_builder)
         return criteria
