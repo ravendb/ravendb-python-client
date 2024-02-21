@@ -358,23 +358,29 @@ class SubscriptionIncludeBuilder(IncludeBuilderBase):
         self._include_all_counters("")
         return self
 
+    def include_time_series_by_range_type_and_time(
+        self, name: str, ts_type: TimeSeriesRangeType, time: TimeValue
+    ) -> SubscriptionIncludeBuilder:
+        self._include_time_series_by_range_type_and_time("", name, ts_type, time)
+        return self
 
-#   def include_time_series(
-#       self,
-#       name:str,
-#       ts_type: TimeSeriesRangeType,
-#       time: TimeValue
-#   ) -> SubscriptionIncludeBuilder:
-#        self._include_time_series_by_range_type_and_time("", name, ts_type, time)
-#        return self
-#
-#   def include_time_series_by_range_type_and_count(
-#       self,
-#       name:str,
-#       ts_type: TimeSeriesRangeType,
-#       time: TimeValue
-#   ) -> SubscriptionIncludeBuilder:
-#       self._include_time_series_by_range_type_and_count("", name, type, count)
+    def include_time_series_by_range_type_and_count(
+        self, name: str, ts_type: TimeSeriesRangeType, count: int
+    ) -> SubscriptionIncludeBuilder:
+        self._include_time_series_by_range_type_and_count("", name, ts_type, count)
+        return self
+
+    def include_all_time_series_by_range_type_and_count(
+        self, ts_type: TimeSeriesRangeType, count: int
+    ) -> SubscriptionIncludeBuilder:
+        self._include_time_series_by_range_type_and_count("", constants.TimeSeries.ALL, ts_type, count)
+        return self
+
+    def include_all_time_series_by_range_type_and_time(
+        self, ts_type: TimeSeriesRangeType, time: TimeValue
+    ) -> SubscriptionIncludeBuilder:
+        self._include_time_series_by_range_type_and_time("", constants.TimeSeries.ALL, ts_type, time)
+        return self
 
 
 class TimeSeriesIncludeBuilder(IncludeBuilderBase):

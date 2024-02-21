@@ -456,6 +456,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return SessionDocumentCounters(self, entity)
 
     def time_series_for(self, document_id: str, name: str = None) -> SessionDocumentTimeSeries:
+        if not isinstance(document_id, str):
+            raise TypeError("Method time_series_for expects a string. Did you want to call time_series_for_entity?")
         return SessionDocumentTimeSeries(self, document_id, name)
 
     def time_series_for_entity(self, entity: object, name: str = None) -> SessionDocumentTimeSeries:

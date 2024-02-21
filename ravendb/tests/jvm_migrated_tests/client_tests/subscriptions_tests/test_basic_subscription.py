@@ -7,6 +7,7 @@ from threading import Event, Semaphore
 from typing import Optional, List
 
 from ravendb.documents.session.event_args import BeforeRequestEventArgs
+from ravendb.documents.session.time_series import TimeSeriesRangeType
 from ravendb.documents.subscriptions.options import (
     SubscriptionCreationOptions,
     SubscriptionWorkerOptions,
@@ -20,7 +21,9 @@ from ravendb.exceptions.exceptions import (
 )
 from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.orders import Company
+from ravendb.primitives.time_series import TimeValue
 from ravendb.tests.test_base import TestBase
+from ravendb.tools.raven_test_helper import RavenTestHelper
 
 
 class TestBasicSubscription(TestBase):
@@ -587,3 +590,47 @@ class TestBasicSubscription(TestBase):
 
             subscription.run(__subscription_callback)
             third_user_processed.wait(timeout=5)
+
+    def test_can_create_subscription_with_include_time_series_last_range_by_time(self):
+        now = RavenTestHelper.utc_today()
+
+        subscription_creation_options = SubscriptionCreationOptions()
+        subscription_creation_options.includes = lambda b: b.include_time_series_by_range_type_and_time(
+            "stock_price", TimeSeriesRangeType.LAST, TimeValue.of_months(1)
+        )
+
+        name = self.store.subscriptions.create_for_options_autocomplete_query(Company, subscription_creation_options)
+
+        with self.store.subscriptions.get_subscription_worker_by_name(name, Company) as worker:
+            event = Event()
+
+            def __subscription_callback(batch: SubscriptionBatch[Company]):
+                with batch.open_session() as session:
+                    self.assertEqual(0, session.advanced.number_of_requests)
+                    company = session.load("companies/1", Company)
+                    self.assertEqual(0, session.advanced.number_of_requests)
+
+                    time_series = session.time_series_for_entity(company, "stock_price")
+                    time_series_entries = time_series.get(now - datetime.timedelta(days=7), None)
+
+                    self.assertEqual(1, len(time_series_entries))
+                    self.assertEqual(now, time_series_entries[0].timestamp)
+                    self.assertEqual(10, time_series_entries[0].value)
+
+                    self.assertEqual(0, session.advanced.number_of_requests)
+
+                event.set()
+
+            worker.run(__subscription_callback)
+
+            with self.store.open_session() as session:
+                company = Company()
+                company.Id = "companies/1"
+                company.name = "HR"
+
+                session.store(company)
+
+                session.time_series_for_entity(company, "stock_price").append_single(now, 10)
+                session.save_changes()
+
+            self.assertTrue(event.wait(30))
