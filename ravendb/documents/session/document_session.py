@@ -725,7 +725,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self._session._lazily
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
-            pass
+            raise NotImplementedError("Dropped support for graph queries")
 
         def what_changed(self) -> Dict[str, List[DocumentsChanges]]:
             return self._session._what_changed()
