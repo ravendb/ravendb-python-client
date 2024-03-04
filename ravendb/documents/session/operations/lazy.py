@@ -183,30 +183,30 @@ class LazyConditionalLoadOperation(LazyOperation):
 
 class LazySessionOperations:
     def __init__(self, delegate: DocumentSession):
-        self._delegate = delegate
+        self._session = delegate
 
     def include(self, path: str) -> LazyMultiLoaderWithInclude:
-        return LazyMultiLoaderWithInclude(self._delegate).include(path)
+        return LazyMultiLoaderWithInclude(self._session).include(path)
 
     def load(
-        self, ids: Union[List[str], str], object_type: Type[_T], on_eval: Callable = None
+        self, ids: Union[List[str], str], object_type: Optional[Type[_T]] = None, on_eval: Callable = None
     ) -> Optional[Lazy[Union[Dict[str, object], object]]]:
         if not ids:
             return None
 
         if isinstance(ids, str):
             key = ids
-            if self._delegate.advanced.is_loaded(key):
-                return Lazy(lambda: self._delegate.load(key, object_type))
+            if self._session.advanced.is_loaded(key):
+                return Lazy(lambda: self._session.load(key, object_type))
 
             lazy_load_operation = LazyLoadOperation(
-                object_type, self._delegate, LoadOperation(self._delegate).by_key(key)
+                object_type, self._session, LoadOperation(self._session).by_key(key)
             ).by_key(key)
 
-            return self._delegate.add_lazy_operation(object_type, lazy_load_operation, on_eval)
+            return self._session.add_lazy_operation(object_type, lazy_load_operation, on_eval)
 
         elif isinstance(ids, list):
-            return self._delegate.lazy_load_internal(object_type, ids, [], on_eval)
+            return self._session.lazy_load_internal(object_type, ids, [], on_eval)
 
         raise TypeError(f"Expected a 'str' or 'list' of 'str', the document ids. Got '{type(ids).__name__}'.")
 
@@ -221,24 +221,24 @@ class LazySessionOperations:
         start_after: str = None,
     ) -> Lazy[Dict[str, _T]]:
         operation = LazyStartsWithOperation(
-            object_type, id_prefix, matches, exclude, start, page_size, self._delegate, start_after
+            object_type, id_prefix, matches, exclude, start, page_size, self._session, start_after
         )
 
-        return self._delegate.add_lazy_operation(dict, operation, None)
+        return self._session.add_lazy_operation(dict, operation, None)
 
     def conditional_load(
-        self, key: str, change_vector: str, object_type: Type[_T] = None
+        self, key: str, change_vector: str, object_type: Optional[Type[_T]] = None
     ) -> Lazy[ConditionalLoadResult[_T]]:
         if not key or key.isspace():
             raise ValueError("key cannot be None or whitespace")
 
-        if self._delegate.is_loaded(key):
+        if self._session.is_loaded(key):
 
             def __lazy_factory():
-                entity = self._delegate.load(key, object_type)
+                entity = self._session.load(key, object_type)
                 if entity is None:
                     return ConditionalLoadResult.create(None, None)
-                cv = self._delegate.advanced.get_change_vector_for(entity)
+                cv = self._session.advanced.get_change_vector_for(entity)
                 return ConditionalLoadResult.create(entity, cv)
 
             return Lazy(__lazy_factory)
@@ -249,8 +249,8 @@ class LazySessionOperations:
                 f"conditional load when change_vector is None or empty"
             )
 
-        lazy_load_operation = LazyConditionalLoadOperation(object_type, key, change_vector, self._delegate)
-        return self._delegate.add_lazy_operation(ConditionalLoadResult, lazy_load_operation, None)
+        lazy_load_operation = LazyConditionalLoadOperation(object_type, key, change_vector, self._session)
+        return self._session.add_lazy_operation(ConditionalLoadResult, lazy_load_operation, None)
 
 
 class LazyLoadOperation(LazyOperation):
