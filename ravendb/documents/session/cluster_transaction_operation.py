@@ -55,7 +55,7 @@ class IClusterTransactionOperations(IClusterTransactionOperationsBase):
 
     @abc.abstractmethod
     def get_compare_exchange_values(
-        self, keys: List[str], object_type: Type[_T]
+        self, keys: List[str], object_type: Type[_T] = None
     ) -> Dict[str, CompareExchangeValue[_T]]:
         pass
 
@@ -293,7 +293,7 @@ class ClusterTransactionOperations(ClusterTransactionOperationsBase, IClusterTra
         return self._get_compare_exchange_value_internal(key, object_type)
 
     def get_compare_exchange_values(
-        self, keys: List[str], object_type: Type[_T]
+        self, keys: List[str], object_type: Type[_T] = None
     ) -> Dict[str, CompareExchangeValue[_T]]:
         return super()._get_compare_exchange_values_internal(keys, object_type)
 
