@@ -17,13 +17,13 @@ class TestLazy(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            lazy_order = session.advanced.lazily.load(Company, "companies/1")
+            lazy_order = session.advanced.lazily.load("companies/1", Company)
             self.assertFalse(lazy_order.is_value_created)
 
             order: Company = lazy_order.value
             self.assertEqual("companies/1", order.Id)
 
-            lazy_orders = session.advanced.lazily.load(Company, ["companies/1", "companies/2"])
+            lazy_orders = session.advanced.lazily.load(["companies/1", "companies/2"], Company)
             self.assertFalse(lazy_orders.is_value_created)
 
             orders: Dict[str, Company] = lazy_orders.value
@@ -38,7 +38,7 @@ class TestLazy(TestBase):
             self.assertEqual("companies/1", company1.Id)
             self.assertEqual("companies/2", company2.Id)
 
-            lazy_order = session.advanced.lazily.load(Company, "companies/3")
+            lazy_order = session.advanced.lazily.load("companies/3", Company)
 
             self.assertFalse(lazy_order.is_value_created)
 
@@ -46,7 +46,7 @@ class TestLazy(TestBase):
 
             self.assertEqual("companies/3", order.Id)
 
-            load = session.advanced.lazily.load(Company, ["no_such_1", "no_such_2"])
+            load = session.advanced.lazily.load(["no_such_1", "no_such_2"], Company)
             missing_itmes = load.value
 
             self.assertIsNone(missing_itmes.get("no_such_1"))
@@ -59,10 +59,10 @@ class TestLazy(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.advanced.lazily.load(User, "users/1").value
+            session.advanced.lazily.load("users/1", User).value
             old_request_count = session.number_of_requests
 
-            user: User = session.advanced.lazily.load(User, "users/1").value
+            user: User = session.advanced.lazily.load("users/1", User).value
             self.assertEqual("Oren", user.name)
 
             self.assertEqual(old_request_count, session.number_of_requests)
@@ -87,8 +87,8 @@ class TestLazy(TestBase):
 
                 return __inner
 
-            session.advanced.lazily.load(Company, "companies/1", lambda x: __fun(company1ref)(x))
-            session.advanced.lazily.load(Company, "companies/2", lambda x: __fun(company2ref)(x))
+            session.advanced.lazily.load("companies/1", Company, lambda x: __fun(company1ref)(x))
+            session.advanced.lazily.load("companies/2", Company, lambda x: __fun(company2ref)(x))
 
             self.assertEqual(0, len(company1ref))
             self.assertEqual(0, len(company2ref))
@@ -113,7 +113,7 @@ class TestLazy(TestBase):
             def __fun(x):
                 user_ref.append(x)
 
-            session.advanced.lazily.load(User, "users/1", lambda x: __fun(x))
+            session.advanced.lazily.load("users/1", User, lambda x: __fun(x))
 
             session.advanced.eagerly.execute_all_pending_lazy_operations()
 
@@ -133,8 +133,8 @@ class TestLazy(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            lazy_load = session.advanced.lazily.load(User, ["users/2", "users/3"])
-            session.advanced.lazily.load(User, ["users/1", "users/3"])
+            lazy_load = session.advanced.lazily.load(["users/2", "users/3"], User)
+            session.advanced.lazily.load(["users/1", "users/3"], User)
 
             session.load("users/2", User)
             session.load("users/3", User)
@@ -147,7 +147,7 @@ class TestLazy(TestBase):
             self.assertEqual(2, len(users))
 
             old_request_count = session.number_of_requests
-            lazy_load = session.advanced.lazily.load(User, ["users/3"])
+            lazy_load = session.advanced.lazily.load(["users/3"], User)
             session.advanced.eagerly.execute_all_pending_lazy_operations()
 
             self.assertEqual(old_request_count, session.number_of_requests)

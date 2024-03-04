@@ -189,7 +189,7 @@ class LazySessionOperations:
         return LazyMultiLoaderWithInclude(self._delegate).include(path)
 
     def load(
-        self, object_type: Type[_T], ids: Union[List[str], str], on_eval: Callable = None
+        self, ids: Union[List[str], str], object_type: Type[_T], on_eval: Callable = None
     ) -> Optional[Lazy[Union[Dict[str, object], object]]]:
         if not ids:
             return None
@@ -208,12 +208,12 @@ class LazySessionOperations:
         elif isinstance(ids, list):
             return self._delegate.lazy_load_internal(object_type, ids, [], on_eval)
 
-        raise TypeError("Expected 'ids' as 'str' or 'list[str]'")
+        raise TypeError(f"Expected a 'str' or 'list' of 'str', the document ids. Got '{type(ids).__name__}'.")
 
     def load_starting_with(
         self,
         id_prefix: str,
-        object_type: Optional[Type[_T]],
+        object_type: Optional[Type[_T]] = None,
         matches: str = None,
         start: int = 0,
         page_size: int = 25,

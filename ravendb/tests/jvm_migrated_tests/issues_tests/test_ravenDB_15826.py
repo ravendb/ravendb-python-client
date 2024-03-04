@@ -23,9 +23,9 @@ class TestRavenDB15826(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.include("refs").load(Item, "items/d")  # include, some loaded
+            session.include("refs").load("items/d", Item)  # include, some loaded
             a: Item = session.load("items/c", Item)
-            items = session.advanced.lazily.load(Item, a.refs)
+            items = session.advanced.lazily.load(a.refs, Item)
             session.advanced.eagerly.execute_all_pending_lazy_operations()
             items_map = items.value
             self.assertEqual(len(items_map), len(a.refs))
