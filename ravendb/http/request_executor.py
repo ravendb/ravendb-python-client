@@ -129,7 +129,8 @@ class RequestExecutor:
             self.__update_topology_timer.cancel()
 
         self._dispose_all_failed_nodes_timers()
-        self.__http_session.close()
+        if self.__http_session is not None:
+            self.__http_session.close()
 
     @property
     def certificate_path(self) -> str:
@@ -169,7 +170,6 @@ class RequestExecutor:
         return self.__http_session
 
     def __create_http_session(self) -> requests.Session:
-        # todo: check if http client name is required
         session = requests.session()
         session.cert = self.__certificate_path
         session.verify = self.__trust_store_path if self.__trust_store_path else True
