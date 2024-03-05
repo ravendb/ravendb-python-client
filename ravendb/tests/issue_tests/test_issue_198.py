@@ -80,3 +80,29 @@ class TestIssue198(TestBase):
             company = session.load("companies/222", Company)
             self.assertEqual("companies/222", company.Id)
             self.assertEqual("Apple Inc.", company.name)
+
+    def test_docs_loaded_as_dictionary_dont_have_id_entry_and_its_id_is_available_via_metadata(self):
+        with self.store.open_session() as session:
+            company = Company(Id="companies/1", name="A Inc.")
+            company_dict = {"Id": "companies/dict", "name": "Dict Inc."}
+            session.store(company)
+            session.store(company_dict)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            company = session.load("companies/1", Company)
+            company_dict = session.load("companies/dict", dict)
+
+            self.assertNotIn("Id", company_dict)
+            self.assertEqual("companies/dict", session.advanced.get_document_id(company_dict))
+            self.assertEqual("companies/dict", session.advanced.get_metadata_for(company_dict)["@id"])
+
+            self.assertEqual("companies/1", company.Id)
+            self.assertEqual("companies/1", session.advanced.get_document_id(company))
+            self.assertEqual("companies/1", session.advanced.get_metadata_for(company)["@id"])
+
+        with self.store.open_session() as session:
+            company_dict_as_company_object = session.load("companies/dict", Company)
+            self.assertEqual("companies/dict", company_dict_as_company_object.Id)
+            self.assertEqual("companies/dict", session.advanced.get_document_id(company_dict_as_company_object))
+            self.assertEqual("companies/dict", session.advanced.get_metadata_for(company_dict_as_company_object)["@id"])

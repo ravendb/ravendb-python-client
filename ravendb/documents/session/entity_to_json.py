@@ -192,9 +192,10 @@ class EntityToJson:
                 BeforeConversionToEntityEventArgs(session_hook, key, object_type, document_deepcopy)
             )
 
-        # 1.1 Check if passed object type (or extracted from metadata) is a dictionary
-        if object_type == dict or type_from_metadata == "builtins.dict":
+        # 1.1 Check if passed object type (or extracted from metadata) is a dictionary and if document isn't a dict
+        if object_type == dict or (object_type is None and type_from_metadata == "builtins.dict"):
             EntityToJson._invoke_after_conversion_to_entity_event(session_hook, key, object_type, document_deepcopy)
+            # todo: document_deepcopy["Id"] = metadata.get("@id", None) - consider adding id property
             return document_deepcopy
 
         # 1.2 If there's no object type in metadata
@@ -211,8 +212,12 @@ class EntityToJson:
         # 2. There was a type in the metadata
         else:
             object_from_metadata = Utils.import_class(type_from_metadata)
+
+            # 2.0 Check if the user wants to cast dict to type
+            if object_from_metadata == dict and object_type != dict:
+                pass
             # 2.1 Import was successful
-            if object_from_metadata is not None:
+            elif object_from_metadata is not None:
                 # 2.1.1 Set object_type to successfully imported type/ from metadata inherits from passed object_type
                 if object_type is None or Utils.is_inherit(object_type, object_from_metadata):
                     object_type = object_from_metadata
