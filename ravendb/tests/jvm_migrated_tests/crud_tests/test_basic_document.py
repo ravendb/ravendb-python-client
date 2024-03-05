@@ -13,7 +13,7 @@ class TestBasicDocument(TestBase):
         super(TestBasicDocument, self).setUp()
 
     def test_get(self):
-        dummy = {"name": None, "age": None, "Id": None}
+        dummy = {"name": None, "age": None}
         with self.store.open_session() as session:
             user1 = User("jacus", None)
             user2 = User("arek", None)

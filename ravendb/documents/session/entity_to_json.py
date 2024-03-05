@@ -38,7 +38,7 @@ class EntityToJson:
             self._session.before_conversion_to_document_invoke(
                 BeforeConversionToDocumentEventArgs(document_info.key, entity, self._session)
             )
-        document = EntityToJson._convert_entity_to_json_internal(self, entity, document_info)
+        document = EntityToJson._convert_entity_to_json_internal(self, entity, document_info, True)
         if document_info is not None:
             self._session.after_conversion_to_document_invoke(
                 AfterConversionToDocumentEventArgs(self._session, document_info.key, entity, document)

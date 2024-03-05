@@ -450,7 +450,16 @@ class Utils(object):
     @staticmethod
     def initialize_object(obj: dict, object_type: Type[_T], convert_to_snake_case: bool = None) -> _T:
         initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
-        o = object_type(**initialize_dict)
+        try:
+            o = object_type(**initialize_dict)
+        except Exception as e:
+            if "Id" not in initialize_dict:
+                initialize_dict["Id"] = None
+                o = object_type(**initialize_dict)
+            else:
+                raise TypeError(
+                    f"Couldn't initialize object of type '{object_type.__name__}' using dict '{obj}'"
+                ) from e
         if set_needed:
             for key, value in obj.items():
                 setattr(o, key, value)
