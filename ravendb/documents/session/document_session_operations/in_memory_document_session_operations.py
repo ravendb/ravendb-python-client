@@ -907,7 +907,12 @@ class InMemoryDocumentSessionOperations:
 
         self._assert_no_non_unique_instance(entity, key)
 
-        collection_name = self._request_executor.conventions.get_collection_name(entity)
+        collection_name = (
+            self.conventions.get_collection_name_for_dict(key)
+            if entity.__class__ is dict and key and len(key.split("/")) > 1
+            else self._request_executor.conventions.get_collection_name(entity)
+        )
+
         metadata = {}
         if collection_name:
             metadata[constants.Documents.Metadata.COLLECTION] = collection_name
