@@ -124,9 +124,11 @@ class SubscriptionConnectionServerMessage:
     def from_json(cls, json_dict: Dict) -> SubscriptionConnectionServerMessage:
         return cls(
             SubscriptionConnectionServerMessage.MessageType(json_dict["Type"]),
-            SubscriptionConnectionServerMessage.ConnectionStatus(json_dict["Status"])
-            if "Status" in json_dict
-            else None,
+            (
+                SubscriptionConnectionServerMessage.ConnectionStatus(json_dict["Status"])
+                if "Status" in json_dict
+                else None
+            ),
             json_dict["Data"] if "Data" in json_dict else None,
             json_dict["Includes"] if "Includes" in json_dict else None,
             json_dict["CounterIncludes"] if "CounterIncludes" in json_dict else None,

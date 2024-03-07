@@ -528,7 +528,9 @@ class TestBasicSubscription(TestBase):
             user = session.load("users/1", User)
             self.assertEqual(user.name, "user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀")
 
-        creation_options = SubscriptionCreationOptions(name="user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀")
+        creation_options = SubscriptionCreationOptions(
+            name="user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀"
+        )
         key = self.store.subscriptions.create_for_options_autocomplete_query(User, creation_options)
         with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
             keys = queue.Queue()

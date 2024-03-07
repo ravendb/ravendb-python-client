@@ -602,9 +602,9 @@ class Utils(object):
                 converted_document = {}
                 for key in document:
                     converted_key = convert_to_snake_case.get(key, key)
-                    converted_document[
-                        converted_key if key == "Id" else Utils.convert_to_snake_case(converted_key)
-                    ] = document[key]
+                    converted_document[converted_key if key == "Id" else Utils.convert_to_snake_case(converted_key)] = (
+                        document[key]
+                    )
                 document = converted_document
             except:
                 pass
@@ -656,9 +656,7 @@ class Utils(object):
         return (
             datetime_obj.strftime(f"%Y-%m-%dT%H:%M:%S.%f{add_suffix}")
             if datetime_obj
-            else None
-            if return_none_if_none
-            else ""
+            else None if return_none_if_none else ""
         )
 
     @staticmethod

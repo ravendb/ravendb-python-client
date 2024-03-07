@@ -60,13 +60,17 @@ class User:
     @classmethod
     def from_json(cls, json_dict: Dict) -> User:
         return cls(
-            [Stuff.from_json(jdict) if jdict is not None else None for jdict in json_dict["stuff"]]
-            if json_dict["stuff"] is not None
-            else None,
+            (
+                [Stuff.from_json(jdict) if jdict is not None else None for jdict in json_dict["stuff"]]
+                if json_dict["stuff"] is not None
+                else None
+            ),
             Utils.string_to_datetime(json_dict["last_login"]),
-            [int(number) if number is not None else None for number in json_dict["numbers"]]
-            if json_dict["numbers"] is not None
-            else None,
+            (
+                [int(number) if number is not None else None for number in json_dict["numbers"]]
+                if json_dict["numbers"] is not None
+                else None
+            ),
         )
 
 

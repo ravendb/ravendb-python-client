@@ -93,12 +93,12 @@ class RequestExecutor:
 
         self.__http_session: Union[None, requests.Session] = None
 
-        self.first_broadcast_attempt_timeout: Union[
-            None, datetime.timedelta
-        ] = conventions.first_broadcast_attempt_timeout
-        self.second_broadcast_attempt_timeout: Union[
-            None, datetime.timedelta
-        ] = conventions.second_broadcast_attempt_timeout
+        self.first_broadcast_attempt_timeout: Union[None, datetime.timedelta] = (
+            conventions.first_broadcast_attempt_timeout
+        )
+        self.second_broadcast_attempt_timeout: Union[None, datetime.timedelta] = (
+            conventions.second_broadcast_attempt_timeout
+        )
 
         self._first_topology_update_task: Union[None, Future] = None
         self._last_known_urls: Union[None, List[str]] = None
@@ -428,9 +428,11 @@ class RequestExecutor:
 
             topology = Topology(
                 self._topology_etag,
-                self.topology_nodes
-                if self.topology_nodes
-                else list(map(lambda url_val: ServerNode(url_val, self._database_name, "!"), initial_urls)),
+                (
+                    self.topology_nodes
+                    if self.topology_nodes
+                    else list(map(lambda url_val: ServerNode(url_val, self._database_name, "!"), initial_urls))
+                ),
             )
 
             self._node_selector = NodeSelector(topology, self._thread_pool_executor)

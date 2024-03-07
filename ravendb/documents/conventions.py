@@ -65,9 +65,9 @@ class DocumentConventions(object):
         self._find_identity_property = lambda q: q.__name__ == "key"
         self._find_python_class: Optional[Callable[[str, Dict], str]] = None
         self._find_collection_name: Callable[[Type], str] = self.default_get_collection_name
-        self._find_python_class_name: Callable[
-            [Type], str
-        ] = lambda object_type: f"{object_type.__module__}.{object_type.__name__}"
+        self._find_python_class_name: Callable[[Type], str] = (
+            lambda object_type: f"{object_type.__module__}.{object_type.__name__}"
+        )
         self._transform_class_collection_name_to_document_id_prefix = (
             lambda collection_name: self.default_transform_collection_name_to_document_id_prefix(collection_name)
         )

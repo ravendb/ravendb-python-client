@@ -104,9 +104,9 @@ class OldIndexQuery(IndexQueryBase):
         if self.wait_for_non_stale_results_timeout is not None:
             data["WaitForNonStaleResultsTimeout"] = Utils.timedelta_to_str(self.wait_for_non_stale_results_timeout)
         if self.allow_multiple_index_entries_for_same_document_to_result_transformer:
-            data[
-                "AllowMultipleIndexEntriesForSameDocumentToResultTransformer"
-            ] = self.allow_multiple_index_entries_for_same_document_to_result_transformer
+            data["AllowMultipleIndexEntriesForSameDocumentToResultTransformer"] = (
+                self.allow_multiple_index_entries_for_same_document_to_result_transformer
+            )
         if self.show_timings:
             data["ShowTimings"] = self.show_timings
         if self.skip_duplicate_checking:
