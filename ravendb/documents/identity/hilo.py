@@ -46,7 +46,7 @@ class GenerateEntityIdOnTheClient:
         self.__try_set_identity_internal(entity, key, is_projection)
 
     def __try_set_identity_internal(self, entity: Union[object, dict], key: str, is_projection: bool = False) -> None:
-        identity_property = "Id"  # todo: make sure it's ok, create get_identity_property...
+        identity_property = "Id"  # todo: get_identity_property...
 
         if identity_property is None:
             return
@@ -55,7 +55,7 @@ class GenerateEntityIdOnTheClient:
             # identity property was already set
             return
 
-        if type(entity) == dict:
+        if isinstance(entity, dict):
             entity[identity_property] = key
             return
         entity.__setattr__(identity_property, key)

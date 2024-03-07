@@ -46,7 +46,7 @@ class CustomType:
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> CustomType:
         return cls(
-            json_dict["Id"],
+            json_dict["Id"] if "Id" in json_dict else None,
             json_dict["owner"],
             json_dict["value"],
             json_dict["comments"],
