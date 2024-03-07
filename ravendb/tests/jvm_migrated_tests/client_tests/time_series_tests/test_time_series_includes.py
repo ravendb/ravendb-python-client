@@ -4,7 +4,7 @@ from ravendb.documents.session.time_series import TimeSeriesRangeType
 from ravendb.infrastructure.orders import Company, Order
 from ravendb.primitives.constants import int_max
 from ravendb.primitives.time_series import TimeValue
-from ravendb.tests.test_base import TestBase, User
+from ravendb.tests.test_base import TestBase
 
 document_id = "users/gracjan"
 company_id = "companies/1-A"
@@ -15,6 +15,13 @@ ts_name2 = "Speedrate"
 tag1 = "watches/fitbit"
 tag2 = "watches/apple"
 tag3 = "watches/bitfit"
+
+
+class User:
+    def __init__(self, Id: str = None, name: str = None, works_at: str = None):
+        self.Id = Id
+        self.name = name
+        self.works_at = works_at
 
 
 class TestTimeSeriesIncludes(TestBase):
@@ -1184,3 +1191,69 @@ class TestTimeSeriesIncludes(TestBase):
                     TimeSeriesRangeType.LAST, -1024
                 ),
             )
+
+    def test_include_time_series_and_documents_and_counters(self):
+        with self.store.open_session() as session:
+            user = User()
+            user.name = "Oren"
+            user.works_at = "companies/1"
+            session.store(user, "users/ayende")
+
+            company = Company(name="HR")
+            session.store(company, "companies/1")
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            tsf = session.time_series_for("users/ayende", "Heartrate")
+
+            for i in range(360):
+                tsf.append_single(base_line + timedelta(seconds=i * 10), 67, "watches/fitbit")
+
+            session.counters_for("users/ayende").increment("likes", 100)
+            session.counters_for("users/ayende").increment("dislikes", 5)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            user = session.load(
+                "users/ayende",
+                User,
+                lambda i: i.include_documents("works_at")
+                .include_time_series("Heartrate", base_line, base_line + timedelta(minutes=30))
+                .include_counter("likes")
+                .include_counter("dislikes"),
+            )
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual("Oren", user.name)
+
+            # should not go to server
+
+            company = session.load(user.works_at, Company)
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual("HR", company.name)
+
+            # should not go to server
+            vals = session.time_series_for("users/ayende", "Heartrate").get(
+                base_line, base_line + timedelta(minutes=30)
+            )
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            self.assertEqual(181, len(vals))
+
+            self.assertEqual(base_line, vals[0].timestamp)
+            self.assertEqual("watches/fitbit", vals[0].tag)
+            self.assertEqual(67, vals[0].values[0])
+            self.assertEqual(base_line + timedelta(minutes=30), vals[180].timestamp)
+
+            # should not go to server
+            counters = session.counters_for("users/ayende").get_all()
+
+            self.assertEqual(1, session.advanced.number_of_requests)
+
+            counter = counters.get("likes")
+            self.assertEqual(100, counter)
+            counter = counters.get("dislikes")
+            self.assertEqual(5, counter)

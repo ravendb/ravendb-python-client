@@ -356,7 +356,7 @@ class TestRevisions(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            revision = session.advanced.lazily.load(User, "users/1")
+            revision = session.advanced.lazily.load("users/1", User)
             doc = revision.value
             self.assertEqual(1, session.advanced.number_of_requests)
 

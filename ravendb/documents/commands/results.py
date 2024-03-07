@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Any
 
 
 class GetDocumentResult:
@@ -39,3 +39,13 @@ class GetDocumentsResult:
             json_dict.get("CompareExchangeValueIncludes", None),
             json_dict.get("NextPageStart", None),
         )
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "Includes": self.includes,
+            "Results": self.results,
+            "CounterIncludes": self.counter_includes,
+            "TimeSeriesIncludes": self.time_series_includes,
+            "CompareExchangeValueIncludes": self.compare_exchange_includes,
+            "NextPageStart": self.next_page_start,
+        }

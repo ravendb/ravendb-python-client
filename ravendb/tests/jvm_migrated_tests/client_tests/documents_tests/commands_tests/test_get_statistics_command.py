@@ -1,5 +1,8 @@
+from datetime import datetime, timedelta
+
 from ravendb import GetStatisticsOperation
 from ravendb.documents.smuggler.common import DatabaseItemType
+from ravendb.infrastructure.entities import User
 from ravendb.infrastructure.operations import CreateSampleDataOperation
 from ravendb.tests.test_base import TestBase
 
@@ -74,3 +77,17 @@ class TestGetStatisticsCommand(TestBase):
             self.assertIsNotNone(index_information.type)
 
             self.assertIsNotNone(index_information.last_indexing_time)
+
+    def test_can_get_stats_for_counters_and_time_series(self):
+        with self.store.open_session() as session:
+            session.store(User(), "users/1")
+            session.counters_for("users/1").increment("c1")
+            session.counters_for("users/1").increment("c2")
+            tsf = session.time_series_for("users/1", "Heartrate")
+            tsf.append(datetime.now(), [70])
+            tsf.append(datetime.now() + timedelta(minutes=1), [20])
+            session.save_changes()
+
+        db_statistics = self.store.maintenance.send(GetStatisticsOperation())
+        self.assertEqual(1, db_statistics.count_of_counter_entries)
+        self.assertEqual(1, db_statistics.count_of_time_series_segments)

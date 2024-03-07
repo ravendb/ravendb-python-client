@@ -375,16 +375,30 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         start_after: Optional[str] = None,
     ) -> List[_T]:
         load_starting_with_operation = LoadStartingWithOperation(self)
-        self.__load_starting_with_internal(
-            id_prefix, load_starting_with_operation, None, matches, start, page_size, exclude, start_after
+        self._load_starting_with_internal(
+            id_prefix, load_starting_with_operation, matches, start, page_size, exclude, start_after
         )
         return load_starting_with_operation.get_documents(object_type)
 
-    def __load_starting_with_internal(
+    def load_starting_with_into_stream(
+        self,
+        id_prefix: str,
+        matches: str = None,
+        start: int = 0,
+        page_size: int = 25,
+        exclude: str = None,
+        start_after: str = None,
+    ) -> bytes:
+        if id_prefix is None:
+            raise ValueError("Arg 'id_prefix' is cannot be None.")
+        return self._load_starting_with_into_stream_internal(
+            id_prefix, LoadStartingWithOperation(self), matches, start, page_size, exclude, start_after
+        )
+
+    def _load_starting_with_internal(
         self,
         id_prefix: str,
         operation: LoadStartingWithOperation,
-        stream,
         matches: str,
         start: int,
         page_size: int,
@@ -395,11 +409,30 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         command = operation.create_request()
         if command:
             self._request_executor.execute_command(command, self.session_info)
-            if stream:
-                pass  # todo: stream
-            else:
-                operation.set_result(command.result)
+            operation.set_result(command.result)
         return command
+
+    def _load_starting_with_into_stream_internal(
+        self,
+        id_prefix: str,
+        operation: LoadStartingWithOperation,
+        matches: str,
+        start: int,
+        page_size: int,
+        exclude: str,
+        start_after: str,
+    ) -> bytes:
+        operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
+        command = operation.create_request()
+        bytes_result = None
+        if command:
+            self.request_executor.execute_command(command, self.session_info)
+            try:
+                result = command.result
+                bytes_result = json.dumps(result.to_json()).encode("utf-8")
+            except Exception as e:
+                raise RuntimeError("Unable sto serialize returned value into stream") from e
+        return bytes_result
 
     def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
         try:
@@ -456,6 +489,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return SessionDocumentCounters(self, entity)
 
     def time_series_for(self, document_id: str, name: str = None) -> SessionDocumentTimeSeries:
+        if not isinstance(document_id, str):
+            raise TypeError("Method time_series_for expects a string. Did you want to call time_series_for_entity?")
         return SessionDocumentTimeSeries(self, document_id, name)
 
     def time_series_for_entity(self, entity: object, name: str = None) -> SessionDocumentTimeSeries:
@@ -723,7 +758,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             return self._session._lazily
 
         def graph_query(self, object_type: type, query: str):  # -> GraphDocumentQuery:
-            pass
+            raise NotImplementedError("Dropped support for graph queries")
 
         def what_changed(self) -> Dict[str, List[DocumentsChanges]]:
             return self._session._what_changed()
@@ -781,32 +816,6 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             index_options.wait_for_indexes = True
 
-        def __load_starting_with_internal(
-            self,
-            id_prefix: str,
-            operation: LoadStartingWithOperation,
-            stream: Union[None, bytes],
-            matches: str,
-            start: int,
-            page_size: int,
-            exclude: str,
-            start_after: str,
-        ) -> GetDocumentsCommand:
-            operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
-            command = operation.create_request()
-            if command is not None:
-                self._session._request_executor.execute(command, self._session.session_info)
-                if stream:
-                    try:
-                        result = command.result
-                        stream_to_dict = json.loads(stream.decode("utf-8"))
-                        result.__dict__.update(stream_to_dict)
-                    except IOError as e:
-                        raise RuntimeError(f"Unable to serialize returned value into stream {e.args[0]}", e)
-                else:
-                    operation.set_result(command.result)
-            return command
-
         def load_starting_with(
             self,
             id_prefix: str,
@@ -824,26 +833,14 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def load_starting_with_into_stream(
             self,
             id_prefix: str,
-            output: bytes,
             matches: str = None,
             start: int = 0,
             page_size: int = 25,
             exclude: str = None,
             start_after: str = None,
-        ):
-            if not output:
-                raise ValueError("Output cannot be None")
-            if not id_prefix:
-                raise ValueError("Id prefix cannot be None")
-            self.__load_starting_with_internal(
-                id_prefix,
-                LoadStartingWithOperation(self._session),
-                output,
-                matches,
-                start,
-                page_size,
-                exclude,
-                start_after,
+        ) -> bytes:
+            return self._session.load_starting_with_into_stream(
+                id_prefix, matches, start, page_size, exclude, start_after
             )
 
         def load_into_stream(self, keys: List[str], output: bytes) -> None:

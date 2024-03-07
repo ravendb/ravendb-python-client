@@ -43,7 +43,7 @@ class CachingOfDocumentsIncludeTest(TestBase):
             session.load(user.partner_id)
 
             old = session.number_of_requests
-            new_user = session.include("partner_id").load(User, "users/2-A")
+            new_user = session.include("partner_id").load(["users/2-A"])
             self.assertEqual(old, session.number_of_requests)
 
     def test_can_include_nested_paths(self):
