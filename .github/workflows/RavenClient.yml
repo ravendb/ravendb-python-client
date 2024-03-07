@@ -29,7 +29,7 @@ jobs:
 
       strategy:
         matrix:
-          python-version: [ '3.7', '3.8', '3.9' , '3.10']
+          python-version: [ '3.7', '3.8', '3.10' ,'3.11', '3.12']
           serverVersion: [ "5.2", "5.4", "6.0" ]
         fail-fast: false
 
@@ -82,9 +82,11 @@ jobs:
         run: mkdir RavenDB/Server/certs && cp certs/server.pfx RavenDB/Server/certs/
 
       - name: Install black linter
+        if: ${{ matrix.python-version != '3.7' }}
         run: pip install black
 
       - name: Check code format
+        if: ${{ matrix.python-version != '3.7' }}
         run: black --check .
 
       - name: Run tests
