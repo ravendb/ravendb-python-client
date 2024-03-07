@@ -148,9 +148,9 @@ class DocumentsByEntityHolder(object):
         self.__documents_by_entity_hashable: Dict[object, DocumentInfo] = dict()
         self.__documents_by_entity_unhashable: RefEqEntityHolder[RefEq, DocumentInfo] = RefEqEntityHolder()
         self.__on_before_store_documents_by_entity_hashable: Dict[object, DocumentInfo] = dict()
-        self.__on_before_store_documents_by_entity_unhashable: RefEqEntityHolder[
-            RefEq, DocumentInfo
-        ] = RefEqEntityHolder()
+        self.__on_before_store_documents_by_entity_unhashable: RefEqEntityHolder[RefEq, DocumentInfo] = (
+            RefEqEntityHolder()
+        )
         self.__prepare_entities_puts: bool = False
 
     def __repr__(self):
@@ -458,9 +458,9 @@ class InMemoryDocumentSessionOperations:
         self._documents_by_id = DocumentsByIdHolder()
         self._included_documents_by_id = CaseInsensitiveDict()
         self.include_revisions_by_change_vector = CaseInsensitiveDict()
-        self.include_revisions_by_date_time_before: Optional[
-            Dict[str, Dict[datetime.datetime, DocumentInfo]]
-        ] = CaseInsensitiveDict()
+        self.include_revisions_by_date_time_before: Optional[Dict[str, Dict[datetime.datetime, DocumentInfo]]] = (
+            CaseInsensitiveDict()
+        )
         self._documents_by_entity: DocumentsByEntityHolder = DocumentsByEntityHolder()
 
         self._counters_by_doc_id: Dict[str, List[Dict[str, int]]] = CaseInsensitiveDict()

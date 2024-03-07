@@ -248,9 +248,9 @@ class IndexDefinition(IndexDefinitionBase):
             "State": self.state,
             "LockMode": self.lock_mode,
             "AdditionalSources": self.additional_sources,
-            "AdditionalAssemblies": [x.to_json() for x in self.additional_assemblies]
-            if self.additional_assemblies
-            else None,
+            "AdditionalAssemblies": (
+                [x.to_json() for x in self.additional_assemblies] if self.additional_assemblies else None
+            ),
             "Maps": self.maps,
             "Fields": {key: value.to_json() for key, value in self.fields.items()},
             "Reduce": self.reduce,

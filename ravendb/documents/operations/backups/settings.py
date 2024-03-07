@@ -227,9 +227,11 @@ class AzureSettings(BackupSettings):
     def from_json(cls, json_dict: Dict[str, Any]) -> AzureSettings:
         return cls(
             json_dict["Disabled"],
-            GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
-            if json_dict["GetBackupConfigurationScript"]
-            else None,
+            (
+                GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
+                if json_dict["GetBackupConfigurationScript"]
+                else None
+            ),
             json_dict["StorageContainer"],
             json_dict["RemoteFolderName"],
             json_dict["AccountName"],
@@ -240,9 +242,9 @@ class AzureSettings(BackupSettings):
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "GetBackupConfigurationScript": self.get_backup_configuration_script.to_json()
-            if self.get_backup_configuration_script
-            else None,
+            "GetBackupConfigurationScript": (
+                self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
+            ),
             "StorageContainer": self.storage_container,
             "RemoteFolderName": self.remote_folder_name,
             "AccountName": self.account_name,
@@ -275,9 +277,11 @@ class FtpSettings(BackupSettings):
     def from_json(cls, json_dict: Dict[str, Any]) -> FtpSettings:
         return cls(
             json_dict["Disabled"],
-            GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
-            if json_dict["GetBackupConfigurationScript"]
-            else None,
+            (
+                GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
+                if json_dict["GetBackupConfigurationScript"]
+                else None
+            ),
             json_dict["Url"],
             json_dict["Port"] if "Port" in json_dict else None,
             json_dict["UserName"],
@@ -289,9 +293,9 @@ class FtpSettings(BackupSettings):
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "GetBackupConfigurationScript": self.get_backup_configuration_script.to_json()
-            if self.get_backup_configuration_script
-            else None,
+            "GetBackupConfigurationScript": (
+                self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
+            ),
             "Url": self.url,
             "Port": self.port,
             "UserName": self.user_name,
@@ -419,26 +423,30 @@ class BackupConfiguration:
         return cls(
             BackupType(json_dict["BackupType"]),
             SnapshotSettings.from_json(json_dict["SnapshotSettings"]) if json_dict["SnapshotSettings"] else None,
-            BackupEncryptionSettings.from_json(json_dict["BackupEncryptionSettings"])
-            if json_dict["BackupEncryptionSettings"]
-            else None,
+            (
+                BackupEncryptionSettings.from_json(json_dict["BackupEncryptionSettings"])
+                if json_dict["BackupEncryptionSettings"]
+                else None
+            ),
             LocalSettings.from_json(json_dict["LocalSettings"]) if json_dict["LocalSettings"] else None,
             S3Settings.from_json(json_dict["S3Settings"]) if json_dict["S3Settings"] else None,
             GlacierSettings.from_json(json_dict["GlacierSettings"]) if json_dict["GlacierSettings"] else None,
             AzureSettings.from_json(json_dict["AzureSettings"]) if json_dict["AzureSettings"] else None,
             FtpSettings.from_json(json_dict["FtpSettings"]) if json_dict["FtpSettings"] else None,
-            GoogleCloudSettings.from_json(json_dict["GoogleCloudSettings"])
-            if json_dict["GoogleCloudSettings"]
-            else None,
+            (
+                GoogleCloudSettings.from_json(json_dict["GoogleCloudSettings"])
+                if json_dict["GoogleCloudSettings"]
+                else None
+            ),
         )
 
     def to_json(self) -> Dict[str, Any]:
         return {
             "BackupType": self.backup_type.value if self.backup_type else None,
             "SnapshotSettings": self.snapshot_settings.to_json() if self.snapshot_settings else None,
-            "BackupEncryptionSettings": self.backup_encryption_settings.to_json()
-            if self.backup_encryption_settings
-            else None,
+            "BackupEncryptionSettings": (
+                self.backup_encryption_settings.to_json() if self.backup_encryption_settings else None
+            ),
             "LocalSettings": self.local_settings.to_json() if self.local_settings else None,
             "S3Settings": self.s3_settings.to_json() if self.s3_settings else None,
             "GlacierSettings": self.glacier_settings.to_json() if self.glacier_settings else None,

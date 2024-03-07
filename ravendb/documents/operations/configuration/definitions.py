@@ -44,12 +44,12 @@ class ClientConfiguration:
             "Etag": self.etag,
             "Disabled": self.disabled,
             "MaxNumberOfRequestsPerSession": self.max_number_of_requests_per_session,
-            "ReadBalanceBehavior": self.read_balance_behavior.value
-            if self.read_balance_behavior
-            else ReadBalanceBehavior.NONE,
-            "LoadBalanceBehavior": self.load_balance_behavior.value
-            if self.load_balance_behavior
-            else LoadBalanceBehavior.NONE,
+            "ReadBalanceBehavior": (
+                self.read_balance_behavior.value if self.read_balance_behavior else ReadBalanceBehavior.NONE
+            ),
+            "LoadBalanceBehavior": (
+                self.load_balance_behavior.value if self.load_balance_behavior else LoadBalanceBehavior.NONE
+            ),
             "LoadBalancerContextSeed": self.load_balancer_context_seed,
         }
 

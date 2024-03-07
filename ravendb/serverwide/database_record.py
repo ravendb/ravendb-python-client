@@ -97,9 +97,11 @@ class DatabaseRecord:
             "Analyzers": self.analyzers,
             "Indexes": self.indexes,
             "IndexesHistory": self.indexes_history_story,
-            "AutoIndexes": {key: AutoIndexDefinition.to_json(auto_index) for key, auto_index in self.auto_indexes}
-            if self.auto_indexes
-            else None,
+            "AutoIndexes": (
+                {key: AutoIndexDefinition.to_json(auto_index) for key, auto_index in self.auto_indexes}
+                if self.auto_indexes
+                else None
+            ),
             "Settings": self.settings,
             "Revisions": self.revisions,
             "TimeSeries": self.time_series,
