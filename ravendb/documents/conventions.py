@@ -32,6 +32,7 @@ class DocumentConventions(object):
         return cls()
 
     __cached_default_type_collection_names: Dict[type, str] = {}
+    __cached_keys_collection_names: Dict[str, str] = {}
 
     def __init__(self):
         self._frozen = False
@@ -65,6 +66,7 @@ class DocumentConventions(object):
         self._find_identity_property = lambda q: q.__name__ == "key"
         self._find_python_class: Optional[Callable[[str, Dict], str]] = None
         self._find_collection_name: Callable[[Type], str] = self.default_get_collection_name
+        self._find_collection_name_for_dict: Callable[[str], str] = self.default_get_collection_name_for_dict
         self._find_python_class_name: Callable[[Type], str] = (
             lambda object_type: f"{object_type.__module__}.{object_type.__name__}"
         )
@@ -281,6 +283,13 @@ class DocumentConventions(object):
 
         return self.default_get_collection_name(object_type)
 
+    def get_collection_name_for_dict(self, key: str):
+        collection = key.split("/")[0]
+        collection_name = self._find_collection_name_for_dict(collection)
+        if collection_name:
+            return collection_name
+        return self.default_get_collection_name(dict)
+
     def generate_document_id(self, database_name: str, entity: object) -> str:
         object_type = type(entity)
         for list_of_registered_id_convention in self._list_of_registered_id_conventions:
@@ -303,6 +312,16 @@ class DocumentConventions(object):
             )
         result = inflector.plural(str(object_type.__name__))  # todo: hilo multidb problems
         DocumentConventions.__cached_default_type_collection_names[object_type] = result
+        return result
+
+    @staticmethod
+    def default_get_collection_name_for_dict(key: str) -> str:
+        result = DocumentConventions.__cached_keys_collection_names.get(key, None)
+        if result:
+            return result
+        # singular_noun returns False if the word is singular
+        result = inflector.plural(key) if not inflector.singular_noun(key) else key
+        DocumentConventions.__cached_keys_collection_names[key] = result
         return result
 
     @staticmethod
