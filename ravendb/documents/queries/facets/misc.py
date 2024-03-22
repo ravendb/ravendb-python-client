@@ -28,8 +28,8 @@ class FacetOptions:
     def to_json(self) -> dict:
         return {
             "PageSize": self.page_size,
-            "Start": self.start,
-            "TermSortMode": self.term_sort_mode,
+            "Start": self.start or 0,
+            "TermSortMode": str(self.term_sort_mode),
             "IncludeRemainingTerms": self.include_remaining_terms,
         }
 
