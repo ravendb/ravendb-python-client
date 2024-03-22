@@ -274,7 +274,7 @@ class AbstractDocumentQuery(Generic[_T]):
         self._order_by_tokens.append(OrderByToken.random() if not seed else OrderByToken.create_random(seed))
 
     def _projection(self, projection_behavior):
-        raise NotImplementedError()
+        self._projection_behavior = projection_behavior
 
     def _add_group_by_alias(self, field_name: str, projected_name: str) -> None:
         self.__alias_to_group_by_field_name[projected_name] = field_name
