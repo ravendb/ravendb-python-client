@@ -29,7 +29,7 @@ class TestPutDocumentCommand(TestBase):
 
     @unittest.skip("todo: Not passing on CI/CD")
     def test_can_put_document_using_command_with_surrogate_pairs(self):
-        name_with_emojis = "Gracjan \uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀"
+        name_with_emojis = "Gracjan \ud83d\ude21\ud83d\ude21\ud83e\udd2c\ud83d\ude00😡😡🤬😀"
 
         user = User(name=name_with_emojis, age=31)
         node = Utils.entity_to_dict(user, self.store.conventions.json_default_method)

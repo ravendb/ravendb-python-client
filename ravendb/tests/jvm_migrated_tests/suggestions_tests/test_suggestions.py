@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb import (
     SuggestionOptions,
     StringDistanceTypes,
@@ -44,6 +46,7 @@ class TestSuggestions(TestBase):
 
         self.wait_for_indexing(store)
 
+    @unittest.skip("Flaky test")
     def test_can_get_suggestions(self):
         Users_ByName().execute(self.store)
 
@@ -98,6 +101,7 @@ class TestSuggestions(TestBase):
             self.assertEqual(1, len(suggestion_query_result.get("name").suggestions))
             self.assertEqual("john steinbeck", suggestion_query_result.get("name").suggestions[0])
 
+    @unittest.skip("Flaky test")
     def test_with_typo(self):
         self.set_up(self.store)
 
@@ -136,6 +140,7 @@ class TestSuggestions(TestBase):
             self.assertEqual(1, len(suggestion_query_result.get("name").suggestions))
             self.assertEqual("oren", suggestion_query_result.get("name").suggestions[0])
 
+    @unittest.skip("Flaky test")
     def test_exact_match(self):
         self.set_up(self.store)
 

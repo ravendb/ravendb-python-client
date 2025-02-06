@@ -16,9 +16,9 @@ setup(
         "nosql",
         "database" "pyravendb",
     ],
-    python_requires="~=3.7",
+    python_requires="~=3.9",
     install_requires=[
-        "requests >= 2.27.1",
+        "requests~=2.32.0",
         "requests-pkcs12 >= 1.13",
         "pyOpenSSL >= 22.0.0",
         "ijson ~= 3.2.3",
