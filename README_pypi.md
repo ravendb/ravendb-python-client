@@ -8,7 +8,7 @@ pip install ravendb
 ```
 
 ## Introduction
-Python client API (v5.2) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
+Python client API (v7.0) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
 
 Although new API isn't compatible with the previous one, it comes with **many improvements and new features**.
 
@@ -18,8 +18,6 @@ Although new API isn't compatible with the previous one, it comes with **many im
 
 
 ## Releases
-
-* All client versions 5.2.x are fully compatible with and support RavenDB server releases 5.4 and 6.0.
 
 * [Click here](https://github.com/ravendb/ravendb-python-client/releases) to view all Releases and Changelog.
 
