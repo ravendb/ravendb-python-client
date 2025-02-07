@@ -1,3 +1,4 @@
+import unittest
 from typing import Optional
 
 from ravendb import AbstractIndexCreationTask, Explanations, ExplanationOptions
@@ -33,6 +34,7 @@ class TestRavenDB9745(TestBase):
     def setUp(self):
         super(TestRavenDB9745, self).setUp()
 
+    @unittest.skip("Corax doesn't support explanations yet")
     def test_explain(self):
         Companies_ByName().execute(self.store)
 

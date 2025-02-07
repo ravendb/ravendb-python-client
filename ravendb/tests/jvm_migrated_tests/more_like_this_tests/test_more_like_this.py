@@ -28,11 +28,24 @@ class ComplexProperty:
     def __init__(self, body: str = None):
         self.body = body
 
+    @classmethod
+    def from_json(cls, json_dict: dict):
+        return cls(json_dict["body"])
+
+    def to_json(self):
+        return {"body": self.body}
+
 
 class ComplexData:
-    def __init__(self, Id: str = None, property_: ComplexProperty = None):
-        self.Id = Id
-        self.property_ = property_
+    def __init__(self, prop: ComplexProperty = None):
+        self.prop = prop
+
+    @classmethod
+    def from_json(cls, json_dict: dict):
+        return cls(ComplexProperty.from_json(json_dict["prop"]))
+
+    def to_json(self):
+        return {"prop": self.prop}
 
 
 class DataIndex(AbstractIndexCreationTask):
@@ -54,7 +67,7 @@ class DataIndex(AbstractIndexCreationTask):
 class ComplexDataIndex(AbstractIndexCreationTask):
     def __init__(self):
         super(ComplexDataIndex, self).__init__()
-        self.map = "from doc in docs.ComplexDatas select new { doc.property_, doc.property_.body }"
+        self.map = "from doc in docs.ComplexDatas select new { doc.prop, doc.prop.body }"
         self._index("body", FieldIndexing.SEARCH)
 
 
@@ -352,7 +365,7 @@ class TestMoreLikeThis(TestBase):
 
         with self.store.open_session() as session:
             complex_property = ComplexProperty("test")
-            complex_data = ComplexData(property_=complex_property)
+            complex_data = ComplexData(prop=complex_property)
 
             session.store(complex_data)
             session.save_changes()
@@ -364,7 +377,7 @@ class TestMoreLikeThis(TestBase):
 
             results = list(
                 session.query_index_type(ComplexDataIndex, ComplexData).more_like_this(
-                    lambda f: f.using_document('{ "Property": { "Body": "test" } }').with_options(options)
+                    lambda f: f.using_document('{ "property": { "body": "test" } }').with_options(options)
                 )
             )
             self.assertEqual(1, len(results))

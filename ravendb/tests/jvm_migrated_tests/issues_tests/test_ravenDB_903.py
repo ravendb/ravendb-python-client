@@ -1,3 +1,4 @@
+import unittest
 from typing import Callable
 
 from ravendb.documents.indexes.definitions import FieldIndexing
@@ -44,6 +45,7 @@ class TestRavenDB903(TestBase):
             products = list(query)
             self.assertEqual(1, len(products))
 
+    @unittest.skip("Corax doesn't support intersect queries")
     def test_test_1(self):
         def function(session: DocumentSession):
             return (
@@ -55,6 +57,7 @@ class TestRavenDB903(TestBase):
 
         self.do_test(function)
 
+    @unittest.skip("Corax doesn't support intersect queries")
     def test_test_2(self):
         def function(session: DocumentSession):
             return (
