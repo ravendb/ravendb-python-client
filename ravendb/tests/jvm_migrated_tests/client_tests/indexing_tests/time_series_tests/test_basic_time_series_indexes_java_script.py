@@ -265,7 +265,7 @@ class AverageHeartRateDaily_ByDateAndCity(AbstractJavaScriptTimeSeriesIndexCreat
             " .aggregate(g => ({\n"
             "     heart_beat: g.values.reduce((total, val) => val.heart_beat + total, 0) / g.values.reduce((total, val) => val.count + total, 0),\n"
             "     date: g.key.date,\n"
-            "     city: g.key.city\n"
+            "     city: g.key.city,\n"
             "     count: g.values.reduce((total, val) => val.count + total, 0)\n"
             " }))"
         )
