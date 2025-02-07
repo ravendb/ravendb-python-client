@@ -226,6 +226,7 @@ class TestQuery(TestBase):
             with self.assertRaises(ValueError):
                 session.query(object_type=UserWithId).single()
 
+    @unittest.skip("Method 'Lucene' is not supported on Corax")
     def test_query_lucene(self):
         self.add_users()
         with self.store.open_session() as session:

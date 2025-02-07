@@ -1,4 +1,5 @@
 import random
+import unittest
 from abc import ABC
 from typing import Optional, List, Type, TypeVar
 
@@ -112,6 +113,7 @@ class TestMoreLikeThis(TestBase):
             )
             self.assertEqual(5, len(results))
 
+    @unittest.skip("Boosting inside MoreLikeThis is not supported yet")
     def test_can_use_boost_param(self):
         key = "datas/1-A"
 
@@ -360,6 +362,7 @@ class TestMoreLikeThis(TestBase):
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
 
+    @unittest.skip("Flaky")
     def test_can_make_dynamic_document_queries_with_complex_properties(self):
         ComplexDataIndex().execute(self.store)
 

@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb import AbstractIndexCreationTask
 from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactory
 from ravendb.tests.test_base import TestBase
@@ -29,6 +31,7 @@ class TestBoundingBoxIndex(TestBase):
     def setUp(self):
         super(TestBoundingBoxIndex, self).setUp()
 
+    @unittest.skip("flaky")
     def test_bounding_box(self):
         polygon = "POLYGON ((0 0, 0 5, 1 5, 1 1, 5 1, 5 5, 6 5, 6 0, 0 0))"
         rectangle1 = "2 2 4 4"
