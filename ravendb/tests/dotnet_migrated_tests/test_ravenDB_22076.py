@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import List
 
-from ravendb import AbstractIndexCreationTask
+from ravendb import AbstractIndexCreationTask, GetIndexesOperation
 from ravendb.documents.indexes.definitions import SearchEngineType
 from ravendb.documents.indexes.vector.embedding import VectorEmbeddingType
 from ravendb.documents.indexes.vector.options import VectorOptions
@@ -191,3 +191,22 @@ class TestRavenDB22076(TestBase):
                 "Attempted to index embedding with 3 dimensions, but field Singles already contains indexed embedding with 2 dimensions, or was explicitly configured for embeddings with 2 dimensions.",
                 index_errors[0].errors[0].error,
             )
+
+    def test_auto_index_creation_with_exact_search(self):
+        with self.store.open_session() as session:
+            dto1 = Dto(embedding_singles=[0.2, 0.3])
+            queried_embedding = [0.2, 0.3]
+            session.store(dto1)
+
+            session.save_changes()
+
+            _ = list(
+                session.query(object_type=Dto).vector_search(
+                    embedding_field="embedding_singles", vector=queried_embedding, is_exact=True
+                )
+            )
+
+            index_definitions = self.store.maintenance.send(GetIndexesOperation(0, 10))
+
+            self.assertEqual(1, len(index_definitions))
+            self.assertEqual("Auto/Dtoes/ByVector.search(embedding_sinlges)", index_definitions[0].name)
