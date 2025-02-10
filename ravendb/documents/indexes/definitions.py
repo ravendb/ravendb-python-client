@@ -61,6 +61,14 @@ class IndexDeploymentMode(Enum):
         return self.value
 
 
+class SearchEngineType(Enum):
+    LUCENE = "Lucene"
+    CORAX = "Corax"
+
+    def __str__(self):
+        return self.value
+
+
 class FieldStorage(Enum):
     YES = "Yes"
     NO = "No"
@@ -196,6 +204,7 @@ class IndexDefinition(IndexDefinitionBase):
         pattern_for_output_reduce_to_collection_references: Optional[str] = None,
         pattern_references_collection_name: Optional[str] = None,
         deployment_mode: Optional[IndexDeploymentMode] = None,
+        search_engine_type: Optional[SearchEngineType] = None,
     ):
         super(IndexDefinition, self).__init__(name, priority, state)
         self.lock_mode = lock_mode
@@ -212,6 +221,7 @@ class IndexDefinition(IndexDefinitionBase):
         self.pattern_for_output_reduce_to_collection_references = pattern_for_output_reduce_to_collection_references
         self.pattern_references_collection_name = pattern_references_collection_name
         self.deployment_mode = deployment_mode
+        self.search_engine_type = search_engine_type
 
     @classmethod
     def from_json(cls, json_dict: dict) -> IndexDefinition:
@@ -234,6 +244,8 @@ class IndexDefinition(IndexDefinitionBase):
         index_type = json_dict.get("IndexType", None)
         if index_type is not None:
             result.__index_type = IndexType(index_type)
+        if json_dict["Configuration"] and json_dict["Configuration"]["Indexing.Static.SearchEngineType"]:
+            result.search_engine_type = SearchEngineType(json_dict["Configuration"]["Indexing.Static.SearchEngineType"])
         result.output_reduce_to_collection = json_dict["OutputReduceToCollection"]
         result.reduce_output_index = json_dict["ReduceOutputIndex"]
         result.pattern_for_output_reduce_to_collection_references = json_dict[

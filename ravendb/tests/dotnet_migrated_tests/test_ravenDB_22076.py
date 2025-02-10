@@ -1,18 +1,21 @@
+from datetime import timedelta
 from typing import List
 
 from ravendb import AbstractIndexCreationTask
+from ravendb.documents.indexes.definitions import SearchEngineType
 from ravendb.documents.indexes.vector.embedding import VectorEmbeddingType
 from ravendb.documents.indexes.vector.options import VectorOptions
+from ravendb.documents.operations.server_misc import ToggleDatabasesStateOperation
 from ravendb.tests.test_base import TestBase
 
 
 class Dto:
     def __init__(
         self,
-        embedding_base_64: str,
-        embedding_singles: List[float],
-        embedding_sbytes: List[int],
-        embedding_binary: List[int],
+        embedding_base_64: str = None,
+        embedding_singles: List[float] = None,
+        embedding_sbytes: List[int] = None,
+        embedding_binary: List[int] = None,
     ):
         self.embedding_base_64 = embedding_base_64
         self.embedding_singles = embedding_singles
@@ -24,7 +27,7 @@ class DummyIndex(AbstractIndexCreationTask):
     def __init__(self):
         super().__init__()
         self.map = """
-        from dto in docs.Dtos
+        from dto in docs.Dtoes
         select new 
         { 
             Singles = CreateVector(dto.embedding_singles), 
@@ -34,13 +37,14 @@ class DummyIndex(AbstractIndexCreationTask):
         """
         self._vector("Integers", VectorOptions(VectorEmbeddingType.INT8))
         self._vector("Binary", VectorOptions(VectorEmbeddingType.BINARY))
+        self.search_engine_type = SearchEngineType.CORAX
 
 
 class IndexWithSetDimensions(AbstractIndexCreationTask):
     def __init__(self):
         super().__init__()
         self.map = """
-        from dto in docs.Dtos
+        from dto in docs.Dtoes
         select new 
         {
             Singles = CreateVector(dto.embedding_singles) 
@@ -53,7 +57,7 @@ class IndexWithSetDimensionsInt8(AbstractIndexCreationTask):
     def __init__(self):
         super().__init__()
         self.map = """
-            from dto in docs.Dtos
+            from dto in docs.Dtoes
             select new 
             { 
                 Sbytes = CreateVector(dto.embedding_singles) 
@@ -91,7 +95,7 @@ class TestRavenDB22076(TestBase):
             q7 = session.query(object_type=Dto).vector_search_text_i8("TextField", "aaaa")
             self.assertEqual("from 'Dtoes' where vector.search(embedding.text_i8(TextField), $p0)", q7._to_string())
 
-    def test_rql_generation_async(self):
+    def test_rql_generation_2(self):
         with self.store.open_session() as session:
 
             # -- Not applicable for Python - here we just don't have such methods in the API, making this impossible --
@@ -137,3 +141,53 @@ class TestRavenDB22076(TestBase):
                 "EmbeddingBase64", "abcd==", is_exact=True, number_of_candidates=25
             )
             self.assertEqual("from 'Dtoes' where exact(vector.search(EmbeddingBase64, $p0, null, 25))", q8._to_string())
+
+    def test_embedding_dimensions_check(self):
+        with self.store.open_session() as session:
+            dto1 = Dto(embedding_singles=[0.5, -1.0])
+            dto2 = Dto(embedding_singles=[0.2, 0.3])
+
+            session.store(dto1)
+            session.store(dto2)
+
+            session.save_changes()
+
+            index = DummyIndex()
+
+            index.execute(self.store)
+
+            self.wait_for_indexing(self.store)
+
+            database_disable_result = self.store.maintenance.server.send(
+                ToggleDatabasesStateOperation(self.store.database, True)
+            )
+
+            self.assertTrue(database_disable_result.success)
+            self.assertTrue(database_disable_result.disabled)
+            self.assertEqual(database_disable_result.name, self.store.database)
+
+            database_enable_result = self.store.maintenance.server.send(
+                ToggleDatabasesStateOperation(self.store.database, False)
+            )
+
+            self.assertTrue(database_enable_result.success)
+            self.assertFalse(database_enable_result.disabled)
+            self.assertEqual(database_enable_result.name, self.store.database)
+
+            dto3 = Dto(embedding_singles=[0.1, 0.2])
+            session.store(dto3)
+            session.save_changes()
+
+            self.wait_for_indexing(self.store)
+
+            dto4 = Dto(embedding_singles=[0.5, 0.7, 0.9])
+            session.store(dto4)
+            session.save_changes()
+
+            index_errors = self.wait_for_indexing_errors(self.store, timeout=timedelta(seconds=5))
+
+            self.assertEqual(1, len(index_errors))
+            self.assertIn(
+                "Attempted to index embedding with 3 dimensions, but field Singles already contains indexed embedding with 2 dimensions, or was explicitly configured for embeddings with 2 dimensions.",
+                index_errors[0].errors[0].error,
+            )

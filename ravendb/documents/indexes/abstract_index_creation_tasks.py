@@ -16,6 +16,7 @@ from ravendb.documents.indexes.definitions import (
     SpatialOptions,
     IndexFieldOptions,
     IndexType,
+    SearchEngineType,
 )
 from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactory
 from ravendb.documents.indexes.vector.options import VectorOptions
@@ -41,6 +42,7 @@ class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_Inde
         lock_mode: IndexLockMode = None,
         deployment_mode: IndexDeploymentMode = None,
         state: IndexState = None,
+        search_engine_type: SearchEngineType = None,
     ):
         super().__init__()
         self.conventions = conventions
@@ -48,6 +50,7 @@ class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_Inde
         self.lock_mode = lock_mode
         self.deployment_mode = deployment_mode
         self.state = state
+        self.search_engine_type = search_engine_type
 
     def execute(self, store: "DocumentStore", conventions: DocumentConventions = None, database: str = None):
         old_conventions = self.conventions
@@ -68,6 +71,11 @@ class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_Inde
 
             if self.deployment_mode is not None:
                 index_definition.deployment_mode = self.deployment_mode
+
+            if self.search_engine_type is not None:
+                if not index_definition.configuration:
+                    index_definition.configuration = {}
+                index_definition.configuration["Indexing.Static.SearchEngineType"] = self.search_engine_type.__str__()
 
             store.maintenance.for_database(database).send(PutIndexesOperation(index_definition))
 
