@@ -6,6 +6,7 @@ from ravendb.documents.indexes.definitions import SearchEngineType
 from ravendb.documents.indexes.vector.embedding import VectorEmbeddingType
 from ravendb.documents.indexes.vector.options import VectorOptions
 from ravendb.documents.operations.server_misc import ToggleDatabasesStateOperation
+from ravendb.infrastructure.orders import Product
 from ravendb.tests.test_base import TestBase
 
 
@@ -210,3 +211,78 @@ class TestRavenDB22076(TestBase):
 
             self.assertEqual(1, len(index_definitions))
             self.assertEqual("Auto/Dtoes/ByVector.search(embedding_sinlges)", index_definitions[0].name)
+
+    def test_auto_index_creation_with_exact_search_quantized_binary(self):
+        with self.store.open_session() as session:
+            dto1 = Dto(embedding_binary=[0, 1, 0])
+            dto2 = Dto(embedding_binary=[0, 0, 1])
+            queried_embedding = [1, 1, 0]
+            session.store(dto1)
+            session.store(dto2)
+            session.save_changes()
+
+            results = list(
+                session.query(object_type=Dto)
+                .vector_search_i1("embedding_binary", queried_embedding, is_exact=True)
+                .order_by_score()
+            )
+
+            self.assertEqual(2, len(results))
+            self.assertEqual([0, 1, 0], results[0].embedding_binary)
+
+            index_definitions = self.store.maintenance.send(GetIndexesOperation(0, 10))
+
+            self.assertEqual(1, len(index_definitions))
+            self.assertEqual("Auto/Dtoes/ByVector.search(embedding.i1(embedding_binary))", index_definitions[0].name)
+
+    def test_auto_index_creation_with_exact_search_quantized_int8(self):
+        with self.store.open_session() as session:
+            dto1 = Dto(embedding_sbytes=[64, -127, 0, 0, -128, 63])
+            dto2 = Dto(embedding_sbytes=[91, 127, 51, 51, 51, 63])
+            queried_embedding = [78, 0, 43, 43, 0, 63]
+            session.store(dto1)
+            session.store(dto2)
+            session.save_changes()
+
+            results = list(
+                session.query(object_type=Dto)
+                .vector_search_i8("embedding_sbytes", queried_embedding, minimum_similarity=0)
+                .order_by_score()
+            )
+
+            self.assertEqual(2, len(results))
+            self.assertEqual([91, 127, 51, 51, 51, 63], results[0].embedding_sbytes)
+
+            index_definitions = self.store.maintenance.send(GetIndexesOperation(0, 10))
+
+            self.assertEqual(1, len(index_definitions))
+            self.assertEqual("Auto/Dtoes/ByVector.search(embedding.i8(embedding_sbytes))", index_definitions[0].name)
+
+    def test_auto_index_creation_with_exact_search_text(self):
+        with self.store.open_session() as session:
+            session.store(Product(name="Bicycle"))
+            session.store(Product(name="Paddle"))
+            session.store(Product(name="Sea"))
+            session.store(Product(name="Sailors"))
+            session.store(Product(name="Oblivion"))
+            session.save_changes()
+
+            results = list(session.query(object_type=Product).vector_search_text("name", "sea").order_by_score())
+            self.assertEqual(3, len(results))
+            self.assertEqual("Sea", results[0].name)
+            self.assertEqual("Sailors", results[1].name)
+            self.assertEqual("Paddle", results[2].name)
+
+            session.store(Product(name="Scott Steiner"))
+            session.save_changes()
+
+            results = list(
+                session.query(object_type=Product)
+                .vector_search_text("name", "sea", minimum_similarity=0.75)
+                .order_by_score()
+            )
+            self.assertEqual(4, len(results))
+            self.assertEqual("Sea", results[0].name)
+            self.assertEqual("Sailors", results[1].name)
+            self.assertEqual("Paddle", results[2].name)
+            self.assertEqual("Scott Steiner", results[3].name)
