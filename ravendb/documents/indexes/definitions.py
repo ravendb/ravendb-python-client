@@ -244,7 +244,7 @@ class IndexDefinition(IndexDefinitionBase):
         index_type = json_dict.get("IndexType", None)
         if index_type is not None:
             result.__index_type = IndexType(index_type)
-        if json_dict["Configuration"] and json_dict["Configuration"]["Indexing.Static.SearchEngineType"]:
+        if json_dict["Configuration"] and "Indexing.Static.SearchEngineType" in json_dict["Configuration"]:
             result.search_engine_type = SearchEngineType(json_dict["Configuration"]["Indexing.Static.SearchEngineType"])
         result.output_reduce_to_collection = json_dict["OutputReduceToCollection"]
         result.reduce_output_index = json_dict["ReduceOutputIndex"]
