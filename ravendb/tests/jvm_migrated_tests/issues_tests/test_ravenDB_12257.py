@@ -30,7 +30,7 @@ class TestRavenDB12257(TestBase):
 
         options = SubscriptionCreationOptions()
         options.includes = lambda builder: builder.include_documents("category").include_documents("supplier")
-        name = self.store.subscriptions.create_for_options_autocomplete_query(Product, options)
+        name = self.store.subscriptions.create_for_class(Product, options)
 
         with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(name), Product) as sub:
             semaphore = Semaphore(0)

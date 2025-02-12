@@ -172,10 +172,6 @@ class SubscriptionWorker(Generic[_T]):
         self._db_name = self._store.get_effective_database(db_name)
         self._logger = logging.getLogger(SubscriptionWorker.__class__.__name__)
 
-        self.after_acknowledgment = []
-        self.on_subscription_connection_retry = []
-        self.on_unexpected_subscription_error = []
-
         self._processing_cts = CancellationTokenSource()
         self._subscriber: Optional[Callable[[SubscriptionBatch[_T]], None]] = None
         self._tcp_client: Optional[socket] = None

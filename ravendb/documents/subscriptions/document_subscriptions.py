@@ -55,15 +55,6 @@ class DocumentSubscriptions:
 
         return command.result.name
 
-    def create_for_options_autocomplete_query(
-        self,
-        object_type: Type[_T],
-        options: SubscriptionCreationOptions = SubscriptionCreationOptions(),
-        database: Optional[str] = None,
-    ) -> str:
-        options = self.ensure_criteria(options, object_type, False)
-        return self.create_for_options(options, database)
-
     def create_for_class(
         self,
         object_type: Type[_T],
@@ -215,7 +206,7 @@ class DocumentSubscriptions:
         if not self._subscriptions:
             return
 
-        for subscription in self._subscriptions:
+        for subscription in list(self._subscriptions):
             subscription.close()
 
     def drop_connection(self, name: str, database: Optional[str] = None) -> None:

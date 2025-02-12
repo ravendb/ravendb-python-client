@@ -216,7 +216,7 @@ class TestBasicSubscription(TestBase):
         subscription_documents = self.store.subscriptions.get_subscriptions(0, 10)
         self.assertEqual(0, len(subscription_documents))
 
-        all_id = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+        all_id = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
         with self.store.subscriptions.get_subscription_worker_by_name(subscription_name=all_id) as all_subscription:
             all_semaphore = Semaphore(0)
             all_counter = 0
@@ -269,7 +269,7 @@ class TestBasicSubscription(TestBase):
         self.assertEqual(state.subscription_id, new_state.subscription_id)
 
     def test_can_set_to_ignore_errors(self):
-        key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+        key = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
         opt1 = SubscriptionWorkerOptions(key)
         opt1.ignore_subscriber_errors = True
         with self.store.subscriptions.get_subscription_worker(opt1, User) as subscription:
@@ -371,8 +371,8 @@ class TestBasicSubscription(TestBase):
         subscription2: Optional[SubscriptionWorker[User]] = None
 
         try:
-            id1 = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
-            id2 = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+            id1 = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
+            id2 = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
 
             with self.store.open_session() as session:
                 session.store(User(), "users/1")
@@ -432,7 +432,7 @@ class TestBasicSubscription(TestBase):
 
         self.store.get_request_executor().add_on_before_request(__event)
 
-        key = self.store.subscriptions.create_for_options_autocomplete_query(Company, SubscriptionCreationOptions())
+        key = self.store.subscriptions.create_for_class(Company, SubscriptionCreationOptions())
         worker_options = SubscriptionWorkerOptions(key)
         worker_options.ignore_subscriber_errors = True
         worker_options.strategy = SubscriptionOpeningStrategy.TAKE_OVER
@@ -481,7 +481,7 @@ class TestBasicSubscription(TestBase):
         self.assertTrue(subscribe.done())
 
     def test_should_deserialize_the_whole_documents_after_typed_subscription(self):
-        key = self.store.subscriptions.create_for_options_autocomplete_query(User, SubscriptionCreationOptions())
+        key = self.store.subscriptions.create_for_class(User, SubscriptionCreationOptions())
         with self.store.subscriptions.get_subscription_worker_by_name(key, User) as subscription:
             users = []
 
@@ -534,7 +534,7 @@ class TestBasicSubscription(TestBase):
         creation_options = SubscriptionCreationOptions(
             name="user_\uD83D\uDE21\uD83D\uDE21\uD83E\uDD2C\uD83D\uDE00😡😡🤬😀"
         )
-        key = self.store.subscriptions.create_for_options_autocomplete_query(User, creation_options)
+        key = self.store.subscriptions.create_for_class(User, creation_options)
         with self.store.subscriptions.get_subscription_worker(SubscriptionWorkerOptions(key), User) as subscription:
             keys = queue.Queue()
             subscription.run(lambda batch: [keys.put(x.result.name) for x in batch.items])
@@ -599,7 +599,7 @@ class TestBasicSubscription(TestBase):
             "stock_price", TimeSeriesRangeType.LAST, TimeValue.of_months(1)
         )
 
-        name = self.store.subscriptions.create_for_options_autocomplete_query(Company, subscription_creation_options)
+        name = self.store.subscriptions.create_for_class(Company, subscription_creation_options)
 
         with self.store.subscriptions.get_subscription_worker_by_name(name, Company) as worker:
             event = Event()
