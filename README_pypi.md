@@ -10,12 +10,7 @@ pip install ravendb
 ## Introduction
 Python client API (v7.0) for [RavenDB](https://ravendb.net/) , a NoSQL document database.
 
-Although new API isn't compatible with the previous one, it comes with **many improvements and new features**.
-
-**Package has been reworked to match Java and other RavenDB clients**
-
 **Type-hinted entire project and API results** - using the API is now much more comfortable with IntelliSense
-
 
 ## Releases
 
@@ -133,9 +128,8 @@ Although new API isn't compatible with the previous one, it comes with **many im
 -----
 
 ### **Coming soon, work in progress**
-- Counters & Time Series
 - Replication & ETL Commands
-- Streaming (ready, will be merged on v5.4 - https://github.com/ravendb/ravendb-python-client/pull/168)
+- Streaming (https://github.com/ravendb/ravendb-python-client/pull/168)
 
 ----
 
