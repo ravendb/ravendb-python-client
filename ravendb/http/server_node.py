@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
     from ravendb.http.topology import ClusterTopology
@@ -26,8 +26,17 @@ class ServerNode:
         self.database = database
         self.cluster_tag = cluster_tag
         self.server_role = server_role
-        self.__last_server_version_check = 0
-        self.__last_server_version: str = None
+        self._last_server_version_check = 0
+        self._last_server_version: Optional[str] = None
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "ServerNode":
+        return cls(
+            json_dict["Url"],
+            json_dict["Database"],
+            json_dict["ClusterTag"],
+            ServerNode.Role(json_dict["ServerRole"]) if "ServerRole" in json_dict else None,
+        )
 
     def __eq__(self, other) -> bool:
         if self == other:
@@ -45,7 +54,7 @@ class ServerNode:
 
     @property
     def last_server_version(self) -> str:
-        return self.__last_server_version
+        return self._last_server_version
 
     @classmethod
     def create_from(cls, topology: "ClusterTopology"):
@@ -64,16 +73,16 @@ class ServerNode:
         return nodes
 
     def should_update_server_version(self) -> bool:
-        if self.last_server_version is None or self.__last_server_version_check > 100:
+        if self.last_server_version is None or self._last_server_version_check > 100:
             return True
 
-        self.__last_server_version_check += 1
+        self._last_server_version_check += 1
         return False
 
     def update_server_version(self, server_version: str):
-        self.__last_server_version = server_version
-        self.__last_server_version_check = 0
+        self._last_server_version = server_version
+        self._last_server_version_check = 0
 
     def discard_server_version(self) -> None:
-        self.__last_server_version_check = None
-        self.__last_server_version_check = 0
+        self._last_server_version_check = None
+        self._last_server_version_check = 0

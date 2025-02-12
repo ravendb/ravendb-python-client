@@ -6,7 +6,7 @@ import time
 import uuid
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 from typing import Union, List, Dict
 
 from ravendb.exceptions.exceptions import (
@@ -24,6 +24,10 @@ class Topology:
     def __init__(self, etag: int, nodes: List[ServerNode]):
         self.etag = etag
         self.nodes = nodes
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "Topology":
+        return cls(json_dict["Etag"], [ServerNode.from_json(node_json_dict) for node_json_dict in json_dict["Nodes"]])
 
 
 class ClusterTopology:

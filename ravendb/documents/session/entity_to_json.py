@@ -172,15 +172,8 @@ class EntityToJsonStatic:
         if "from_json" in object_type.__dict__ and inspect.ismethod(object_type.from_json):
             # By custom defined 'from_json' serializer class method
             entity = object_type.from_json(document_deepcopy)
-        elif is_projection:
-            entity = DynamicStructure(**document_deepcopy)
-            entity.__class__ = object_type
-            try:
-                entity = Utils.initialize_object(document_deepcopy, object_type)
-            except TypeError as e:
-                raise InvalidOperationException("Probably projection error", e)
         else:
-            entity = Utils.convert_json_dict_to_object(document_deepcopy, object_type)
+            entity = Utils.convert_json_dict_to_object(document_deepcopy, object_type, is_projection)
 
         EntityToJsonUtils.invoke_after_conversion_to_entity_event(session, key, object_type, document_deepcopy)
 
@@ -295,10 +288,15 @@ class EntityToJsonUtils:
 
         # Passed type is not a type from metadata, neither there's no inheritance - probably projection
         elif object_type_from_user is not object_type_from_metadata:
-            if not all([name in object_type_from_metadata.__dict__ for name in object_type_from_user.__dict__]):
-                # Document from database and object_type from user aren't compatible
+            # Check if types are compatible
+            incompatible_fields = Utils.check_valid_projection(object_type_from_user, object_type_from_metadata)
+            if incompatible_fields:
                 raise exceptions.InvalidOperationException(
-                    f"Cannot covert document from type {object_type_from_metadata} to {object_type_from_user}"
+                    f"Invalid projection. Cannot covert document "
+                    f"from type '{object_type_from_metadata.__name__}' "
+                    f"to type '{object_type_from_user.__name__}'. "
+                    f"Type '{object_type_from_user.__name__}' instance has fields {incompatible_fields} "
+                    f"that aren't on '{object_type_from_metadata.__name__}'."
                 )
 
             # Projection

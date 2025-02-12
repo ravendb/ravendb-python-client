@@ -199,7 +199,7 @@ class SingleNodeBatchCommand(RavenCommand):
                 "Got None response from the server after doing a batch, something is very wrong."
                 " Probably a garbled response."
             )
-        self.result = Utils.initialize_object(json.loads(response), self._result_class, True)
+        self.result = BatchCommandResult.from_json(json.loads(response))
 
 
 class ClusterWideBatchCommand(SingleNodeBatchCommand):

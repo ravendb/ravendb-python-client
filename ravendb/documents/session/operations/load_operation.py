@@ -129,11 +129,11 @@ class LoadOperation:
         if self._session.is_deleted(key):
             return Utils.get_default_value(object_type)
 
-        doc = self._session._documents_by_id.get(key)
+        doc = self._session.documents_by_id.get(key)
         if doc is not None:
             return self._session.track_entity_document_info(object_type, doc)
 
-        doc = self._session._included_documents_by_id.get(key)
+        doc = self._session.included_documents_by_id.get(key)
         if doc is not None:
             return self._session.track_entity_document_info(object_type, doc)
 

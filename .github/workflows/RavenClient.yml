@@ -75,6 +75,9 @@ jobs:
       - name: Install embedded RavenDB
         run: pip install ravendb-embedded
 
+      - name: Install Pydantic
+        run: pip install pydantic
+
       - name: Run certifi script
         run: python ./.github/workflows/add_ca.py
 

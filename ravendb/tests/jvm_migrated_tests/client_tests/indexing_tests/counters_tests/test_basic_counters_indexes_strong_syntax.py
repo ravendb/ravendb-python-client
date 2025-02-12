@@ -15,7 +15,7 @@ class MyCounterIndex(AbstractCountersIndexCreationTask):
         super(MyCounterIndex, self).__init__()
         self.map = (
             "counters.Companies.HeartRate.Select(counter => new {\n"
-            "    heartBeat = counter.Value,\n"
+            "    heart_beat = counter.Value,\n"
             "    name = counter.Name,\n"
             "    user = counter.DocumentId\n"
             "})"

@@ -51,9 +51,7 @@ class Operation:
                 raise OperationCancelledException()
             elif operation_status == "Faulted":
                 result = status.get("Result")
-                exception_result: OperationExceptionResult = Utils.initialize_object(
-                    result, OperationExceptionResult, True
-                )
+                exception_result = OperationExceptionResult.from_json(result)
                 schema = ExceptionDispatcher.ExceptionSchema(
                     self.__request_executor.url, exception_result.type, exception_result.message, exception_result.error
                 )

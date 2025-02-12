@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Type, TypeVar, Optional
+from typing import Dict, Type, TypeVar, Optional, Any, Union
 
 from ravendb.primitives import constants
 from ravendb.documents.conventions import DocumentConventions
@@ -60,11 +60,11 @@ class CompareExchangeValueResultParser:
 
         key: str = item.get("Key")
         index: int = item.get("Index")
-        raw: dict = item.get("Value")
+        raw: Dict[str, Union[Any, Dict[str, Any]]] = item.get("Value")
         if not raw:
             return CompareExchangeValue(key, index, None)
         metadata = None
-        bjro = raw.get(constants.Documents.Metadata.KEY)
+        bjro: Dict[str, Any] = raw.get(constants.Documents.Metadata.KEY)
         if bjro:
             metadata = (
                 MetadataAsDictionary(bjro)

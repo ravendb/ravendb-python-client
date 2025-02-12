@@ -35,7 +35,7 @@ class HashCalculator:
         elif "__str__" in obj.__class__.__dict__:
             self.__buffer.append(str(obj))
         else:
-            self.__buffer.append(str(Utils.dictionarize(obj)))
+            self.__buffer.append(str(Utils.object_to_dict_for_hash_calculator(obj)))
 
     def write_parameters(self, qp: "Parameters") -> None:
         if qp is None:

@@ -58,7 +58,7 @@ class TestRevisions(TestBase):
 
         for i in range(10):
             with self.store.open_session() as session:
-                user = session.load(id_, Company)
+                user = session.load(id_, User)
                 user.name = f"Fitzchak{i}"
                 session.save_changes()
 
@@ -134,7 +134,7 @@ class TestRevisions(TestBase):
 
         for i in range(10):
             with self.store.open_session() as session:
-                user = session.load(id_, Company)
+                user = session.load(id_, User)
                 user.name = "raven" + str(i)
                 session.save_changes()
 
@@ -159,7 +159,7 @@ class TestRevisions(TestBase):
 
         for i in range(10):
             with self.store.open_session() as session:
-                user = session.load(id_, Company)
+                user = session.load(id_, User)
                 user.name = "raven" + str(i)
                 session.save_changes()
 
@@ -284,7 +284,7 @@ class TestRevisions(TestBase):
 
         for i in range(10):
             with self.store.open_session() as session:
-                user = session.load(id_, Company)
+                user = session.load(id_, User)
                 user.name = f"Omer{i}"
                 session.save_changes()
 
@@ -319,7 +319,7 @@ class TestRevisions(TestBase):
 
         for i in range(10):
             with self.store.open_session() as session:
-                user = session.load(id_, Company)
+                user = session.load(id_, User)
                 user.name = f"Omer{i}"
                 session.save_changes()
 
@@ -392,7 +392,7 @@ class TestRevisions(TestBase):
 
         for i in range(10):
             with self.store.open_session() as session:
-                user = session.load(id_, Company)
+                user = session.load(id_, User)
                 user.name = f"Omer{i}"
                 session.save_changes()
 

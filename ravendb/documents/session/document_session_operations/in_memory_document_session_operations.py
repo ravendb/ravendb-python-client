@@ -600,6 +600,10 @@ class InMemoryDocumentSessionOperations:
         return self._documents_by_id
 
     @property
+    def included_documents_by_id(self):
+        return self._included_documents_by_id
+
+    @property
     def deleted_entities(self):
         return self._deleted_entities
 

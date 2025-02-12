@@ -438,11 +438,7 @@ class RequestExecutor:
 
             topology = Topology(
                 self._topology_etag,
-                (
-                    self.topology_nodes
-                    if self.topology_nodes
-                    else list(map(lambda url_val: ServerNode(url_val, self._database_name, "!"), initial_urls))
-                ),
+                (self.topology_nodes or [ServerNode(url, self._database_name, "!") for url in initial_urls]),
             )
 
             self._node_selector = NodeSelector(topology, self._thread_pool_executor)

@@ -2,23 +2,33 @@ from __future__ import annotations
 
 import enum
 import time
-from typing import Optional, Dict, Generic, Tuple, TypeVar, Collection, List, Union, Type, TYPE_CHECKING
+from typing import (
+    Optional,
+    Dict,
+    Generic,
+    Tuple,
+    TypeVar,
+    Collection,
+    List,
+    Union,
+    Type,
+    Any,
+    Callable,
+)
+
+import requests
 
 from ravendb.primitives import constants
-from ravendb.exceptions import exceptions
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
-import OpenSSL.crypto
 
 try:
     from collections.abc import Iterable, Sequence
 except ImportError:
     from collections import Iterable, Sequence
 
-from ravendb.tools.projection import create_entity_with_mapper
 from datetime import datetime, timedelta
 from enum import Enum
 from threading import Timer
-from copy import deepcopy
 import urllib
 import inspect
 import json
@@ -26,6 +36,7 @@ import sys
 import re
 
 _T = TypeVar("_T")
+_T2 = TypeVar("_T2")
 _TKey = TypeVar("_TKey")
 _TVal = TypeVar("_TVal")
 
@@ -47,8 +58,6 @@ _default_wildcards = {
     ":",
     "\\",
 }
-if TYPE_CHECKING:
-    from ravendb.documents.conventions import DocumentConventions
 
 
 class TimeUnit(Enum):
@@ -75,22 +84,22 @@ class TimeUnit(Enum):
         return duration * self.value
 
     def to_micros(self, duration: int) -> int:
-        return duration * self.value / 1000
+        return duration * self.value // 1000
 
     def to_millis(self, duration: int) -> int:
-        return duration * self.value / (1000 * 1000)
+        return duration * self.value // (1000 * 1000)
 
     def to_seconds(self, duration: int) -> int:
-        return duration * self.value / (1000 * 1000 * 1000)
+        return duration * self.value // (1000 * 1000 * 1000)
 
     def to_minutes(self, duration: int) -> int:
-        return duration * self.value / (1000 * 1000 * 1000 * 60)
+        return duration * self.value // (1000 * 1000 * 1000 * 60)
 
     def to_hours(self, duration: int) -> int:
-        return duration * self.value / (1000 * 1000 * 1000 * 60 * 60)
+        return duration * self.value // (1000 * 1000 * 1000 * 60 * 60)
 
     def to_days(self, duration: int) -> int:
-        return duration * self.value / (1000 * 1000 * 1000 * 60 * 60 * 24)
+        return duration * self.value // (1000 * 1000 * 1000 * 60 * 60 * 24)
 
 
 class Stopwatch:
@@ -338,7 +347,7 @@ class Utils(object):
 
     @staticmethod
     def check_if_collection_but_not_str(instance) -> bool:
-        return isinstance(instance, (Sequence, set)) and not isinstance(instance, (str, bytes, bytearray))
+        return isinstance(instance, (list, set, tuple))
 
     @staticmethod
     def unpack_collection(items: Collection) -> List:
@@ -346,14 +355,14 @@ class Utils(object):
 
         for item in items:
             if Utils.check_if_collection_but_not_str(item):
-                results.extend(Utils.__unpack_collection(item))
+                results.extend(Utils.unpack_collection(item))
                 continue
             results.append(item)
 
         return results
 
     @staticmethod
-    def quote_key(key, reserved_slash=False, reserved_at=False) -> str:
+    def quote_key(key: str, reserved_slash: bool = False, reserved_at: bool = False) -> str:
         reserved = ""
         if reserved_slash:
             reserved += "/"
@@ -365,44 +374,13 @@ class Utils(object):
             return ""
 
     @staticmethod
-    def unpack_iterable(iterable):
-        for item in iterable:
-            if isinstance(item, Iterable) and not isinstance(item, str):
-                for nested in Utils.unpack_iterable(item):
-                    yield nested
-            else:
-                yield item
-
-    @staticmethod
-    def convert_to_snake_case(name):
-        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
-        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-
-    @staticmethod
-    def database_name_validation(name):
-        if name is None:
-            raise ValueError("None name is not valid")
-        result = re.match(r"([A-Za-z0-9_\-\.]+)", name, re.IGNORECASE)
-        if not result:
-            raise exceptions.InvalidOperationException(
-                'Database name can only contain only A-Z, a-z, "_", "." or "-" but was: ' + name
-            )
-
-    @staticmethod
-    def first_or_default(iterator, func, default):
-        for item in iterator:
-            if func(item):
-                return item
-        return default
-
-    @staticmethod
-    def get_change_vector_from_header(response):
+    def get_change_vector_from_header(response: requests.Response):
         header = response.headers.get("ETag", None)
         if header is not None and header[0] == '"':
             return header[1 : len(header) - 2]
 
     @staticmethod
-    def import_class(name) -> Optional[Type]:
+    def import_class(name: str) -> Optional[Type]:
         components = name.split(".")
         module_name = ".".join(name.split(".")[:-1])
         mod = None
@@ -413,7 +391,7 @@ class Utils(object):
         return mod
 
     @staticmethod
-    def is_inherit(parent, child):
+    def is_inherit(parent: Type[Any], child: Type[Any]) -> bool:
         if child is None or parent is None:
             return False
         if parent == child:
@@ -422,53 +400,22 @@ class Utils(object):
             return Utils.is_inherit(parent, child.__base__)
 
     @staticmethod
-    def fill_with_nested_object_types(entity: object, nested_object_types: Dict[str, type]) -> object:
-        for key in nested_object_types:
-            attr = getattr(entity, key)
-            if attr:
-                try:
-                    if isinstance(attr, list):
-                        nested_list = []
-                        for attribute in attr:
-                            nested_list.append(Utils.initialize_object(attribute, nested_object_types[key]))
-                        setattr(entity, key, nested_list)
-                    elif nested_object_types[key] is datetime:
-                        setattr(entity, key, Utils.string_to_datetime(attr))
-                    elif nested_object_types[key] is timedelta:
-                        setattr(entity, key, Utils.string_to_timedelta(attr))
-                    else:
-                        setattr(
-                            entity,
-                            key,
-                            Utils.initialize_object(attr, nested_object_types[key]),
-                        )
-                except TypeError as e:
-                    print(e)
-                    pass
-        return entity
-
-    @staticmethod
-    def initialize_object(obj: dict, object_type: Type[_T], convert_to_snake_case: bool = None) -> _T:
-        initialize_dict, set_needed = Utils.make_initialize_dict(obj, object_type.__init__, convert_to_snake_case)
+    def initialize_object(json_dict: Dict[str, Any], object_type: Type[_T]) -> _T:
+        initialize_dict, should_set_object_fields = Utils.create_initialize_kwargs(json_dict, object_type.__init__)
         try:
-            o = object_type(**initialize_dict)
+            entity = object_type(**initialize_dict)
         except Exception as e:
             if "Id" not in initialize_dict:
                 initialize_dict["Id"] = None
-                o = object_type(**initialize_dict)
+                entity = object_type(**initialize_dict)
             else:
                 raise TypeError(
                     f"Couldn't initialize object of type '{object_type.__name__}' using dict '{initialize_dict}'"
                 ) from e
-        if set_needed:
-            for key, value in obj.items():
-                setattr(o, key, value)
-        return o
-
-    @staticmethod
-    def get_field_names(object_type: Type[_T]) -> List[str]:
-        obj = Utils.initialize_object({}, object_type)
-        return list(obj.__dict__.keys())
+        if should_set_object_fields:
+            for key, value in json_dict.items():
+                setattr(entity, key, value)
+        return entity
 
     @staticmethod
     def try_get_new_instance(object_type: Type[_T]) -> _T:
@@ -483,41 +430,17 @@ class Utils(object):
 
     @staticmethod
     def convert_json_dict_to_object(
-        json_dict: dict, object_type: Optional[Type[_T]] = None, nested_object_types: Optional[Dict[str, type]] = None
+        json_dict: Dict[str, Any], object_type: Optional[Type[_T]] = None, projection: bool = False
     ) -> Union[DynamicStructure, _T]:
         if object_type == dict:
             return json_dict
-
         if object_type is None:
             return DynamicStructure(**json_dict)
 
-        if nested_object_types is None:
-            return Utils.initialize_object(json_dict, object_type, True)
-
-        entity = DynamicStructure(**json_dict)
-        entity.__class__ = object_type
-        entity = Utils.initialize_object(json_dict, object_type, True)
-        if nested_object_types:
-            Utils.fill_with_nested_object_types(entity, nested_object_types)
-        Utils.deep_convert_to_snake_case(entity)
-        return entity
-
-    @staticmethod
-    def deep_convert_to_snake_case(entity):
-        if entity is None:
-            return
-        if type(entity) in [int, float, bool, str, set, list, tuple, dict]:
-            return
-        changes = {}
-        for key, value in entity.__dict__.items():
-            # todo: i dont' like the way we try to convert to snake case content of the object dict
-            new_key = Utils.convert_to_snake_case(key)
-            if key != new_key:
-                changes.update({(key, new_key): value})  # collect the keys that changed (snake case conversion)
-            Utils.deep_convert_to_snake_case(value)
-        for keys, value in changes.items():  # erase
-            entity.__dict__[keys[1]] = value
-            del entity.__dict__[keys[0]]
+        try:
+            return Utils.initialize_object(json_dict, object_type)
+        except TypeError as e:
+            raise TypeError(f"Couldn't project results into object type '{object_type.__name}'") if projection else e
 
     @staticmethod
     def get_object_fields(instance: object) -> Dict[str, object]:
@@ -528,7 +451,7 @@ class Utils(object):
         }
 
     @staticmethod
-    def get_class_fields(object_type: type) -> Dict[str, object]:
+    def get_class_fields(object_type: Type[_T]) -> Dict[str, Any]:
         try:
             instance = Utils.try_get_new_instance(object_type)
         except Exception as e:
@@ -540,90 +463,13 @@ class Utils(object):
         return Utils.get_object_fields(instance)
 
     @staticmethod
-    def convert_to_entity(
-        document: dict,
-        object_type: Optional[Type[_T]],
-        conventions: "DocumentConventions",
-        events,
-        nested_object_types=None,
-    ) -> Union[_T, DynamicStructure]:
-        if document is None:
-            return None
-        metadata = document.get("@metadata")
-        original_document = deepcopy(document)
-        type_from_metadata = conventions.try_get_type_from_metadata(metadata)
-        mapper = conventions.mappers.get(object_type, None)
-
-        events.before_conversion_to_entity(document, metadata, type_from_metadata)
-
-        if object_type == dict:
-            events.after_conversion_to_entity(document, document, metadata)
-            return document, metadata, original_document
-
-        if type_from_metadata is None:
-            if object_type is not None:
-                metadata["Raven-Python-Type"] = "{0}.{1}".format(object_type.__module__, object_type.__name__)
-            else:  # no type defined on document or during load, return a dict
-                dyn = DynamicStructure(**document)
-                events.after_conversion_to_entity(dyn, document, metadata)
-                return dyn, metadata, original_document
-        else:
-            object_from_metadata = Utils.import_class(type_from_metadata)
-            if object_from_metadata is not None:
-                if object_type is None:
-                    object_type = object_from_metadata
-
-                elif Utils.is_inherit(object_type, object_from_metadata):
-                    mapper = conventions.mappers.get(object_from_metadata, None) or mapper
-                    object_type = object_from_metadata
-                elif object_type is not object_from_metadata:
-                    # todo: Try to parse if we use projection
-                    raise exceptions.InvalidOperationException(
-                        f"Cannot covert document from type {object_from_metadata} to {object_type}"
-                    )
-
-        if nested_object_types is None and mapper:
-            entity = create_entity_with_mapper(document, mapper, object_type)
-        else:
-            entity = DynamicStructure(**document)
-            entity.__class__ = object_type
-
-            entity = Utils.initialize_object(document, object_type)
-
-            if nested_object_types:
-                Utils.fill_with_nested_object_types(entity, nested_object_types)
-
-        if "Id" in entity.__dict__:
-            entity.Id = metadata.get("@id", None)
-        events.after_conversion_to_entity(entity, document, metadata)
-        return entity, metadata, original_document
-
-    @staticmethod
-    def make_initialize_dict(document, entity_init, convert_to_snake_case=None):
-        """
-        This method will create an entity from document
-        In case convert_to_snake_case will convert document keys to snake_case
-        convert_to_snake_case can be dictionary with special words you can change ex. From -> from_date
-        """
-        if convert_to_snake_case:
-            convert_to_snake_case = {} if convert_to_snake_case is True else convert_to_snake_case
-            try:
-                converted_document = {}
-                for key in document:
-                    converted_key = convert_to_snake_case.get(key, key)
-                    converted_document[converted_key if key == "Id" else Utils.convert_to_snake_case(converted_key)] = (
-                        document[key]
-                    )
-                document = converted_document
-            except:
-                pass
-
-        if entity_init is None:
-            return document
-
+    def create_initialize_kwargs(
+        document: Dict[str, Any],
+        object_init_method: Callable[[Dict[str, Any]], None],
+    ) -> Tuple[Dict[str, Any], bool]:
         set_needed = False
         entity_initialize_dict = {}
-        args, __, keywords, defaults, _, _, _ = inspect.getfullargspec(entity_init)
+        args, __, keywords, defaults, _, _, _ = inspect.getfullargspec(object_init_method)
         if (len(args) - 1) > len(document):
             remainder = len(args)
             if defaults:
@@ -646,7 +492,7 @@ class Utils(object):
         return entity_initialize_dict, set_needed
 
     @staticmethod
-    def dict_to_bytes(the_dict):
+    def dict_to_bytes(the_dict: Dict[str, Any]):
         json_dict = json.dumps(the_dict)
         return bytes(json_dict, encoding="utf-8")
 
@@ -791,103 +637,6 @@ class Utils(object):
         return "".join(buffer)
 
     @staticmethod
-    def pfx_to_pem(pem_path, pfx_path, pfx_password):
-        """
-        @param pem_path: Where to create the pem file
-        @param pfx_path: The path to the pfx file
-        @param pfx_password: The password to pfx file
-        """
-        with open(pem_path, "wb") as pem_file:
-            with open(pfx_path, "rb") as pfx_file:
-                pfx = pfx_file.read()
-            p12 = OpenSSL.crypto.load_pkcs12(pfx, pfx_password)
-            pem_file.write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, p12.get_privatekey()))
-            pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, p12.get_certificate()))
-            ca = p12.get_ca_certificates()
-            if ca is not None:
-                for cert in ca:
-                    # In python 3.6* we need to save the ca to ?\lib\site-packages\certifi\cacert.pem.
-                    pem_file.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
-        return pem_path
-
-    @staticmethod
-    def get_cert_file_fingerprint(pem_path):
-        with open(pem_path, "rb") as pem_file:
-            cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, pem_file.read())
-            return str(cert.digest("sha1"))
-
-    @staticmethod
-    def pem_to_crt_and_key(pem_path: str) -> Tuple[str, str]:
-        with open(pem_path, "rb") as file:
-            content = file.read()
-            if "BEGIN CERTIFICATE" not in content:
-                raise ValueError(
-                    f"Invalid file. File stored under the path '{pem_path}' isn't valid .pem certificate. "
-                    f"BEGIN CERTIFICATE header wasn't found."
-                )
-            if "BEGIN RSA PRIVATE KEY" not in content:
-                raise ValueError(
-                    f"Invalid file. File stored under the path '{pem_path}' isn't valid .pem certificate. "
-                    f"BEGIN RSA PRIVATE KEY header wasn't found."
-                )
-
-            content = content.decode("utf-8")
-            crt = content.split("-----BEGIN RSA PRIVATE KEY-----")[0]
-            key = content.split("-----END CERTIFICATE-----")[1]
-
-        return crt, key
-
-    @staticmethod
-    def index_of_any(text, any_of):
-        """
-        @param str text: The text we want to check
-        @param list any_of: list of char
-        :returns False if text nit
-        """
-        result = -1
-        if not text or not any_of:
-            return result
-
-        any_of = list(set(any_of))
-        i = 0
-        while i < len(text) and result == -1:
-            for c in any_of:
-                if c == text[i]:
-                    result = i
-                    break
-            i += 1
-        return result
-
-    @staticmethod
-    def contains_any(text, any_of):
-        """
-        @param text: The text we want to check
-        :type str
-        @param any_of: list of char
-        :type list
-        :returns False if text nit
-        """
-        if not text or not any_of:
-            return False
-
-        any_of = list(set(any_of))
-        for c in any_of:
-            if c in text:
-                return True
-        return False
-
-    @staticmethod
-    def sort_iterable(iterable, key=None):
-        """
-        This function will take an iterable and try to sort it by the key
-        if the key is not given will use the sorted default one.
-        return a generator
-        """
-        if not iterable:
-            return iterable
-        yield sorted(iterable, key=key)
-
-    @staticmethod
     def json_default(o):
         if o is None:
             return None
@@ -925,20 +674,30 @@ class Utils(object):
         return None
 
     @staticmethod
-    def dictionarize(obj: object) -> dict:
-        dictionarized = {"__name__": obj.__class__.__name__}
-        dictionarized.update(obj.__dict__)
+    def object_to_dict_for_hash_calculator(obj: object) -> dict:
+        object_dict = {"__name__": obj.__class__.__name__}
+        object_dict.update(obj.__dict__)
         to_update = {}
-        for k, v in dictionarized.items():
+        for k, v in object_dict.items():
             if v is not None and not isinstance(
                 v, (bool, float, str, int, bytes, bytearray, list, set, dict, enum.Enum)
             ):
                 if "__str__" in v.__dict__:
                     to_update.update({k: str(v)})
                 else:
-                    to_update.update({k: Utils.dictionarize(v)})
-        dictionarized.update(to_update)
-        return dictionarized
+                    to_update.update({k: Utils.object_to_dict_for_hash_calculator(v)})
+        object_dict.update(to_update)
+        return object_dict
+
+    @staticmethod
+    def check_valid_projection(object_type_from_user: Type[Any], object_type_from_metadata: Type[Any]) -> [List[str]]:
+        object_type_from_metadata_fields = Utils.get_class_fields(object_type_from_metadata)
+        object_type_from_user_fields = Utils.get_class_fields(object_type_from_user)
+        incompatible_fields = []
+        for field_name in object_type_from_user_fields:
+            if field_name not in object_type_from_metadata_fields:
+                incompatible_fields.append(field_name)
+        return incompatible_fields
 
     @staticmethod
     def entity_to_dict(entity, default_method) -> dict:

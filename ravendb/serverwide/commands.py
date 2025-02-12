@@ -13,7 +13,7 @@ from ravendb.http.topology import Topology
 from ravendb.tools.utils import Utils
 
 
-class GetDatabaseTopologyCommand(RavenCommand):
+class GetDatabaseTopologyCommand(RavenCommand[Topology]):
     def __init__(self, debug_tag: Optional[str] = None, application_identifier: Optional[uuid.UUID] = None):
         super().__init__(Topology)
         self.__debug_tag = debug_tag
@@ -33,13 +33,7 @@ class GetDatabaseTopologyCommand(RavenCommand):
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:
             return
-
-        # todo: that's pretty bad way to do that, replace with initialization function that take nested object types
-        self.result: Topology = Utils.initialize_object(json.loads(response), self._result_class, True)
-        node_list = []
-        for node in self.result.nodes:
-            node_list.append(Utils.initialize_object(node, ServerNode, True))
-        self.result.nodes = node_list
+        self.result = Topology.from_json(json.loads(response))
 
 
 class GetClusterTopologyCommand(RavenCommand[ClusterTopologyResponse]):

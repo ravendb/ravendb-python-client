@@ -1,3 +1,4 @@
+from ravendb import ServerNode
 from ravendb.serverwide.commands import GetDatabaseTopologyCommand
 from ravendb.tests.test_base import TestBase
 
@@ -18,4 +19,4 @@ class TestGetTopology(TestBase):
         self.assertEqual(server_node.url, self.store.urls[0])
         self.assertEqual(server_node.database, self.store.database)
         self.assertEqual(server_node.cluster_tag, "A")
-        self.assertEqual(server_node.server_role, "Member")
+        self.assertEqual(server_node.server_role, ServerNode.Role.MEMBER)
