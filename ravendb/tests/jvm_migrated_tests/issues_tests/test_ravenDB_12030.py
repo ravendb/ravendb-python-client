@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb import AbstractIndexCreationTask
 from ravendb.documents.indexes.definitions import FieldIndexing
 from ravendb.infrastructure.orders import Company
@@ -20,6 +22,7 @@ class TestRavenDB12030(TestBase):
     def setUp(self):
         super().setUp()
 
+    @unittest.skip("Corax doesn't support proximity")
     def test_simple_proximity(self):
         Fox_Search().execute(self.store)
         with self.store.open_session() as session:
@@ -49,6 +52,7 @@ class TestRavenDB12030(TestBase):
             self.assertEqual("a quick brown fox", foxes[0].name)
             self.assertEqual("the fox is quick", foxes[1].name)
 
+    @unittest.skip("Corax doesn't support fuzzy")
     def test_simple_fuzzy(self):
         with self.store.open_session() as session:
             hr = Company()

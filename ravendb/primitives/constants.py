@@ -1,5 +1,7 @@
 import sys
 
+from ravendb.documents.indexes.vector.embedding import VectorEmbeddingType
+
 int_max = 0x7FFFFFFF
 int_min = -int_max - 1
 min_normal = sys.float_info.min
@@ -43,6 +45,9 @@ class Documents:
             ALL_FIELDS = "__all_fields"
             SPATIAL_SHAPE_FIELD_NAME = "spatial(shape)"
 
+            class JavaScript:
+                VECTOR_PROPERTY_NAME = "$vector"
+
         class Spatial:
             DEFAULT_DISTANCE_ERROR_PCT = 0.025
 
@@ -76,3 +81,36 @@ class TimeSeries:
     QUERY_FUNCTION = "__timeSeriesQueryFunction"
 
     ALL = "@all_timeseries"
+
+
+class VectorSearch:
+    EMBEDDING_PREFIX = "embedding."
+    EMBEDDING_TEXT = EMBEDDING_PREFIX + "text"
+    EMBEDDING_TEXT_INT_8 = EMBEDDING_PREFIX + "text_i8"
+    EMBEDDING_TEXT_INT_1 = EMBEDDING_PREFIX + "text_i1"
+    EMBEDDING_SINGLE = EMBEDDING_PREFIX + "f32"
+    EMBEDDING_SINGLE_INT8 = EMBEDDING_PREFIX + "f32_i8"
+    EMBEDDING_SINGLE_INT1 = EMBEDDING_PREFIX + "f32_i1"
+    EMBEDDING_INT8 = EMBEDDING_PREFIX + "i8"
+    EMBEDDING_INT1 = EMBEDDING_PREFIX + "i1"
+
+    @staticmethod
+    def configuration_to_method_name(source: VectorEmbeddingType, dest: VectorEmbeddingType):
+        mapping = {
+            (VectorEmbeddingType.SINGLE, VectorEmbeddingType.SINGLE): "",
+            (VectorEmbeddingType.SINGLE, VectorEmbeddingType.INT8): VectorSearch.EMBEDDING_SINGLE_INT8,
+            (VectorEmbeddingType.SINGLE, VectorEmbeddingType.BINARY): VectorSearch.EMBEDDING_SINGLE_INT1,
+            (VectorEmbeddingType.TEXT, VectorEmbeddingType.SINGLE): VectorSearch.EMBEDDING_TEXT,
+            (VectorEmbeddingType.TEXT, VectorEmbeddingType.INT8): VectorSearch.EMBEDDING_TEXT_INT_8,
+            (VectorEmbeddingType.TEXT, VectorEmbeddingType.BINARY): VectorSearch.EMBEDDING_TEXT_INT_1,
+            (VectorEmbeddingType.INT8, VectorEmbeddingType.INT8): VectorSearch.EMBEDDING_INT8,
+            (VectorEmbeddingType.BINARY, VectorEmbeddingType.BINARY): VectorSearch.EMBEDDING_INT1,
+        }
+        if (source, dest) not in mapping:
+            raise ValueError(
+                f"Invalid embedding configuration. SourceEmbedding: {source.value}, DestinationEmbedding: {dest.value}"
+            )
+        return mapping[(source, dest)]
+
+    DEFAULT_EMBEDDING_TYPE = VectorEmbeddingType.SINGLE
+    DEFAULT_IS_EXACT = False

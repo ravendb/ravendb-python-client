@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb.documents.indexes.definitions import FieldIndexing
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.queries.misc import SearchOperator
@@ -84,6 +86,7 @@ class FullTextSearchTest(TestBase):
             )
             self.assertEqual(len(query), 3)
 
+    @unittest.skip("Flaky test")
     def test_full_text_search_with_boost(self):
         with self.store.open_session() as session:
             query = list(

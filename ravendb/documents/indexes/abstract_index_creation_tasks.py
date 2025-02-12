@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional, List, TYPE_CHECKING
+from typing import Generic, TypeVar, Union, Dict, Set, Callable, Optional, List, TYPE_CHECKING, Any
 
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.indexes.definitions import (
@@ -16,8 +16,10 @@ from ravendb.documents.indexes.definitions import (
     SpatialOptions,
     IndexFieldOptions,
     IndexType,
+    SearchEngineType,
 )
 from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactory
+from ravendb.documents.indexes.vector.options import VectorOptions
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.store.definition import DocumentStoreBase
 from ravendb.primitives import constants
@@ -40,6 +42,7 @@ class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_Inde
         lock_mode: IndexLockMode = None,
         deployment_mode: IndexDeploymentMode = None,
         state: IndexState = None,
+        search_engine_type: SearchEngineType = None,
     ):
         super().__init__()
         self.conventions = conventions
@@ -47,6 +50,7 @@ class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_Inde
         self.lock_mode = lock_mode
         self.deployment_mode = deployment_mode
         self.state = state
+        self.search_engine_type = search_engine_type
 
     def execute(self, store: "DocumentStore", conventions: DocumentConventions = None, database: str = None):
         old_conventions = self.conventions
@@ -68,6 +72,11 @@ class AbstractIndexCreationTaskBase(AbstractCommonApiForIndexes, Generic[_T_Inde
             if self.deployment_mode is not None:
                 index_definition.deployment_mode = self.deployment_mode
 
+            if self.search_engine_type is not None:
+                if not index_definition.configuration:
+                    index_definition.configuration = {}
+                index_definition.configuration["Indexing.Static.SearchEngineType"] = self.search_engine_type.__str__()
+
             store.maintenance.for_database(database).send(PutIndexesOperation(index_definition))
 
         finally:
@@ -88,6 +97,7 @@ class AbstractGenericIndexCreationTask(
         self._index_suggestions: Set[str] = set()
         self._term_vectors_strings: Dict[str, FieldTermVector] = {}
         self._spatial_options_strings: Dict[str, SpatialOptions] = {}
+        self._vector_indexes_strings: Dict[str, VectorOptions] = {}
 
         self._output_reduce_to_collection: Union[None, str] = None
         self._pattern_for_output_reduce_to_collection_references: Union[None, str] = None
@@ -150,6 +160,9 @@ class AbstractGenericIndexCreationTask(
 
         self.additional_assemblies.add(assembly)
 
+    def _vector(self, field: str, vector_options: VectorOptions) -> None:
+        self._vector_indexes_strings[field] = vector_options
+
 
 class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
     def __init__(self, index_name: str):
@@ -165,6 +178,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
         self.suggestions_options: Set[str] = set()
         self.term_vectors_strings: Dict[str, FieldTermVector] = {}
         self.spatial_indexes_strings: Dict[str, SpatialOptions] = {}
+        self.vector_indexes_strings: Dict[str, VectorOptions] = {}
 
         self.lock_mode: Optional[IndexLockMode] = None
         self.priority: Optional[IndexLockMode] = None
@@ -191,7 +205,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
         self,
         index_definition: IndexDefinition,
         values: Dict[str, object],
-        action: Callable[[IndexFieldOptions, object], None],
+        action: Callable[[IndexFieldOptions, Any], None],
     ) -> None:
         for key, value in values.items():
             field = index_definition.fields.get(key, IndexFieldOptions())
@@ -216,22 +230,25 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
             for suggestions_option in self.suggestions_options:
                 suggestions[suggestions_option] = True
 
-            def __set_indexing(options, value):
+            def __set_indexing(options: IndexFieldOptions, value: FieldIndexing):
                 options.indexing = value
 
-            def __set_storage(options, value):
+            def __set_storage(options: IndexFieldOptions, value: FieldStorage):
                 options.storage = value
 
-            def __set_analyzer(options, value):
+            def __set_analyzer(options: IndexFieldOptions, value: str):
                 options.analyzer = value
 
-            def __set_term_vector(options, value):
+            def __set_term_vector(options: IndexFieldOptions, value: FieldTermVector):
                 options.term_vector = value
 
-            def __set_spatial(options, value):
+            def __set_spatial(options: IndexFieldOptions, value: SpatialOptions):
                 options.spatial = value
 
-            def __set_suggestions(options, value):
+            def __set_vector(options: IndexFieldOptions, value: VectorOptions):
+                options.vector = value
+
+            def __set_suggestions(options: IndexFieldOptions, value: bool):
                 options.suggestions = value
 
             self.__apply_values(index_definition, self.indexes_strings, __set_indexing)
@@ -239,6 +256,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
             self.__apply_values(index_definition, self.analyzers_strings, __set_analyzer)
             self.__apply_values(index_definition, self.term_vectors_strings, __set_term_vector)
             self.__apply_values(index_definition, self.spatial_indexes_strings, __set_spatial)
+            self.__apply_values(index_definition, self.vector_indexes_strings, __set_vector)
             self.__apply_values(index_definition, suggestions, __set_suggestions)
 
             index_definition.additional_sources = self.additional_sources
@@ -302,6 +320,7 @@ class AbstractIndexCreationTask(AbstractGenericIndexCreationTask[IndexDefinition
         index_definition_builder.suggestions_options = self._index_suggestions
         index_definition_builder.term_vectors_strings = self._term_vectors_strings
         index_definition_builder.spatial_indexes_strings = self._spatial_options_strings
+        index_definition_builder.vector_indexes_strings = self._vector_indexes_strings
         index_definition_builder.output_reduce_to_collection = self._output_reduce_to_collection
         index_definition_builder.pattern_for_output_reduce_to_collection_references = (
             self._pattern_for_output_reduce_to_collection_references

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="ravendb",
     packages=find_packages(exclude=["*.tests.*", "tests", "*.tests", "tests.*"]),
-    version="5.2.6",
+    version="7.0.0",
     long_description_content_type="text/markdown",
     long_description=open("README_pypi.md").read(),
     description="Python client for RavenDB NoSQL Database",
@@ -16,9 +16,9 @@ setup(
         "nosql",
         "database" "pyravendb",
     ],
-    python_requires="~=3.7",
+    python_requires="~=3.9",
     install_requires=[
-        "requests >= 2.27.1",
+        "requests~=2.32.0",
         "requests-pkcs12 >= 1.13",
         "pyOpenSSL >= 22.0.0",
         "ijson ~= 3.2.3",

@@ -4,6 +4,7 @@ import enum
 import os
 from typing import List, Union, Optional, Tuple
 
+from ravendb.documents.indexes.vector.embedding import VectorEmbeddingType
 from ravendb.documents.session.time_series import (
     TimeSeriesRange,
     TimeSeriesTimeRange,
@@ -20,6 +21,7 @@ from ravendb.documents.queries.query import QueryOperator
 from ravendb.documents.session.tokens.misc import WhereOperator
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
+from ravendb.primitives.constants import VectorSearch
 from ravendb.tools.utils import Utils
 
 
@@ -726,6 +728,8 @@ class WhereToken(QueryToken):
             writer.append("spatial.intersects(")
         elif self.where_operator == WhereOperator.REGEX:
             writer.append("regex(")
+        elif self.where_operator == WhereOperator.VECTOR_SEARCH:
+            writer.append("vector.search(")
 
         self.__write_inner_where(writer)
 
@@ -989,3 +993,77 @@ class SuggestToken(QueryToken):
 
         writer.append(" as ")
         writer.append(self.__alias)
+
+
+class VectorSearchToken(WhereToken):
+    def __init__(
+        self,
+        wrapped_field_name: str,
+        parameter_name: str,
+        source_quantization_type: VectorEmbeddingType,
+        target_quantization_type: VectorEmbeddingType,
+        is_source_base64_encoded: bool,
+        is_vector_base64_encoded: bool,
+        similarity_threshold: float = None,
+        number_of_candidates_for_querying: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        super().__init__(wrapped_field_name, WhereOperator.VECTOR_SEARCH, parameter_name)
+        self._source_quantization_type = source_quantization_type
+        self._parameter_name = parameter_name
+
+        self._source_quantization_type = source_quantization_type
+        self._target_quantization_type = target_quantization_type
+
+        self._is_source_base64_encoded = is_source_base64_encoded
+        self._is_vector_base64_encoded = is_vector_base64_encoded
+
+        self._similarity_threshold = similarity_threshold
+
+        self._number_of_candidates_for_querying = number_of_candidates_for_querying
+        self._is_exact = is_exact
+
+    def write_to(self, writer: List[str]) -> None:
+        """
+        Builds the vector search query string components and appends them to the writer list.
+        Follows the same structure as the C# implementation.
+        """
+        if self._is_exact:
+            writer.append("exact(")
+
+        writer.append("vector.search(")
+
+        if (
+            self._source_quantization_type == VectorEmbeddingType.SINGLE
+            and self._target_quantization_type == VectorEmbeddingType.SINGLE
+        ):
+            writer.append(self.field_name)
+        else:
+            method_name = VectorSearch.configuration_to_method_name(
+                self._source_quantization_type, self._target_quantization_type
+            )
+            writer.append(f"{method_name}({self.field_name})")
+
+        # Add main parameter
+        writer.append(f", ${self._parameter_name}")
+
+        # Handle optional parameters
+        parameters_are_default = self._similarity_threshold is None and self._number_of_candidates_for_querying is None
+
+        if not parameters_are_default:
+            # Format similarity threshold with invariant culture
+            sim_str = f"{self._similarity_threshold}" if self._similarity_threshold is not None else "null"
+            writer.append(f", {sim_str}")
+
+            # Format candidate count
+            candidates_str = (
+                str(self._number_of_candidates_for_querying)
+                if self._number_of_candidates_for_querying is not None
+                else "null"
+            )
+            writer.append(f", {candidates_str}")
+
+        writer.append(")")
+
+        if self._is_exact:
+            writer.append(")")

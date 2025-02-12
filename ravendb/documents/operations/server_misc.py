@@ -28,7 +28,7 @@ class ToggleDatabasesStateOperation(ServerOperation[DisableDatabaseToggleResult]
             self.databases_names = databases_names
 
         def to_json(self) -> Dict[str, Any]:
-            return {"DatabasesNames": self.databases_names}
+            return {"DatabaseNames": self.databases_names}
 
     def __init__(self, database_name: str, disable: bool):
         if database_name is None:
@@ -50,7 +50,7 @@ class ToggleDatabasesStateOperation(ServerOperation[DisableDatabaseToggleResult]
             raise ValueError("Parameters cannot be None")
 
         if not parameters.databases_names:
-            raise ValueError("Parameters.DatabasesNames cannot be None or empty")
+            raise ValueError("Parameters.DatabaseNames cannot be None or empty")
 
         this = cls("", disable)
         this._parameters = parameters

@@ -6,6 +6,7 @@ from enum import Enum
 from abc import ABC
 from typing import Union, Optional, List, Dict, Set, Iterable
 from ravendb.documents.indexes.spatial.configuration import SpatialOptions, AutoSpatialOptions
+from ravendb.documents.indexes.vector.options import VectorOptions, AutoVectorOptions
 from ravendb.tools.utils import Utils
 
 
@@ -55,6 +56,14 @@ class IndexPriority(Enum):
 class IndexDeploymentMode(Enum):
     PARALLEL = "Parallel"
     ROLLING = "Rolling"
+
+    def __str__(self):
+        return self.value
+
+
+class SearchEngineType(Enum):
+    LUCENE = "Lucene"
+    CORAX = "Corax"
 
     def __str__(self):
         return self.value
@@ -144,6 +153,7 @@ class IndexFieldOptions:
         indexing: Optional[FieldIndexing] = None,
         term_vector: Optional[FieldTermVector] = None,
         spatial: Optional[SpatialOptions] = None,
+        vector: Optional[VectorOptions] = None,
         analyzer: Optional[str] = None,
         suggestions: Optional[bool] = None,
     ):
@@ -151,6 +161,7 @@ class IndexFieldOptions:
         self.indexing = indexing
         self.term_vector = term_vector
         self.spatial = spatial
+        self.vector = vector
         self.analyzer = analyzer
         self.suggestions = suggestions
 
@@ -160,6 +171,7 @@ class IndexFieldOptions:
             "Indexing": self.indexing,
             "TermVector": self.term_vector,
             "Spatial": self.spatial.to_json() if self.spatial else None,
+            "Vector": self.vector.to_json() if self.vector else None,
             "Analyzer": self.analyzer,
             "Suggestions": self.suggestions,
         }
@@ -192,6 +204,7 @@ class IndexDefinition(IndexDefinitionBase):
         pattern_for_output_reduce_to_collection_references: Optional[str] = None,
         pattern_references_collection_name: Optional[str] = None,
         deployment_mode: Optional[IndexDeploymentMode] = None,
+        search_engine_type: Optional[SearchEngineType] = None,
     ):
         super(IndexDefinition, self).__init__(name, priority, state)
         self.lock_mode = lock_mode
@@ -208,6 +221,7 @@ class IndexDefinition(IndexDefinitionBase):
         self.pattern_for_output_reduce_to_collection_references = pattern_for_output_reduce_to_collection_references
         self.pattern_references_collection_name = pattern_references_collection_name
         self.deployment_mode = deployment_mode
+        self.search_engine_type = search_engine_type
 
     @classmethod
     def from_json(cls, json_dict: dict) -> IndexDefinition:
@@ -230,6 +244,8 @@ class IndexDefinition(IndexDefinitionBase):
         index_type = json_dict.get("IndexType", None)
         if index_type is not None:
             result.__index_type = IndexType(index_type)
+        if json_dict["Configuration"] and "Indexing.Static.SearchEngineType" in json_dict["Configuration"]:
+            result.search_engine_type = SearchEngineType(json_dict["Configuration"]["Indexing.Static.SearchEngineType"])
         result.output_reduce_to_collection = json_dict["OutputReduceToCollection"]
         result.reduce_output_index = json_dict["ReduceOutputIndex"]
         result.pattern_for_output_reduce_to_collection_references = json_dict[
@@ -370,6 +386,7 @@ class AutoIndexFieldOptions:
         indexing: Optional[AutoFieldIndexing] = None,
         aggregation: Optional[AggregationOperation] = None,
         spatial: Optional[AutoSpatialOptions] = None,
+        vector: Optional[AutoVectorOptions] = None,
         group_by_array_behavior: Optional[GroupByArrayBehavior] = None,
         suggestions: Optional[bool] = None,
         is_name_quoted: Optional[bool] = None,
@@ -378,6 +395,7 @@ class AutoIndexFieldOptions:
         self.indexing = indexing
         self.aggregation = aggregation
         self.spatial = spatial
+        self.vector = vector
         self.group_by_array_behavior = group_by_array_behavior
         self.suggestions = suggestions
         self.is_name_quoted = is_name_quoted
@@ -389,6 +407,7 @@ class AutoIndexFieldOptions:
             AutoFieldIndexing(json_dict.get("Indexing")),
             AggregationOperation(json_dict.get("Aggregation")) if json_dict.get("Aggregation", None) else None,
             AutoSpatialOptions.from_json(json_dict.get("Spatial")) if json_dict.get("Spatial", None) else None,
+            AutoVectorOptions.from_json(json_dict.get("Vector")) if json_dict.get("Vector", None) else None,
             GroupByArrayBehavior(json_dict.get("GroupByArrayBehavior")),
             json_dict.get("Suggestions"),
             json_dict.get("IsNameQuoted"),
@@ -400,6 +419,9 @@ class AutoIndexFieldOptions:
             "Indexing": self.indexing.value,
             "Aggregation": self.aggregation.value if self.aggregation is not None else None,
             "Spatial": self.spatial.type if self.spatial is not None else None,
+            "Vector": (
+                self.vector.to_json() if self.vector is not None else None
+            ),  # todo; check if vector.to_json() is valid here
             "GroupByArrayBehavior": self.group_by_array_behavior.value,
             "Suggestions": self.suggestions,
             "IsNameQuoted": self.is_name_quoted,

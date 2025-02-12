@@ -21,3 +21,4 @@ class WhereOperator(Enum):
     SPATIAL_DISJOINT = "SpatialDisjoints"
     SPATIAL_INTERSECTS = "SpatialIntersects"
     REGEX = "Regex"
+    VECTOR_SEARCH = "VectorSearch"

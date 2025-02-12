@@ -19,6 +19,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from ravendb.documents.indexes.vector.embedding import VectorEmbeddingType
 from ravendb.documents.queries.time_series import TimeSeriesQueryBuilder
 from ravendb.documents.session.time_series import TimeSeriesRange, ITimeSeriesValuesBindable
 from ravendb.primitives import constants
@@ -86,9 +87,11 @@ from ravendb.documents.session.tokens.query_tokens.definitions import (
     SuggestToken,
     CounterIncludesToken,
     TimeSeriesIncludesToken,
+    VectorSearchToken,
 )
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.documents.session.utils.includes_util import IncludesUtil
+from ravendb.primitives.constants import VectorSearch
 from ravendb.tools.utils import Utils
 
 _T = TypeVar("_T")
@@ -1035,6 +1038,34 @@ class AbstractDocumentQuery(Generic[_T]):
     def _add_root_type(self, object_type: Type[_T]):
         self._root_types.add(object_type)
 
+    def _vector_search_internal(
+        self,
+        wrapped_embedding_field: str,
+        vector: Union[List[float], List[int], str],
+        source_quantization_type: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
+        target_quantization_type: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        is_source_base64_encoded = False
+        is_vector_base64_encoded = False
+
+        query_parameter_name = self.__add_query_parameter(vector)
+        vector_search_token = VectorSearchToken(
+            wrapped_embedding_field,
+            query_parameter_name,
+            source_quantization_type,
+            target_quantization_type,
+            is_source_base64_encoded,
+            is_vector_base64_encoded,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+
+        self._where_tokens.append(vector_search_token)
+
     def _distinct(self):
         if self.is_distinct:
             raise RuntimeError("The is already a distinct query")
@@ -1846,6 +1877,160 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
 
     def search(self, field_name: str, search_terms: str, operator: SearchOperator = None) -> DocumentQuery[_T]:
         self._search(field_name, search_terms, operator)
+        return self
+
+    def vector_search(
+        self,
+        embedding_field: str,
+        vector: Union[List[float], str],  # todo: docs about base 64 (|str)
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        """Perform vector search using embedding field (float32)"""
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.SINGLE,
+            VectorEmbeddingType.SINGLE,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_i8(
+        self,
+        embedding_field: str,
+        vector: List[int],
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.INT8,
+            VectorEmbeddingType.INT8,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_i1(
+        self,
+        embedding_field: str,
+        vector: List[int],
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.BINARY,
+            VectorEmbeddingType.BINARY,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_text(
+        self,
+        embedding_field: str,
+        vector: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        """Perform vector search using text field"""
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.TEXT,
+            VectorEmbeddingType.SINGLE,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_f32_i8(
+        self,
+        embedding_field: str,
+        vector: List[float],
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.SINGLE,
+            VectorEmbeddingType.INT8,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_f32_i1(
+        self,
+        embedding_field: str,
+        vector: List[float],
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.SINGLE,
+            VectorEmbeddingType.BINARY,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_text_i8(
+        self,
+        embedding_field: str,
+        vector: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.TEXT,
+            VectorEmbeddingType.INT8,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
+        return self
+
+    def vector_search_text_i1(
+        self,
+        embedding_field: str,
+        vector: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.TEXT,
+            VectorEmbeddingType.BINARY,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+        )
         return self
 
     def intersect(self) -> DocumentQuery[_T]:

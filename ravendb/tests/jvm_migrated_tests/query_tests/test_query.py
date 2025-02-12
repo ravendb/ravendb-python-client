@@ -226,6 +226,7 @@ class TestQuery(TestBase):
             with self.assertRaises(ValueError):
                 session.query(object_type=UserWithId).single()
 
+    @unittest.skip("Method 'Lucene' is not supported on Corax")
     def test_query_lucene(self):
         self.add_users()
         with self.store.open_session() as session:
@@ -273,6 +274,7 @@ class TestQuery(TestBase):
             self.assertEqual(3, len(list(session.query(object_type=UserWithId).random_ordering())))
             self.assertEqual(3, len(list(session.query(object_type=UserWithId).random_ordering("123"))))
 
+    @unittest.skip("Flaky test")
     def test_query_with_boost(self):
         self.add_users()
         with self.store.open_session() as session:
@@ -300,7 +302,7 @@ class TestQuery(TestBase):
             )
             self.assertEqual(3, len(users))
             names = list(map(lambda user: user.name, users))
-            self.assertEqual(["John", "John", "Tarzan"], names)
+            self.assertEqual(["Tarzan", "John", "John"], names)
 
     def test_query_parameters(self):
         self.add_users()

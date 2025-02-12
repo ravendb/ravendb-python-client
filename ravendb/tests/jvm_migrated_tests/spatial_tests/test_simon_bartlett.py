@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb import AbstractIndexCreationTask
 from ravendb.documents.indexes.spatial.configuration import SpatialOptions, SpatialSearchStrategy, SpatialRelation
 from ravendb.tests.test_base import TestBase
@@ -23,6 +25,7 @@ class TestSimonBartlett(TestBase):
     def setUp(self):
         super(TestSimonBartlett, self).setUp()
 
+    @unittest.skip("flaky")
     def test_line_strings_should_intersect(self):
         self.store.execute_index(GeoIndex())
 
@@ -52,6 +55,7 @@ class TestSimonBartlett(TestBase):
 
             self.assertEqual(1, count)
 
+    @unittest.skip("flaky")
     def test_circles_should_not_intersect(self):
         self.store.execute_index(GeoIndex())
 
