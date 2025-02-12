@@ -1,3 +1,4 @@
+from ravendb import DocumentsChanges
 from ravendb.tests.test_base import TestBase, User
 
 
@@ -73,27 +74,27 @@ class TestCrud(TestBase):
             self.assertEqual(4, len(changes["family/1"]))
 
             #  just dealing with async results to make proper assertion
-            changes = sorted(changes["family/1"], key=lambda change: (change["field_name"], change["old_value"]))
+            changes = sorted(changes["family/1"], key=lambda change: (change.field_name, change.field_old_value))
 
-            self.assertEqual("age", changes[0]["field_name"])
-            self.assertEqual("field_changed", str(changes[0]["change"]))
-            self.assertEqual(4, changes[0]["old_value"])
-            self.assertEqual(8, changes[0]["new_value"])
+            self.assertEqual("age", changes[0].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[0].change)
+            self.assertEqual(4, changes[0].field_old_value)
+            self.assertEqual(8, changes[0].field_new_value)
 
-            self.assertEqual("age", changes[1]["field_name"])
-            self.assertEqual("field_changed", str(changes[1]["change"]))
-            self.assertEqual(8, changes[1]["old_value"])
-            self.assertEqual(4, changes[1]["new_value"])
+            self.assertEqual("age", changes[1].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[1].change)
+            self.assertEqual(8, changes[1].field_old_value)
+            self.assertEqual(4, changes[1].field_new_value)
 
-            self.assertEqual("name", changes[2]["field_name"])
-            self.assertEqual("field_changed", str(changes[2]["change"]))
-            self.assertEqual("Hibernating Rhinos", changes[2]["old_value"])
-            self.assertEqual("RavenDB", changes[2]["new_value"])
+            self.assertEqual("name", changes[2].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[2].change)
+            self.assertEqual("Hibernating Rhinos", changes[2].field_old_value)
+            self.assertEqual("RavenDB", changes[2].field_new_value)
 
-            self.assertEqual("name", changes[3]["field_name"])
-            self.assertEqual("field_changed", str(changes[3]["change"]))
-            self.assertEqual("RavenDB", changes[3]["old_value"])
-            self.assertEqual("Hibernating Rhinos", changes[3]["new_value"])
+            self.assertEqual("name", changes[3].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[3].change)
+            self.assertEqual("RavenDB", changes[3].field_old_value)
+            self.assertEqual("Hibernating Rhinos", changes[3].field_new_value)
 
             member1 = Member("Toli", 5)
             member2 = Member("Boki", 15)
@@ -103,27 +104,27 @@ class TestCrud(TestBase):
             self.assertEqual(1, len(changes))
             self.assertEqual(4, len(changes["family/1"]))
 
-            changes = sorted(changes["family/1"], key=lambda change: (change["field_name"], change["old_value"]))
+            changes = sorted(changes["family/1"], key=lambda change: (change.field_name, change.field_old_value))
 
-            self.assertEqual("age", changes[0]["field_name"])
-            self.assertEqual("field_changed", str(changes[0]["change"]))
-            self.assertEqual(4, changes[0]["old_value"])
-            self.assertEqual(15, changes[0]["new_value"])
+            self.assertEqual("age", changes[0].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[0].change)
+            self.assertEqual(4, changes[0].field_old_value)
+            self.assertEqual(15, changes[0].field_new_value)
 
-            self.assertEqual("age", changes[1]["field_name"])
-            self.assertEqual("field_changed", str(changes[1]["change"]))
-            self.assertEqual(8, changes[1]["old_value"])
-            self.assertEqual(5, changes[1]["new_value"])
+            self.assertEqual("age", changes[1].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[1].change)
+            self.assertEqual(8, changes[1].field_old_value)
+            self.assertEqual(5, changes[1].field_new_value)
 
-            self.assertEqual("name", changes[2]["field_name"])
-            self.assertEqual("field_changed", str(changes[2]["change"]))
-            self.assertEqual("Hibernating Rhinos", changes[2]["old_value"])
-            self.assertEqual("Toli", changes[2]["new_value"])
+            self.assertEqual("name", changes[2].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[2].change)
+            self.assertEqual("Hibernating Rhinos", changes[2].field_old_value)
+            self.assertEqual("Toli", changes[2].field_new_value)
 
-            self.assertEqual("name", changes[3]["field_name"])
-            self.assertEqual("field_changed", str(changes[3]["change"]))
-            self.assertEqual("RavenDB", changes[3]["old_value"])
-            self.assertEqual("Boki", changes[3]["new_value"])
+            self.assertEqual("name", changes[3].field_name)
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes[3].change)
+            self.assertEqual("RavenDB", changes[3].field_old_value)
+            self.assertEqual("Boki", changes[3].field_new_value)
 
     def test_crud_operations_with_array_in_object(self):
         with self.store.open_session() as session:
@@ -221,19 +222,19 @@ class TestCrud(TestBase):
             change = changes["arr/1"]
             self.assertEqual(4, len(change))
 
-            change = sorted(change, key=lambda ch: (ch["old_value"], ch["new_value"]))
+            change = sorted(change, key=lambda ch: (ch.field_old_value, ch.field_new_value))
 
-            self.assertEqual("a", change[0]["old_value"])
-            self.assertEqual("d", change[0]["new_value"])
+            self.assertEqual("a", change[0].field_old_value)
+            self.assertEqual("d", change[0].field_new_value)
 
-            self.assertEqual("b", change[1]["old_value"])
-            self.assertEqual("c", change[1]["new_value"])
+            self.assertEqual("b", change[1].field_old_value)
+            self.assertEqual("c", change[1].field_new_value)
 
-            self.assertEqual("c", change[2]["old_value"])
-            self.assertEqual("a", change[2]["new_value"])
+            self.assertEqual("c", change[2].field_old_value)
+            self.assertEqual("a", change[2].field_new_value)
 
-            self.assertEqual("d", change[3]["old_value"])
-            self.assertEqual("b", change[3]["new_value"])
+            self.assertEqual("d", change[3].field_old_value)
+            self.assertEqual("b", change[3].field_new_value)
 
             session.save_changes()
 
@@ -248,13 +249,13 @@ class TestCrud(TestBase):
 
             change = changes["arr/1"]
             self.assertEqual(2, len(change))
-            change = sorted(change, key=lambda ch: (ch["old_value"], ch["new_value"]))
+            change = sorted(change, key=lambda ch: (ch.field_old_value, ch.field_new_value))
 
-            self.assertEqual("c", change[0]["old_value"])
-            self.assertEqual("w", change[0]["new_value"])
+            self.assertEqual("c", change[0].field_old_value)
+            self.assertEqual("w", change[0].field_new_value)
 
-            self.assertEqual("d", change[1]["old_value"])
-            self.assertEqual("q", change[1]["new_value"])
+            self.assertEqual("d", change[1].field_old_value)
+            self.assertEqual("q", change[1].field_new_value)
 
             session.save_changes()
 

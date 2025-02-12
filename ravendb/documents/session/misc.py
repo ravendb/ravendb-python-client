@@ -160,14 +160,14 @@ class DocumentQueryCustomization:
 
 class DocumentsChanges:
     class ChangeType(Enum):
-        DOCUMENT_DELETED = "document_deleted"
-        DOCUMENT_ADDED = "document_added"
-        FIELD_CHANGED = "field_changed"
-        NEW_FIELD = "new_field"
-        REMOVED_FIELD = "removed_field"
-        ARRAY_VALUE_CHANGED = "array_value_changed"
-        ARRAY_VALUE_ADDED = "array_value_added"
-        ARRAY_VALUE_REMOVED = "array_value_removed"
+        DOCUMENT_DELETED = "DocumentDeleted"
+        DOCUMENT_ADDED = "DocumentAdded"
+        FIELD_CHANGED = "FieldChanged"
+        NEW_FIELD = "NewField"
+        REMOVED_FIELD = "RemovedField"
+        ARRAY_VALUE_CHANGED = "ArrayValueChanged"
+        ARRAY_VALUE_ADDED = "ArrayValueAdded"
+        ARRAY_VALUE_REMOVED = "ArrayValueRemoved"
 
         def __str__(self):
             return self.value

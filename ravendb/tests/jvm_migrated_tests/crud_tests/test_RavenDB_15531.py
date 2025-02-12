@@ -1,3 +1,4 @@
+from ravendb import DocumentsChanges
 from ravendb.tests.test_base import TestBase
 
 
@@ -23,10 +24,10 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(str(changes[0]["change"]), "field_changed")
-            self.assertEqual(changes[0]["field_name"], "name")
-            self.assertEqual(changes[0]["old_value"], "State1")
-            self.assertEqual(changes[0]["new_value"], "State2")
+            self.assertEqual(changes[0].change, DocumentsChanges.ChangeType.FIELD_CHANGED)
+            self.assertEqual(changes[0].field_name, "name")
+            self.assertEqual(changes[0].field_old_value, "State1")
+            self.assertEqual(changes[0].field_new_value, "State2")
             session.save_changes()
 
             doc.name = "State3"
@@ -35,10 +36,10 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(str(changes[0]["change"]), "field_changed")
-            self.assertEqual(changes[0]["field_name"], "name")
-            self.assertEqual(changes[0]["old_value"], "State2")
-            self.assertEqual(changes[0]["new_value"], "State3")
+            self.assertEqual(changes[0].change, DocumentsChanges.ChangeType.FIELD_CHANGED)
+            self.assertEqual(changes[0].field_name, "name")
+            self.assertEqual(changes[0].field_old_value, "State2")
+            self.assertEqual(changes[0].field_new_value, "State3")
 
             doc = session.advanced.refresh(doc)
 
@@ -48,8 +49,8 @@ class TestRavenDB15531(TestBase):
             self.assertIsNotNone(changes)
             self.assertEqual(1, len(changes))
 
-            self.assertEqual(str(changes[0]["change"]), "field_changed")
-            self.assertEqual(changes[0]["field_name"], "name")
-            self.assertEqual(changes[0]["old_value"], "State2")
-            self.assertEqual(changes[0]["new_value"], "State4")
+            self.assertEqual(changes[0].change, DocumentsChanges.ChangeType.FIELD_CHANGED)
+            self.assertEqual(changes[0].field_name, "name")
+            self.assertEqual(changes[0].field_old_value, "State2")
+            self.assertEqual(changes[0].field_new_value, "State4")
             session.save_changes()

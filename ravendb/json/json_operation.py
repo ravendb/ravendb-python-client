@@ -24,13 +24,7 @@ class JsonOperation:
 
     @staticmethod
     def new_change(field_path, name, new_value, old_value, doc_changes, change_type):
-        changes = {
-            "old_value": old_value,
-            "new_value": new_value,
-            "change": change_type,
-            "field_name": name,
-            "field_path": field_path,
-        }
+        changes = DocumentsChanges(old_value, new_value, change_type, name, field_path)
         doc_changes.append(changes)
 
     @staticmethod

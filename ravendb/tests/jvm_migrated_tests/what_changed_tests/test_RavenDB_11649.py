@@ -33,7 +33,7 @@ class TestRavenDB10641(TestBase):
             session.save_changes()
             doc.inner_classes[0].a = "newInnerValue"
             changes = session.advanced.what_changed()
-            changed_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changed_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(changed_paths, "inner_classes[0]")
 
     def test_what_changed_when_property_of_inner_property_changed_to_null_should_return_property_name_plus_path(self):
@@ -46,7 +46,7 @@ class TestRavenDB10641(TestBase):
 
             doc.inner_class.a = None
             changes = session.advanced.what_changed()
-            changed_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changed_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(changed_paths, "inner_class")
 
     def test_what_changed_when_inner_property_changed_should_return_the_property_name_plus_path(self):
@@ -59,7 +59,7 @@ class TestRavenDB10641(TestBase):
 
             doc.inner_class.a = "newInnerValue"
             changes = session.advanced.what_changed()
-            changed_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changed_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(changed_paths, "inner_class")
 
     def test_what_changed_when_outer_property_changed_field_path_should_be_empty(self):
@@ -72,7 +72,7 @@ class TestRavenDB10641(TestBase):
 
             doc.a = "newOuterValue"
             changes = session.advanced.what_changed()
-            changed_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changed_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(changed_paths, "")
 
     def test_what_changed_when_all_named_a_properties_changed_should_return_different_paths(self):
@@ -94,7 +94,7 @@ class TestRavenDB10641(TestBase):
             doc.inner_classes[0].a = "newValue"
             doc.inner_class_matrix[0][0].a = "newValue"
             changes = session.advanced.what_changed()
-            changed_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changed_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(
                 changed_paths, "", "inner_class", "inner_classes[0]", "inner_class_matrix[0][0]"
             )
@@ -110,7 +110,7 @@ class TestRavenDB10641(TestBase):
             doc.inner_class.a = "newInnerValue"
 
             changes = session.advanced.what_changed()
-            changed_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changed_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(changed_paths, "inner_class")
 
     def test_what_changed_when_in_matrix_changed_should_return_with_relevant_path(self):
@@ -124,7 +124,7 @@ class TestRavenDB10641(TestBase):
             doc.inner_class_matrix[0][0].a = "newValue"
 
             changes = session.advanced.what_changed()
-            changes_paths = list(map(lambda change: change["field_path"], changes["docs/1"]))
+            changes_paths = list(map(lambda change: change.field_path, changes["docs/1"]))
             self.assertSequenceContainsElements(changes_paths, "inner_class_matrix[0][0]")
 
     def test_what_changed_when_array_property_in_array_changed_from_null_should_return_relevant_path(self):
@@ -137,5 +137,5 @@ class TestRavenDB10641(TestBase):
             doc.inner_class_matrix[0] = [InnerClass(None)]
 
             changes = session.advanced.what_changed()
-            changes_paths = list(map(lambda change: change["field_path"], changes[key]))
+            changes_paths = list(map(lambda change: change.field_path, changes[key]))
             self.assertSequenceContainsElements(changes_paths, "inner_class_matrix[0]")

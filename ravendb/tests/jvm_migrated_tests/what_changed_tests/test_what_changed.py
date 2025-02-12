@@ -1,5 +1,6 @@
 import unittest
 
+from ravendb import DocumentsChanges
 from ravendb.tests.test_base import TestBase, User
 from dataclasses import dataclass
 
@@ -83,7 +84,7 @@ class TestWhatChanged(TestBase):
             user.age = 5
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertEqual("new_field", str(changes["users/1"][0]["change"]))
+            self.assertEqual(DocumentsChanges.ChangeType.NEW_FIELD, changes["users/1"][0].change)
             session.save_changes()
 
     def test_what_changed_remove_field(self):
@@ -98,7 +99,7 @@ class TestWhatChanged(TestBase):
             del u.name
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertEqual("removed_field", str(changes["users/1"][0]["change"]))
+            self.assertEqual(DocumentsChanges.ChangeType.REMOVED_FIELD, changes["users/1"][0].change)
             session.save_changes()
 
     # its not the same yet its valid
@@ -114,7 +115,7 @@ class TestWhatChanged(TestBase):
             user.age = 6
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
-            self.assertEqual("field_changed", str(changes["users/1"][0]["change"]))
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, changes["users/1"][0].change)
             session.save_changes()
 
     def test_what_changed_array_value_changed(self):
@@ -123,7 +124,7 @@ class TestWhatChanged(TestBase):
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes))
             self.assertEqual(1, len(changes["users/1"]))
-            self.assertEqual("document_added", str(changes["users/1"][0]["change"]))
+            self.assertEqual(DocumentsChanges.ChangeType.DOCUMENT_ADDED, changes["users/1"][0].change)
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -134,13 +135,13 @@ class TestWhatChanged(TestBase):
 
             self.assertEqual(2, len(changes["users/1"]))
 
-            self.assertEqual("array_value_changed", str(changes["users/1"][0]["change"]))
-            self.assertEqual("1", str(changes["users/1"][0]["old_value"]))
-            self.assertEqual(2, changes["users/1"][0]["new_value"])
+            self.assertEqual(DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED, changes["users/1"][0].change)
+            self.assertEqual("1", str(changes["users/1"][0].field_old_value))
+            self.assertEqual(2, changes["users/1"][0].field_new_value)
 
-            self.assertEqual("array_value_changed", str(changes["users/1"][1]["change"]))
-            self.assertEqual("b", str(changes["users/1"][1]["old_value"]))
-            self.assertEqual("c", str(changes["users/1"][1]["new_value"]))
+            self.assertEqual(DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED, changes["users/1"][1].change)
+            self.assertEqual("b", str(changes["users/1"][1].field_old_value))
+            self.assertEqual("c", str(changes["users/1"][1].field_new_value))
 
     def test_what_changed_array_value_added(self):
         with self.store.open_session() as session:
@@ -154,13 +155,13 @@ class TestWhatChanged(TestBase):
             self.assertEqual(1, len(changes))
             self.assertEqual(2, len(changes["arr/1"]))
 
-            self.assertEqual("array_value_added", str(changes["arr/1"][0]["change"]))
-            self.assertEqual("c", str(changes["arr/1"][0]["new_value"]))
-            self.assertEqual(None, changes["arr/1"][0]["old_value"])
+            self.assertEqual(DocumentsChanges.ChangeType.ARRAY_VALUE_ADDED, changes["arr/1"][0].change)
+            self.assertEqual("c", str(changes["arr/1"][0].field_new_value))
+            self.assertEqual(None, changes["arr/1"][0].field_old_value)
 
-            self.assertEqual("array_value_added", str(changes["arr/1"][1]["change"]))
-            self.assertEqual(2, changes["arr/1"][1]["new_value"])
-            self.assertIsNone(changes["arr/1"][1]["old_value"])
+            self.assertEqual(DocumentsChanges.ChangeType.ARRAY_VALUE_ADDED, changes["arr/1"][1].change)
+            self.assertEqual(2, changes["arr/1"][1].field_new_value)
+            self.assertIsNone(changes["arr/1"][1].field_old_value)
 
     def test_what_changed_array_value_removed(self):
         with self.store.open_session() as session:
@@ -174,9 +175,9 @@ class TestWhatChanged(TestBase):
             self.assertEqual(1, len(changes))
             self.assertEqual(2, len(changes["arr/1"]))
 
-            self.assertEqual("array_value_removed", str(changes["arr/1"][1]["change"]))
-            self.assertEqual("b", str(changes["arr/1"][1]["old_value"]))
-            self.assertIsNone(changes["arr/1"][1]["new_value"])
+            self.assertEqual(DocumentsChanges.ChangeType.ARRAY_VALUE_REMOVED, changes["arr/1"][1].change)
+            self.assertEqual("b", str(changes["arr/1"][1].field_old_value))
+            self.assertIsNone(changes["arr/1"][1].field_new_value)
 
     def test_what_changed_should_be_idempotent_operation(self):
         # RavenDB-9150
@@ -224,10 +225,10 @@ class TestWhatChanged(TestBase):
             self.assertEqual(1, len(changes["data/1"]))
 
             doc_changes = changes["data/1"][0]
-            self.assertEqual("field_changed", str(doc_changes["change"]))
-            self.assertEqual("data", doc_changes["field_name"])
-            self.assertEqual("classified", doc_changes["old_value"])
-            self.assertEqual("covert", doc_changes["new_value"])
+            self.assertEqual(DocumentsChanges.ChangeType.FIELD_CHANGED, doc_changes.change)
+            self.assertEqual("data", doc_changes.field_name)
+            self.assertEqual("classified", doc_changes.field_old_value)
+            self.assertEqual("covert", doc_changes.field_new_value)
             session.save_changes()
 
         with self.store.open_session() as session:
@@ -235,4 +236,4 @@ class TestWhatChanged(TestBase):
             session.delete(data)
             changes = session.advanced.what_changed()
             self.assertEqual(1, len(changes["data/1"]))
-            self.assertEqual("document_deleted", str(changes["data/1"][0].change))
+            self.assertEqual(DocumentsChanges.ChangeType.DOCUMENT_DELETED, changes["data/1"][0].change)
