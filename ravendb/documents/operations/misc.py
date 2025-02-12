@@ -46,7 +46,7 @@ class GetOperationStateOperation(MaintenanceOperation):
 class QueryOperationOptions(object):
     def __init__(
         self,
-        allow_stale: bool = True,
+        allow_stale: bool = False,
         stale_timeout: datetime.timedelta = None,
         max_ops_per_sec: int = None,
         retrieve_details: bool = False,
