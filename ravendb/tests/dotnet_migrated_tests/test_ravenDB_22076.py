@@ -278,14 +278,16 @@ class TestRavenDB22076(TestBase):
 
             results = list(
                 session.query(object_type=Product)
-                .vector_search_text("name", "sea", minimum_similarity=0.75)
+                .vector_search_text("name", "sea", minimum_similarity=0)
                 .order_by_score()
             )
-            self.assertEqual(4, len(results))
+            self.assertEqual(6, len(results))
             self.assertEqual("Sea", results[0].name)
             self.assertEqual("Sailors", results[1].name)
             self.assertEqual("Paddle", results[2].name)
             self.assertEqual("Scott Steiner", results[3].name)
+            self.assertEqual("Bicycle", results[4].name)
+            self.assertEqual("Oblivion", results[5].name)
 
             index_definitions = self.store.maintenance.send(GetIndexesOperation(0, 10))
 
