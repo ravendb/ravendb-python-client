@@ -25,5 +25,6 @@ setup(
         "websocket-client >= 0.46.0",
         "inflect >= 5.4.0",
     ],
+    license_files="LICENSE",
     zip_safe=False,
 )
