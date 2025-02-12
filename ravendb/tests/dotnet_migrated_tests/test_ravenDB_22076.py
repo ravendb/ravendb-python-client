@@ -210,7 +210,7 @@ class TestRavenDB22076(TestBase):
             index_definitions = self.store.maintenance.send(GetIndexesOperation(0, 10))
 
             self.assertEqual(1, len(index_definitions))
-            self.assertEqual("Auto/Dtoes/ByVector.search(embedding_sinlges)", index_definitions[0].name)
+            self.assertEqual("Auto/Dtoes/ByVector.search(embedding_singles)", index_definitions[0].name)
 
     def test_auto_index_creation_with_exact_search_quantized_binary(self):
         with self.store.open_session() as session:
@@ -286,3 +286,8 @@ class TestRavenDB22076(TestBase):
             self.assertEqual("Sailors", results[1].name)
             self.assertEqual("Paddle", results[2].name)
             self.assertEqual("Scott Steiner", results[3].name)
+
+            index_definitions = self.store.maintenance.send(GetIndexesOperation(0, 10))
+
+            self.assertEqual(1, len(index_definitions))
+            self.assertEqual("Auto/Products/ByVector.search(embedding.text(name))", index_definitions[0].name)
