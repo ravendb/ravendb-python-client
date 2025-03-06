@@ -1104,13 +1104,10 @@ class RequestExecutor:
             return True
         else:
             command.on_response_failure(response)
-            try: # todo: exception dispatcher
-                raise RuntimeError(
-                    json.loads(response.text).get("Message", "Missing message")
-                )
+            try:  # todo: exception dispatcher
+                raise RuntimeError(json.loads(response.text).get("Message", "Missing message"))
             except JSONDecodeError as e:
-                raise RuntimeError(
-                    f"Failed to parse response: {response.text}") from e
+                raise RuntimeError(f"Failed to parse response: {response.text}") from e
 
         return False
 
