@@ -7,6 +7,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, Future, FIRST_COMPLETED, wait, ALL_COMPLETED
 import uuid
+from json import JSONDecodeError
 from threading import Timer, Semaphore, Lock
 
 import requests
@@ -1103,9 +1104,10 @@ class RequestExecutor:
             return True
         else:
             command.on_response_failure(response)
-            raise RuntimeError(
-                json.loads(response.text).get("Message", "Missing message")
-            )  # todo: Exception dispatcher
+            try:  # todo: exception dispatcher
+                raise RuntimeError(json.loads(response.text).get("Message", "Missing message"))
+            except JSONDecodeError as e:
+                raise RuntimeError(f"Failed to parse response: {response.text}") from e
 
         return False
 
