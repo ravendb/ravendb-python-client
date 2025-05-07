@@ -1007,6 +1007,7 @@ class VectorSearchToken(WhereToken):
         similarity_threshold: float = None,
         number_of_candidates_for_querying: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        task_name: str = None,
     ):
         super().__init__(wrapped_field_name, WhereOperator.VECTOR_SEARCH, parameter_name)
         self._source_quantization_type = source_quantization_type
@@ -1022,6 +1023,7 @@ class VectorSearchToken(WhereToken):
 
         self._number_of_candidates_for_querying = number_of_candidates_for_querying
         self._is_exact = is_exact
+        self._task_name = task_name
 
     def write_to(self, writer: List[str]) -> None:
         """
@@ -1042,7 +1044,10 @@ class VectorSearchToken(WhereToken):
             method_name = VectorSearch.configuration_to_method_name(
                 self._source_quantization_type, self._target_quantization_type
             )
-            writer.append(f"{method_name}({self.field_name})")
+            writer.append(f"{method_name}({self.field_name}")
+            if self._task_name:
+                writer.append(f", ai.task('{self._task_name}')")
+            writer.append(")")
 
         # Add main parameter
         writer.append(f", ${self._parameter_name}")

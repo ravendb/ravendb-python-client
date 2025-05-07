@@ -1047,6 +1047,7 @@ class AbstractDocumentQuery(Generic[_T]):
         minimum_similarity: float = None,
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        task_name: str = None,
     ):
         is_source_base64_encoded = False
         is_vector_base64_encoded = False
@@ -1062,6 +1063,7 @@ class AbstractDocumentQuery(Generic[_T]):
             minimum_similarity,
             number_of_candidates,
             is_exact,
+            task_name,
         )
 
         self._where_tokens.append(vector_search_token)
@@ -1957,6 +1959,28 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         )
         return self
 
+    def vector_search_text_using_task(
+        self,
+        embedding_field: str,
+        vector: str,
+        task_name: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        """Perform vector search using text field"""
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.TEXT,
+            VectorEmbeddingType.SINGLE,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+            task_name,
+        )
+        return self
+
     def vector_search_f32_i8(
         self,
         embedding_field: str,
@@ -2030,6 +2054,48 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
             minimum_similarity,
             number_of_candidates,
             is_exact,
+        )
+        return self
+
+    def vector_search_text_i8_using_task(
+        self,
+        embedding_field: str,
+        vector: str,
+        task_name: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.TEXT,
+            VectorEmbeddingType.INT8,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+            task_name,
+        )
+        return self
+
+    def vector_search_text_i1_using_task(
+        self,
+        embedding_field: str,
+        vector: str,
+        task_name: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ) -> DocumentQuery[_T]:
+        self._vector_search_internal(
+            embedding_field,
+            vector,
+            VectorEmbeddingType.TEXT,
+            VectorEmbeddingType.BINARY,
+            minimum_similarity,
+            number_of_candidates,
+            is_exact,
+            task_name,
         )
         return self
 
