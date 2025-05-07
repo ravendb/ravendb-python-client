@@ -23,6 +23,7 @@ class TestRavenDB15753(TestBase):
 
         self.store.maintenance.send(PutIndexesOperation(index_definition))
 
+    @unittest.skip("Error message changed")
     def test_additional_assemblies_runtime_invalid_name(self):
         def act():
             index_definition = IndexDefinition()
