@@ -8,7 +8,21 @@ import json
 import os
 import time
 import uuid
-from typing import Union, Callable, TYPE_CHECKING, Optional, Dict, List, Type, TypeVar, Tuple, Generic, Set
+from typing import (
+    Union,
+    Callable,
+    TYPE_CHECKING,
+    Optional,
+    Dict,
+    List,
+    Type,
+    TypeVar,
+    Iterator,
+    Iterable,
+    Tuple,
+    Generic,
+    Set,
+)
 
 from ravendb.documents.session.document_session_revisions import DocumentSessionRevisions
 from ravendb.primitives import constants
@@ -22,7 +36,11 @@ from ravendb.documents.operations.time_series import (
     GetMultipleTimeSeriesOperation,
     TimeSeriesConfiguration,
 )
+from ravendb.documents.commands.stream import StreamResult
 from ravendb.documents.session.conditional_load import ConditionalLoadResult
+from ravendb.documents.session.operations.stream import StreamOperation
+from ravendb.documents.session.stream_statistics import StreamQueryStatistics
+from ravendb.documents.session.tokens.query_tokens.definitions import FieldsToFetchToken
 from ravendb.documents.session.time_series import (
     TimeSeriesEntry,
     TypedTimeSeriesEntry,
@@ -58,6 +76,7 @@ from ravendb.documents.session.loaders.include import IncludeBuilder
 from ravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLoaderWithInclude
 from ravendb.documents.session.operations.lazy import LazyLoadOperation, LazySessionOperations
 from ravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
+from ravendb.documents.session.operations.query import QueryOperation
 from ravendb.documents.session.misc import (
     SessionOptions,
     ResponseTimeInformation,
@@ -67,7 +86,7 @@ from ravendb.documents.session.misc import (
     SessionInfo,
     TransactionMode,
 )
-from ravendb.documents.session.query import DocumentQuery, RawDocumentQuery
+from ravendb.documents.session.query import DocumentQuery, RawDocumentQuery, AbstractDocumentQuery
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.session.operations.load_operation import LoadOperation
 from ravendb.tools.time_series import TSRangeHelper
@@ -1030,23 +1049,117 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             patch_command_data.create_if_missing = new_instance
             self.defer(patch_command_data)
 
-        def stream(
-            self,
-            query_or_raw_query,  # : Union[RawDocumentQuery, DocumentQuery],
-            stream_query_stats,  # : Optional[StreamQueryStatistics] = None,
-        ) -> iter:
-            pass
+        def stream(self, query_or_raw_query: AbstractDocumentQuery[_T]) -> Iterator[StreamResult[_T]]:
+            stream_operation = StreamOperation(self._session)
+            command = stream_operation.create_request(query_or_raw_query.index_query)
+
+            self.request_executor.execute_command(command, self.session_info)
+
+            result = stream_operation.set_result(command.result)
+
+            return self._yield_result(query_or_raw_query, result)
+
+        def stream_with_statistics(
+            self, query_or_raw_query: AbstractDocumentQuery[_T], stats_callback: Callable[[StreamQueryStatistics], None]
+        ) -> Iterator[StreamResult[_T]]:
+            stats = StreamQueryStatistics()
+            stream_operation = StreamOperation(self._session, stats)
+            command = stream_operation.create_request(query_or_raw_query.index_query)
+
+            self.request_executor.execute_command(command, self.session_info)
+
+            result = stream_operation.set_result(command.result)
+
+            stats_callback(stats)
+
+            return self._yield_result(query_or_raw_query, result)
 
         def stream_starting_with(
             self,
-            object_type: type,
             starts_with: str,
-            matches: str = None,
+            matches: Optional[str] = None,
             start: int = 0,
-            page_size: int = 25,
-            starting_after: str = None,
-        ) -> iter:
-            pass
+            page_size: int = constants.int_max,
+            start_after: Optional[str] = None,
+            object_type: Optional[Type[_T]] = None,
+        ) -> Iterable[StreamResult[_T]]:
+            stream_operation = StreamOperation(self._session)
+
+            command = stream_operation.create_request_for_starts_with(
+                starts_with, matches, start, page_size, None, start_after
+            )
+            self.request_executor.execute_command(command, self.session_info)
+
+            result = stream_operation.set_result(command.result)
+            return DocumentSession._Advanced._StreamIterator(self, result, None, False, None, object_type)
+
+        class _StreamIterator(Iterator):
+            def __init__(
+                self,
+                session_advanced_reference: DocumentSession._Advanced,
+                inner_iterator: Iterator[Dict],
+                fields_to_fetch_token: Optional[FieldsToFetchToken],
+                is_project_into: bool,
+                on_next_item: Optional[Callable[[Dict], None]] = None,
+                object_type: Optional[Type[_T]] = None,
+            ):
+                self._session_advanced_reference = session_advanced_reference
+                self._inner_iterator = inner_iterator
+                self._fields_to_fetch_token = fields_to_fetch_token
+                self._is_project_into = is_project_into
+                self._on_next_item = on_next_item
+                self._object_type = object_type
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                next_value = self._inner_iterator.__next__()
+                try:
+                    if self._on_next_item is not None:
+                        self._on_next_item(next_value)
+                    return DocumentSession._Advanced._create_stream_result(
+                        self._session_advanced_reference,
+                        next_value,
+                        self._fields_to_fetch_token,
+                        self._is_project_into,
+                        self._object_type,
+                    )
+                except Exception as e:
+                    raise RuntimeError(f"Unable to parse stream result: {e.args[0]}", e)
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        def _create_stream_result(
+            self,
+            json_dict: Dict,
+            fields_to_fetch: FieldsToFetchToken,
+            is_project_into: bool,
+            object_type: Optional[Type[_T]],
+        ) -> StreamResult[_T]:
+            metadata = json_dict.get(constants.Documents.Metadata.KEY)
+            change_vector = metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
+
+            # MapReduce indexes return reduce results tht don't have @id property
+            key = metadata.get(constants.Documents.Metadata.ID, None)
+
+            entity = QueryOperation.deserialize(
+                object_type, key, json_dict, metadata, fields_to_fetch, True, self._session, is_project_into
+            )
+
+            stream_result = StreamResult(key, change_vector, MetadataAsDictionary(metadata), entity)
+            return stream_result
+
+        def _yield_result(self, query: AbstractDocumentQuery, enumerator: Iterator[Dict]) -> Iterator[StreamResult[_T]]:
+            return DocumentSession._Advanced._StreamIterator(
+                self,
+                enumerator,
+                query._fields_to_fetch_token,
+                query.is_project_into,
+                query.invoke_after_stream_executed,
+                object_type=query.query_class,
+            )
 
         def stream_into(self):  # query: Union[DocumentQuery, RawDocumentQuery], output: iter):
             pass

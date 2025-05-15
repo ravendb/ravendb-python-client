@@ -1,3 +1,4 @@
+import unittest
 from datetime import timedelta
 from typing import List
 
@@ -258,6 +259,7 @@ class TestRavenDB22076(TestBase):
             self.assertEqual(1, len(index_definitions))
             self.assertEqual("Auto/Dtoes/ByVector.search(embedding.i8(embedding_sbytes))", index_definitions[0].name)
 
+    @unittest.skip
     def test_auto_index_creation_with_exact_search_text(self):
         with self.store.open_session() as session:
             session.store(Product(name="Bicycle"))

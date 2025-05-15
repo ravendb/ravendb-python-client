@@ -1,6 +1,8 @@
+import json
+from typing import Any, Iterator, Optional, Dict
 from decimal import InvalidOperation
-from typing import Any, Dict, Optional
 
+import ijson
 from ijson.common import integer_or_decimal, IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol
 from _elementtree import ParseError
@@ -244,3 +246,38 @@ class IncrementalJsonParser:
                 result += esc
             start = pos + 1
         return result
+
+
+class JSONLRavenStreamParser:
+    def __init__(self, stream: Iterator):
+        self._stream = stream
+        self._unused_buffer: Optional[Dict] = None
+
+    def _get_next_json_dict(self) -> Dict:
+        return (
+            self._unused_buffer
+            if self._unused_buffer is not None
+            else json.loads(self._stream.__next__().decode("utf-8"))
+        )
+
+    def purge_cache(self) -> None:
+        self._unused_buffer = None
+
+    def next_query_statistics(self) -> Dict:
+        json_dict = self._get_next_json_dict()
+        if "Stats" not in json_dict:
+            self._unused_buffer = json_dict
+            raise RuntimeError(f"Expected key 'Stats' in received JSON, got {json_dict.keys()}. Cached the dict.")
+        return json_dict["Stats"]
+
+    def next_item(self) -> Dict:
+        json_dict = self._get_next_json_dict()
+        if "Item" in json_dict:
+            return json_dict["Item"]
+        elif "@metadata" in json_dict:
+            return json_dict
+        else:
+            self._unused_buffer = json_dict
+            raise RuntimeError(
+                f"Expected key 'Item' or '@metadata' in received JSON, got {json_dict.keys()}. Cached the dict."
+            )

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 _T = TypeVar("_T")
-_Operation_T = TypeVar("_Operation_T")
+_T_Operation_Return = TypeVar("_T_Operation_Return")
 
 
 class OperationExecutor:
@@ -41,7 +41,7 @@ class OperationExecutor:
             return self
         return OperationExecutor(self._store, database_name)
 
-    def send(self, operation: IOperation[_Operation_T], session_info: SessionInfo = None) -> _Operation_T:
+    def send(self, operation: IOperation[_T_Operation_Return], session_info: SessionInfo = None) -> _T_Operation_Return:
         command = operation.get_command(self._store, self._request_executor.conventions, self._request_executor.cache)
         self._request_executor.execute_command(command, session_info)
         return None if isinstance(operation, VoidOperation) else command.result
@@ -136,8 +136,8 @@ class MaintenanceOperationExecutor:
         return MaintenanceOperationExecutor(self._store, database_name)
 
     def send(
-        self, operation: Union[VoidMaintenanceOperation, MaintenanceOperation[_Operation_T]]
-    ) -> Optional[_Operation_T]:
+        self, operation: Union[VoidMaintenanceOperation, MaintenanceOperation[_T_Operation_Return]]
+    ) -> Optional[_T_Operation_Return]:
         self._assert_database_name_set()
         command = operation.get_command(self.request_executor.conventions)
         self.request_executor.execute_command(command)
