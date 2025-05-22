@@ -907,7 +907,8 @@ class RequestExecutor:
         request = command.create_request(node)
         # todo: optimize that if - look for the way to make less ifs each time
         if request.data and not isinstance(request.data, str) and not inspect.isgenerator(request.data):
-            request.data = json.dumps(request.data, default=self.conventions.json_default_method)
+            # Making sur that all documents are utf-8 decoded, avoiding any bizzar caracters in the database documents
+            request.data = json.dumps(request.data, default=self.conventions.json_default_method, ensure_ascii=False).encode("utf-8")
 
         # todo: 1117 - 1133
         return request or None
