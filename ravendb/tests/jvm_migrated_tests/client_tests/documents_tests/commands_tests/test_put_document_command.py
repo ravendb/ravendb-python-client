@@ -5,6 +5,7 @@ from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
 from ravendb.tools.utils import Utils
 
+
 class Article:
     def __init__(
         self,
@@ -13,6 +14,7 @@ class Article:
     ):
         self.Id = Id
         self.title = title
+
 
 class TestPutDocumentCommand(TestBase):
     def setUp(self):
@@ -53,9 +55,11 @@ class TestPutDocumentCommand(TestBase):
         with self.store.open_session() as session:
             loaded_user = session.load("users/2", User)
             self.assertEqual(loaded_user.name, name_with_emojis)
-            
+
     def test_can_put_document_using_command_with_utf_8_chars(self):
-        title_with_emojis = "Déposer un CAPITAL SOCIAL : ce que tu dois ABSOLUMENT comprendre avant de lancer une ENTREPRISE 🏦"
+        title_with_emojis = (
+            "Déposer un CAPITAL SOCIAL : ce que tu dois ABSOLUMENT comprendre avant de lancer une ENTREPRISE 🏦"
+        )
 
         article = Article(title=title_with_emojis)
         node = Utils.entity_to_dict(article, self.store.conventions.json_default_method)
