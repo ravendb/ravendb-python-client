@@ -39,7 +39,7 @@ class TestPutDocumentCommand(TestBase):
 
     # @unittest.skip("todo: Not passing on CI/CD")
     def test_can_put_document_using_command_with_surrogate_pairs(self):
-        name_with_emojis = "Gracjan \\ud83d\\ude21\\ud83d\\ude21\\ud83e\\udd2c\\ud83d\\ude00😡😡🤬😀"
+        name_with_emojis = "Gracjan 😡😡🤬😀"
 
         user = User(name=name_with_emojis, age=31)
         node = Utils.entity_to_dict(user, self.store.conventions.json_default_method)
@@ -71,5 +71,5 @@ class TestPutDocumentCommand(TestBase):
         self.assertIsNotNone(result.change_vector)
 
         with self.store.open_session() as session:
-            loaded_user = session.load("articles/1", Article)
-            self.assertEqual(loaded_user.name, title_with_emojis)
+            loaded_article = session.load("articles/1", Article)
+            self.assertEqual(loaded_article.title, title_with_emojis)
