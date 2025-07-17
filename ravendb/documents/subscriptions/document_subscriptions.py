@@ -73,6 +73,15 @@ class DocumentSubscriptions:
         options = options or SubscriptionCreationOptions()
         return self.create_for_options(self.ensure_criteria(options, object_type, False), database)
 
+    def create_for_revisions(
+        self,
+        object_type: Type[_T],
+        options: Optional[SubscriptionCreationOptions] = None,
+        database: Optional[str] = None,
+    ) -> str:
+        options = options or SubscriptionCreationOptions()
+        return self.create_for_options(self.ensure_criteria(options, object_type, True), database)
+
     def ensure_criteria(self, criteria: SubscriptionCreationOptions, object_type: Type[_T], revisions: bool):
         if criteria is None:
             criteria = SubscriptionCreationOptions()

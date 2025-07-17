@@ -92,7 +92,7 @@ class GetRevisionsCommand(RavenCommand[JsonArrayResult]):
                 path_builder.append(Utils.escape(change_vector))
 
         if self._before is not None:
-            path_builder.append("&before")
+            path_builder.append("&before=")
             path_builder.append(Utils.datetime_to_string(self._before))
 
         if self._start is not None:

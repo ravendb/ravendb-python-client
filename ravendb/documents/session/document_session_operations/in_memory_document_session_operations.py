@@ -1887,7 +1887,7 @@ class InMemoryDocumentSessionOperations:
             return self
 
         def throw_on_timeout(self, should_throw: bool) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
-            self.get_options().index_options.throw_on_timeout_in_wait_for_replicas = should_throw
+            self.get_options().index_options.throw_on_timeout_in_wait_for_indexes = should_throw
             return self
 
         def wait_for_indexes(self, *indexes: str) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
