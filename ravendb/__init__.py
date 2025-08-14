@@ -76,6 +76,37 @@ from ravendb.documents.operations.configuration.operations import (
 from ravendb.documents.operations.configuration.definitions import StudioConfiguration, StudioEnvironment
 
 from ravendb.documents.operations.connection_strings import ConnectionString
+
+# AI Operations
+from ravendb.documents.ai import (
+    AiOperations,
+    IAiConversationOperations,
+    AiConversation,
+    AiConversationResult,
+    AiAgentParametersBuilder,
+    IAiAgentParametersBuilder,
+)
+from ravendb.documents.operations.ai.agents import (
+    AiAgentConfiguration,
+    AiAgentConfigurationResult,
+    AiAgentToolAction,
+    AiAgentToolQuery,
+    AiAgentPersistenceConfiguration,
+    AiAgentChatTrimmingConfiguration,
+    AiAgentSummarizationByTokens,
+    AiAgentTruncateChat,
+    AiAgentHistoryConfiguration,
+    RunConversationOperation,
+    ConversationResult,
+    AiAgentActionRequest,
+    AiAgentActionResponse,
+    AiUsage,
+    GetAiAgentOperation,
+    GetAiAgentsResponse,
+    AddOrUpdateAiAgentOperation,
+    DeleteAiAgentOperation,
+)
+
 from ravendb.documents.operations.etl.configuration import EtlConfiguration, RavenEtlConfiguration
 from ravendb.documents.operations.etl.olap import OlapEtlConfiguration
 from ravendb.documents.operations.etl.sql import SqlEtlConfiguration
