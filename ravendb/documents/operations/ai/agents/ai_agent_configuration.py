@@ -32,7 +32,9 @@ class AiAgentToolQuery:
         instance.name = json_dict.get("name") or json_dict.get("Name")
         instance.description = json_dict.get("description") or json_dict.get("Description")
         instance.query = json_dict.get("query") or json_dict.get("Query")
-        instance.parameters_sample_object = json_dict.get("parametersSampleObject") or json_dict.get("ParametersSampleObject")
+        instance.parameters_sample_object = json_dict.get("parametersSampleObject") or json_dict.get(
+            "ParametersSampleObject"
+        )
         instance.parameters_schema = json_dict.get("parametersSchema") or json_dict.get("ParametersSchema")
         return instance
 
@@ -63,7 +65,9 @@ class AiAgentToolAction:
         instance = cls()
         instance.name = json_dict.get("name") or json_dict.get("Name")
         instance.description = json_dict.get("description") or json_dict.get("Description")
-        instance.parameters_sample_object = json_dict.get("parametersSampleObject") or json_dict.get("ParametersSampleObject")
+        instance.parameters_sample_object = json_dict.get("parametersSampleObject") or json_dict.get(
+            "ParametersSampleObject"
+        )
         instance.parameters_schema = json_dict.get("parametersSchema") or json_dict.get("ParametersSchema")
         return instance
 
@@ -88,7 +92,9 @@ class AiAgentPersistenceConfiguration:
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentPersistenceConfiguration:
         instance = cls()
         instance.conversation_id_prefix = json_dict.get("conversationIdPrefix") or json_dict.get("ConversationIdPrefix")
-        instance.conversation_expiration_in_sec = json_dict.get("conversationExpirationInSec") or json_dict.get("ConversationExpirationInSec")
+        instance.conversation_expiration_in_sec = json_dict.get("conversationExpirationInSec") or json_dict.get(
+            "ConversationExpirationInSec"
+        )
         return instance
 
 
@@ -121,7 +127,9 @@ class AiAgentSummarizationByTokens:
         instance.summarization_task_beginning_prompt = json_dict.get("SummarizationTaskBeginningPrompt")
         instance.summarization_task_end_prompt = json_dict.get("SummarizationTaskEndPrompt")
         instance.result_prefix = json_dict.get("ResultPrefix")
-        instance.max_tokens_before_summarization = json_dict.get("MaxTokensBeforeSummarization", cls.DEFAULT_MAX_TOKENS_BEFORE_SUMMARIZATION)
+        instance.max_tokens_before_summarization = json_dict.get(
+            "MaxTokensBeforeSummarization", cls.DEFAULT_MAX_TOKENS_BEFORE_SUMMARIZATION
+        )
         instance.max_tokens_after_summarization = json_dict.get("MaxTokensAfterSummarization", 1024)
         return instance
 
@@ -146,8 +154,12 @@ class AiAgentTruncateChat:
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentTruncateChat:
         instance = cls()
-        instance.messages_length_before_truncate = json_dict.get("MessagesLengthBeforeTruncate", cls.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE)
-        instance.messages_length_after_truncate = json_dict.get("MessagesLengthAfterTruncate", cls.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE // 2)
+        instance.messages_length_before_truncate = json_dict.get(
+            "MessagesLengthBeforeTruncate", cls.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE
+        )
+        instance.messages_length_after_truncate = json_dict.get(
+            "MessagesLengthAfterTruncate", cls.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE // 2
+        )
         return instance
 
 
@@ -227,10 +239,7 @@ class AiAgentConfiguration:
 
     def to_json(self) -> Dict[str, Any]:
         # Convert parameters set to list of parameter objects using list comprehension
-        parameters_list = [
-            {"Name": param_name, "Description": None}
-            for param_name in self.parameters
-        ]
+        parameters_list = [{"Name": param_name, "Description": None} for param_name in self.parameters]
 
         return {
             "Identifier": self.identifier,
@@ -284,5 +293,7 @@ class AiAgentConfiguration:
         if trimming_data:
             instance.chat_trimming = AiAgentChatTrimmingConfiguration.from_json(trimming_data)
 
-        instance.max_model_iterations_per_call = json_dict.get("maxModelIterationsPerCall") or json_dict.get("MaxModelIterationsPerCall")
+        instance.max_model_iterations_per_call = json_dict.get("maxModelIterationsPerCall") or json_dict.get(
+            "MaxModelIterationsPerCall"
+        )
         return instance

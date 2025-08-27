@@ -20,13 +20,10 @@ class GetAiAgentsResponse:
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> GetAiAgentsResponse:
         from ravendb.documents.operations.ai.agents.ai_agent_configuration import AiAgentConfiguration
-        
+
         response = cls()
         if json_dict.get("AiAgents"):
-            response.ai_agents = [
-                AiAgentConfiguration.from_json(agent_json) 
-                for agent_json in json_dict["AiAgents"]
-            ]
+            response.ai_agents = [AiAgentConfiguration.from_json(agent_json) for agent_json in json_dict["AiAgents"]]
         return response
 
 

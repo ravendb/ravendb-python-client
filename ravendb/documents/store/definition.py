@@ -566,6 +566,7 @@ class DocumentStore(DocumentStoreBase):
     def ai(self):
         if self.__ai_operations is None:
             from ravendb.documents.ai import AiOperations
+
             self.__ai_operations = AiOperations(self)
 
         return self.__ai_operations

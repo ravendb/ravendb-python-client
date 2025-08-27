@@ -49,12 +49,12 @@ class AiConversation(IAiConversationOperations[TResponse]):
     ) -> AiConversation[TResponse]:
         """
         Creates a conversation instance for continuing an existing conversation.
-        
+
         Args:
             store: The document store
             conversation_id: The ID of the existing conversation
             change_vector: Optional change vector for optimistic concurrency
-            
+
         Returns:
             A new conversation instance
         """
@@ -92,9 +92,7 @@ class AiConversation(IAiConversationOperations[TResponse]):
             # More robust JSON serialization
             try:
                 response.content = json.dumps(
-                    action_response.__dict__ if hasattr(action_response, '__dict__')
-                    else action_response,
-                    default=str
+                    action_response.__dict__ if hasattr(action_response, "__dict__") else action_response, default=str
                 )
             except (TypeError, ValueError) as e:
                 response.content = str(action_response)
@@ -144,7 +142,7 @@ class AiConversation(IAiConversationOperations[TResponse]):
             self._change_vector = result.change_vector
 
         # Preserve agent ID for future conversation turns
-        if not self._agent_id and hasattr(operation, '_agent_id'):
+        if not self._agent_id and hasattr(operation, "_agent_id"):
             self._agent_id = operation._agent_id
 
         # Clear processed data for next turn

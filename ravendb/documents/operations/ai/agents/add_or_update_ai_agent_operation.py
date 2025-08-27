@@ -31,11 +31,7 @@ class AddOrUpdateAiAgentOperation(MaintenanceOperation[AiAgentConfigurationResul
         if configuration is None:
             raise ValueError("configuration cannot be None")
 
-        if (
-            not configuration.output_schema
-            and not configuration.sample_object
-            and schema_type is None
-        ):
+        if not configuration.output_schema and not configuration.sample_object and schema_type is None:
             raise ValueError(
                 "Please provide a non-empty value for either output_schema or sample_object or schema_type"
             )
@@ -70,7 +66,7 @@ class AddOrUpdateAiAgentCommand(RavenCommand[AiAgentConfigurationResult]):
 
         # Set sample object if not provided but we have a schema type
         if not config_to_send.sample_object and self._sample_schema:
-            if hasattr(self._sample_schema, '__dict__'):
+            if hasattr(self._sample_schema, "__dict__"):
                 config_to_send.sample_object = json.dumps(self._sample_schema.__dict__)
             else:
                 config_to_send.sample_object = json.dumps(self._sample_schema)
@@ -96,4 +92,5 @@ class AddOrUpdateAiAgentCommand(RavenCommand[AiAgentConfigurationResult]):
     def get_raft_unique_request_id(self) -> str:
         # Generate a unique ID for Raft operations
         import uuid
+
         return str(uuid.uuid4())

@@ -15,17 +15,14 @@ TSchema = TypeVar("TSchema")
 @dataclass
 class AiAgentActionRequest:
     """Represents an action request from an AI agent."""
+
     name: Optional[str] = None
     tool_id: Optional[str] = None
     arguments: Optional[str] = None
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentActionRequest:
-        return cls(
-            name=json_dict.get("Name"),
-            tool_id=json_dict.get("ToolId"),
-            arguments=json_dict.get("Arguments")
-        )
+        return cls(name=json_dict.get("Name"), tool_id=json_dict.get("ToolId"), arguments=json_dict.get("Arguments"))
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -38,15 +35,13 @@ class AiAgentActionRequest:
 @dataclass
 class AiAgentActionResponse:
     """Represents a response to an AI agent action request."""
+
     tool_id: Optional[str] = None
     content: Optional[str] = None
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentActionResponse:
-        return cls(
-            tool_id=json_dict.get("ToolId"),
-            content=json_dict.get("Content")
-        )
+        return cls(tool_id=json_dict.get("ToolId"), content=json_dict.get("Content"))
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -58,6 +53,7 @@ class AiAgentActionResponse:
 @dataclass
 class AiUsage:
     """Represents AI token usage statistics."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -69,7 +65,7 @@ class AiUsage:
             prompt_tokens=json_dict.get("PromptTokens", 0),
             completion_tokens=json_dict.get("CompletionTokens", 0),
             total_tokens=json_dict.get("TotalTokens", 0),
-            cached_tokens=json_dict.get("CachedTokens", 0)
+            cached_tokens=json_dict.get("CachedTokens", 0),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -95,16 +91,13 @@ class ConversationResult(Generic[TSchema]):
         result.conversation_id = json_dict.get("ConversationId")
         result.change_vector = json_dict.get("ChangeVector")
         result.response = json_dict.get("Response")
-        
+
         if json_dict.get("Usage"):
             result.usage = AiUsage.from_json(json_dict["Usage"])
-        
+
         if json_dict.get("ActionRequests"):
-            result.action_requests = [
-                AiAgentActionRequest.from_json(req) 
-                for req in json_dict["ActionRequests"]
-            ]
-        
+            result.action_requests = [AiAgentActionRequest.from_json(req) for req in json_dict["ActionRequests"]]
+
         return result
 
 
@@ -124,10 +117,7 @@ class AiConversationCreationOptions:
         Returns:
             Dictionary representation of the creation options
         """
-        return {
-            "ExpirationInSec": self.expiration_in_sec,
-            "Parameters": self.parameters
-        }
+        return {"ExpirationInSec": self.expiration_in_sec, "Parameters": self.parameters}
 
 
 class ConversationRequestBody:
@@ -186,7 +176,9 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
 
             self._conversation_id = agent_id_or_conversation_id
             self._user_prompt = user_prompt
-            self._action_responses = parameters_or_action_responses if isinstance(parameters_or_action_responses, list) else None
+            self._action_responses = (
+                parameters_or_action_responses if isinstance(parameters_or_action_responses, list) else None
+            )
             self._change_vector = change_vector
         else:
             # Constructor overload: agentId-based
@@ -197,7 +189,9 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
 
             self._agent_id = agent_id_or_conversation_id
             self._user_prompt = user_prompt
-            self._parameters = parameters_or_action_responses if isinstance(parameters_or_action_responses, dict) else None
+            self._parameters = (
+                parameters_or_action_responses if isinstance(parameters_or_action_responses, dict) else None
+            )
 
     def get_command(self, conventions: DocumentConventions) -> RavenCommand[ConversationResult[TSchema]]:
         return RunConversationCommand(
@@ -258,8 +252,6 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         if query_params:
             url += "?" + "&".join(query_params)
 
-
-
         # Build request body with correct structure to match .NET client
         request_body = ConversationRequestBody()
         request_body.action_responses = self._action_responses
@@ -271,8 +263,6 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         request_body.creation_options = creation_options
 
         body = json.dumps(request_body.to_json())
-
-
 
         # Create request
         request = requests.Request("POST", url)
@@ -295,4 +285,5 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
     def get_raft_unique_request_id(self) -> str:
         # Generate a unique ID for Raft operations
         import uuid
+
         return str(uuid.uuid4())

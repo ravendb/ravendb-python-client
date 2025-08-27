@@ -46,4 +46,5 @@ class DeleteAiAgentCommand(RavenCommand[AiAgentConfigurationResult]):
     def get_raft_unique_request_id(self) -> str:
         # Generate a unique ID for Raft operations
         import uuid
+
         return str(uuid.uuid4())

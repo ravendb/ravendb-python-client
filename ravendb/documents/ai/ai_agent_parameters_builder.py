@@ -17,11 +17,11 @@ class IAiAgentParametersBuilder(ABC, Generic[TResponse]):
     def with_parameter(self, name: str, value: Any) -> IAiAgentParametersBuilder[TResponse]:
         """
         Adds a parameter to the conversation.
-        
+
         Args:
             name: The parameter name
             value: The parameter value
-            
+
         Returns:
             The builder instance for method chaining
         """
@@ -31,7 +31,7 @@ class IAiAgentParametersBuilder(ABC, Generic[TResponse]):
     def build(self) -> IAiConversationOperations[TResponse]:
         """
         Builds and returns the conversation operations instance.
-        
+
         Returns:
             The conversation operations interface
         """
@@ -46,7 +46,7 @@ class AiAgentParametersBuilder(IAiAgentParametersBuilder[TResponse]):
     def __init__(self, conversation_factory):
         """
         Initializes the parameters builder.
-        
+
         Args:
             conversation_factory: A callable that creates the conversation with the built parameters
         """
@@ -56,11 +56,11 @@ class AiAgentParametersBuilder(IAiAgentParametersBuilder[TResponse]):
     def with_parameter(self, name: str, value: Any) -> IAiAgentParametersBuilder[TResponse]:
         """
         Adds a parameter to the conversation.
-        
+
         Args:
             name: The parameter name
             value: The parameter value
-            
+
         Returns:
             The builder instance for method chaining
         """
@@ -70,7 +70,7 @@ class AiAgentParametersBuilder(IAiAgentParametersBuilder[TResponse]):
     def build(self) -> IAiConversationOperations[TResponse]:
         """
         Builds and returns the conversation operations instance.
-        
+
         Returns:
             The conversation operations interface
         """

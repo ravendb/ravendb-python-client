@@ -32,7 +32,7 @@ class IAiConversationOperations(ABC, Generic[TResponse]):
     def add_action_response(self, action_id: str, action_response: Union[str, TResponse]) -> None:
         """
         Adds a response for a given action request.
-        
+
         Args:
             action_id: The ID of the action to respond to
             action_response: The response content (string or typed response object)
@@ -45,7 +45,7 @@ class IAiConversationOperations(ABC, Generic[TResponse]):
         Executes one "turn" of the conversation:
         sends the current prompt, processes any required actions,
         and awaits the agent's reply.
-        
+
         Returns:
             The result of the conversation turn
         """
@@ -55,7 +55,7 @@ class IAiConversationOperations(ABC, Generic[TResponse]):
     def set_user_prompt(self, user_prompt: str) -> None:
         """
         Sets the next user prompt to send to the AI agent.
-        
+
         Args:
             user_prompt: The prompt text to send to the agent
         """

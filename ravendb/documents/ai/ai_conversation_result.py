@@ -55,7 +55,4 @@ class AiConversationResult(Generic[TResponse]):
         Returns:
             The action request if found, None otherwise
         """
-        return next(
-            (request for request in self.action_requests if request.tool_id == action_id),
-            None
-        )
+        return next((request for request in self.action_requests if request.tool_id == action_id), None)
