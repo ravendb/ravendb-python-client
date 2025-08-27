@@ -324,6 +324,7 @@ class DocumentStore(DocumentStoreBase):
         self.__after_close: List[Callable[[], None]] = []
         self.__before_close: List[Callable[[], None]] = []
         self.__time_series_operation: Optional[TimeSeriesOperations] = None
+        self.__ai_operations = None
 
     def __enter__(self):
         return self
@@ -560,3 +561,12 @@ class DocumentStore(DocumentStoreBase):
             self.__time_series_operation = TimeSeriesOperations(self)
 
         return self.__time_series_operation
+
+    @property
+    def ai(self):
+        if self.__ai_operations is None:
+            from ravendb.documents.ai import AiOperations
+
+            self.__ai_operations = AiOperations(self)
+
+        return self.__ai_operations
