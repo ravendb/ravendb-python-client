@@ -686,7 +686,7 @@ list(session.query_collection("Users")
 #     id: 'users/2-A' } ]
 ```
 
-#### order_by() / order_by_desc() / order_by_score() / random_ordering()
+#### order_by() / order_by_descending() / order_by_score() / random_ordering()
 ```python
 # RQL
 # from users order by age
@@ -715,7 +715,7 @@ list(session.query_collection("Users").order_by("age"))
 
 >##### Related tests:
 > <small>[order_by()](https:///github.com/ravendb/ravendb-python-client/blob/333a2961de1f924ea7b42529eed64d2317ef4891/ravendb/tests/session_tests/test_query.py#L149-L158)</small>  
-> <small>[order_by_desc()](https:///github.com/ravendb/ravendb-python-client/blob/333a2961de1f924ea7b42529eed64d2317ef4891/ravendb/tests/session_tests/test_query.py#L160-L168)</small>  
+> <small>[order_by_descending()](https:///github.com/ravendb/ravendb-python-client/blob/333a2961de1f924ea7b42529eed64d2317ef4891/ravendb/tests/session_tests/test_query.py#L160-L168)</small>  
 > <small>[query random order](https:///github.com/ravendb/ravendb-python-client/blob/df4e92fbcfb07872e1d7cc920bff5196d19a3aa7/ravendb/tests/jvm_migrated_tests/query_tests/test_query.py#L270-L274)</small>  
 > <small>[order by AlphaNumeric](https:///github.com/ravendb/ravendb-python-client/blob/df4e92fbcfb07872e1d7cc920bff5196d19a3aa7/ravendb/tests/jvm_migrated_tests/issues_tests/test_ravenDB_15825.py#L42-L50)</small>  
 > <small>[query with boost - order by score](https:///github.com/ravendb/ravendb-python-client/blob/df4e92fbcfb07872e1d7cc920bff5196d19a3aa7/ravendb/tests/jvm_migrated_tests/query_tests/test_query.py#L276-L303)</small>
