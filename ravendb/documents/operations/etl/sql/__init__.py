@@ -1,7 +1,7 @@
 from typing import Optional
 
 from ravendb.documents.operations.connection_strings import ConnectionString
-import ravendb.serverwide
+import ravendb.serverwide.server_operation_executor
 from ravendb.documents.operations.etl.configuration import EtlConfiguration
 
 
@@ -13,7 +13,7 @@ class SqlConnectionString(ConnectionString):
 
     @property
     def get_type(self):
-        return ravendb.serverwide.ConnectionStringType.SQL
+        return ravendb.serverwide.server_operation_executor.ConnectionStringType.SQL.value
 
 
 # todo: implement

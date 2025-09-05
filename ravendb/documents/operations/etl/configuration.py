@@ -1,7 +1,7 @@
 from typing import Optional, Generic, TypeVar, List
 
 from ravendb.documents.operations.connection_strings import ConnectionString
-import ravendb.serverwide
+import ravendb.serverwide.server_operation_executor
 
 _T = TypeVar("_T")
 
@@ -14,7 +14,7 @@ class RavenConnectionString(ConnectionString):
 
     @property
     def get_type(self):
-        return ravendb.serverwide.ConnectionStringType.RAVEN
+        return ravendb.serverwide.server_operation_executor.ConnectionStringType.RAVEN.value
 
 
 # todo: implement

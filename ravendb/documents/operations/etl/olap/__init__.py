@@ -9,7 +9,7 @@ from ravendb.documents.operations.backups.settings import (
     FtpSettings,
 )
 from ravendb.documents.operations.connection_strings import ConnectionString
-import ravendb.serverwide
+import ravendb.serverwide.server_operation_executor
 from ravendb.documents.operations.etl.configuration import EtlConfiguration
 
 
@@ -34,7 +34,7 @@ class OlapConnectionString(ConnectionString):
 
     @property
     def get_type(self):
-        return ravendb.serverwide.ConnectionStringType.OLAP
+        return ravendb.serverwide.server_operation_executor.ConnectionStringType.OLAP.value
 
 
 # todo: implement

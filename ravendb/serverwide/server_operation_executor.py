@@ -21,10 +21,10 @@ _T_OperationResult = TypeVar("_T_OperationResult")
 
 
 class ConnectionStringType(enum.Enum):
-    NONE = "NONE"
-    RAVEN = "RAVEN"
-    SQL = "SQL"
-    OLAP = "OLAP"
+    NONE = "None"
+    RAVEN = "Raven"
+    SQL = "Sql"
+    OLAP = "Olap"
 
 
 class ServerOperationExecutor:
