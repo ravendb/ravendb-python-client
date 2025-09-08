@@ -19,9 +19,9 @@ class TestConnectionString(TestBase):
         super().setUp()
 
     def test_can_create_get_and_delete_connection_strings(self):
-        raven_connection_string_1 = RavenConnectionString("r1", "db1", ["http://localhost:8080"])
+        raven_connection_string_1 = RavenConnectionString("r1", self.store.database, self.store.urls)
         sql_connection_string_1 = SqlConnectionString("s1", "test", "MySql.Data.MySqlClient")
-        olap_connection_string_1 = OlapConnectionString("o1", ftp_settings=FtpSettings(url="localhost:9090"))
+        olap_connection_string_1 = OlapConnectionString("o1", ftp_settings=FtpSettings(url=self.store.urls[0]))
 
         put_result: PutConnectionStringResult = self.store.maintenance.send(
             PutConnectionStringOperation(raven_connection_string_1)
