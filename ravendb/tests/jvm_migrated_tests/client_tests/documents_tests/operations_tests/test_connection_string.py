@@ -1,10 +1,10 @@
 ﻿from ravendb import FtpSettings
-from ravendb.documents.operations.connection_string.GetConnectionStringOperation import GetConnectionStringsOperation
-from ravendb.documents.operations.connection_string.PutConnectionStringOperation import (
+from ravendb.documents.operations.connection_string.get_connection_string_operation import GetConnectionStringsOperation
+from ravendb.documents.operations.connection_string.put_connection_string_operation import (
     PutConnectionStringOperation,
     PutConnectionStringResult,
 )
-from ravendb.documents.operations.connection_string.RemoveConnectionStringOperation import (
+from ravendb.documents.operations.connection_string.remove_connection_string_operation import (
     RemoveConnectionStringOperation,
 )
 from ravendb.documents.operations.etl.configuration import RavenConnectionString

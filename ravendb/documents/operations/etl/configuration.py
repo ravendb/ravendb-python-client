@@ -16,6 +16,14 @@ class RavenConnectionString(ConnectionString):
     def get_type(self):
         return ravendb.serverwide.server_operation_executor.ConnectionStringType.RAVEN.value
 
+    def to_json(self):
+        return {
+            "Name": self.name,
+            "Database": self.database,
+            "TopologyDiscoveryUrls": self.topology_discovery_urls,
+            "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.RAVEN,
+        }
+
 
 # todo: implement
 class EtlConfiguration(ConnectionString, Generic[_T]):

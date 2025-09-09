@@ -36,6 +36,18 @@ class OlapConnectionString(ConnectionString):
     def get_type(self):
         return ravendb.serverwide.server_operation_executor.ConnectionStringType.OLAP.value
 
+    def to_json(self):
+        return {
+            "Name": self.name,
+            "LocalSettings": self.local_settings,
+            "S3Settings": self.s3_settings,
+            "AzureSettings": self.azure_settings,
+            "GlacierSettings": self.glacier_settings,
+            "GoogleCloudSettings": self.google_cloud_settings,
+            "FtpSettings": self.ftp_settings,
+            "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.OLAP,
+        }
+
 
 # todo: implement
 class OlapEtlConfiguration(EtlConfiguration[OlapConnectionString]):

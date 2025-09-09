@@ -44,37 +44,6 @@ class PutConnectionStringOperation(MaintenanceOperation[PutConnectionStringResul
             self._document_conventions = document_conventions
             self._connection_string = connection_string
 
-        def _to_data(self) -> Dict:
-            if isinstance(self._connection_string, RavenConnectionString):
-                return {
-                    "Name": self._connection_string.name,
-                    "Database": self._connection_string.database,
-                    "TopologyDiscoveryUrls": self._connection_string.topology_discovery_urls,
-                    "Type": ConnectionStringType.RAVEN,
-                }
-
-            if isinstance(self._connection_string, SqlConnectionString):
-                return {
-                    "Name": self._connection_string.name,
-                    "ConnectionString": self._connection_string.connection_string,
-                    "FactoryName": self._connection_string.factory_name,
-                    "Type": ConnectionStringType.SQL,
-                }
-
-            if isinstance(self._connection_string, OlapConnectionString):
-                return {
-                    "Name": self._connection_string.name,
-                    "LocalSettings": self._connection_string.local_settings,
-                    "S3Settings": self._connection_string.s3_settings,
-                    "AzureSettings": self._connection_string.azure_settings,
-                    "GlacierSettings": self._connection_string.glacier_settings,
-                    "GoogleCloudSettings": self._connection_string.google_cloud_settings,
-                    "FtpSettings": self._connection_string.ftp_settings,
-                    "Type": ConnectionStringType.OLAP,
-                }
-
-            return None
-
         def is_read_request(self) -> bool:
             return False
 
@@ -83,7 +52,7 @@ class PutConnectionStringOperation(MaintenanceOperation[PutConnectionStringResul
 
             request = requests.Request("PUT")
             request.url = url
-            request.data = self._to_data()
+            request.data = self._connection_string.to_json()
 
             return request
 

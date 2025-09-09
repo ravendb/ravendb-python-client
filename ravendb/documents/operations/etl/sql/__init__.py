@@ -15,6 +15,14 @@ class SqlConnectionString(ConnectionString):
     def get_type(self):
         return ravendb.serverwide.server_operation_executor.ConnectionStringType.SQL.value
 
+    def to_json(self):
+        return {
+            "Name": self.name,
+            "ConnectionString": self.connection_string,
+            "FactoryName": self.factory_name,
+            "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.SQL,
+        }
+
 
 # todo: implement
 class SqlEtlConfiguration(EtlConfiguration[SqlConnectionString]):

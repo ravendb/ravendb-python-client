@@ -25,6 +25,10 @@ class ConnectionStringType(enum.Enum):
     RAVEN = "Raven"
     SQL = "Sql"
     OLAP = "Olap"
+    AI = "Ai"
+    ELASTIC_SEARCH = "ElasticSearch"
+    QUEUE = "Queue"
+    SNOWFLAKE = "Snowflake"
 
 
 class ServerOperationExecutor:

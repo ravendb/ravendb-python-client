@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import Dict, Any
 
 
 class ConnectionString:
@@ -7,4 +8,8 @@ class ConnectionString:
 
     @abstractmethod
     def get_type(self):
+        pass
+
+    @abstractmethod
+    def to_json(self) -> Dict[str, Any]:
         pass
