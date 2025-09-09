@@ -4,7 +4,15 @@ from ravendb.documents.operations.ai.open_ai_base_settings import OpenAiBaseSett
 
 
 class AzureOpenAiSettings(OpenAiBaseSettings):
-    def __init__(self, api_key: str = None, endpoint: str = None, model: str = None, deployment_name: str = None, dimensions: int = None, temperature: float = None):
+    def __init__(
+        self,
+        api_key: str = None,
+        endpoint: str = None,
+        model: str = None,
+        deployment_name: str = None,
+        dimensions: int = None,
+        temperature: float = None,
+    ):
         super().__init__(api_key, endpoint, model, dimensions, temperature)
         self.deployment_name = deployment_name
 

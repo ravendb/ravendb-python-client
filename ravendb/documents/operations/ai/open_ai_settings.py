@@ -4,7 +4,16 @@ from ravendb.documents.operations.ai.open_ai_base_settings import OpenAiBaseSett
 
 
 class OpenAiSettings(OpenAiBaseSettings):
-    def __init__(self, api_key: str = None, endpoint: str = None, model: str = None, organization_id: str = None, project_id: str = None, dimensions: int = None, temperature: float = None):
+    def __init__(
+        self,
+        api_key: str = None,
+        endpoint: str = None,
+        model: str = None,
+        organization_id: str = None,
+        project_id: str = None,
+        dimensions: int = None,
+        temperature: float = None,
+    ):
         super().__init__(api_key, endpoint, model, dimensions, temperature)
         self.organization_id = organization_id
         self.project_id = project_id

@@ -3,8 +3,9 @@
 from ravendb.documents.operations.connection_strings import ConnectionString
 import ravendb.serverwide.server_operation_executor
 from ravendb.documents.operations.etl.queue.amazon_sqs_connection_settings import AmazonSqsConnectionSettings
-from ravendb.documents.operations.etl.queue.azure_queue_storage_connection_settings import \
-    AzureQueueStorageConnectionSettings
+from ravendb.documents.operations.etl.queue.azure_queue_storage_connection_settings import (
+    AzureQueueStorageConnectionSettings,
+)
 from ravendb.documents.operations.etl.queue.kafka_connection_settings import KafkaConnectionSettings
 from ravendb.documents.operations.etl.queue.rabbit_mq_connection_settings import RabbitMqConnectionSettings
 
@@ -56,6 +57,8 @@ class QueueConnectionString(ConnectionString):
             broker_type=QueueBrokerType(json_dict["BrokerType"]),
             kafka_settings=KafkaConnectionSettings.from_json(json_dict["KafkaConnectionSettings"]),
             rabbit_mq_settings=RabbitMqConnectionSettings.from_json(json_dict["RabbitMqConnectionSettings"]),
-            azure_queue_storage_settings=AzureQueueStorageConnectionSettings.from_json(json_dict["AzureQueueStorageConnectionSettings"]),
-            amazon_sqs_settings=AmazonSqsConnectionSettings.from_json(json_dict["AmazonSqsConnectionSettings"])
+            azure_queue_storage_settings=AzureQueueStorageConnectionSettings.from_json(
+                json_dict["AzureQueueStorageConnectionSettings"]
+            ),
+            amazon_sqs_settings=AmazonSqsConnectionSettings.from_json(json_dict["AmazonSqsConnectionSettings"]),
         )

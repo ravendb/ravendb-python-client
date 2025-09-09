@@ -13,11 +13,11 @@ from ravendb.documents.operations.connection_strings import ConnectionString
 
 
 class AiModelType(enum.Enum):
-    TEXT_EMBEDDINGS = "TextEmbeddings",
+    TEXT_EMBEDDINGS = ("TextEmbeddings",)
     CHAT = "Chat"
 
 
-class AiConnectionString(ConnectionString): # todo kuba
+class AiConnectionString(ConnectionString):  # todo kuba
     def __init__(
         self,
         name: str,
@@ -29,7 +29,7 @@ class AiConnectionString(ConnectionString): # todo kuba
         google_settings: Optional[GoogleSettings] = None,
         huggingface_settings: Optional[HuggingFaceSettings] = None,
         mistral_ai_settings: Optional[MistralAiSettings] = None,
-        model_type: AiModelType = None
+        model_type: AiModelType = None,
     ):
         super().__init__(name)
         self.identifier = identifier

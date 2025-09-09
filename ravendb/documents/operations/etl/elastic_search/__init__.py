@@ -45,7 +45,6 @@ class BasicAuthentication:
         )
 
 
-
 class CertificateAuthentication:
     def __init__(self, certificates_base64: List[str] = None):
         self.certificates_base64 = certificates_base64
@@ -61,9 +60,13 @@ class CertificateAuthentication:
         return cls(certificates_base64=list(certs) if certs is not None else None)
 
 
-
 class Authentication:
-    def __init__(self, api_key: ApiKeyAuthentication = None, basic: BasicAuthentication = None, certificate: CertificateAuthentication = None):
+    def __init__(
+        self,
+        api_key: ApiKeyAuthentication = None,
+        basic: BasicAuthentication = None,
+        certificate: CertificateAuthentication = None,
+    ):
         self.api_key = api_key
         self.basic = basic
         self.certificate = certificate
@@ -86,7 +89,6 @@ class Authentication:
             basic=BasicAuthentication.from_json(basic_data) if basic_data else None,
             certificate=CertificateAuthentication.from_json(certificate_data) if certificate_data else None,
         )
-
 
 
 class ElasticSearchConnectionString(ConnectionString):

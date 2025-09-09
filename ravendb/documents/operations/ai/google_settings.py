@@ -5,12 +5,14 @@ from ravendb.documents.operations.ai.abstract_ai_settings import AbstractAiSetti
 
 
 class GoogleAiVersion(Enum):
-    V1 = "V1",
-    V1_Beta = "V1_Beta",
+    V1 = ("V1",)
+    V1_Beta = ("V1_Beta",)
 
 
 class GoogleSettings(AbstractAiSettings):
-    def __init__(self, model: str = None, api_key: str = None, ai_version: GoogleAiVersion = None, dimensions: int = None):
+    def __init__(
+        self, model: str = None, api_key: str = None, ai_version: GoogleAiVersion = None, dimensions: int = None
+    ):
         super().__init__()
         self.model = model
         self.api_key = api_key

@@ -32,6 +32,7 @@ class RavenConnectionString(ConnectionString):
             topology_discovery_urls=json_dict["TopologyDiscoveryUrls"],
         )
 
+
 # todo: implement
 class EtlConfiguration(ConnectionString, Generic[_T]):
     pass
