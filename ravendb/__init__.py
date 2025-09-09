@@ -108,7 +108,7 @@ from ravendb.documents.operations.ai.agents import (
 )
 
 from ravendb.documents.operations.etl.configuration import EtlConfiguration, RavenEtlConfiguration
-from ravendb.documents.operations.etl.olap import OlapEtlConfiguration
+from ravendb.documents.operations.etl.olap.connection import OlapEtlConfiguration
 from ravendb.documents.operations.etl.sql import SqlEtlConfiguration
 from ravendb.documents.operations.executor import MaintenanceOperationExecutor, SessionOperationExecutor
 from ravendb.documents.operations.expiration.configuration import ExpirationConfiguration

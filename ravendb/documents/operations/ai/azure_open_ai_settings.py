@@ -19,12 +19,12 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "AzureOpenAiSettings":
         return cls(
-            api_key=json_dict["ApiKey"],
-            endpoint=json_dict["Endpoint"],
-            model=json_dict["Model"],
-            dimensions=json_dict["Dimensions"],
-            temperature=json_dict["Temperature"],
-            deployment_name=json_dict["DeploymentName"],
+            api_key=json_dict["ApiKey"] if "ApiKey" in json_dict else None,
+            endpoint=json_dict["Endpoint"] if "Endpoint" in json_dict else None,
+            model=json_dict["Model"] if "Model" in json_dict else None,
+            dimensions=json_dict["Dimensions"] if "Dimensions" in json_dict else None,
+            temperature=json_dict["Temperature"] if "Temperature" in json_dict else None,
+            deployment_name=json_dict["DeploymentName"] if "DeploymentName" in json_dict else None,
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -35,5 +35,4 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
             "Dimensions": self.dimensions,
             "Temperature": self.temperature,
             "DeploymentName": self.deployment_name,
-            "EmbeddingsMaxConcurrentBatches": self.embeddings_max_concurrent_batches,
         }

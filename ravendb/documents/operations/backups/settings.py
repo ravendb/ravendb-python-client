@@ -259,19 +259,15 @@ class FtpSettings(BackupSettings):
         disabled: bool = None,
         get_backup_configuration_script: GetBackupConfigurationScript = None,
         url: str = None,
-        port: int = None,
         user_name: str = None,
         password: str = None,
         certificate_as_base64: str = None,
-        certificate_file_name: str = None,
     ):
         super().__init__(disabled, get_backup_configuration_script)
         self.url = url
-        self.port = port
         self.user_name = user_name
         self.password = password
         self.certificate_as_base64 = certificate_as_base64
-        self.certificate_file_name = certificate_file_name
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> FtpSettings:
@@ -283,11 +279,9 @@ class FtpSettings(BackupSettings):
                 else None
             ),
             json_dict["Url"],
-            json_dict["Port"] if "Port" in json_dict else None,
             json_dict["UserName"],
             json_dict["Password"],
             json_dict["CertificateAsBase64"],
-            json_dict["CertificateFileName"] if "CertificateFileName" in json_dict else None,
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -297,11 +291,9 @@ class FtpSettings(BackupSettings):
                 self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
             ),
             "Url": self.url,
-            "Port": self.port,
             "UserName": self.user_name,
             "Password": self.password,
             "CertificateAsBase64": self.certificate_as_base64,
-            "CertificateFileName": self.certificate_file_name,
         }
 
 

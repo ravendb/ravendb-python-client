@@ -5,8 +5,8 @@ from ravendb.documents.operations.ai.abstract_ai_settings import AbstractAiSetti
 
 
 class GoogleAiVersion(Enum):
-    V1 = ("V1",)
-    V1_Beta = ("V1_Beta",)
+    V1 = "V1"
+    V1_Beta = "V1_Beta"
 
 
 class GoogleSettings(AbstractAiSettings):

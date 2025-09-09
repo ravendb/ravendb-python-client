@@ -6,10 +6,6 @@ import requests
 from ravendb import ConnectionString, RavenCommand, ServerNode, RaftCommand
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.documents.operations.definitions import MaintenanceOperation
-from ravendb.documents.operations.etl.configuration import RavenConnectionString
-from ravendb.documents.operations.etl.olap import OlapConnectionString
-from ravendb.documents.operations.etl.sql import SqlConnectionString
-from ravendb.serverwide.server_operation_executor import ConnectionStringType
 from ravendb.util.util import RaftIdGenerator
 
 

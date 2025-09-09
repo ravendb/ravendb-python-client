@@ -7,10 +7,10 @@ from ravendb import RavenCommand, ServerNode
 from ravendb.documents.operations.ai.ai_connection_string import AiConnectionString
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.documents.operations.etl.configuration import RavenConnectionString
-from ravendb.documents.operations.etl.elastic_search import ElasticSearchConnectionString
-from ravendb.documents.operations.etl.olap import OlapConnectionString
-from ravendb.documents.operations.etl.queue import QueueConnectionString
-from ravendb.documents.operations.etl.snowflake import SnowflakeConnectionString
+from ravendb.documents.operations.etl.elastic_search.connection import ElasticSearchConnectionString
+from ravendb.documents.operations.etl.olap.connection import OlapConnectionString
+from ravendb.documents.operations.etl.queue.connection import QueueConnectionString
+from ravendb.documents.operations.etl.snowflake.connection import SnowflakeConnectionString
 from ravendb.documents.operations.etl.sql import SqlConnectionString
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
 
@@ -46,15 +46,52 @@ class GetConnectionStringsResult:
         }
 
     @classmethod
-    def from_json(cls, json_dict: Dict) -> "GetConnectionStringsResult":
+    def from_json(cls, json_dict: Dict[str, Dict]) -> "GetConnectionStringsResult":
         return cls(
-            raven_connection_strings=json_dict["RavenConnectionStrings"],
-            sql_connection_strings=json_dict["SqlConnectionStrings"],
-            olap_connection_strings=json_dict["OlapConnectionStrings"],
-            ai_connection_strings=json_dict["AiConnectionStrings"],
-            elastic_search_connection_strings=json_dict["ElasticSearchConnectionStrings"],
-            queue_connection_strings=json_dict["QueueConnectionStrings"],
-            snowflake_connection_strings=json_dict["SnowflakeConnectionStrings"],
+            raven_connection_strings=(
+                {key: RavenConnectionString.from_json(rcs) for key, rcs in json_dict["RavenConnectionStrings"].items()}
+                if json_dict["RavenConnectionStrings"]
+                else None
+            ),
+            sql_connection_strings=(
+                {key: SqlConnectionString.from_json(sqlcs) for key, sqlcs in json_dict["SqlConnectionStrings"].items()}
+                if json_dict["SqlConnectionStrings"]
+                else None
+            ),
+            olap_connection_strings=(
+                {
+                    key: OlapConnectionString.from_json(olapcs)
+                    for key, olapcs in json_dict["OlapConnectionStrings"].items()
+                }
+                if json_dict["OlapConnectionStrings"]
+                else None
+            ),
+            ai_connection_strings=(
+                {key: AiConnectionString.from_json(aics) for key, aics in json_dict["AiConnectionStrings"].items()}
+                if json_dict["AiConnectionStrings"]
+                else None
+            ),
+            elastic_search_connection_strings=(
+                {
+                    key: ElasticSearchConnectionString.from_json(escs)
+                    for key, escs in json_dict["ElasticSearchConnectionStrings"].items()
+                }
+                if json_dict["ElasticSearchConnectionStrings"]
+                else None
+            ),
+            queue_connection_strings=(
+                {key: QueueConnectionString.from_json(qcs) for key, qcs in json_dict["QueueConnectionStrings"].items()}
+                if json_dict["QueueConnectionStrings"]
+                else None
+            ),
+            snowflake_connection_strings=(
+                {
+                    key: SnowflakeConnectionString.from_json(scs)
+                    for key, scs in json_dict["SnowflakeConnectionStrings"].items()
+                }
+                if json_dict["SnowflakeConnectionStrings"]
+                else None
+            ),
         )
 
 

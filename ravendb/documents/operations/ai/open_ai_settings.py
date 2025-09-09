@@ -24,10 +24,10 @@ class OpenAiSettings(OpenAiBaseSettings):
             api_key=json_dict["ApiKey"],
             endpoint=json_dict["Endpoint"],
             model=json_dict["Model"],
-            dimensions=json_dict["Dimensions"],
-            temperature=json_dict["Temperature"],
-            organization_id=json_dict["OrganizationId"],
-            project_id=json_dict["ProjectId"],
+            dimensions=json_dict["Dimensions"] if "Dimensions" in json_dict else None,
+            temperature=json_dict["Temperature"] if "Temperature" in json_dict else None,
+            organization_id=json_dict["OrganizationId"] if "OrganizationId" in json_dict else None,
+            project_id=json_dict["ProjectId"] if "ProjectId" in json_dict else None,
         )
 
     def to_json(self) -> Dict[str, Any]:
