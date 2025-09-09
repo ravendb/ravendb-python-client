@@ -216,7 +216,7 @@ class AbstractDocumentQuery(Generic[_T]):
         return self.__to_string(False)
 
     def _using_default_operator(self, operator: QueryOperator) -> None:
-        if not self._where_tokens:
+        if self._where_tokens:
             raise RuntimeError("Default operator can only be set before any where clause is added")
 
         self._default_operator = operator

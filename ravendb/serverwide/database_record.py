@@ -12,7 +12,7 @@ from ravendb.documents.indexes.definitions import (
 )
 from ravendb.documents.operations.backups.settings import PeriodicBackupConfiguration
 from ravendb.documents.operations.etl.configuration import RavenConnectionString, RavenEtlConfiguration
-from ravendb.documents.operations.etl.olap import OlapConnectionString, OlapEtlConfiguration
+from ravendb.documents.operations.etl.olap.connection import OlapConnectionString, OlapEtlConfiguration
 from ravendb.documents.operations.etl.sql import SqlConnectionString, SqlEtlConfiguration
 from ravendb.documents.operations.expiration.configuration import ExpirationConfiguration
 from ravendb.documents.operations.refresh.configuration import RefreshConfiguration
