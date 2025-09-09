@@ -4,9 +4,13 @@ from typing import Dict, Optional
 import requests
 
 from ravendb import RavenCommand, ServerNode
+from ravendb.documents.operations.ai.ai_connection_string import AiConnectionString
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.documents.operations.etl.configuration import RavenConnectionString
+from ravendb.documents.operations.etl.elastic_search import ElasticSearchConnectionString
 from ravendb.documents.operations.etl.olap import OlapConnectionString
+from ravendb.documents.operations.etl.queue import QueueConnectionString
+from ravendb.documents.operations.etl.snowflake import SnowflakeConnectionString
 from ravendb.documents.operations.etl.sql import SqlConnectionString
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
 
@@ -17,16 +21,28 @@ class GetConnectionStringsResult:
         raven_connection_strings: Dict[str, RavenConnectionString] = None,
         sql_connection_strings: Dict[str, SqlConnectionString] = None,
         olap_connection_strings: Dict[str, OlapConnectionString] = None,
+        ai_connection_strings: Dict[str, AiConnectionString] = None,
+        elastic_search_connection_strings: Dict[str, ElasticSearchConnectionString] = None,
+        queue_connection_strings: Dict[str, QueueConnectionString] = None,
+        snowflake_connection_strings: Dict[str, SnowflakeConnectionString] = None,
     ):
         self.raven_connection_strings = raven_connection_strings
         self.sql_connection_strings = sql_connection_strings
         self.olap_connection_strings = olap_connection_strings
+        self.ai_connection_strings = ai_connection_strings
+        self.elastic_search_connection_strings = elastic_search_connection_strings
+        self.queue_connection_strings = queue_connection_strings
+        self.snowflake_connection_strings = snowflake_connection_strings
 
     def to_json(self) -> Dict:
         return {
-            "RavenConnectionStrings": self._raven_connection_strings,
-            "SqlConnectionStrings": self._sql_connection_strings,
-            "OlapConnectionStrings": self._olap_connection_strings,
+            "RavenConnectionStrings": [x.to_json() for x in self.raven_connection_strings.values()],
+            "SqlConnectionStrings": [x.to_json() for x in self.sql_connection_strings.values()],
+            "OlapConnectionStrings": [x.to_json() for x in self.olap_connection_strings.values()],
+            "AiConnectionStrings": [x.to_json() for x in self.ai_connection_strings.values()],
+            "ElasticSearchConnectionStrings": [x.to_json() for x in self.elastic_search_connection_strings.values()],
+            "QueueConnectionStrings": [x.to_json() for x in self.queue_connection_strings.values()],
+            "SnowflakeConnectionStrings": [x.to_json() for x in self.snowflake_connection_strings.values()],
         }
 
     @classmethod
@@ -35,6 +51,10 @@ class GetConnectionStringsResult:
             raven_connection_strings=json_dict["RavenConnectionStrings"],
             sql_connection_strings=json_dict["SqlConnectionStrings"],
             olap_connection_strings=json_dict["OlapConnectionStrings"],
+            ai_connection_strings=json_dict["AiConnectionStrings"],
+            elastic_search_connection_strings=json_dict["ElasticSearchConnectionStrings"],
+            queue_connection_strings=json_dict["QueueConnectionStrings"],
+            snowflake_connection_strings=json_dict["SnowflakeConnectionStrings"],
         )
 
 

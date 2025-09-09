@@ -19,3 +19,10 @@ class SnowflakeConnectionString(ConnectionString):
             "ConnectionString": self.connection_string,
             "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.SNOWFLAKE,
         }
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> "SnowflakeConnectionString":
+        return cls(
+            name=json_dict["Name"],
+            connection_string=json_dict["ConnectionString"],
+        )

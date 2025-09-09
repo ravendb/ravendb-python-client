@@ -1,4 +1,4 @@
-from typing import Optional, Generic, TypeVar, List
+from typing import Optional, Generic, TypeVar, List, Dict
 
 from ravendb.documents.operations.connection_strings import ConnectionString
 import ravendb.serverwide.server_operation_executor
@@ -24,6 +24,13 @@ class RavenConnectionString(ConnectionString):
             "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.RAVEN,
         }
 
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> "RavenConnectionString":
+        return cls(
+            name=json_dict["Name"],
+            database=json_dict["Database"],
+            topology_discovery_urls=json_dict["TopologyDiscoveryUrls"],
+        )
 
 # todo: implement
 class EtlConfiguration(ConnectionString, Generic[_T]):

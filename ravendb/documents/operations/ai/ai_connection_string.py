@@ -60,3 +60,18 @@ class AiConnectionString(ConnectionString): # todo kuba
             "ModelType": self.model_type,
             "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.OLAP,
         }
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "AiConnectionString":
+        return cls(
+            name=json_dict["Name"],
+            identifier=json_dict["Identifier"],
+            openai_settings=OpenAiSettings.from_json(json_dict["OpenaiSettings"]),
+            azure_openai_settings=AzureOpenAiSettings.from_json(json_dict["AzureOpenaiSettings"]),
+            ollama_settings=OllamaSettings.from_json(json_dict["ollama_settings"]),
+            embedded_settings=EmbeddedSettings.from_json(json_dict["EmbeddedSettings"]),
+            google_settings=GoogleSettings.from_json(json_dict["GoogleSettings"]),
+            huggingface_settings=HuggingFaceSettings.from_json(json_dict["HuggingfaceSettings"]),
+            mistral_ai_settings=MistralAiSettings.from_json(json_dict["MistralAiSettings"]),
+            model_type=AiModelType(json_dict["ModelType"]) if json_dict["ModelType"] else None,
+        )

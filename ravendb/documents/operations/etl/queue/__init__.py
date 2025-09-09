@@ -48,3 +48,14 @@ class QueueConnectionString(ConnectionString):
             "AmazonSqsConnectionSettings": self.amazon_sqs_settings,
             "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.QUEUE,
         }
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> "QueueConnectionString":
+        return cls(
+            name=json_dict["Name"],
+            broker_type=QueueBrokerType(json_dict["BrokerType"]),
+            kafka_settings=KafkaConnectionSettings.from_json(json_dict["KafkaConnectionSettings"]),
+            rabbit_mq_settings=RabbitMqConnectionSettings.from_json(json_dict["RabbitMqConnectionSettings"]),
+            azure_queue_storage_settings=AzureQueueStorageConnectionSettings.from_json(json_dict["AzureQueueStorageConnectionSettings"]),
+            amazon_sqs_settings=AmazonSqsConnectionSettings.from_json(json_dict["AmazonSqsConnectionSettings"])
+        )

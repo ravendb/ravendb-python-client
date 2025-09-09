@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from ravendb.documents.operations.connection_strings import ConnectionString
 import ravendb.serverwide.server_operation_executor
@@ -22,6 +22,14 @@ class SqlConnectionString(ConnectionString):
             "FactoryName": self.factory_name,
             "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.SQL,
         }
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "SqlConnectionString":
+        return cls(
+            name=json_dict["Name"],
+            connection_string=json_dict["ConnectionString"],
+            factory_name=json_dict["FactoryName"],
+        )
 
 
 # todo: implement

@@ -13,3 +13,8 @@ class ConnectionString:
     @abstractmethod
     def to_json(self) -> Dict[str, Any]:
         pass
+
+    @classmethod
+    @abstractmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> Any:
+        pass
