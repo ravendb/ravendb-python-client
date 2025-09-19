@@ -248,7 +248,6 @@ class MultiGetCommand(RavenCommand):
 
         return get_response
 
-    @property
     def is_read_request(self) -> bool:
         return False
 

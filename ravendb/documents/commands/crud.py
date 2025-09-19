@@ -324,7 +324,6 @@ class GetDocumentsCommand(RavenCommand[GetDocumentsResult]):
     def set_response(self, response: str, from_cache: bool) -> None:
         self.result = GetDocumentsResult.from_json(json.loads(response)) if response is not None else None
 
-    @property
     def is_read_request(self) -> bool:
         return True
 
