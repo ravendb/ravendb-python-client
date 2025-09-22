@@ -691,7 +691,7 @@ class RequestExecutor:
             if session_info is not None and session_info.can_use_load_balance_behavior:
                 return self._node_selector.get_node_by_session_id(session_info.session_id)
 
-        if not cmd.is_read_request:
+        if not cmd.is_read_request():
             return self._node_selector.get_preferred_node()
 
         if self.conventions.read_balance_behavior == ReadBalanceBehavior.NONE:
@@ -783,7 +783,7 @@ class RequestExecutor:
         if (
             use_cache
             and command.can_cache
-            and command.is_read_request
+            and command.is_read_request()
             and command.response_type == RavenCommandResponseType.OBJECT
         ):
             return self._cache.get(url)

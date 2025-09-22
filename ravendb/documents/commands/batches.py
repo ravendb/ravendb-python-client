@@ -130,8 +130,7 @@ class SingleNodeBatchCommand(RavenCommand):
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    @property
-    def is_read_request(self):
+    def is_read_request(self) -> bool:
         return False
 
     def create_request(self, node: ServerNode) -> requests.Request:
