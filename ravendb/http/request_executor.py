@@ -37,7 +37,7 @@ from ravendb.serverwide.commands import GetDatabaseTopologyCommand, GetClusterTo
 from http import HTTPStatus
 
 
-from typing import TYPE_CHECKING, List, Dict, Tuple
+from typing import TYPE_CHECKING, List, Dict, Tuple, Optional
 
 if TYPE_CHECKING:
     from ravendb.documents.session import SessionInfo
@@ -633,7 +633,13 @@ class RequestExecutor:
                         self._throw_failed_to_contact_all_nodes(command, request)
 
                     return None
-        except IOError as e:
+        except (requests.RequestException, OSError) as e:
+            # RDBC-948: https://issues.hibernatingrhinos.com/issue/RDBC-948/Python-client-connection-failover-breaks-with-unknown-DNS-name-or-server-is-down.
+            # Handle failover on network errors from both requests and the OS:
+            # - RequestException covers requests' network stack (connect, TLS, proxies, etc.).
+            # - OSError covers socket-level issues like DNS getaddrinfo on some platforms.
+            # Different OS/resolvers surface the same fault differently; catching both mirrors the C# client
+            # (HttpRequestException/SocketException) and makes failover reliable.
             if not should_retry:
                 raise
 
@@ -805,7 +811,8 @@ class RequestExecutor:
             )
 
         if len(command.failed_nodes) == 1:
-            raise command.failed_nodes.popitem()
+            # raise the single recorded exception
+            raise next(iter(command.failed_nodes.values()))
 
         message = (
             f"Tried to send {command._result_class.__name__} request via {request.method}"
@@ -1159,39 +1166,45 @@ class RequestExecutor:
         if command.failed_nodes is None:
             command.failed_nodes = {}
 
-        return (
-            False  # todo: command.failed_nodes[chosen_node] = self.__read_exception_from_server(request, response, e)
-        )
+        # record the failure for this node
+        if not command.is_failed_with_node(chosen_node):
+            command.failed_nodes[chosen_node] = self.__read_exception_from_server(request, response, e)
 
+        # If the node is not part of the topology, we can't failover using selector.
         if node_index is None:
-            # We executed request over a node not in the topology. This means no failover...
             return False
 
+        # If we don't have a selector yet, we also cannot failover.
         if self._node_selector is None:
-            # todo: spawnHealthChecks(chosenNode, nodeIndex)
             return False
 
-        # As the server is down, we discard the server version to ensure we update when it goes up.
+        # As the server is down, discard server version to ensure it updates when back up.
         chosen_node.discard_server_version()
 
+        # Mark the node as failed to move selection forward
         self._node_selector.on_failed_request(node_index)
 
+        # For broadcastable commands, attempt to broadcast instead of single-node retry.
         if self.should_broadcast(command):
             command.result = self.__broadcast(command, session_info)
             return True
 
-        # todo: self.spawn_health_checks(chosen_node, node_index)
-
+        # Choose the next preferred node and retry
         index_node_and_etag = self._node_selector.get_preferred_node_with_topology()
+
+        # If topology changed since we started, clear failed nodes record to allow retries
         if command.failover_topology_etag != self.topology_etag:
             command.failed_nodes.clear()
             command.failover_topology_etag = self.topology_etag
 
+        # Avoid infinite loop if the next node is already marked as failed
         if index_node_and_etag.current_node in command.failed_nodes:
             return False
 
-        self.__on_failed_request_invoke(url, e, request, response)
+        # Notify listeners about the failed request with full details
+        self.__on_failed_request_invoke_details(url, e, request, response)
 
+        # Retry the command on the next node
         self.execute(
             index_node_and_etag.current_node, index_node_and_etag.current_index, command, should_retry, session_info
         )
@@ -1199,41 +1212,41 @@ class RequestExecutor:
         return True
 
     @staticmethod
-    def __read_exception_from_server(request: requests.Request, response: requests.Response, e: Exception) -> Exception:
-        if response and response.content:
-            response_json = None
+    def __read_exception_from_server(
+        request: requests.Request, response: requests.Response, e: Optional[Exception]
+    ) -> Exception:
+        # Prefer server-provided error when available
+        if response is not None and response.content:
+            raw = None
             try:
-                response_json = response.content.decode("utf-8")
+                raw = response.content.decode("utf-8")
 
-                # todo: change this bs
-                def exception_schema_decoder(dictionary: dict) -> ExceptionDispatcher.ExceptionSchema:
+                def _decode(d: dict) -> ExceptionDispatcher.ExceptionSchema:
                     return ExceptionDispatcher.ExceptionSchema(
-                        dictionary.get("url"),
-                        dictionary.get("class"),
-                        dictionary.get("message"),
-                        dictionary.get("error"),
+                        d.get("url"), d.get("class"), d.get("message"), d.get("error")
                     )
 
-                return ExceptionDispatcher.get(
-                    json.loads(response_json, object_hook=exception_schema_decoder), response.status_code, e
-                )
-            except:
-                exception_schema = ExceptionDispatcher.ExceptionSchema(
-                    request.url,
+                return ExceptionDispatcher.get(json.loads(raw, object_hook=_decode), response.status_code, e)
+            except Exception:
+                schema = ExceptionDispatcher.ExceptionSchema(
+                    request.url if request else "",
                     "Unparsable Server Response",
-                    "Get unrecognized response from the server",
-                    response_json,
+                    "Unrecognized response from server",
+                    raw,
                 )
+                return ExceptionDispatcher.get(schema, response.status_code, e)
 
-                return ExceptionDispatcher.get(exception_schema, response.status_code, e)
+        # Fallback when we have no usable response body
+        url = request.url if request else ""
+        cls = type(e).__name__ if e else "RequestFailed"
+        msg = str(e) if e else "Request failed"
+        details = f"An exception occurred while contacting {url}."
+        if e:
+            details += f"{os.linesep}{msg}"
 
-        exception_schema = ExceptionDispatcher.ExceptionSchema(
-            request.url,
-            e.__class__.__qualname__,
-            e.args[0],
-            f"An exception occurred while contacting {request.url}.{os.linesep}{str(e)}",
-        )
-        return ExceptionDispatcher.get(exception_schema, HTTPStatus.SERVICE_UNAVAILABLE, e)
+        schema = ExceptionDispatcher.ExceptionSchema(url, cls, msg, details)
+        status = response.status_code if response else HTTPStatus.SERVICE_UNAVAILABLE
+        return ExceptionDispatcher.get(schema, status, e or RuntimeError(msg))
 
     class IndexAndResponse:
         def __init__(self, index: int, response: requests.Response):

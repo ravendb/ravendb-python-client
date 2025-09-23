@@ -149,7 +149,8 @@ class NodeSelector:
         server_nodes = state.nodes
         length = min(len(server_nodes), len(state_failures))
         for i in range(length):
-            if state_failures[0] == 0:
+            # pick the first node without failures
+            if state_failures[i] == 0 and server_nodes[i].server_role == ServerNode.Role.MEMBER:
                 return CurrentIndexAndNode(i, server_nodes[i])
         return cls.unlikely_everyone_faulted_choice(state)
 
