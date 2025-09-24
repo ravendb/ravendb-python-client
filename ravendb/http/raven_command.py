@@ -97,14 +97,25 @@ class RavenCommand(Generic[_T_Result]):
         )
 
     def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        return session.request(
-            request.method,
-            url=request.url,
-            data=request.data,
-            files=request.files,
-            cert=session.cert,
-            headers=request.headers,
-        )
+        prepared_request = session.prepare_request(request)
+        self._remove_zstd_encoding(prepared_request)
+        return session.send(prepared_request, cert=session.cert)
+
+    # https://issues.hibernatingrhinos.com/issue/RDBC-940
+    # If user has installed module 'zstd' or 'zstandard',
+    # 'requests' module will automatically add 'zstd' to 'Accept-Encoding' header.
+    # This causes exceptions. Excluding 'zstd' from the header in this workaround,
+    # while we keep investigating cause of the issue.
+    @staticmethod
+    def _remove_zstd_encoding(request: requests.PreparedRequest) -> None:
+        accept_encoding = request.headers.get("Accept-Encoding")
+
+        if "zstd" in accept_encoding:
+            encodings = [
+                encoding.strip() for encoding in accept_encoding.split(",") if encoding.strip().lower() != "zstd"
+            ]
+            new_header_value = ", ".join(encodings)
+            request.headers["Accept-Encoding"] = new_header_value
 
     def set_response_raw(self, response: requests.Response, stream: bytes) -> None:
         raise RuntimeError(
