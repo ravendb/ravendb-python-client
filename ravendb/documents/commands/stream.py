@@ -51,17 +51,6 @@ class StreamCommand(RavenCommand[StreamResultResponse]):
         except Exception as e:
             raise RuntimeError("Unable to process stream response", e)
 
-    def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        return session.request(
-            request.method,
-            url=request.url,
-            data=request.data,
-            files=request.files,
-            cert=session.cert,
-            headers=request.headers,
-            stream=True,
-        )
-
     def is_read_request(self) -> bool:
         return True
 
@@ -95,17 +84,6 @@ class QueryStreamCommand(RavenCommand[StreamResultResponse]):
             return ResponseDisposeHandling.MANUALLY
         except Exception as e:
             raise RuntimeError("Unable to process stream response: " + e.args[0], e)
-
-    def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        return session.request(
-            request.method,
-            url=request.url,
-            data=request.data,
-            files=request.files,
-            cert=session.cert,
-            headers=request.headers,
-            stream=True,
-        )
 
     def is_read_request(self) -> bool:
         return True
