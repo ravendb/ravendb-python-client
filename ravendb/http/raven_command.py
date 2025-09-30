@@ -12,6 +12,7 @@ from ravendb.extensions.http_extensions import HttpExtensions
 from ravendb.http.http_cache import HttpCache
 from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.http.server_node import ServerNode
+from ravendb.util.request_utils import RequestUtils
 
 
 class RavenCommandResponseType(Enum):
@@ -97,14 +98,9 @@ class RavenCommand(Generic[_T_Result]):
         )
 
     def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        return session.request(
-            request.method,
-            url=request.url,
-            data=request.data,
-            files=request.files,
-            cert=session.cert,
-            headers=request.headers,
-        )
+        prepared_request = session.prepare_request(request)
+        RequestUtils.remove_zstd_encoding(prepared_request)
+        return session.send(prepared_request, cert=session.cert)
 
     def set_response_raw(self, response: requests.Response, stream: bytes) -> None:
         raise RuntimeError(

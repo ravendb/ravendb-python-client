@@ -9,7 +9,7 @@ from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.http.server_node import ServerNode
 from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
-
+from ravendb.util.request_utils import RequestUtils
 
 _T = TypeVar("_T")
 
@@ -52,15 +52,9 @@ class StreamCommand(RavenCommand[StreamResultResponse]):
             raise RuntimeError("Unable to process stream response", e)
 
     def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        return session.request(
-            request.method,
-            url=request.url,
-            data=request.data,
-            files=request.files,
-            cert=session.cert,
-            headers=request.headers,
-            stream=True,
-        )
+        prepared_request = session.prepare_request(request)
+        RequestUtils.remove_zstd_encoding(prepared_request)
+        return session.send(prepared_request, cert=session.cert, stream=True)
 
     def is_read_request(self) -> bool:
         return True
@@ -97,15 +91,9 @@ class QueryStreamCommand(RavenCommand[StreamResultResponse]):
             raise RuntimeError("Unable to process stream response: " + e.args[0], e)
 
     def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        return session.request(
-            request.method,
-            url=request.url,
-            data=request.data,
-            files=request.files,
-            cert=session.cert,
-            headers=request.headers,
-            stream=True,
-        )
+        prepared_request = session.prepare_request(request)
+        RequestUtils.remove_zstd_encoding(prepared_request)
+        return session.send(prepared_request, cert=session.cert, stream=True)
 
     def is_read_request(self) -> bool:
         return True
