@@ -83,7 +83,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(raven_get_result.raven_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(raven_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("raven1", ConnectionStringType.RAVEN)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -101,7 +103,7 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(sql_get_result.sql_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(sql_connection_string))
+        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation("sql1", ConnectionStringType.SQL))
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -119,7 +121,7 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(olap_get_result.olap_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(olap_connection_string))
+        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation("olap1", ConnectionStringType.OLAP))
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -138,7 +140,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(elastic_get_result.elastic_search_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(elastic_search_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("elastic1", ConnectionStringType.ELASTIC_SEARCH)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -160,7 +164,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(queue_get_result.queue_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(queue_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("queue1", ConnectionStringType.QUEUE)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -180,7 +186,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(snowflake_get_result.snowflake_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(snowflake_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("snowflake1", ConnectionStringType.SNOWFLAKE)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -200,7 +208,7 @@ class TestConnectionString(TestBase):
         self.assertEqual(1, len(ai_get_result.ai_connection_strings))
 
         # 3. Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_connection_string))
+        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation("ai1", ConnectionStringType.AI))
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # 4. Get and Assert None
@@ -229,7 +237,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(raven_connection_string.topology_discovery_urls, retrieved.topology_discovery_urls)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(raven_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("raven_all_fields", ConnectionStringType.RAVEN)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -261,7 +271,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(sql_connection_string.factory_name, retrieved.factory_name)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(sql_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("sql_all_fields", ConnectionStringType.SQL)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -455,7 +467,9 @@ class TestConnectionString(TestBase):
         )
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(olap_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("olap_all_fields", ConnectionStringType.OLAP)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -504,7 +518,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(openai_chat_settings.dimensions, retrieved.openai_settings.dimensions)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_openai_chat_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_openai_chat", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -554,7 +570,7 @@ class TestConnectionString(TestBase):
 
         # Delete
         remove_result = self.store.maintenance.send(
-            RemoveConnectionStringOperation(ai_openai_embeddings_connection_string)
+            RemoveConnectionStringOperation("ai_openai_embeddings", ConnectionStringType.AI)
         )
         self.assertGreater(remove_result.raft_command_index, 0)
 
@@ -602,7 +618,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(azure_openai_settings.dimensions, retrieved.azure_openai_settings.dimensions)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_azure_openai_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_azure_openai", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -643,7 +661,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(ollama_settings.think, retrieved.ollama_settings.think)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_ollama_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_ollama", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -674,7 +694,9 @@ class TestConnectionString(TestBase):
         self.assertIsNotNone(retrieved.embedded_settings)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_embedded_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_embedded", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -710,7 +732,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(google_settings.dimensions, retrieved.google_settings.dimensions)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_google_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_google", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -750,7 +774,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(huggingface_settings.endpoint, retrieved.huggingface_settings.endpoint)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_huggingface_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_huggingface", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -788,7 +814,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(mistral_ai_settings.endpoint, retrieved.mistral_ai_settings.endpoint)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(ai_mistral_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("ai_mistral", ConnectionStringType.AI)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -853,7 +881,9 @@ class TestConnectionString(TestBase):
         )
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(elastic_search_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("elastic_all_fields", ConnectionStringType.ELASTIC_SEARCH)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -986,7 +1016,9 @@ class TestConnectionString(TestBase):
         )
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(queue_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("queue_all_fields", ConnectionStringType.QUEUE)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
@@ -1016,7 +1048,9 @@ class TestConnectionString(TestBase):
         self.assertEqual(snowflake_connection_string.connection_string, retrieved.connection_string)
 
         # Delete
-        remove_result = self.store.maintenance.send(RemoveConnectionStringOperation(snowflake_connection_string))
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringOperation("snowflake_all_fields", ConnectionStringType.SNOWFLAKE)
+        )
         self.assertGreater(remove_result.raft_command_index, 0)
 
         # Get and Assert None
