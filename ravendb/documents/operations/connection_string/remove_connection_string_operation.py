@@ -4,9 +4,10 @@ from typing import Dict
 
 import requests
 
-from ravendb import RavenCommand, RaftCommand, ConnectionString, ServerNode
+from ravendb import RavenCommand, RaftCommand, ServerNode
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.util.util import RaftIdGenerator
+from ravendb.serverwide.server_operation_executor import ConnectionStringType
 
 
 class RemoveConnectionStringResult:
@@ -17,27 +18,29 @@ class RemoveConnectionStringResult:
         return {"RaftCommandIndex": self.raft_command_index}
 
     @classmethod
-    def from_json(cls, json_dict: Dict) -> "PutConnectionStringResult":
+    def from_json(cls, json_dict: Dict) -> "RemoveConnectionStringResult":
         return cls(json_dict["RaftCommandIndex"])
 
 
 class RemoveConnectionStringOperation(MaintenanceOperation[RemoveConnectionStringResult]):
-    def __init__(self, connection_string: ConnectionString = None):
-        self._connection_string = connection_string
+    def __init__(self, connection_string_name: str, connection_string_type: ConnectionStringType):
+        self._connection_string_name = connection_string_name
+        self._connection_string_type = connection_string_type
 
-    def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[_T]":
-        return self.RemoveConnectionStringCommand(self._connection_string)
+    def get_command(self, conventions: "DocumentConventions") -> "RavenCommand[RemoveConnectionStringResult]":
+        return self.RemoveConnectionStringCommand(self._connection_string_name, self._connection_string_type)
 
     class RemoveConnectionStringCommand(RavenCommand[RemoveConnectionStringResult], RaftCommand):
-        def __init__(self, connection_string: ConnectionString = None):
+        def __init__(self, connection_string_name: str, connection_string_type: ConnectionStringType):
             super().__init__(RemoveConnectionStringResult)
-            self._connection_string = connection_string
+            self._connection_string_name = connection_string_name
+            self._connection_string_type = connection_string_type
 
         def is_read_request(self) -> bool:
             return False
 
         def create_request(self, node: ServerNode) -> requests.Request:
-            url = f"{node.url}/databases/{node.database}/admin/connection-strings?connectionString={urllib.parse.quote(self._connection_string.name)}&type={self._connection_string.get_type}"
+            url = f"{node.url}/databases/{node.database}/admin/connection-strings?connectionString={urllib.parse.quote(self._connection_string_name)}&type={self._connection_string_type.value}"
 
             request = requests.Request("DELETE")
             request.url = url
