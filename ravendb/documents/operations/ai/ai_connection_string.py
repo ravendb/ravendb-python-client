@@ -17,7 +17,7 @@ class AiModelType(enum.Enum):
     CHAT = "Chat"
 
 
-class AiConnectionString(ConnectionString):  # todo kuba
+class AiConnectionString(ConnectionString):
     def __init__(
         self,
         name: str,

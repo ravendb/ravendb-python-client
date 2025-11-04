@@ -18,6 +18,9 @@ from ravendb.documents.operations.connection_string.get_connection_string_operat
 from ravendb.documents.operations.connection_string.put_connection_string_operation import (
     PutConnectionStringOperation,
 )
+from ravendb.documents.operations.connection_string.remove_connection_string_by_name_operation import (
+    RemoveConnectionStringByNameOperation,
+)
 from ravendb.documents.operations.connection_string.remove_connection_string_operation import (
     RemoveConnectionStringOperation,
 )
@@ -1024,3 +1027,23 @@ class TestConnectionString(TestBase):
             GetConnectionStringsOperation("snowflake_all_fields", ConnectionStringType.SNOWFLAKE)
         )
         self.assertIsNone(after_delete.snowflake_connection_strings)
+
+    def test_remove_connection_string_by_name_operation(self):
+        raven_connection_string = RavenConnectionString("raven1", self.store.database, self.store.urls)
+
+        put_result = self.store.maintenance.send(PutConnectionStringOperation(raven_connection_string))
+        self.assertGreater(put_result.raft_command_index, 0)
+
+        raven_get_result = self.store.maintenance.send(
+            GetConnectionStringsOperation("raven1", ConnectionStringType.RAVEN)
+        )
+        self.assertIn("raven1", raven_get_result.raven_connection_strings)
+        self.assertEqual(1, len(raven_get_result.raven_connection_strings))
+
+        remove_result = self.store.maintenance.send(
+            RemoveConnectionStringByNameOperation("raven1", ConnectionStringType.RAVEN)
+        )
+        self.assertGreater(remove_result.raft_command_index, 0)
+
+        after_delete = self.store.maintenance.send(GetConnectionStringsOperation("raven1", ConnectionStringType.RAVEN))
+        self.assertIsNone(after_delete.raven_connection_strings)
