@@ -174,6 +174,7 @@ class HttpsTest(TestBase):
                 tmp = tempfile.mkstemp()
                 with open(tmp[1], "wb") as file:
                     file.write(key[0].encode("utf-8"))
+                    file.write(b"\n")
                     file.write(key[1])
                 store_with_out_cert.certificate_pem_path = tmp[1]
                 store_with_out_cert.initialize()
@@ -196,6 +197,7 @@ class HttpsTest(TestBase):
                 tmp = tempfile.mkstemp()
                 with open(tmp[1], "wb") as file:
                     file.write(key.encode("utf-8"))
+                    file.write(b"\n")
                     file.write(cert)
                 store_wit_out_cert.certificate_pem_path = tmp[1]
                 store_wit_out_cert.initialize()
