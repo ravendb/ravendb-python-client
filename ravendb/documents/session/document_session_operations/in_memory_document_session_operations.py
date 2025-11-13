@@ -1833,7 +1833,7 @@ class InMemoryDocumentSessionOperations:
         if not is_collection and not is_index:
             collection_name = conventions.get_collection_name(object_type)
             collection_name = (
-                collection_name if collection_name else constants.Documents.Metadata.ALL_DOCUMENTS_COLLECTION
+                collection_name if collection_name else constants.Documents.Collections.ALL_DOCUMENTS_COLLECTION
             )
 
         return index_name, collection_name
