@@ -21,8 +21,8 @@ class AiAgentToolQuery:
         self.name = name
         self.description = description
         self.query = query
-        self.parameters_sample_object: Optional[str] = None
-        self.parameters_schema: Optional[str] = None
+        self.parameters_sample_object: Optional[str] = parameters_sample_object
+        self.parameters_schema: Optional[str] = parameters_schema
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -62,8 +62,8 @@ class AiAgentToolAction:
     ):
         self.name = name
         self.description = description
-        self.parameters_sample_object: Optional[str] = None
-        self.parameters_schema: Optional[str] = None
+        self.parameters_sample_object: Optional[str] = parameters_sample_object
+        self.parameters_schema: Optional[str] = parameters_schema
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -251,9 +251,9 @@ class AiAgentConfiguration:
 
     def __init__(
         self,
-        name: str,
-        connection_string_name: str,
-        system_prompt: str,
+        name: str = None,
+        connection_string_name: str = None,
+        system_prompt: str = None,
         identifier: str = None,
         sample_object: str = None,
         output_schema: str = None,
