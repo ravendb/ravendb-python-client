@@ -12,17 +12,21 @@ import requests
 TSchema = TypeVar("TSchema")
 
 
-@dataclass
 class AiAgentActionRequest:
     """Represents an action request from an AI agent."""
 
-    name: Optional[str] = None
-    tool_id: Optional[str] = None
-    arguments: Optional[str] = None
+    def __init__(self, name: str = None, tool_id: str = None, arguments: str = None):
+        self.name = name
+        self.tool_id = tool_id
+        self.arguments = arguments
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentActionRequest:
-        return cls(name=json_dict.get("Name"), tool_id=json_dict.get("ToolId"), arguments=json.loads(json_dict.get("Arguments")))
+        return cls(
+            name=json_dict.get("Name"),
+            tool_id=json_dict.get("ToolId"),
+            arguments=json_dict.get("Arguments"),
+        )
 
     def to_json(self) -> Dict[str, Any]:
         return {

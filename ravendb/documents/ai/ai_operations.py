@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, Any, Type
+from typing import TYPE_CHECKING, Dict, Any, Type
+from ravendb.documents.ai.ai_conversation import AiConversation
 
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import DocumentStore
@@ -8,7 +9,6 @@ if TYPE_CHECKING:
         AiAgentConfigurationResult,
         GetAiAgentsResponse,
     )
-    from ravendb.documents.ai.ai_conversation_operations import IAiConversationOperations
 
 
 class AiOperations:
@@ -67,7 +67,7 @@ class AiOperations:
         operation = GetAiAgentOperation(agent_id)
         return self._store.maintenance.send(operation)
 
-    def conversation(self, agent_id: str, parameters: Dict[str, Any] = None) -> IAiConversationOperations:
+    def conversation(self, agent_id: str, parameters: Dict[str, Any] = None) -> AiConversation:
         """
         Creates a new conversation with the specified AI agent.
 
@@ -78,11 +78,10 @@ class AiOperations:
         Returns:
             Conversation operations interface for managing the conversation
         """
-        from ravendb.documents.ai.ai_conversation import AiConversation
 
         return AiConversation(self._store, agent_id, parameters)
 
-    def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> IAiConversationOperations:
+    def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> AiConversation:
         """
         Continues an existing conversation by its ID.
 

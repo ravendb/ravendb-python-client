@@ -80,7 +80,6 @@ from ravendb.documents.operations.connection_strings import ConnectionString
 # AI Operations
 from ravendb.documents.ai import (
     AiOperations,
-    IAiConversationOperations,
     AiConversation,
     AiConversationResult,
     AiAgentParametersBuilder,

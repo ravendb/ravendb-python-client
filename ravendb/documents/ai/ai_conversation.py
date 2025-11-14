@@ -1,8 +1,9 @@
 from __future__ import annotations
-import json
-from typing import List, Dict, Any, Optional, Union, TypeVar, TYPE_CHECKING
 
-from ravendb.documents.ai.ai_conversation_operations import IAiConversationOperations
+import json
+import traceback
+from typing import List, Dict, Any, Optional, TypeVar, TYPE_CHECKING, Callable
+
 from ravendb.documents.ai.ai_conversation_result import AiConversationResult
 
 if TYPE_CHECKING:
@@ -16,7 +17,12 @@ if TYPE_CHECKING:
 TResponse = TypeVar("TResponse")
 
 
-class AiConversation(IAiConversationOperations[TResponse]):
+class AiHandleErrorStrategy:
+    SEND_ERRORS_TO_MODEL = "SendErrorsToModel"
+    RAISE_IMMEDIATELY = "RaiseImmediately"
+
+
+class AiConversation:
     """
     Implementation of AI conversation operations for managing conversations with AI agents.
 
@@ -25,6 +31,8 @@ class AiConversation(IAiConversationOperations[TResponse]):
             conversation.set_user_prompt("Hello!")
             result = conversation.run()
     """
+
+    _invocations: Dict[str, Callable[[AiAgentActionRequest], None]] = {}
 
     def __init__(
         self,
@@ -41,12 +49,20 @@ class AiConversation(IAiConversationOperations[TResponse]):
         self._change_vector = change_vector
         self._user_prompt: Optional[str] = None
         self._action_responses: List[AiAgentActionResponse] = []
-        self._last_result: Optional[ConversationResult[TResponse]] = None
+        self._last_result: Optional[ConversationResult] = None
+
+    def __enter__(self) -> AiConversation:
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - cleanup resources."""
+        pass
 
     @classmethod
     def with_conversation_id(
         cls, store: DocumentStore, conversation_id: str, change_vector: str = None
-    ) -> AiConversation[TResponse]:
+    ) -> AiConversation:
         """
         Creates a conversation instance for continuing an existing conversation.
 
@@ -74,13 +90,13 @@ class AiConversation(IAiConversationOperations[TResponse]):
             return self._last_result.action_requests
         return []
 
-    def add_action_response(self, action_id: str, action_response: Union[str, TResponse]) -> None:
+    def add_action_response(self, action_id: str, action_response: str) -> None:
         """
         Adds a response for a given action request.
 
         Args:
             action_id: The ID of the action to respond to
-            action_response: The response content (string or typed response object)
+            action_response: The response content
         """
         from ravendb.documents.operations.ai.agents import AiAgentActionResponse
 
@@ -88,21 +104,13 @@ class AiConversation(IAiConversationOperations[TResponse]):
 
         if isinstance(action_response, str):
             response.content = action_response
-        else:
-            # More robust JSON serialization
-            try:
-                response.content = json.dumps(
-                    action_response.__dict__ if hasattr(action_response, "__dict__") else action_response, default=str
-                )
-            except (TypeError, ValueError) as e:
-                response.content = str(action_response)
 
         self._action_responses.append(response)
 
-    def run(self) -> AiConversationResult[TResponse]:
+    def run(self) -> AiConversationResult:
         """
         Executes one "turn" of the conversation:
-        sends the current prompt, processes any required actions,
+        sends the current prompt or replies to any required actions,
         and awaits the agent's reply.
         """
         from ravendb.documents.operations.ai.agents import RunConversationOperation
@@ -150,7 +158,7 @@ class AiConversation(IAiConversationOperations[TResponse]):
         self._action_responses.clear()
 
         # Convert to AiConversationResult
-        conversation_result = AiConversationResult[TResponse]()
+        conversation_result = AiConversationResult()
         conversation_result.conversation_id = result.conversation_id
         conversation_result.change_vector = result.change_vector
         conversation_result.response = result.response
@@ -173,12 +181,92 @@ class AiConversation(IAiConversationOperations[TResponse]):
             raise ValueError("User prompt cannot be empty or whitespace-only")
         self._user_prompt = user_prompt
 
-    def __enter__(self) -> AiConversation[TResponse]:
-        """Context manager entry."""
-        return self
+    def handle(
+        self,
+        action_name: str,
+        action: Callable[[dict], Any],
+        ai_handle_error: AiHandleErrorStrategy,
+    ) -> None:
+        self.handle_ai_agent_action_request(action_name, lambda _, args: action(args), ai_handle_error)
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Context manager exit - cleanup resources."""
-        # Clear any pending data
-        self._user_prompt = None
-        self._action_responses.clear()
+    def handle_ai_agent_action_request(
+        self,
+        action_name: str,
+        action: Callable[[AiAgentActionRequest, dict], Any],
+        ai_handle_error: AiHandleErrorStrategy = AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL,
+    ) -> None:
+        def wrapped_no_return(request: AiAgentActionRequest, args: dict) -> Any:
+            result = action(request, args)
+            self.add_action_response(request.tool_id, result)
+
+        self.receive(action_name, wrapped_no_return, ai_handle_error)
+
+    def receive(
+        self,
+        action_name: str,
+        action: Callable[[AiAgentActionRequest, dict], None],
+        ai_handle_error: AiHandleErrorStrategy = AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL,
+    ):
+        t = self.AiActionContext(self, lambda request, args: action(request, args), ai_handle_error)
+        self._add_action(action_name, t.execute)
+
+    def _add_action(self, action_name: str, action: Callable[[AiAgentActionRequest], Any]):
+        if action_name in self._invocations:
+            raise ValueError(f"Action '{action_name}' already exists")
+
+        self._invocations[action_name] = action
+
+    class AiActionContext:
+        def __init__(
+            self,
+            conversation: AiConversation,
+            action: Callable[[AiAgentActionRequest, dict], Any],
+            ai_handle_error: AiHandleErrorStrategy,
+        ):
+            self._conversation = conversation
+            self._action = action
+            self._ai_handle_error = ai_handle_error
+
+        def execute(self, action_request: AiAgentActionRequest):
+            args = json.loads(action_request.arguments)
+            self.invoke(action_request, args)
+
+        def invoke(self, action_request: AiAgentActionRequest, args: dict):
+            try:
+                self._action(action_request, args)
+            except Exception as e:
+                if self._ai_handle_error == AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL:
+                    self._conversation.add_action_response(action_request.tool_id, self.create_error_message_for_llm(e))
+                else:
+                    raise e
+
+        @staticmethod
+        def create_error_message_for_llm(exc: Exception) -> str:
+            parts = []
+
+            current = exc
+            indent = 0
+
+            while current is not None:
+                prefix = "  " * indent
+                header = f"{prefix}{current.__class__.__name__}: {current}"
+                parts.append(header)
+
+                tb = "".join(traceback.format_exception(type(current), current, current.__traceback__))
+                tb_lines = tb.strip().splitlines()
+
+                # indent the traceback block
+                indented_tb = "\n".join(prefix + "  " + line for line in tb_lines)
+                parts.append(indented_tb)
+
+                # Move to next exception in the chain
+                if current.__cause__:
+                    current = current.__cause__
+                elif current.__context__ and not current.__suppress_context__:
+                    current = current.__context__
+                else:
+                    current = None
+
+                indent += 1
+
+            return "\n".join(parts)

@@ -34,7 +34,7 @@ class AddOrUpdateAiAgentOperation(MaintenanceOperation[AiAgentConfigurationResul
                 "The 'schema_type' parameter is deprecated and will be removed in 8.0 version of Python client."
                 " Use 'sample_object' or 'output_schema' inside AiAgentConfiguration instead.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
         if configuration is None:
             raise ValueError("configuration cannot be None")
