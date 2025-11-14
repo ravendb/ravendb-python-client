@@ -10,7 +10,14 @@ class AiAgentToolQuery:
     and its results provided back to the model.
     """
 
-    def __init__(self, name: str = None, description: str = None, query: str = None):
+    def __init__(
+        self,
+        name: str = None,
+        description: str = None,
+        query: str = None,
+        parameters_sample_object: str = None,
+        parameters_schema: str = None,
+    ):
         self.name = name
         self.description = description
         self.query = query
@@ -46,7 +53,13 @@ class AiAgentToolAction:
     Tool actions represent external functions whose results are provided by the user
     """
 
-    def __init__(self, name: str = None, description: str = None):
+    def __init__(
+        self,
+        name: str = None,
+        description: str = None,
+        parameters_sample_object: str = None,
+        parameters_schema: str = None,
+    ):
         self.name = name
         self.description = description
         self.parameters_sample_object: Optional[str] = None
@@ -105,12 +118,21 @@ class AiAgentSummarizationByTokens:
 
     DEFAULT_MAX_TOKENS_BEFORE_SUMMARIZATION = 32 * 1024
 
-    def __init__(self):
-        self.summarization_task_beginning_prompt: Optional[str] = None
-        self.summarization_task_end_prompt: Optional[str] = None
-        self.result_prefix: Optional[str] = None
-        self.max_tokens_before_summarization: int = self.DEFAULT_MAX_TOKENS_BEFORE_SUMMARIZATION
-        self.max_tokens_after_summarization: int = 1024
+    def __init__(
+        self,
+        summarization_task_beginning_prompt: str = None,
+        summarization_task_end_prompt: str = None,
+        result_prefix: str = None,
+        max_tokens_before_summarization: int = None,
+        max_tokens_after_summarization: int = None,
+    ):
+        self.summarization_task_beginning_prompt: Optional[str] = summarization_task_beginning_prompt
+        self.summarization_task_end_prompt: Optional[str] = summarization_task_end_prompt
+        self.result_prefix: Optional[str] = result_prefix
+        self.max_tokens_before_summarization: int = (
+            max_tokens_before_summarization or self.DEFAULT_MAX_TOKENS_BEFORE_SUMMARIZATION
+        )
+        self.max_tokens_after_summarization: int = max_tokens_after_summarization or 1024
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -141,9 +163,13 @@ class AiAgentTruncateChat:
 
     DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE = 500
 
-    def __init__(self):
-        self.messages_length_before_truncate: int = self.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE
-        self.messages_length_after_truncate: int = self.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE // 2
+    def __init__(self, messages_length_before_truncate: int = None, messages_length_after_truncate: int = None):
+        self.messages_length_before_truncate: int = (
+            messages_length_before_truncate or self.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE
+        )
+        self.messages_length_after_truncate: int = (
+            messages_length_after_truncate or self.DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE // 2
+        )
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -168,8 +194,8 @@ class AiAgentHistoryConfiguration:
     Defines the configuration for retention and expiration of AI agent chat history documents.
     """
 
-    def __init__(self):
-        self.history_expiration_in_sec: Optional[int] = None
+    def __init__(self, history_expiration_in_sec: int = None):
+        self.history_expiration_in_sec: Optional[int] = history_expiration_in_sec
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -223,19 +249,33 @@ class AiAgentConfiguration:
     tools (queries/actions), output schema, persistence settings, and connection string.
     """
 
-    def __init__(self, name: str = None, connection_string_name: str = None, system_prompt: str = None):
-        self.identifier: Optional[str] = None
+    def __init__(
+        self,
+        name: str,
+        connection_string_name: str,
+        system_prompt: str,
+        identifier: str = None,
+        sample_object: str = None,
+        output_schema: str = None,
+        queries: List[AiAgentToolQuery] = None,
+        actions: List[AiAgentToolAction] = None,
+        persistence: AiAgentPersistenceConfiguration = None,
+        parameters: Set[str] = None,
+        chat_trimming: AiAgentChatTrimmingConfiguration = None,
+        max_model_iterations_per_call: int = None,
+    ):
         self.name = name
         self.connection_string_name = connection_string_name
         self.system_prompt = system_prompt
-        self.sample_object: Optional[str] = None
-        self.output_schema: Optional[str] = None
-        self.queries: List[AiAgentToolQuery] = []
-        self.actions: List[AiAgentToolAction] = []
-        self.persistence: Optional[AiAgentPersistenceConfiguration] = None
-        self.parameters: Set[str] = set()
-        self.chat_trimming: Optional[AiAgentChatTrimmingConfiguration] = None
-        self.max_model_iterations_per_call: Optional[int] = None
+        self.identifier: Optional[str] = identifier
+        self.sample_object: Optional[str] = sample_object
+        self.output_schema: Optional[str] = output_schema
+        self.queries: List[AiAgentToolQuery] = queries or []
+        self.actions: List[AiAgentToolAction] = actions or []
+        self.persistence: Optional[AiAgentPersistenceConfiguration] = persistence
+        self.parameters: Set[str] = parameters or set()
+        self.chat_trimming: Optional[AiAgentChatTrimmingConfiguration] = chat_trimming
+        self.max_model_iterations_per_call: Optional[int] = max_model_iterations_per_call
 
     def to_json(self) -> Dict[str, Any]:
         # Convert parameters set to list of parameter objects using list comprehension
