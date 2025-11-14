@@ -22,7 +22,7 @@ class AiAgentActionRequest:
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentActionRequest:
-        return cls(name=json_dict.get("Name"), tool_id=json_dict.get("ToolId"), arguments=json_dict.get("Arguments"))
+        return cls(name=json_dict.get("Name"), tool_id=json_dict.get("ToolId"), arguments=json.loads(json_dict.get("Arguments")))
 
     def to_json(self) -> Dict[str, Any]:
         return {
