@@ -22,6 +22,7 @@ class AiHandleErrorStrategy:
     SEND_ERRORS_TO_MODEL = "SendErrorsToModel"
     RAISE_IMMEDIATELY = "RaiseImmediately"
 
+
 class UnhandledActionEventArgs:
     def __init__(self, sender: AiConversation, action: AiAgentActionRequest):
         self.sender = sender
@@ -120,28 +121,35 @@ class AiConversation:
 
         self._action_responses.append(response)
 
-    def run(self, answer_type: type = dict) -> AiAnswer:
+    def run(self) -> AiAnswer:
         """
         Executes the conversation loop, automatically handling action requests
         until the conversation is complete or no handlers are available.
-
-        Args:
-            answer_type: The expected type of the answer (default: dict)
 
         Returns:
             AiAnswer with the final response, status, usage, and elapsed time
         """
         while True:
-            r = self._run_internal(answer_type)
+            r = self._run_internal()
             if self._handle_server_reply(r):
                 return r
 
-    def _run_internal(self, answer_type: type = dict) -> AiAnswer:
+    def stream(self, stream_property_path: str = None, on_chunk: Optional[Callable[[str], None]] = None) -> AiAnswer:
+        """
+        Stream the LLM response for the given property and return the final AiAnswer when done.
+        """
+        while True:
+            r = self._run_internal(stream_property_path=stream_property_path, streamed_chunks_callback=on_chunk)
+            if self._handle_server_reply(r):
+                return r
+
+    def _run_internal(
+        self,
+        stream_property_path: Optional[str] = None,
+        streamed_chunks_callback: Optional[Callable[[str], None]] = None,
+    ) -> AiAnswer:
         """
         Internal method that executes a single server call.
-
-        Args:
-            answer_type: The expected type of the answer
 
         Returns:
             AiAnswer from this single turn
@@ -175,6 +183,8 @@ class AiConversation:
             action_responses=self._action_responses,  # Always send list, even if empty
             options=self._options,
             change_vector=self._change_vector,
+            stream_property_path=stream_property_path,
+            streamed_chunks_callback=streamed_chunks_callback,
         )
 
         try:

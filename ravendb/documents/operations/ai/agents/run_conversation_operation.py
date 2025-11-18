@@ -1,13 +1,15 @@
 from __future__ import annotations
 import json
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any, TypeVar, Generic
+from typing import Optional, List, Dict, Any, TypeVar, Generic, Callable
 
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.documents.conventions import DocumentConventions
-from ravendb.http.raven_command import RavenCommand
+from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
 import requests
+from ravendb.http.misc import ResponseDisposeHandling
+
 
 TSchema = TypeVar("TSchema")
 
@@ -205,6 +207,8 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         action_responses: Optional[List[AiAgentActionResponse]] = None,
         options: Optional[AiConversationCreationOptions] = None,
         change_vector: Optional[str] = None,
+        stream_property_path: Optional[str] = None,
+        streamed_chunks_callback: Optional[Callable[[str], None]] = None,
     ):
         """
         Initialize a RunConversationOperation.
@@ -216,11 +220,15 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             action_responses: List of action responses from previous turn
             options: Creation options including parameters and expiration
             change_vector: Change vector for optimistic concurrency
+            stream_property_path: Optional response property name to stream
+            streamed_chunks_callback: Optional callback invoked per streamed chunk
         """
         if not agent_id or (isinstance(agent_id, str) and agent_id.isspace()):
             raise ValueError("agent_id cannot be None or empty")
         if not conversation_id or (isinstance(conversation_id, str) and conversation_id.isspace()):
             raise ValueError("conversation_id cannot be None or empty")
+        if (stream_property_path is None) != (streamed_chunks_callback is None):
+            raise ValueError("Both stream_property_path and streamed_chunks_callback must be specified together")
 
         self._agent_id = agent_id
         self._conversation_id = conversation_id
@@ -228,6 +236,8 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         self._action_responses = action_responses
         self._options = options
         self._change_vector = change_vector
+        self._stream_property_path = stream_property_path
+        self._streamed_chunks_callback = streamed_chunks_callback
 
     def get_command(self, conventions: DocumentConventions) -> RavenCommand[ConversationResult[TSchema]]:
         return RunConversationCommand(
@@ -237,6 +247,8 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             action_responses=self._action_responses,
             options=self._options,
             change_vector=self._change_vector,
+            stream_property_path=self._stream_property_path,
+            streamed_chunks_callback=self._streamed_chunks_callback,
             conventions=conventions,
         )
 
@@ -250,6 +262,8 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         action_responses: Optional[List[AiAgentActionResponse]] = None,
         options: Optional[AiConversationCreationOptions] = None,
         change_vector: Optional[str] = None,
+        stream_property_path: Optional[str] = None,
+        streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         conventions: Optional[DocumentConventions] = None,
     ):
         from ravendb.util.util import RaftIdGenerator
@@ -261,6 +275,8 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         self._action_responses = action_responses
         self._options = options
         self._change_vector = change_vector
+        self._stream_property_path = stream_property_path
+        self._streamed_chunks_callback = streamed_chunks_callback
         self._conventions = conventions
         self._raft_id = RaftIdGenerator.dont_care_id()
 
@@ -286,6 +302,10 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         if self._change_vector:
             url += f"&changeVector={quote(self._change_vector)}"
 
+        # Add streaming flags if requested
+        if self._stream_property_path:
+            url += f"&streaming=true&streamPropertyPath={quote(self._stream_property_path)}"
+
         # Build request body with correct structure to match .NET client
         request_body = ConversationRequestBody(
             action_responses=self._action_responses,
@@ -301,6 +321,43 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
 
         request.data = body
         return request
+
+    # todo: this should be handled by writing custom set_response_raw method, and ravendcommandresponsetype set to RAW
+    def process_response(self, cache, response: requests.Response, url) -> ResponseDisposeHandling:
+        # If not streaming, delegate to the default handler
+        if not self._stream_property_path:
+            return super().process_response(cache, response, url)
+
+        try:
+            for line in response.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                if line.startswith("{"):
+                    response_json = json.loads(line)
+                    self.result = ConversationResult.from_json(response_json)
+                    return ResponseDisposeHandling.AUTOMATIC
+                # Non-final lines are JSON-encoded strings (e.g. "\\\"chunk\\\"")
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    chunk = line
+                if self._streamed_chunks_callback:
+                    self._streamed_chunks_callback(chunk)
+            # No final JSON object received; set empty result
+            self.result = ConversationResult()
+            return ResponseDisposeHandling.AUTOMATIC
+        finally:
+            # Response will be closed by RequestExecutor when AUTOMATIC is returned
+            pass
+
+    def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
+        if self._stream_property_path:
+            from ravendb.util.request_utils import RequestUtils
+
+            prepared_request = session.prepare_request(request)
+            RequestUtils.remove_zstd_encoding(prepared_request)
+            return session.send(prepared_request, cert=session.cert, stream=True)
+        return super().send(session, request)
 
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:
