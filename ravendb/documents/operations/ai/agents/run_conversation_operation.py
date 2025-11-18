@@ -120,11 +120,7 @@ class AiConversationCreationOptions:
     Options for creating AI agent conversations, including parameters and expiration settings.
     """
 
-    def __init__(
-        self,
-        parameters: Optional[Dict[str, Any]] = None,
-        expiration_in_sec: Optional[int] = None
-    ):
+    def __init__(self, parameters: Optional[Dict[str, Any]] = None, expiration_in_sec: Optional[int] = None):
         self.expiration_in_sec: Optional[int] = expiration_in_sec
         self.parameters: Optional[Dict[str, Any]] = parameters
 

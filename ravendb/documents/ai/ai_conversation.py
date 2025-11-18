@@ -143,11 +143,7 @@ class AiConversation:
         import time
 
         # If we already went to the server and have nothing new to tell it, we're done
-        if (
-            self._action_requests is not None
-            and len(self._prompt_parts) == 0
-            and len(self._action_responses) == 0
-        ):
+        if self._action_requests is not None and len(self._prompt_parts) == 0 and len(self._action_responses) == 0:
             return AiAnswer(
                 answer=None,
                 status=AiConversationStatus.DONE,
@@ -188,7 +184,11 @@ class AiConversation:
             # Build AiAnswer
             return AiAnswer(
                 answer=result.response,
-                status=AiConversationStatus.ACTION_REQUIRED if len(self._action_requests) > 0 else AiConversationStatus.DONE,
+                status=(
+                    AiConversationStatus.ACTION_REQUIRED
+                    if len(self._action_requests) > 0
+                    else AiConversationStatus.DONE
+                ),
                 usage=result.usage,
                 elapsed=elapsed,
             )

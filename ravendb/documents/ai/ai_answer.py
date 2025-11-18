@@ -24,7 +24,7 @@ class AiConversationStatus(enum.Enum):
 class AiAnswer(Generic[TAnswer]):
     """
     Represents the answer from an AI conversation turn.
-    
+
     This class contains the AI's response, the conversation status,
     token usage statistics, and timing information.
     """
@@ -66,4 +66,3 @@ class AiAnswer(Generic[TAnswer]):
             f"usage={self.usage!r}, "
             f"elapsed={self.elapsed!r})"
         )
-

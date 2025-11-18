@@ -82,8 +82,6 @@ from ravendb.documents.ai import (
     AiOperations,
     AiConversation,
     AiConversationResult,
-    AiAgentParametersBuilder,
-    IAiAgentParametersBuilder,
 )
 from ravendb.documents.operations.ai.agents import (
     AiAgentConfiguration,
