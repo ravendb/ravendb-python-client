@@ -22,6 +22,11 @@ class AiHandleErrorStrategy:
     SEND_ERRORS_TO_MODEL = "SendErrorsToModel"
     RAISE_IMMEDIATELY = "RaiseImmediately"
 
+class UnhandledActionEventArgs:
+    def __init__(self, sender: AiConversation, action: AiAgentActionRequest):
+        self.sender = sender
+        self.action = action
+
 
 class AiConversation:
     """
@@ -53,6 +58,8 @@ class AiConversation:
 
         # Action handlers
         self._invocations: Dict[str, Callable[[AiAgentActionRequest], None]] = {}
+
+        self.on_unhandled_action: Optional[Callable[[UnhandledActionEventArgs], None]] = None
 
     def __enter__(self) -> AiConversation:
         """Context manager entry."""
@@ -224,12 +231,14 @@ class AiConversation:
                 # Invoke the registered handler
                 # Error handling is done by the invocation based on the error strategy
                 self._invocations[action.name](action)
+            elif self.on_unhandled_action is not None:
+                self.on_unhandled_action(UnhandledActionEventArgs(self, action))
             else:
                 # No handler registered for this action
                 raise RuntimeError(
                     f"There is no action defined for action '{action.name}' on agent '{self._agent_id}' "
                     f"({self._conversation_id}), but it was invoked by the model with: {action.arguments}. "
-                    f"Did you forget to call receive() or handle()?"
+                    f"Did you forget to call {self.receive.__name__}() or {self.handle.__name__}()? You can also handle unexpected action invocations using the {self.on_unhandled_action.__name__} event."
                 )
 
         # If we have nothing to tell the server (no action responses), we're done
