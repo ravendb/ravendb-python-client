@@ -9,6 +9,8 @@ from ravendb.documents.operations.ai.hugging_face_settings import HuggingFaceSet
 from ravendb.documents.operations.ai.mistral_ai_settings import MistralAiSettings
 from ravendb.documents.operations.ai.ollama_settings import OllamaSettings
 from ravendb.documents.operations.ai.open_ai_settings import OpenAiSettings
+from ravendb.documents.operations.ai.vertex_settings import VertexSettings
+
 from ravendb.documents.operations.connection_strings import ConnectionString
 
 
@@ -29,6 +31,7 @@ class AiConnectionString(ConnectionString):
         google_settings: Optional[GoogleSettings] = None,
         huggingface_settings: Optional[HuggingFaceSettings] = None,
         mistral_ai_settings: Optional[MistralAiSettings] = None,
+        vertex_settings: Optional[VertexSettings] = None,
         model_type: AiModelType = None,
     ):
         super().__init__(name)
@@ -40,6 +43,7 @@ class AiConnectionString(ConnectionString):
         self.google_settings = google_settings
         self.huggingface_settings = huggingface_settings
         self.mistral_ai_settings = mistral_ai_settings
+        self.vertex_settings = vertex_settings
         self.model_type = model_type
 
         if not any(
@@ -51,10 +55,11 @@ class AiConnectionString(ConnectionString):
                 google_settings,
                 huggingface_settings,
                 mistral_ai_settings,
+                vertex_settings,
             ]
         ):
             raise ValueError(
-                "Please provide at least one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings"
+                "Please provide at least one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings, vertex_settings"
             )
 
         if model_type is None:
@@ -69,12 +74,13 @@ class AiConnectionString(ConnectionString):
             google_settings,
             huggingface_settings,
             mistral_ai_settings,
+            vertex_settings,
         ]:
             if setting:
                 settings_set_count += 1 if setting else 0
             if settings_set_count > 1:
                 raise ValueError(
-                    "Please provide only one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings"
+                    "Please provide only one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings, vertex_settings"
                 )
 
     @property
@@ -92,6 +98,7 @@ class AiConnectionString(ConnectionString):
             "GoogleSettings": self.google_settings.to_json() if self.google_settings else None,
             "HuggingFaceSettings": self.huggingface_settings.to_json() if self.huggingface_settings else None,
             "MistralAiSettings": self.mistral_ai_settings.to_json() if self.mistral_ai_settings else None,
+            "VertexSettings": self.vertex_settings.to_json() if self.vertex_settings else None,
             "ModelType": self.model_type.value if self.model_type else None,
             "Type": self.get_type,
         }
@@ -127,6 +134,9 @@ class AiConnectionString(ConnectionString):
                 MistralAiSettings.from_json(json_dict["MistralAiSettings"])
                 if json_dict.get("MistralAiSettings")
                 else None
+            ),
+            vertex_settings=(
+                VertexSettings.from_json(json_dict["VertexSettings"]) if json_dict.get("VertexSettings") else None
             ),
             model_type=AiModelType(json_dict["ModelType"]) if json_dict.get("ModelType") else None,
         )
