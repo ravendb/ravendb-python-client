@@ -1166,6 +1166,9 @@ class InMemoryDocumentSessionOperations:
     def has_changes(self) -> bool:
         for entity in self._documents_by_entity:
             entity: DocumentsByEntityHolder.DocumentsByEntityEnumeratorResult
+            # Ensure metadata modifications done via advanced.get_metadata_for(...)
+            # are reflected before diffing, so metadata-only changes are detected.
+            _update_metadata_modifications(entity.value.metadata_instance, entity.value.metadata)
             document = self.entity_to_json.convert_entity_to_json(entity.key, entity.value)
             if self._entity_changed(document, entity.value, None):
                 return True

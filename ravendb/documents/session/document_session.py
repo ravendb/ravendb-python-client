@@ -668,6 +668,16 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if document_info is None:
                 return False
 
+            # Ensure metadata modifications performed via advanced.get_metadata_for(...)
+            # are reflected before diffing, so metadata-only changes are detected.
+            try:
+                from ravendb.documents.session.document_session_operations.misc import _update_metadata_modifications
+
+                _update_metadata_modifications(document_info.metadata_instance, document_info.metadata)
+            except Exception:
+                # Be conservative: if helper import fails for any reason, proceed without blocking
+                pass
+
             document = self._session.entity_to_json.convert_entity_to_json(entity, document_info)
             return self._session._entity_changed(document, document_info, None)
 
