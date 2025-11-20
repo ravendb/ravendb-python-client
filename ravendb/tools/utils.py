@@ -289,7 +289,7 @@ class QueryFieldUtil:
             in [
                 constants.Documents.Indexing.Fields.DOCUMENT_ID_FIELD_NAME,
                 constants.Documents.Indexing.Fields.REDUCE_KEY_HASH_FIELD_NAME,
-                constants.Documents.Indexing.Fields.REDUCE_KEY_KEY_VALUE_FIELD_NAME,
+                constants.Documents.Indexing.Fields.REDUCE_KEY_VALUE_FIELD_NAME,
                 constants.Documents.Indexing.Fields.VALUE_FIELD_NAME,
                 constants.Documents.Indexing.Fields.SPATIAL_SHAPE_FIELD_NAME,
             ]

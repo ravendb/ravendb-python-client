@@ -13,12 +13,19 @@ class AiConversationResult(Generic[TResponse]):
     usage statistics, and any action requests that need to be fulfilled.
     """
 
-    def __init__(self):
-        self.conversation_id: Optional[str] = None
-        self.change_vector: Optional[str] = None
-        self.response: Optional[TResponse] = None
-        self.usage: Optional[AiUsage] = None
-        self.action_requests: List[AiAgentActionRequest] = []
+    def __init__(
+        self,
+        conversation_id: Optional[str] = None,
+        change_vector: Optional[str] = None,
+        response: Optional[TResponse] = None,
+        usage: Optional[AiUsage] = None,
+        action_requests: Optional[List[AiAgentActionRequest]] = None,
+    ):
+        self.conversation_id: Optional[str] = conversation_id
+        self.change_vector: Optional[str] = change_vector
+        self.response: Optional[TResponse] = response
+        self.usage: Optional[AiUsage] = usage
+        self.action_requests: List[AiAgentActionRequest] = action_requests or []
 
     def __str__(self) -> str:
         """String representation for debugging."""
