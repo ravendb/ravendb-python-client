@@ -1,9 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, Any, Type
+
+import warnings
+
 from ravendb.documents.ai.ai_conversation import AiConversation
 
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import DocumentStore
+    from ravendb import AiConversationCreationOptions
     from ravendb.documents.operations.ai.agents import (
         AiAgentConfiguration,
         AiAgentConfigurationResult,
@@ -67,19 +71,27 @@ class AiOperations:
         operation = GetAiAgentOperation(agent_id)
         return self._store.maintenance.send(operation)
 
-    def conversation(self, agent_id: str, parameters: Dict[str, Any] = None) -> AiConversation:
+    def conversation(
+        self,
+        agent_id: str,
+        conversation_id: str,
+        creation_options: "AiConversationCreationOptions" = None,
+        change_vector: str = None,
+    ) -> AiConversation:
         """
         Creates a new conversation with the specified AI agent.
 
         Args:
             agent_id: The identifier of the AI agent to start a conversation with
-            parameters: Optional parameters to pass to the agent
+            conversation_id: The unique identifier for the conversation. You can also use e.g. chats/ for automatic id.
+            creation_options: Optional creation options for the conversation
+            change_vector: Optional change vector for concurrency control
 
         Returns:
             Conversation operations interface for managing the conversation
         """
 
-        return AiConversation(self._store, agent_id, parameters)
+        return AiConversation(self._store, agent_id, creation_options, conversation_id, change_vector)
 
     def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> AiConversation:
         """
@@ -92,6 +104,12 @@ class AiOperations:
         Returns:
             Conversation operations interface for managing the conversation
         """
+        warnings.warn(
+            "AiOperations.conversation_with_id(...) is deprecated; use AiOperations.conversation(agent_id, conversation_id=..., change_vector=...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         from ravendb.documents.ai.ai_conversation import AiConversation
 
         return AiConversation.with_conversation_id(self._store, conversation_id, change_vector)
