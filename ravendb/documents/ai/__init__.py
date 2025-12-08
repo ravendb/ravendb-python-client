@@ -2,6 +2,7 @@ from .ai_operations import AiOperations
 from .ai_conversation import AiConversation
 from .ai_conversation_result import AiConversationResult
 from .ai_answer import AiAnswer, AiConversationStatus
+from .content_part import ContentPart, TextPart, AiMessagePromptFields, AiMessagePromptTypes
 
 __all__ = [
     "AiOperations",
@@ -9,4 +10,8 @@ __all__ = [
     "AiConversationResult",
     "AiAnswer",
     "AiConversationStatus",
+    "ContentPart",
+    "TextPart",
+    "AiMessagePromptFields",
+    "AiMessagePromptTypes",
 ]

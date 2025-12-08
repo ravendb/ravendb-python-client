@@ -82,10 +82,15 @@ from ravendb.documents.ai import (
     AiOperations,
     AiConversation,
     AiConversationResult,
+    ContentPart,
+    TextPart,
+    AiMessagePromptFields,
+    AiMessagePromptTypes,
 )
 from ravendb.documents.operations.ai.agents import (
     AiAgentConfiguration,
     AiAgentConfigurationResult,
+    AiAgentParameter,
     AiAgentToolAction,
     AiAgentToolQuery,
     AiAgentPersistenceConfiguration,

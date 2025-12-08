@@ -1,5 +1,6 @@
 from .ai_agent_configuration import (
     AiAgentConfiguration,
+    AiAgentParameter,
     AiAgentToolAction,
     AiAgentToolQuery,
     AiAgentPersistenceConfiguration,
@@ -33,6 +34,7 @@ from .run_conversation_operation import (
 __all__ = [
     "AiAgentConfiguration",
     "AiAgentConfigurationResult",
+    "AiAgentParameter",
     "AiAgentToolAction",
     "AiAgentToolQuery",
     "AiAgentPersistenceConfiguration",
