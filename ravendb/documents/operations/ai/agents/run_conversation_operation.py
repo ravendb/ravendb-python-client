@@ -214,9 +214,7 @@ class ConversationRequestBody:
         )
 
         # UserPrompt: null if None, otherwise array of ContentPart JSON objects
-        result["UserPrompt"] = (
-            None if self.user_prompt is None else [part.to_json() for part in self.user_prompt]
-        )
+        result["UserPrompt"] = None if self.user_prompt is None else [part.to_json() for part in self.user_prompt]
 
         # CreationOptions: always present (create empty if None, matching C# behavior)
         result["CreationOptions"] = (self.creation_options or AiConversationCreationOptions()).to_json()

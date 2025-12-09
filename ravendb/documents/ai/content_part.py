@@ -58,4 +58,3 @@ class TextPart(ContentPart):
             AiMessagePromptFields.TYPE: self._type,
             AiMessagePromptFields.TEXT: self._text,
         }
-

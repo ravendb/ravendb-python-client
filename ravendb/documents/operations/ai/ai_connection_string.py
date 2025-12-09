@@ -19,6 +19,18 @@ class AiModelType(enum.Enum):
     CHAT = "Chat"
 
 
+class AiConnectorType(enum.Enum):
+    NONE = "None"
+    OPEN_AI = "OpenAi"
+    AZURE_OPEN_AI = "AzureOpenAi"
+    OLLAMA = "Ollama"
+    EMBEDDED = "Embedded"
+    GOOGLE = "Google"
+    HUGGING_FACE = "HuggingFace"
+    MISTRAL_AI = "MistralAi"
+    VERTEX = "Vertex"
+
+
 class AiConnectionString(ConnectionString):
     def __init__(
         self,
@@ -86,6 +98,50 @@ class AiConnectionString(ConnectionString):
     @property
     def get_type(self):
         return ConnectionStringType.AI.value
+
+    def get_active_provider(self) -> AiConnectorType:
+        """Returns the active AI connector type based on which settings are configured."""
+        if self.openai_settings:
+            return AiConnectorType.OPEN_AI
+        if self.azure_openai_settings:
+            return AiConnectorType.AZURE_OPEN_AI
+        if self.ollama_settings:
+            return AiConnectorType.OLLAMA
+        if self.embedded_settings:
+            return AiConnectorType.EMBEDDED
+        if self.google_settings:
+            return AiConnectorType.GOOGLE
+        if self.huggingface_settings:
+            return AiConnectorType.HUGGING_FACE
+        if self.mistral_ai_settings:
+            return AiConnectorType.MISTRAL_AI
+        if self.vertex_settings:
+            return AiConnectorType.VERTEX
+        return AiConnectorType.NONE
+
+    def using_encrypted_communication_channel(self) -> bool:
+        """Returns True if the connection uses HTTPS (encrypted communication)."""
+        active_settings = None
+        if self.openai_settings:
+            active_settings = self.openai_settings
+        elif self.azure_openai_settings:
+            active_settings = self.azure_openai_settings
+        elif self.ollama_settings:
+            active_settings = self.ollama_settings
+        elif self.google_settings:
+            active_settings = self.google_settings
+        elif self.huggingface_settings:
+            active_settings = self.huggingface_settings
+        elif self.mistral_ai_settings:
+            active_settings = self.mistral_ai_settings
+        elif self.vertex_settings:
+            active_settings = self.vertex_settings
+
+        if active_settings and hasattr(active_settings, "endpoint") and active_settings.endpoint:
+            return active_settings.endpoint.lower().startswith("https://")
+
+        # Embedded settings don't have an endpoint
+        return False
 
     def to_json(self) -> Dict[str, Any]:
         return {
