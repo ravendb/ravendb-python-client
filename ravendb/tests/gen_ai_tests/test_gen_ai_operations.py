@@ -1,5 +1,6 @@
 """Tests for GenAI task operations."""
 
+import os
 import unittest
 
 from ravendb.documents.operations.ai.ai_connection_string import AiConnectionString, AiModelType
@@ -389,6 +390,7 @@ class TestAiTaskIdentifierHelper(unittest.TestCase):
         self.assertIsNone(result)
 
 
+@unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
 class TestGenAiCrudOperations(TestBase):
     """Tests for GenAI CRUD operations (require server connection)."""
 
