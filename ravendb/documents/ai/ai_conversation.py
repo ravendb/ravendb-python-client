@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, TypeVar, TYPE_CHECKING, Callable
 from datetime import timedelta
 
 from ravendb.documents.ai.ai_answer import AiAnswer, AiConversationStatus
+from ravendb.documents.ai.content_part import ContentPart, TextPart
 from ravendb.documents.operations.ai.agents import (
     AiAgentActionRequest,
     AiAgentActionResponse,
@@ -53,7 +54,7 @@ class AiConversation:
         self._conversation_id = conversation_id
         self._change_vector = change_vector
 
-        self._prompt_parts: List[str] = []
+        self._prompt_parts: List[ContentPart] = []
         self._action_responses: List[AiAgentActionResponse] = []
         self._action_requests: Optional[List[AiAgentActionRequest]] = None
 
@@ -269,7 +270,7 @@ class AiConversation:
         if not user_prompt or user_prompt.isspace():
             raise ValueError("User prompt cannot be empty or whitespace-only")
         self._prompt_parts.clear()
-        self._prompt_parts.append(user_prompt)
+        self.add_user_prompt(user_prompt)
 
     def add_user_prompt(self, *prompts: str) -> None:
         """
@@ -284,7 +285,7 @@ class AiConversation:
         for prompt in prompts:
             if not prompt or prompt.isspace():
                 raise ValueError("User prompt cannot be empty or whitespace-only")
-            self._prompt_parts.append(prompt)
+            self._prompt_parts.append(TextPart(prompt))
 
     def handle(
         self,

@@ -9,6 +9,7 @@ from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
 import requests
 from ravendb.http.misc import ResponseDisposeHandling
+from ravendb.documents.ai.content_part import ContentPart
 
 
 TSchema = TypeVar("TSchema")
@@ -64,6 +65,7 @@ class AiUsage:
     completion_tokens: int = 0
     total_tokens: int = 0
     cached_tokens: int = 0
+    reasoning_tokens: int = 0
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiUsage:
@@ -72,6 +74,7 @@ class AiUsage:
             completion_tokens=json_dict.get("CompletionTokens", 0),
             total_tokens=json_dict.get("TotalTokens", 0),
             cached_tokens=json_dict.get("CachedTokens", 0),
+            reasoning_tokens=json_dict.get("ReasoningTokens", 0),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -80,7 +83,35 @@ class AiUsage:
             "CompletionTokens": self.completion_tokens,
             "TotalTokens": self.total_tokens,
             "CachedTokens": self.cached_tokens,
+            "ReasoningTokens": self.reasoning_tokens,
         }
+
+    @staticmethod
+    def get_usage_difference(current: AiUsage, previous: AiUsage) -> AiUsage:
+        """
+        Calculate the usage difference between current and previous usage.
+
+        Args:
+            current: The current usage statistics
+            previous: The previous usage statistics
+
+        Returns:
+            An AiUsage object representing the difference
+        """
+        previous_total_without_reasoning = (
+            previous.completion_tokens - previous.reasoning_tokens + previous.prompt_tokens
+        )
+        return AiUsage(
+            # in case the model gives us crappy results and current.prompt_tokens - previous_total_without_reasoning < 0
+            prompt_tokens=max(current.prompt_tokens - previous_total_without_reasoning, 0),
+            # in case the model gives us crappy results and current.total_tokens - previous_total_without_reasoning < 0
+            total_tokens=max(current.total_tokens - previous_total_without_reasoning, 0),
+            # we don't want to subtract cached tokens, as they are only for the last response
+            cached_tokens=current.cached_tokens,
+            # we don't want to subtract completion tokens, as they are only for the last response
+            completion_tokens=current.completion_tokens,
+            reasoning_tokens=current.reasoning_tokens,
+        )
 
 
 class ConversationResult(Generic[TSchema]):
@@ -161,11 +192,11 @@ class ConversationRequestBody:
     def __init__(
         self,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
-        user_prompt: Optional[List[str]] = None,
+        user_prompt: Optional[List[ContentPart]] = None,
         creation_options: Optional[AiConversationCreationOptions] = None,
     ):
         self.action_responses: Optional[List[AiAgentActionResponse]] = action_responses
-        self.user_prompt: Optional[List[str]] = user_prompt  # List of prompt parts
+        self.user_prompt: Optional[List[ContentPart]] = user_prompt  # List of ContentPart objects
         self.creation_options: Optional[AiConversationCreationOptions] = creation_options
 
     def to_json(self) -> Dict[str, Any]:
@@ -182,8 +213,8 @@ class ConversationRequestBody:
             None if self.action_responses is None else [resp.to_json() for resp in self.action_responses]
         )
 
-        # UserPrompt: null if None, otherwise array (even if empty)
-        result["UserPrompt"] = self.user_prompt
+        # UserPrompt: null if None, otherwise array of ContentPart JSON objects
+        result["UserPrompt"] = None if self.user_prompt is None else [part.to_json() for part in self.user_prompt]
 
         # CreationOptions: always present (create empty if None, matching C# behavior)
         result["CreationOptions"] = (self.creation_options or AiConversationCreationOptions()).to_json()
@@ -203,7 +234,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         self,
         agent_id: str,
         conversation_id: str,
-        prompt_parts: Optional[List[str]] = None,
+        prompt_parts: Optional[List[ContentPart]] = None,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
         options: Optional[AiConversationCreationOptions] = None,
         change_vector: Optional[str] = None,
@@ -216,7 +247,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         Args:
             agent_id: The ID of the AI agent (required)
             conversation_id: The ID of the conversation (required)
-            prompt_parts: List of prompt strings to send to the agent
+            prompt_parts: List of ContentPart objects to send to the agent
             action_responses: List of action responses from previous turn
             options: Creation options including parameters and expiration
             change_vector: Change vector for optimistic concurrency
@@ -258,7 +289,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         self,
         agent_id: str,
         conversation_id: str,
-        prompt_parts: Optional[List[str]] = None,
+        prompt_parts: Optional[List[ContentPart]] = None,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
         options: Optional[AiConversationCreationOptions] = None,
         change_vector: Optional[str] = None,
@@ -309,7 +340,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         # Build request body with correct structure to match .NET client
         request_body = ConversationRequestBody(
             action_responses=self._action_responses,
-            user_prompt="".join(self._prompt_parts),
+            user_prompt=self._prompt_parts,
             creation_options=self._options,
         )
 

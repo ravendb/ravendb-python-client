@@ -14,6 +14,8 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
         temperature: float = None,
     ):
         super().__init__(api_key, endpoint, model, dimensions, temperature)
+        if deployment_name is None:
+            raise ValueError("deployment_name cannot be None")
         self.deployment_name = deployment_name
 
     @classmethod
