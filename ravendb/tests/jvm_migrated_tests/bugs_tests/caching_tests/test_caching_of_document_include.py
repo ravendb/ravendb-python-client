@@ -28,6 +28,24 @@ class CachingOfDocumentsIncludeTest(TestBase):
     def setUp(self):
         super().setUp()
 
+    def test_can_cache_document_with_includes(self):
+        with self.store.open_session() as session:
+            user = User(name="Ayende")
+            session.store(user)
+
+            partner = User(partner_id="users/1-A")
+            session.store(partner)
+
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.include("partnerId").load("users/2-A", User)
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.include("partnerId").load("users/2-A", User)
+            self.assertEqual(len(session.advanced.request_executor.cache), 1)
+
     def test_can_avoid_using_server_for_load_with_include_if_everything_is_in_session_cacheLazy(self):
         with self.store.open_session() as session:
             user = User(name="Ayende")

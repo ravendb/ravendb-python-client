@@ -10,7 +10,7 @@ from ravendb.http.misc import LoadBalanceBehavior, ReadBalanceBehavior
 
 if TYPE_CHECKING:
     from ravendb.http.request_executor import RequestExecutor
-    from ravendb.documents.queries.misc import Query
+    from ravendb.documents.session.query import DocumentQuery
     from ravendb.documents.session.operations.query import QueryOperation
     from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
         InMemoryDocumentSessionOperations,
@@ -153,7 +153,7 @@ class SessionOptions:
 
 
 class DocumentQueryCustomization:
-    def __init__(self, query: Query):
+    def __init__(self, query: DocumentQuery):
         self.query = query
         self.query_operation: QueryOperation = None
 

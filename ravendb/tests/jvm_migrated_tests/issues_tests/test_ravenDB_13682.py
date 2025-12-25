@@ -1,6 +1,10 @@
+from ravendb.documents.smuggler.common import DatabaseItemType
+
+from ravendb.infrastructure.operations import CreateSampleDataOperation
+
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.queries.spatial import PointField
-from ravendb.tests.test_base import TestBase
+from ravendb.tests.test_base import TestBase, Order
 
 
 class Item:
@@ -86,3 +90,36 @@ class TestRavenDB(TestBase):
             self.assertEqual("c", result[0].name)
             self.assertEqual("a", result[1].name)
             self.assertEqual("b", result[2].name)
+
+    def test_can_use_dynamic_query_order_by_spatial_with_alias(self):
+        self.store.maintenance.send(CreateSampleDataOperation({DatabaseItemType.DOCUMENTS, DatabaseItemType.INDEXES}))
+
+        with self.store.open_session() as session:
+            d = session.advanced.raw_query(
+                "from Orders  as a\n" +
+                "order by spatial.distance(\n" +
+                "    spatial.point(a.ShipTo.Location.Latitude, a.ShipTo.Location.Longitude),\n" +
+                "    spatial.point(35.2, -107.2 )\n" +
+                ")\n",
+                object_type=Order
+            ).first()
+
+            metadata = session.advanced.get_metadata_for(d)
+            spatial = metadata["@spatial"]
+
+            self.assertAlmostEqual(spatial["Distance"], 48.99, 2)
+
+    def test_can_get_distance_from_spatial_query(self):
+        self.store.maintenance.send(CreateSampleDataOperation({DatabaseItemType.DOCUMENTS, DatabaseItemType.INDEXES}))
+        self.wait_for_indexing(self.store)
+
+        with self.store.open_session() as session:
+            d = session.query_index("Orders/ByShipment/Location", object_type=Order) \
+                .where_equals("id()", "orders/830-A") \
+                .order_by_distance("ShipmentLocation", 35.2, -107.1) \
+                .single()
+
+            metadata = session.advanced.get_metadata_for(d)
+            spatial = metadata["@spatial"]
+
+            self.assertAlmostEqual(spatial["Distance"], 40.1, 1)

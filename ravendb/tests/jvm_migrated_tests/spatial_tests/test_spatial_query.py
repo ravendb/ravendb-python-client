@@ -1,6 +1,17 @@
-from ravendb import IndexDefinition, PutIndexesOperation
+from ravendb import IndexDefinition, PutIndexesOperation, AbstractIndexCreationTask
 from ravendb.documents.indexes.spatial.configuration import SpatialUnits
 from ravendb.tests.test_base import TestBase
+
+
+class SpatialQueriesInMemoryTestIdx(AbstractIndexCreationTask):
+    def __init__(self):
+        super().__init__()
+        self.map = """docs.Listings.Select(listingItem => new {
+                        classCodes = listingItem.classCodes,
+                        latitude = listingItem.latitude,
+                        longitude = listingItem.longitude,
+                        coordinates = this.CreateSpatialField(((double ? )((double)(listingItem.latitude))), ((double ? )((double)(listingItem.longitude))))
+                    })"""
 
 
 class DummyGeoDoc:
@@ -13,6 +24,10 @@ class DummyGeoDoc:
 class TestSpatialQuery(TestBase):
     def setUp(self):
         super(TestSpatialQuery, self).setUp()
+
+    def test_can_run_spatial_queries_in_memory(self):
+        index = SpatialQueriesInMemoryTestIdx()
+        index.execute(self.store)
 
     def test_can_successfully_query_by_miles(self):
         my_house = DummyGeoDoc(latitude=44.757767, longitude=-93.355322)

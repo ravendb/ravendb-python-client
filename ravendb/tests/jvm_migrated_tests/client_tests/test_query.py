@@ -1,5 +1,7 @@
 from typing import Optional
 
+from ravendb.documents.queries.misc import SearchOperator
+from ravendb.documents.session.event_args import BeforeQueryEventArgs
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
 from ravendb.documents.session.query_group_by import GroupByField
 from ravendb.infrastructure.entities import User
@@ -60,6 +62,33 @@ class TestQuery(TestBase):
 
     def setUp(self):
         super().setUp()
+
+    def test_query_create_clauses_for_query_dynamically_with_on_before_query_event(self):
+        with self.store.open_session() as session:
+            id1 = "users/1"
+            id2 = "users/2"
+
+            article1 = Article("foo", "bar", False)
+            session.store(article1, id1)
+
+            article2 = Article("foo", "bar", True)
+            session.store(article2, id2)
+
+            session.save_changes()
+
+        def on_before_query(event_args: BeforeQueryEventArgs):
+            query_to_be_executed = event_args.query_customization.query
+            query_to_be_executed.and_also()
+            query_to_be_executed.where_equals("deleted", True)
+
+        with self.store.open_session() as session:
+            session.add_before_query(on_before_query)
+
+            query = session.query(object_type=Article).search("title", "foo", SearchOperator.OR).search("description", "bar")
+            result = list(query)
+
+            self.assertEqual("from 'Articles' where search(title, $p0) or search(description, $p1) and deleted = $p2", query._to_string())
+            self.assertEqual(2, len(result))
 
     def test_query_create_clauses_for_query_dynamically_when_the_query_empty(self):
         with self.store.open_session() as session:

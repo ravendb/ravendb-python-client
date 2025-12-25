@@ -1,4 +1,4 @@
-from ravendb import PatchByQueryOperation, PatchOperation, PatchRequest, PatchStatus
+from ravendb import PatchByQueryOperation, PatchOperation, PatchRequest, PatchStatus, InMemoryDocumentSessionOperations
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
 
@@ -37,3 +37,19 @@ class TestPatch(TestBase):
         with self.store.open_session() as session:
             loaded_user = session.load("users/1", User)
             self.assertEqual("Patched", loaded_user.name)
+
+    def test_can_wait_for_index_after_patch(self):
+        with self.store.open_session() as session:
+            user = User(name="RavenDB")
+            session.store(user, "users/1")
+            session.save_changes()
+
+        def wait_for_indexes_options(options: InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder):
+            options.wait_for_indexes("Users/ByName")
+
+        with self.store.open_session() as session:
+            session.advanced.wait_for_indexes_after_save_changes(wait_for_indexes_options)
+
+            user = session.load("users/1", User)
+            session.advanced.patch(user, "name", "New Name")
+            session.save_changes()

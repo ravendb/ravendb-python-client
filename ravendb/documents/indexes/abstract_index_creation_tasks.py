@@ -268,7 +268,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
             return index_definition
 
         except Exception as e:
-            raise RuntimeError(f"Failed to create index {self._index_name}", e)  # todo: IndexCompilationException
+            raise RuntimeError(f"Failed to create index {self._index_name}", e) # todo: IndexCompilationException
 
 
 class IndexDefinitionBuilder(AbstractIndexDefinitionBuilder[IndexDefinition]):
