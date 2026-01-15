@@ -3,8 +3,8 @@ from typing import Dict, Any
 
 
 class AbstractAiSettings(ABC):
-    def __init__(self):
-        self.embeddings_max_concurrent_batches = None
+    def __init__(self, embeddings_max_concurrent_batches: int = None):
+        self.embeddings_max_concurrent_batches = embeddings_max_concurrent_batches
 
     @classmethod
     @abstractmethod

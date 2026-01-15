@@ -12,12 +12,11 @@ class OllamaSettings(AbstractAiSettings):
         temperature: float = None,
         embeddings_max_concurrent_batches: int = None,
     ):
-        super().__init__()
+        super().__init__(embeddings_max_concurrent_batches)
         self.uri = uri
         self.model = model
         self.think = think
         self.temperature = temperature
-        self.embeddings_max_concurrent_batches = embeddings_max_concurrent_batches
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "OllamaSettings":

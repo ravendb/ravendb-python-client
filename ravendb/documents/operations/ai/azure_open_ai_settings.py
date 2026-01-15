@@ -12,8 +12,9 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
         deployment_name: str = None,
         dimensions: int = None,
         temperature: float = None,
+        embeddings_max_concurrent_batches: int = None,
     ):
-        super().__init__(api_key, endpoint, model, dimensions, temperature)
+        super().__init__(api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches)
         if deployment_name is None:
             raise ValueError("deployment_name cannot be None")
         self.deployment_name = deployment_name
@@ -27,6 +28,9 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
             dimensions=json_dict["Dimensions"] if "Dimensions" in json_dict else None,
             temperature=json_dict["Temperature"] if "Temperature" in json_dict else None,
             deployment_name=json_dict["DeploymentName"] if "DeploymentName" in json_dict else None,
+            embeddings_max_concurrent_batches=(
+                json_dict["EmbeddingsMaxConcurrentBatches"] if "EmbeddingsMaxConcurrentBatches" in json_dict else None
+            ),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -37,4 +41,5 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
             "Dimensions": self.dimensions,
             "Temperature": self.temperature,
             "DeploymentName": self.deployment_name,
+            "EmbeddingsMaxConcurrentBatches": self.embeddings_max_concurrent_batches,
         }

@@ -16,8 +16,9 @@ class VertexSettings(AbstractAiSettings):
         google_credentials_json: Optional[str] = None,
         location: Optional[str] = None,
         ai_version: Optional[VertexAIVersion] = None,
+        embeddings_max_concurrent_batches: Optional[int] = None,
     ):
-        super().__init__()
+        super().__init__(embeddings_max_concurrent_batches)
         self.model = model
         self.google_credentials_json = google_credentials_json
         self.location = location
@@ -30,6 +31,7 @@ class VertexSettings(AbstractAiSettings):
             google_credentials_json=json_dict.get("GoogleCredentialsJson"),
             location=json_dict.get("Location"),
             ai_version=VertexAIVersion(json_dict["AiVersion"]) if json_dict.get("AiVersion") else None,
+            embeddings_max_concurrent_batches=json_dict.get("EmbeddingsMaxConcurrentBatches") if json_dict.get("EmbeddingsMaxConcurrentBatches") else None,
         )
 
     def to_json(self) -> Dict[str, Any]:
