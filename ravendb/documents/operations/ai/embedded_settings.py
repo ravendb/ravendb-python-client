@@ -10,7 +10,11 @@ class EmbeddedSettings(AbstractAiSettings):
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "EmbeddedSettings":
         return cls(
-            embeddings_max_concurrent_batches=json_dict.get("EmbeddingsMaxConcurrentBatches") if json_dict.get("EmbeddingsMaxConcurrentBatches") else None,
+            embeddings_max_concurrent_batches=(
+                json_dict.get("EmbeddingsMaxConcurrentBatches")
+                if json_dict.get("EmbeddingsMaxConcurrentBatches")
+                else None
+            ),
         )
 
     def to_json(self) -> Dict[str, Any]:
