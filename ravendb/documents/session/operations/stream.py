@@ -73,7 +73,9 @@ class StreamOperation:
         if response is None or response.stream_iterator is None:
             raise IndexDoesNotExistException("The index does not exists, failed to stream results")
 
-        parser = JSONLRavenStreamParser(response.stream_iterator)
+        parser = JSONLRavenStreamParser(
+            response.stream_iterator, self._session.conventions.max_empty_lines_in_jsonl_stream
+        )
 
         if self._is_query_stream:
             self._handle_stream_query_stats(parser, self._statistics)
