@@ -9,7 +9,6 @@ from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
 import requests
 
-
 if TYPE_CHECKING:
     from ravendb.documents.operations.ai.agents.ai_agent_configuration import AiAgentConfiguration
 

@@ -11,7 +11,6 @@ from ravendb.tools.parsers import JSONLRavenStreamParser
 from ravendb.tools.utils import Utils
 from ravendb.primitives import constants
 
-
 if typing.TYPE_CHECKING:
     from ravendb.documents.session.document_session import InMemoryDocumentSessionOperations
 

@@ -16,7 +16,6 @@ from ravendb.serverwide.operations.ongoing_tasks import IServerWideTask, ServerW
 from ravendb.tools.utils import Utils
 from ravendb.util.util import RaftIdGenerator
 
-
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
 

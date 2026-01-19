@@ -11,7 +11,6 @@ import requests
 from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.documents.ai.content_part import ContentPart
 
-
 TSchema = TypeVar("TSchema")
 
 

@@ -16,7 +16,6 @@ from ravendb.http.raven_command import RavenCommand, VoidRavenCommand
 from ravendb.util.util import RaftIdGenerator
 from ravendb.http.topology import RaftCommand
 
-
 if TYPE_CHECKING:
     from ravendb.http.server_node import ServerNode
     from ravendb.http.request_executor import RequestExecutor

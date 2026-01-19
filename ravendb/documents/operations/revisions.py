@@ -15,7 +15,6 @@ from ravendb.http.topology import RaftCommand
 from ravendb.documents.session.entity_to_json import EntityToJsonStatic
 from ravendb.documents.conventions import DocumentConventions
 
-
 if TYPE_CHECKING:
     from ravendb.http.http_cache import HttpCache
     from ravendb import DocumentStore, ServerNode
