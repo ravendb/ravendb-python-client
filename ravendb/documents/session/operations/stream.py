@@ -11,7 +11,6 @@ from ravendb.tools.parsers import JSONLRavenStreamParser
 from ravendb.tools.utils import Utils
 from ravendb.primitives import constants
 
-
 if typing.TYPE_CHECKING:
     from ravendb.documents.session.document_session import InMemoryDocumentSessionOperations
 
@@ -74,7 +73,9 @@ class StreamOperation:
         if response is None or response.stream_iterator is None:
             raise IndexDoesNotExistException("The index does not exists, failed to stream results")
 
-        parser = JSONLRavenStreamParser(response.stream_iterator)
+        parser = JSONLRavenStreamParser(
+            response.stream_iterator, self._session.conventions.max_empty_lines_in_jsonl_stream
+        )
 
         if self._is_query_stream:
             self._handle_stream_query_stats(parser, self._statistics)

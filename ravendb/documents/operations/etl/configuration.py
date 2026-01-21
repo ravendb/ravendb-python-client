@@ -7,7 +7,6 @@ from ravendb.documents.operations.etl.etl_type import EtlType
 from ravendb.documents.operations.etl.transformation import Transformation
 import ravendb.serverwide.server_operation_executor
 
-
 _T = TypeVar("_T", bound=ConnectionString)
 
 

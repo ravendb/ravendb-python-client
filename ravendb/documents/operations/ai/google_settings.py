@@ -11,9 +11,14 @@ class GoogleAiVersion(Enum):
 
 class GoogleSettings(AbstractAiSettings):
     def __init__(
-        self, model: str = None, api_key: str = None, ai_version: GoogleAiVersion = None, dimensions: int = None
+        self,
+        model: str = None,
+        api_key: str = None,
+        ai_version: GoogleAiVersion = None,
+        dimensions: int = None,
+        embeddings_max_concurrent_batches: int = None,
     ):
-        super().__init__()
+        super().__init__(embeddings_max_concurrent_batches)
         self.model = model
         self.api_key = api_key
         self.ai_version = ai_version
@@ -22,10 +27,13 @@ class GoogleSettings(AbstractAiSettings):
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "GoogleSettings":
         return cls(
-            model=json_dict["Model"],
-            api_key=json_dict["ApiKey"],
-            ai_version=GoogleAiVersion(json_dict["AiVersion"]),
-            dimensions=json_dict["Dimensions"],
+            model=json_dict["Model"] if "Model" in json_dict else None,
+            api_key=json_dict["ApiKey"] if "ApiKey" in json_dict else None,
+            ai_version=GoogleAiVersion(json_dict["AiVersion"]) if "AiVersion" in json_dict else None,
+            dimensions=json_dict["Dimensions"] if "Dimensions" in json_dict else None,
+            embeddings_max_concurrent_batches=(
+                json_dict["EmbeddingsMaxConcurrentBatches"] if "EmbeddingsMaxConcurrentBatches" in json_dict else None
+            ),
         )
 
     def to_json(self) -> Dict[str, Any]:

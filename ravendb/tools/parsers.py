@@ -1,4 +1,5 @@
 import json
+from json import JSONDecodeError
 from typing import Any, Iterator, Optional, Dict
 from decimal import InvalidOperation
 
@@ -92,7 +93,7 @@ class IncrementalJsonParser:
         raise ParseError("End array expected, but the generator ended before we got it")
 
     def get_value(self, gen):
-        (token, val) = next(gen)
+        token, val = next(gen)
 
         return self.get_value_from_token(gen, token, val)
 
@@ -118,9 +119,9 @@ class IncrementalJsonParser:
 
     def next_object(self) -> Optional[Dict[str, Any]]:
         try:
-            (_, text) = next(self.lexer)
+            _, text = next(self.lexer)
             if IS_WEBSOCKET and text == ",":
-                (_, text) = next(self.lexer)
+                _, text = next(self.lexer)
         except StopIteration:
             return None
 
@@ -128,7 +129,7 @@ class IncrementalJsonParser:
             raise ParseError("Expected start object, got: " + text)
 
         gen = IncrementalJsonParser.parse_object(self.lexer)
-        (token, val) = next(gen)
+        token, val = next(gen)
         assert token == "start_map"
 
         return self.create_object(gen)
@@ -249,16 +250,34 @@ class IncrementalJsonParser:
 
 
 class JSONLRavenStreamParser:
-    def __init__(self, stream: Iterator):
+    def __init__(self, stream: Iterator, max_empty_lines: int = 100):
         self._stream = stream
         self._unused_buffer: Optional[Dict] = None
+        self._max_empty_lines = max_empty_lines
 
     def _get_next_json_dict(self) -> Dict:
-        return (
-            self._unused_buffer
-            if self._unused_buffer is not None
-            else json.loads(self._stream.__next__().decode("utf-8"))
-        )
+        if self._unused_buffer is not None:
+            return self._unused_buffer
+
+        empty_line_count = 0
+        while True:
+            json_data = self._stream.__next__().decode("utf-8").strip()
+
+            # Skip empty lines (standard in JSONL format)
+            if not json_data:
+                empty_line_count += 1
+                if empty_line_count >= self._max_empty_lines:
+                    raise RuntimeError(
+                        f"Received {self._max_empty_lines} consecutive empty lines in JSONL stream. "
+                        f"You can configure the maximum number of empty lines to ignore "
+                        f"using DocumentConventions.max_empty_lines_in_jsonl_stream."
+                    )
+                continue
+
+            try:
+                return json.loads(json_data)
+            except JSONDecodeError as e:
+                raise RuntimeError(f"Failed to parse JSON from stream: {json_data}") from e
 
     def purge_cache(self) -> None:
         self._unused_buffer = None

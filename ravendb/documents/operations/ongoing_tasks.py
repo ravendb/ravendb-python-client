@@ -365,7 +365,9 @@ class DeleteOngoingTaskOperation(MaintenanceOperation[ModifyOngoingTaskResult]):
             return RaftIdGenerator.new_id()
 
 
-class GetOngoingTaskInfoOperation(MaintenanceOperation[OngoingTask]):
+class GetOngoingTaskInfoOperation(
+    MaintenanceOperation[Union[OngoingTask, OngoingTaskGenAi, OngoingTaskEmbeddingsGeneration]]
+):
     """
     Operation to retrieve detailed information about a specific ongoing task.
     Ongoing tasks include various types of tasks such as replication, ETL, backup, and subscriptions.
@@ -398,14 +400,16 @@ class GetOngoingTaskInfoOperation(MaintenanceOperation[OngoingTask]):
 
         self._task_type = task_type
 
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[OngoingTask]:
+    def get_command(
+        self, conventions: "DocumentConventions"
+    ) -> RavenCommand[OngoingTask | OngoingTaskGenAi | OngoingTaskEmbeddingsGeneration]:
         if self._task_name is not None:
             return GetOngoingTaskInfoOperation._GetOngoingTaskInfoCommand(
                 task_name=self._task_name, task_type=self._task_type
             )
         return GetOngoingTaskInfoOperation._GetOngoingTaskInfoCommand(task_id=self._task_id, task_type=self._task_type)
 
-    class _GetOngoingTaskInfoCommand(RavenCommand[OngoingTask]):
+    class _GetOngoingTaskInfoCommand(RavenCommand[OngoingTask | OngoingTaskGenAi | OngoingTaskEmbeddingsGeneration]):
         def __init__(
             self,
             task_type: OngoingTaskType,
@@ -432,7 +436,9 @@ class GetOngoingTaskInfoOperation(MaintenanceOperation[OngoingTask]):
                 json_dict = json.loads(response)
                 self.result = self._deserialize_task(json_dict)
 
-        def _deserialize_task(self, json_dict: dict) -> OngoingTask:
+        def _deserialize_task(
+            self, json_dict: dict
+        ) -> OngoingTask | OngoingTaskGenAi | OngoingTaskEmbeddingsGeneration:
             """Deserialize the task based on its type."""
             if self._task_type == OngoingTaskType.GEN_AI:
                 return OngoingTaskGenAi.from_json(json_dict)

@@ -87,6 +87,7 @@ class DocumentConventions(object):
         self.wait_for_indexes_after_save_changes_timeout = timedelta(seconds=15)
         self.wait_for_replication_after_save_changes_timeout = timedelta(seconds=15)
         self.wait_for_non_stale_results_timeout = timedelta(seconds=15)
+        self.max_empty_lines_in_jsonl_stream = 100
 
         # Balancing
         self._load_balancer_context_seed: Optional[int] = None

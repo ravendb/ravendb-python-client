@@ -21,7 +21,6 @@ from ravendb.documents.indexes.abstract_index_creation_tasks import (
 from ravendb.documents.indexes.spatial.configuration import SpatialOptions, SpatialOptionsFactory
 from ravendb.primitives import constants
 
-
 _T_IndexDefinition = TypeVar("_T_IndexDefinition", bound=IndexDefinition)
 
 

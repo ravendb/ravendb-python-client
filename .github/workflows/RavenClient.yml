@@ -25,12 +25,12 @@ jobs:
         RAVENDB_PYTHON_TEST_SERVER_CERTIFICATE_PATH: certs/server.pfx
         RAVENDB_PYTHON_TEST_CLIENT_CERTIFICATE_PATH: certs/python.pem
         RAVENDB_PYTHON_TEST_CA_PATH: /usr/local/share/ca-certificates/ca.crt
-        RAVENDB_PYTHON_TEST_HTTPS_SERVER_URL: https://localhost:7326
+        RAVENDB_PYTHON_TEST_HTTPS_SERVER_URL: https://localhost:8081
 
       strategy:
         matrix:
-          python-version: [ '3.9', '3.10' ,'3.11', '3.12']
-          serverVersion: [ '7.1' ]
+          python-version: [ '3.10' ,'3.11', '3.12', '3.13', '3.14']
+          serverVersion: [ '7.1', '7.2' ]
         fail-fast: false
 
       steps:
@@ -54,7 +54,7 @@ jobs:
 
       - run: mkdir certs
       - run: openssl genrsa -out certs/ca.key 2048
-      - run: openssl req -new -x509 -key certs/ca.key -out certs/ca.crt -subj "/C=US/ST=Arizona/L=Nevada/O=RavenDB Test CA/OU=RavenDB test CA/CN=localhost/emailAddress=ravendbca@example.com" -addext "basicConstraints = CA:TRUE" -addext "keyUsage = digitalSignature,keyCertSign"
+      - run: openssl req -new -x509 -key certs/ca.key -out certs/ca.crt -subj "/C=US/ST=Arizona/L=Nevada/O=RavenDB Test CA/OU=RavenDB test CA/CN=localhost/emailAddress=ravendbca@example.com" -addext "basicConstraints = critical, CA:TRUE" -addext "keyUsage = critical, digitalSignature, keyCertSign"
       - run: openssl genrsa -out certs/localhost.key 2048
       - run: openssl req -new  -key certs/localhost.key -out certs/localhost.csr -subj "/C=US/ST=Arizona/L=Nevada/O=RavenDB Test/OU=RavenDB test/CN=localhost/emailAddress=ravendb@example.com" -addext "subjectAltName = DNS:localhost"
       - run: openssl x509 -req -extensions ext -extfile cert/test_cert.conf -in certs/localhost.csr -CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial -out certs/localhost.crt
@@ -85,11 +85,9 @@ jobs:
         run: mkdir RavenDB/Server/certs && cp certs/server.pfx RavenDB/Server/certs/
 
       - name: Install black linter
-        if: ${{ matrix.python-version != '3.7' }}
         run: pip install black
 
       - name: Check code format
-        if: ${{ matrix.python-version != '3.7' }}
         run: black --check .
 
       - name: Run tests

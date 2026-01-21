@@ -10,7 +10,6 @@ from ravendb.serverwide.operations.analyzers import PutServerWideAnalyzersOperat
 from ravendb.serverwide.operations.sorters import PutServerWideSortersOperation, DeleteServerWideSorterOperation
 from ravendb.tests.test_base import TestBase
 
-
 sorter_code = (
     "using System;\n"
     "using System.Collections.Generic;\n"

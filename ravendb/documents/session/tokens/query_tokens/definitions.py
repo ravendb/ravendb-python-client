@@ -1009,7 +1009,10 @@ class VectorSearchToken(WhereToken):
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
         task_name: str = None,
     ):
-        super().__init__(wrapped_field_name, WhereOperator.VECTOR_SEARCH, parameter_name)
+        where_options = WhereToken.WhereOptions()
+        where_options.exact = is_exact
+
+        super().__init__(wrapped_field_name, WhereOperator.VECTOR_SEARCH, parameter_name, where_options)
         self._source_quantization_type = source_quantization_type
         self._parameter_name = parameter_name
 

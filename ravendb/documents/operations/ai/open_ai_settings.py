@@ -13,8 +13,9 @@ class OpenAiSettings(OpenAiBaseSettings):
         project_id: str = None,
         dimensions: int = None,
         temperature: float = None,
+        embeddings_max_concurrent_batches: int = None,
     ):
-        super().__init__(api_key, endpoint, model, dimensions, temperature)
+        super().__init__(api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches)
         self.organization_id = organization_id
         self.project_id = project_id
 
@@ -28,6 +29,9 @@ class OpenAiSettings(OpenAiBaseSettings):
             temperature=json_dict["Temperature"] if "Temperature" in json_dict else None,
             organization_id=json_dict["OrganizationId"] if "OrganizationId" in json_dict else None,
             project_id=json_dict["ProjectId"] if "ProjectId" in json_dict else None,
+            embeddings_max_concurrent_batches=(
+                json_dict["EmbeddingsMaxConcurrentBatches"] if "EmbeddingsMaxConcurrentBatches" in json_dict else None
+            ),
         )
 
     def to_json(self) -> Dict[str, Any]:

@@ -6,7 +6,6 @@ from typing import Callable, List, Dict, Generic, TypeVar, Union, TYPE_CHECKING
 from ravendb.primitives import constants
 from ravendb.documents.session.tokens.query_tokens.definitions import MoreLikeThisToken
 
-
 _T = TypeVar("_T")
 
 if TYPE_CHECKING:
