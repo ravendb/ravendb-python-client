@@ -86,7 +86,7 @@ class TestRavenDB22076(TestBase):
             q4 = session.query(object_type=Dto).vector_search("VectorField", "aaaa==")
             self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q4._to_string())
 
-            q5 = session.query(object_type=Dto).vector_search_text_i8("TextField", "aaaa")
+            q5 = session.query(object_type=Dto).vector_search_text("TextField", "aaaa", target_quantization=VectorEmbeddingType.INT8)
             self.assertEqual("from 'Dtoes' where vector.search(embedding.text_i8(TextField), $p0)", q5._to_string())
 
             q6 = session.query(object_type=Dto).vector_search_i8("EmbeddingField", [2, 3], 0.65)
@@ -94,8 +94,10 @@ class TestRavenDB22076(TestBase):
                 "from 'Dtoes' where vector.search(embedding.i8(EmbeddingField), $p0, 0.65, null)", q6._to_string()
             )
 
-            q7 = session.query(object_type=Dto).vector_search_text_i8("TextField", "aaaa")
+            q7 = session.query(object_type=Dto).vector_search_text("TextField", "aaaa", target_quantization=VectorEmbeddingType.INT8)
             self.assertEqual("from 'Dtoes' where vector.search(embedding.text_i8(TextField), $p0)", q7._to_string())
+
+            # q8 = session.query(object_type=Dto).vector_search_with_field()
 
     def test_rql_generation_2(self):
         with self.store.open_session() as session:
@@ -115,12 +117,13 @@ class TestRavenDB22076(TestBase):
                 "from 'Dtoes' where vector.search(embedding.i8(EmbeddingField), $p0, 0.65, null)", q1._to_string()
             )
 
-            q2 = session.query(object_type=Dto).vector_search_f32_i8("EmbeddingField", [2.5, 3.3], 0.65)
+            q2 = session.query(object_type=Dto).vector_search("EmbeddingField", [2.5, 3.3], 0.65, target_quantization=VectorEmbeddingType.INT8
+            )
             self.assertEqual(
                 "from 'Dtoes' where vector.search(embedding.f32_i8(EmbeddingField), $p0, 0.65, null)", q2._to_string()
             )
 
-            q3 = session.query(object_type=Dto).vector_search_f32_i8("EmbeddingField", "abcd==", 0.75)
+            q3 = session.query(object_type=Dto).vector_search("EmbeddingField", "abcd==", 0.75, target_quantization=VectorEmbeddingType.INT8)
             self.assertEqual(
                 "from 'Dtoes' where vector.search(embedding.f32_i8(EmbeddingField), $p0, 0.75, null)", q3._to_string()
             )
@@ -143,6 +146,72 @@ class TestRavenDB22076(TestBase):
                 "EmbeddingBase64", "abcd==", is_exact=True, number_of_candidates=25
             )
             self.assertEqual("from 'Dtoes' where exact(vector.search(EmbeddingBase64, $p0, null, 25))", q8._to_string())
+
+    def test_rql_generation_3(self):
+        with self.store.open_session() as session:
+            # forDocument - text/field
+            q1 = session.query(object_type=Dto).vector_search_with_field_for_document("VectorField", "docs/1-A")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, embedding.forDoc($p0))", q1._to_string())
+
+            q2 = session.query(object_type=Dto).vector_search_text_for_document("VectorField", "docs/1-A", target_quantization=VectorEmbeddingType.INT8)
+            self.assertEqual(
+                "from 'Dtoes' where vector.search(embedding.text_i8(VectorField), embedding.forDoc($p0))", q2._to_string()
+            )
+
+            # withField
+            q3 = session.query(object_type=Dto).vector_search_with_field("VectorField", [0.1, 0.2, 0.3])
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q3._to_string())
+
+            q4 = session.query(object_type=Dto).vector_search_with_text_field("VectorField", "hello")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q4._to_string())
+
+            q5 = session.query(object_type=Dto).vector_search_with_i8_field("VectorField", [1, 2, 3])
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q5._to_string())
+
+            q6 = session.query(object_type=Dto).vector_search_with_i1_field("VectorField", [0, 1, 0])
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q6._to_string())
+
+            # with base64
+            q7 = session.query(object_type=Dto).vector_search_with_base64("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q7._to_string())
+
+            q8 = session.query(object_type=Dto).vector_search_with_base64_i8("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(embedding.i8(VectorField), $p0)", q8._to_string())
+
+            q9 = session.query(object_type=Dto).vector_search_with_base64_i1("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(embedding.i1(VectorField), $p0)", q9._to_string())
+
+            # ability to search in base64
+            q10 = session.query(object_type=Dto).vector_search("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q10._to_string())
+
+            q11 = session.query(object_type=Dto).vector_search_i8("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(embedding.i8(VectorField), $p0)", q11._to_string())
+
+            q12 = session.query(object_type=Dto).vector_search_i1("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(embedding.i1(VectorField), $p0)", q12._to_string())
+
+            q13 = session.query(object_type=Dto).vector_search_with_field("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q13._to_string())
+
+            q14 = session.query(object_type=Dto).vector_search_with_i8_field("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q14._to_string())
+
+            q15 = session.query(object_type=Dto).vector_search_with_i1_field("VectorField", "abcd==")
+            self.assertEqual("from 'Dtoes' where vector.search(VectorField, $p0)", q15._to_string())
+
+            # embeddingTaskIdentifier
+            q16 = session.query(object_type=Dto).vector_search_text("VectorField", "hello", embedding_generation_task_identifier="my-ai-task")
+            self.assertEqual(
+                "from 'Dtoes' where vector.search(embedding.text(VectorField, ai.task('my-ai-task')), $p0)",
+                q16._to_string(),
+            )
+
+            q17 = session.query(object_type=Dto).vector_search_text_for_document("VectorField", "hello", embedding_generation_task_identifier="my-ai-task")
+            self.assertEqual(
+                "from 'Dtoes' where vector.search(embedding.text(VectorField, ai.task('my-ai-task')), embedding.forDoc($p0))",
+                q17._to_string(),
+            )
 
     def test_embedding_dimensions_check(self):
         with self.store.open_session() as session:
