@@ -128,7 +128,9 @@ class TestVectorQuantizer(unittest.TestCase):
 class TestVectorSearch(TestBase):
     def test_should_generate_rql_with_text_field_using_named_ai_task(self):
         with self.store.open_session() as session:
-            q = session.query(object_type=Dto).vector_search_text("EmbeddingField", "fishing", embedding_generation_task_identifier="my-ai-task")
+            q = session.query(object_type=Dto).vector_search_text(
+                "EmbeddingField", "fishing", embedding_generation_task_identifier="my-ai-task"
+            )
             self.assertEqual(
                 "from 'Dtoes' where vector.search(embedding.text(EmbeddingField, ai.task('my-ai-task')), $p0)",
                 q._to_string(),
@@ -143,7 +145,10 @@ class TestVectorSearch(TestBase):
             )
 
             q2 = session.query(object_type=Dto).vector_search_text(
-                "EmbeddingField", "fishing", target_quantization=VectorEmbeddingType.BINARY, embedding_generation_task_identifier="my-ai-task"
+                "EmbeddingField",
+                "fishing",
+                target_quantization=VectorEmbeddingType.BINARY,
+                embedding_generation_task_identifier="my-ai-task",
             )
             self.assertEqual(
                 "from 'Dtoes' where vector.search(embedding.text_i1(EmbeddingField, ai.task('my-ai-task')), $p0)",
@@ -151,7 +156,11 @@ class TestVectorSearch(TestBase):
             )
 
             q2_exact = session.query(object_type=Dto).vector_search_text(
-                "EmbeddingField", "fishing", target_quantization=VectorEmbeddingType.BINARY, embedding_generation_task_identifier="my-ai-task", is_exact=True
+                "EmbeddingField",
+                "fishing",
+                target_quantization=VectorEmbeddingType.BINARY,
+                embedding_generation_task_identifier="my-ai-task",
+                is_exact=True,
             )
             self.assertEqual(
                 "from 'Dtoes' where exact(vector.search(embedding.text_i1(EmbeddingField, ai.task('my-ai-task')), $p0))",
@@ -159,7 +168,10 @@ class TestVectorSearch(TestBase):
             )
 
             q3 = session.query(object_type=Dto).vector_search_text(
-                "EmbeddingField", "fishing", target_quantization=VectorEmbeddingType.INT8, embedding_generation_task_identifier="my-ai-task",
+                "EmbeddingField",
+                "fishing",
+                target_quantization=VectorEmbeddingType.INT8,
+                embedding_generation_task_identifier="my-ai-task",
             )
             self.assertEqual(
                 "from 'Dtoes' where vector.search(embedding.text_i8(EmbeddingField, ai.task('my-ai-task')), $p0)",
@@ -167,7 +179,11 @@ class TestVectorSearch(TestBase):
             )
 
             q3_exact = session.query(object_type=Dto).vector_search_text(
-                "EmbeddingField", "fishing", embedding_generation_task_identifier="my-ai-task", is_exact=True, target_quantization=VectorEmbeddingType.INT8,
+                "EmbeddingField",
+                "fishing",
+                embedding_generation_task_identifier="my-ai-task",
+                is_exact=True,
+                target_quantization=VectorEmbeddingType.INT8,
             )
             self.assertEqual(
                 "from 'Dtoes' where exact(vector.search(embedding.text_i8(EmbeddingField, ai.task('my-ai-task')), $p0))",

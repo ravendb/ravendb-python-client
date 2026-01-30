@@ -2038,14 +2038,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         )
         return self
 
-
     def vector_search_with_base64_i8(
-            self,
-            embedding_field: str,
-            vector: list[float] | str,
-            minimum_similarity: float = None,
-            number_of_candidates: int = None,
-            is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        self,
+        embedding_field: str,
+        vector: list[float] | str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ):
         """Perform vector search over a base64-encoded int8 vector field.
         The vector parameter can be either a list of int or a base64 string."""
@@ -2060,14 +2059,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         )
         return self
 
-
     def vector_search_with_base64_i1(
-            self,
-            embedding_field: str,
-            vector: list[int] | str,
-            minimum_similarity: float = None,
-            number_of_candidates: int = None,
-            is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        self,
+        embedding_field: str,
+        vector: list[int] | str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ):
         """Perform vector search over a base64-encoded int1 vector field.
         The vector parameter can be either a list of int or a base64 string."""
