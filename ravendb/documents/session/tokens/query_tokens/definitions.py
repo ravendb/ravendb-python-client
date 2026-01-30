@@ -1002,12 +1002,11 @@ class VectorSearchToken(WhereToken):
         parameter_name: str,
         source_quantization_type: VectorEmbeddingType,
         target_quantization_type: VectorEmbeddingType,
-        is_source_base64_encoded: bool,
-        is_vector_base64_encoded: bool,
         similarity_threshold: float = None,
         number_of_candidates_for_querying: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
         task_name: str = None,
+        document_id: str = None,
     ):
         where_options = WhereToken.WhereOptions()
         where_options.exact = is_exact
@@ -1019,14 +1018,12 @@ class VectorSearchToken(WhereToken):
         self._source_quantization_type = source_quantization_type
         self._target_quantization_type = target_quantization_type
 
-        self._is_source_base64_encoded = is_source_base64_encoded
-        self._is_vector_base64_encoded = is_vector_base64_encoded
-
         self._similarity_threshold = similarity_threshold
 
         self._number_of_candidates_for_querying = number_of_candidates_for_querying
         self._is_exact = is_exact
         self._task_name = task_name
+        self._document_id = document_id
 
     def write_to(self, writer: List[str]) -> None:
         """
@@ -1035,7 +1032,6 @@ class VectorSearchToken(WhereToken):
         """
         if self._is_exact:
             writer.append("exact(")
-
         writer.append("vector.search(")
 
         if (
@@ -1047,13 +1043,18 @@ class VectorSearchToken(WhereToken):
             method_name = VectorSearch.configuration_to_method_name(
                 self._source_quantization_type, self._target_quantization_type
             )
-            writer.append(f"{method_name}({self.field_name}")
-            if self._task_name:
-                writer.append(f", ai.task('{self._task_name}')")
-            writer.append(")")
+            if self._source_quantization_type == VectorEmbeddingType.TEXT and self._task_name is not None:
+                writer.append(
+                    f"{method_name}({self.field_name}, {VectorSearch.AI_TASK_METHOD_NAME}('{self._task_name}'))"
+                )
+            else:
+                writer.append(f"{method_name}({self.field_name})")
+        writer.append(", ")
 
-        # Add main parameter
-        writer.append(f", ${self._parameter_name}")
+        if self._document_id:
+            writer.append(f"{VectorSearch.EMBEDDING_FOR_DOCUMENT}(${self._parameter_name})")
+        else:
+            writer.append(f"${self._parameter_name}")
 
         # Handle optional parameters
         parameters_are_default = self._similarity_threshold is None and self._number_of_candidates_for_querying is None
