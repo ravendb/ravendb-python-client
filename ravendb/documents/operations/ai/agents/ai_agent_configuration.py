@@ -60,21 +60,27 @@ class AiAgentToolQuery:
         query: str = None,
         parameters_sample_object: str = None,
         parameters_schema: str = None,
+        options: AiAgentToolQueryOptions = None,
     ):
         self.name = name
         self.description = description
         self.query = query
         self.parameters_sample_object: Optional[str] = parameters_sample_object
         self.parameters_schema: Optional[str] = parameters_schema
+        self.options = options
 
     def to_json(self) -> Dict[str, Any]:
-        return {
+        json_dict = {
             "Name": self.name,
             "Description": self.description,
             "Query": self.query,
             "ParametersSampleObject": self.parameters_sample_object,
             "ParametersSchema": self.parameters_schema,
         }
+        if self.options:
+            json_dict["Options"] = self.options.to_json()
+
+        return json_dict
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentToolQuery:
@@ -86,6 +92,8 @@ class AiAgentToolQuery:
             "ParametersSampleObject"
         )
         instance.parameters_schema = json_dict.get("parametersSchema") or json_dict.get("ParametersSchema")
+        if options := json_dict.get("Options"):
+            instance.options = AiAgentToolQueryOptions.from_json(options)
         return instance
 
 
@@ -384,3 +392,22 @@ class AiAgentConfiguration:
             "MaxModelIterationsPerCall"
         )
         return instance
+
+
+class AiAgentToolQueryOptions:
+    def __init__(self, allow_model_queries: bool = None, add_to_initial_context: bool = None):
+        self.allow_model_queries = allow_model_queries
+        self.add_to_initial_context = add_to_initial_context
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "AllowModelQueries": self.allow_model_queries,
+            "AddToInitialContext": self.add_to_initial_context,
+        }
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentToolQueryOptions:
+        return cls(
+            allow_model_queries=json_dict["AllowModelQueries"],
+            add_to_initial_context=json_dict["AddToInitialContext"],
+        )
