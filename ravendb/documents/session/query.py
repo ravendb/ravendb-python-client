@@ -2,6 +2,7 @@ from __future__ import annotations
 import datetime
 import enum
 import os
+import warnings
 from copy import copy
 from typing import (
     Generic,
@@ -1041,29 +1042,45 @@ class AbstractDocumentQuery(Generic[_T]):
     def _vector_search_internal(
         self,
         wrapped_embedding_field: str,
-        vector: Union[List[float], List[int], str],
+        term: Union[List[float], List[int], str] = None,
         source_quantization_type: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
         target_quantization_type: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
         minimum_similarity: float = None,
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
         task_name: str = None,
+        is_index_field: bool = False,
+        document_id: str = None,
     ):
-        is_source_base64_encoded = False
-        is_vector_base64_encoded = False
+        if (
+            source_quantization_type == VectorEmbeddingType.INT8
+            or source_quantization_type == VectorEmbeddingType.BINARY
+        ) and target_quantization_type != source_quantization_type:
+            raise ValueError(
+                f"Cannot quantize already quantized embeddings. Source quantization type: {source_quantization_type.value}; however the target is: {target_quantization_type.value}."
+            )
 
-        query_parameter_name = self.__add_query_parameter(vector)
+        if target_quantization_type == VectorEmbeddingType.TEXT:
+            raise ValueError(
+                f"Cannot set target quantization type to be {str(target_quantization_type.value)}. This option is only availabe for source_quantization_type."
+            )
+
+        if target_quantization_type != VectorSearch.DEFAULT_EMBEDDING_TYPE and is_index_field:
+            raise ValueError(
+                f"Cannot set target quantization when querying an index, since quantization is already done on the index side."
+            )
+
+        query_parameter_name = self.__add_query_parameter(term)
         vector_search_token = VectorSearchToken(
             wrapped_embedding_field,
             query_parameter_name,
             source_quantization_type,
             target_quantization_type,
-            is_source_base64_encoded,
-            is_vector_base64_encoded,
             minimum_similarity,
             number_of_candidates,
             is_exact,
             task_name,
+            document_id,
         )
 
         self._where_tokens.append(vector_search_token)
@@ -1884,58 +1901,224 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
     def vector_search(
         self,
         embedding_field: str,
-        vector: Union[List[float], str],  # todo: docs about base 64 (|str)
+        vector: Union[List[float], str],
         minimum_similarity: float = None,
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        target_quantization: VectorEmbeddingType = VectorEmbeddingType.SINGLE,
     ) -> DocumentQuery[_T]:
-        """Perform vector search using embedding field (float32)"""
+        """Perform vector search using embedding field (float32)
+        The vector parameter can be either a list of float or a base64 string."""
         self._vector_search_internal(
-            embedding_field,
-            vector,
-            VectorEmbeddingType.SINGLE,
-            VectorEmbeddingType.SINGLE,
-            minimum_similarity,
-            number_of_candidates,
-            is_exact,
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.SINGLE,
+            target_quantization_type=target_quantization,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+        )
+        return self
+
+    def vector_search_with_field(
+        self,
+        index_embedding_field: str,
+        vector: list[float] | str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        """Perform vector search using float32 embedding field
+        The vector parameter can be either a list of float or a base64 string."""
+        self._vector_search_internal(
+            wrapped_embedding_field=index_embedding_field,
+            term=vector,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            is_index_field=True,
+        )
+        return self
+
+    def vector_search_with_i8_field(
+        self,
+        index_embedding_field: str,
+        vector: list[int] | str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        """Perform vector search using int8 embedding field
+        The vector parameter can be either a list of int or a base64 string."""
+        self._vector_search_internal(
+            wrapped_embedding_field=index_embedding_field,
+            term=vector,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            is_index_field=True,
+        )
+        return self
+
+    def vector_search_with_i1_field(
+        self,
+        index_embedding_field: str,
+        vector: list[int],
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        """Perform vector search using int1 embedding field
+        The vector parameter can be either a list of int or a base64 string."""
+        self._vector_search_internal(
+            wrapped_embedding_field=index_embedding_field,
+            term=vector,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            is_index_field=True,
+        )
+        return self
+
+    def vector_search_with_text_field(
+        self,
+        index_embedding_field: str,
+        search_term: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        self._vector_search_internal(
+            wrapped_embedding_field=index_embedding_field,
+            term=search_term,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            is_index_field=True,
+        )
+        return self
+
+    def vector_search_with_field_for_document(
+        self,
+        index_embedding_field: str,
+        document_id: str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        self._vector_search_internal(
+            wrapped_embedding_field=index_embedding_field,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            is_index_field=True,
+            document_id=document_id,
+        )
+        return self
+
+    def vector_search_with_base64(
+        self,
+        embedding_field: str,
+        vector: list[float] | str,
+        target_quantization: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        """Perform vector search over a base64-encoded f32 vector field.
+        The vector parameter can be either a list of float or a base64 string."""
+        self._vector_search_internal(
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.SINGLE,
+            target_quantization_type=target_quantization,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+        )
+        return self
+
+    def vector_search_with_base64_i8(
+        self,
+        embedding_field: str,
+        vector: list[float] | str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        """Perform vector search over a base64-encoded int8 vector field.
+        The vector parameter can be either a list of int or a base64 string."""
+        self._vector_search_internal(
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.INT8,
+            target_quantization_type=VectorEmbeddingType.INT8,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+        )
+        return self
+
+    def vector_search_with_base64_i1(
+        self,
+        embedding_field: str,
+        vector: list[int] | str,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+    ):
+        """Perform vector search over a base64-encoded int1 vector field.
+        The vector parameter can be either a list of int or a base64 string."""
+        self._vector_search_internal(
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.BINARY,
+            target_quantization_type=VectorEmbeddingType.BINARY,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
         )
         return self
 
     def vector_search_i8(
         self,
         embedding_field: str,
-        vector: List[int],
+        vector: List[int] | str,
         minimum_similarity: float = None,
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Perform vector search using int8 field.
+        The vector parameter can be either a list of int or a base64 string."""
         self._vector_search_internal(
-            embedding_field,
-            vector,
-            VectorEmbeddingType.INT8,
-            VectorEmbeddingType.INT8,
-            minimum_similarity,
-            number_of_candidates,
-            is_exact,
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.INT8,
+            target_quantization_type=VectorEmbeddingType.INT8,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
         )
         return self
 
     def vector_search_i1(
         self,
         embedding_field: str,
-        vector: List[int],
+        vector: List[int] | str,
         minimum_similarity: float = None,
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Perform vector search using int1 field.
+        The vector parameter can be either a list of int or a base64 string."""
         self._vector_search_internal(
-            embedding_field,
-            vector,
-            VectorEmbeddingType.BINARY,
-            VectorEmbeddingType.BINARY,
-            minimum_similarity,
-            number_of_candidates,
-            is_exact,
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.BINARY,
+            target_quantization_type=VectorEmbeddingType.BINARY,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
         )
         return self
 
@@ -1946,16 +2129,41 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         minimum_similarity: float = None,
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        target_quantization: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
+        embedding_generation_task_identifier: str = None,
     ) -> DocumentQuery[_T]:
         """Perform vector search using text field"""
         self._vector_search_internal(
-            embedding_field,
-            vector,
-            VectorEmbeddingType.TEXT,
-            VectorEmbeddingType.SINGLE,
-            minimum_similarity,
-            number_of_candidates,
-            is_exact,
+            wrapped_embedding_field=embedding_field,
+            term=vector,
+            source_quantization_type=VectorEmbeddingType.TEXT,
+            target_quantization_type=target_quantization,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            task_name=embedding_generation_task_identifier,
+        )
+        return self
+
+    def vector_search_text_for_document(
+        self,
+        embedding_field: str,
+        document_id: str,
+        target_quantization: VectorEmbeddingType = VectorSearch.DEFAULT_EMBEDDING_TYPE,
+        minimum_similarity: float = None,
+        number_of_candidates: int = None,
+        is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
+        embedding_generation_task_identifier: str = None,
+    ):
+        self._vector_search_internal(
+            wrapped_embedding_field=embedding_field,
+            source_quantization_type=VectorEmbeddingType.TEXT,
+            target_quantization_type=target_quantization,
+            minimum_similarity=minimum_similarity,
+            number_of_candidates=number_of_candidates,
+            is_exact=is_exact,
+            task_name=embedding_generation_task_identifier,
+            document_id=document_id,
         )
         return self
 
@@ -1968,7 +2176,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
-        """Perform vector search using text field"""
+        """Deprecated: Use vector_search_text() with the embedding_generation_task_identifier parameter instead."""
+        warnings.warn(
+            "vector_search_text_using_task is deprecated; use vector_search_text with "
+            "embedding_generation_task_identifier parameter instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
@@ -1989,6 +2203,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Deprecated: Use vector_search() with the target_quantization = VectorEmbeddingType.INT8 parameter instead."""
+        warnings.warn(
+            "vector_search_f32_i8 is deprecated; use vector_search with "
+            "target_quantization = VectorEmbeddingType.INT8 parameter instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
@@ -2008,6 +2229,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Deprecated: Use vector_search() with the target_quantization = VectorEmbeddingType.BINARY parameter instead."""
+        warnings.warn(
+            "vector_search_f32_i1 is deprecated; use vector_search with "
+            "target_quantization = VectorEmbeddingType.BINARY parameter instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
@@ -2027,6 +2255,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Deprecated: Use vector_search_text() with the target_quantization = VectorEmbeddingType.INT8 parameter instead."""
+        warnings.warn(
+            "vector_search_text_i8 is deprecated; use vector_search_text with "
+            "target_quantization = VectorEmbeddingType.INT8 parameter instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
@@ -2046,6 +2281,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Deprecated: Use vector_search_text() with the target_quantization = VectorEmbeddingType.BINARY parameter instead."""
+        warnings.warn(
+            "vector_search_text_i1 is deprecated; use vector_search_text with "
+            "target_quantization = VectorEmbeddingType.BINARY parameter instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
@@ -2066,6 +2308,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Deprecated: Use vector_search_text() with the target_quantization = VectorEmbeddingType.INT8 and embedding_generation_task_identifier parameters instead."""
+        warnings.warn(
+            "vector_search_text_i8_using_task is deprecated; use vector_search_text with "
+            "target_quantization = VectorEmbeddingType.INT8 and embedding_generation_task_identifier parameters instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
@@ -2087,6 +2336,13 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         number_of_candidates: int = None,
         is_exact: bool = VectorSearch.DEFAULT_IS_EXACT,
     ) -> DocumentQuery[_T]:
+        """Deprecated: Use vector_search_text() with the target_quantization = VectorEmbeddingType.BINARY and embedding_generation_task_identifier parameters instead."""
+        warnings.warn(
+            "vector_search_text_i1_using_task is deprecated; use vector_search_text with "
+            "target_quantization = VectorEmbeddingType.BINARY and embedding_generation_task_identifier parameters instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._vector_search_internal(
             embedding_field,
             vector,
