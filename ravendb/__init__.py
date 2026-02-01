@@ -110,6 +110,15 @@ from ravendb.documents.operations.ai.agents import (
     AddOrUpdateAiAgentOperation,
     DeleteAiAgentOperation,
 )
+from ravendb.documents.operations.ai import (
+    ChunkingOptions,
+    ChunkingMethod,
+    EmbeddingPathConfiguration,
+    EmbeddingsTransformation,
+    EmbeddingsGenerationConfiguration,
+    AddEmbeddingsGenerationOperation,
+    UpdateEmbeddingsGenerationOperation,
+)
 
 from ravendb.documents.operations.etl.configuration import EtlConfiguration, RavenEtlConfiguration
 from ravendb.documents.operations.etl.olap.connection import OlapEtlConfiguration

@@ -14,6 +14,12 @@ from ravendb.documents.operations.ai.ai_task_operation_results import (
 )
 from ravendb.documents.operations.ai.add_gen_ai_operation import AddGenAiOperation
 from ravendb.documents.operations.ai.update_gen_ai_operation import UpdateGenAiOperation
+from ravendb.documents.operations.ai.chunking_options import ChunkingOptions, ChunkingMethod
+from ravendb.documents.operations.ai.embedding_path_configuration import EmbeddingPathConfiguration
+from ravendb.documents.operations.ai.embeddings_transformation import EmbeddingsTransformation
+from ravendb.documents.operations.ai.embeddings_generation_configuration import EmbeddingsGenerationConfiguration
+from ravendb.documents.operations.ai.add_embeddings_generation_operation import AddEmbeddingsGenerationOperation
+from ravendb.documents.operations.ai.update_embeddings_generation_operation import UpdateEmbeddingsGenerationOperation
 
 __all__ = [
     "AiConnectionString",
@@ -28,4 +34,11 @@ __all__ = [
     "AddEmbeddingsGenerationOperationResult",
     "AddGenAiOperation",
     "UpdateGenAiOperation",
+    "ChunkingOptions",
+    "ChunkingMethod",
+    "EmbeddingPathConfiguration",
+    "EmbeddingsTransformation",
+    "EmbeddingsGenerationConfiguration",
+    "AddEmbeddingsGenerationOperation",
+    "UpdateEmbeddingsGenerationOperation",
 ]

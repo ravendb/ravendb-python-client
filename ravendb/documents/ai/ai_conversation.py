@@ -145,9 +145,7 @@ class AiConversation:
         else:
             content = json.dumps(action_response)
 
-        self._artificial_actions.append(
-            AiAgentArtificialActionResponse(tool_id=tool_id, content=content)
-        )
+        self._artificial_actions.append(AiAgentArtificialActionResponse(tool_id=tool_id, content=content))
 
     def run(self) -> AiAnswer:
         """

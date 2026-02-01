@@ -16,6 +16,7 @@ from ravendb.http.raven_command import RavenCommand
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.ai.gen_ai_configuration import GenAiConfiguration
+    from ravendb.documents.operations.ai.embeddings_generation_configuration import EmbeddingsGenerationConfiguration
 
 
 class OngoingTaskType(Enum):
@@ -223,7 +224,8 @@ class OngoingTaskEmbeddingsGeneration(OngoingTask):
         mentor_node: Optional[str] = None,
         pin_to_mentor_node: Optional[bool] = None,
         connection_string_name: Optional[str] = None,
-        configuration: Optional[dict] = None,  # EmbeddingsGenerationConfiguration - not yet implemented
+        configuration: Optional["EmbeddingsGenerationConfiguration"] = None,
+        change_vector: Optional[str] = None,
     ):
         super().__init__(
             task_id=task_id,
@@ -238,20 +240,27 @@ class OngoingTaskEmbeddingsGeneration(OngoingTask):
         )
         self.connection_string_name = connection_string_name
         self.configuration = configuration
+        self.change_vector = change_vector
 
     def to_json(self) -> dict:
         result = super().to_json()
         result["ConnectionStringName"] = self.connection_string_name
-        result["Configuration"] = self.configuration
+        result["Configuration"] = self.configuration.to_json() if self.configuration else None
+        result["ChangeVector"] = self.change_vector
         return result
 
     @classmethod
     def from_json(cls, json_dict: dict) -> "OngoingTaskEmbeddingsGeneration":
+        from ravendb.documents.operations.ai.embeddings_generation_configuration import (
+            EmbeddingsGenerationConfiguration,
+        )
+
         if json_dict is None:
             return None
 
         task_state_str = json_dict.get("TaskState")
         task_connection_status_str = json_dict.get("TaskConnectionStatus")
+        config_dict = json_dict.get("Configuration")
 
         return cls(
             task_id=json_dict.get("TaskId"),
@@ -265,7 +274,8 @@ class OngoingTaskEmbeddingsGeneration(OngoingTask):
             mentor_node=json_dict.get("MentorNode"),
             pin_to_mentor_node=json_dict.get("PinToMentorNode"),
             connection_string_name=json_dict.get("ConnectionStringName"),
-            configuration=json_dict.get("Configuration"),
+            configuration=EmbeddingsGenerationConfiguration.from_json(config_dict) if config_dict else None,
+            change_vector=json_dict.get("ChangeVector"),
         )
 
 
