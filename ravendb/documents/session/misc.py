@@ -67,6 +67,10 @@ class SessionInfo:
         return self._can_use_load_balance_behavior
 
     @property
+    def database_name(self) -> str:
+        return self._session.database_name
+
+    @property
     def session_id(self) -> int:
         if self._session_id is None:
             context = None
