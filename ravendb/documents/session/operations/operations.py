@@ -232,6 +232,7 @@ class GetRevisionOperation:
         document_info.document = document
         document_info.metadata = metadata
         document_info.entity = entity
+        document_info.ignore_changes = True
         self._session.documents_by_entity[entity] = document_info
 
         return entity

@@ -102,12 +102,22 @@ from ravendb.documents.operations.ai.agents import (
     ConversationResult,
     AiAgentActionRequest,
     AiAgentActionResponse,
+    AiAgentArtificialActionResponse,
     AiUsage,
     AiConversationCreationOptions,
     GetAiAgentOperation,
     GetAiAgentsResponse,
     AddOrUpdateAiAgentOperation,
     DeleteAiAgentOperation,
+)
+from ravendb.documents.operations.ai import (
+    ChunkingOptions,
+    ChunkingMethod,
+    EmbeddingPathConfiguration,
+    EmbeddingsTransformation,
+    EmbeddingsGenerationConfiguration,
+    AddEmbeddingsGenerationOperation,
+    UpdateEmbeddingsGenerationOperation,
 )
 
 from ravendb.documents.operations.etl.configuration import EtlConfiguration, RavenEtlConfiguration

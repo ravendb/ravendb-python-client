@@ -57,6 +57,34 @@ class AiAgentActionResponse:
 
 
 @dataclass
+class AiAgentArtificialActionResponse:
+    """
+    Represents an artificial action (tool call) and response to inject into the model's conversation context.
+    This allows programmatically prompting the agent by making it "believe" it executed a tool.
+    """
+
+    tool_id: Optional[str] = None
+    content: Optional[str] = None
+
+    def validate(self) -> None:
+        """Validates that tool_id and content are not empty."""
+        if not self.tool_id or self.tool_id.isspace():
+            raise ValueError("tool_id cannot be None or empty")
+        if not self.content or self.content.isspace():
+            raise ValueError("content cannot be None or empty")
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentArtificialActionResponse:
+        return cls(tool_id=json_dict["ToolId"], content=json_dict.get["Content"])
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "ToolId": self.tool_id,
+            "Content": self.content,
+        }
+
+
+@dataclass
 class AiUsage:
     """Represents AI token usage statistics."""
 
@@ -185,16 +213,18 @@ class AiConversationCreationOptions:
 class ConversationRequestBody:
     """
     Request body for AI agent conversation operations, containing user prompts,
-    action responses, and creation options.
+    action responses, artificial actions, and creation options.
     """
 
     def __init__(
         self,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
+        artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = None,
         user_prompt: Optional[List[ContentPart]] = None,
         creation_options: Optional[AiConversationCreationOptions] = None,
     ):
         self.action_responses: Optional[List[AiAgentActionResponse]] = action_responses
+        self.artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = artificial_actions
         self.user_prompt: Optional[List[ContentPart]] = user_prompt  # List of ContentPart objects
         self.creation_options: Optional[AiConversationCreationOptions] = creation_options
 
@@ -205,20 +235,16 @@ class ConversationRequestBody:
         Returns:
             Dictionary representation of the request body
         """
-        result = {}
-
-        # ActionResponses: null if None, otherwise array
-        result["ActionResponses"] = (
-            None if self.action_responses is None else [resp.to_json() for resp in self.action_responses]
-        )
-
-        # UserPrompt: null if None, otherwise array of ContentPart JSON objects
-        result["UserPrompt"] = None if self.user_prompt is None else [part.to_json() for part in self.user_prompt]
-
-        # CreationOptions: always present (create empty if None, matching C# behavior)
-        result["CreationOptions"] = (self.creation_options or AiConversationCreationOptions()).to_json()
-
-        return result
+        return {
+            "ActionResponses": (
+                None if self.action_responses is None else [resp.to_json() for resp in self.action_responses]
+            ),
+            "ArtificialActions": (
+                None if self.artificial_actions is None else [resp.to_json() for resp in self.artificial_actions]
+            ),
+            "CreationOptions": (self.creation_options or AiConversationCreationOptions()).to_json(),
+            "UserPrompt": None if self.user_prompt is None else [part.to_json() for part in self.user_prompt],
+        }
 
 
 class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]):
@@ -235,6 +261,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         conversation_id: str,
         prompt_parts: Optional[List[ContentPart]] = None,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
+        artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = None,
         options: Optional[AiConversationCreationOptions] = None,
         change_vector: Optional[str] = None,
         stream_property_path: Optional[str] = None,
@@ -248,6 +275,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             conversation_id: The ID of the conversation (required)
             prompt_parts: List of ContentPart objects to send to the agent
             action_responses: List of action responses from previous turn
+            artificial_actions: List of artificial actions to inject into conversation context
             options: Creation options including parameters and expiration
             change_vector: Change vector for optimistic concurrency
             stream_property_path: Optional response property name to stream
@@ -264,6 +292,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         self._conversation_id = conversation_id
         self._prompt_parts = prompt_parts
         self._action_responses = action_responses
+        self._artificial_actions = artificial_actions or []
         self._options = options
         self._change_vector = change_vector
         self._stream_property_path = stream_property_path
@@ -275,6 +304,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             conversation_id=self._conversation_id,
             prompt_parts=self._prompt_parts,
             action_responses=self._action_responses,
+            artificial_actions=self._artificial_actions,
             options=self._options,
             change_vector=self._change_vector,
             stream_property_path=self._stream_property_path,
@@ -290,6 +320,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         conversation_id: str,
         prompt_parts: Optional[List[ContentPart]] = None,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
+        artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = None,
         options: Optional[AiConversationCreationOptions] = None,
         change_vector: Optional[str] = None,
         stream_property_path: Optional[str] = None,
@@ -303,6 +334,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         self._conversation_id = conversation_id
         self._prompt_parts = prompt_parts
         self._action_responses = action_responses
+        self._artificial_actions = artificial_actions or []
         self._options = options
         self._change_vector = change_vector
         self._stream_property_path = stream_property_path
@@ -339,6 +371,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         # Build request body with correct structure to match .NET client
         request_body = ConversationRequestBody(
             action_responses=self._action_responses,
+            artificial_actions=self._artificial_actions,
             user_prompt=self._prompt_parts,
             creation_options=self._options,
         )
