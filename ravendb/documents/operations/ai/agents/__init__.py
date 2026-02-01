@@ -27,6 +27,7 @@ from .run_conversation_operation import (
     ConversationResult,
     AiAgentActionRequest,
     AiAgentActionResponse,
+    AiAgentArtificialActionResponse,
     AiUsage,
     AiConversationCreationOptions,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "ConversationResult",
     "AiAgentActionRequest",
     "AiAgentActionResponse",
+    "AiAgentArtificialActionResponse",
     "AiUsage",
     "AiConversationCreationOptions",
     "GetAiAgentOperation",

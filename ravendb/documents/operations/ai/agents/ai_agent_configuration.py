@@ -314,6 +314,7 @@ class AiAgentConfiguration:
         parameters: List[Union[str, AiAgentParameter]] = None,
         chat_trimming: AiAgentChatTrimmingConfiguration = None,
         max_model_iterations_per_call: int = None,
+        disabled: bool = False,
     ):
         self.name = name
         self.connection_string_name = connection_string_name
@@ -327,6 +328,7 @@ class AiAgentConfiguration:
         self.parameters: List[AiAgentParameter] = self._normalize_parameters(parameters)
         self.chat_trimming: Optional[AiAgentChatTrimmingConfiguration] = chat_trimming
         self.max_model_iterations_per_call: Optional[int] = max_model_iterations_per_call
+        self.disabled: bool = disabled
 
     @staticmethod
     def _normalize_parameters(parameters: List[Union[str, AiAgentParameter]]) -> List[AiAgentParameter]:
@@ -355,6 +357,7 @@ class AiAgentConfiguration:
             "Parameters": [p.to_json() for p in self.parameters],
             "ChatTrimming": self.chat_trimming.to_json() if self.chat_trimming else None,
             "MaxModelIterationsPerCall": self.max_model_iterations_per_call,
+            "Disabled": self.disabled,
         }
 
     @classmethod
@@ -391,6 +394,7 @@ class AiAgentConfiguration:
         instance.max_model_iterations_per_call = json_dict.get("maxModelIterationsPerCall") or json_dict.get(
             "MaxModelIterationsPerCall"
         )
+        instance.disabled = json_dict.get("disabled", False) or json_dict.get("Disabled", False)
         return instance
 
 

@@ -37,3 +37,19 @@ class ChunkingOptions:
             "MaxTokensPerChunk": self.max_tokens_per_chunk,
             "OverlapTokens": self.overlap_tokens,
         }
+
+    def __eq__(self, other: object) -> bool:
+        if other is None:
+            return False
+        if self is other:
+            return True
+        if not isinstance(other, ChunkingOptions):
+            return False
+        return (
+            self.chunking_method == other.chunking_method
+            and self.max_tokens_per_chunk == other.max_tokens_per_chunk
+            and self.overlap_tokens == other.overlap_tokens
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.chunking_method, self.max_tokens_per_chunk, self.overlap_tokens))

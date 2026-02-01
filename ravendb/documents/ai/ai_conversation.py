@@ -12,6 +12,7 @@ from ravendb.documents.operations.ai.agents import (
     AiAgentActionResponse,
     AiConversationCreationOptions,
 )
+from ravendb.documents.operations.ai.agents.run_conversation_operation import AiAgentArtificialActionResponse
 
 if TYPE_CHECKING:
     from ravendb.documents.store.definition import DocumentStore
@@ -56,6 +57,7 @@ class AiConversation:
 
         self._prompt_parts: List[ContentPart] = []
         self._action_responses: List[AiAgentActionResponse] = []
+        self._artificial_actions: List[AiAgentArtificialActionResponse] = []
         self._action_requests: Optional[List[AiAgentActionRequest]] = None
 
         # Action handlers
@@ -122,6 +124,31 @@ class AiConversation:
 
         self._action_responses.append(response)
 
+    def add_artificial_action_with_response(self, tool_id: str, action_response) -> None:
+        """
+        Injects an artificial action (tool call) and a response into the model's conversation context.
+        This is an advanced mechanism to programmatically prompt the agent, causing it to "believe"
+        it successfully executed a tool and received the specified action_response.
+
+        Args:
+            tool_id: The name of the tool to simulate the agent called.
+            action_response: The response to supply to the agent as the result of the simulated action.
+                            Can be a string or any object that will be serialized to JSON.
+        """
+        if not tool_id or (isinstance(tool_id, str) and tool_id.isspace()):
+            raise ValueError("tool_id cannot be None or empty")
+        if action_response is None:
+            raise ValueError(f"Action response for '{tool_id}' cannot be None.")
+
+        if isinstance(action_response, str):
+            content = action_response
+        else:
+            content = json.dumps(action_response)
+
+        self._artificial_actions.append(
+            AiAgentArtificialActionResponse(tool_id=tool_id, content=content)
+        )
+
     def run(self) -> AiAnswer:
         """
         Executes the conversation loop, automatically handling action requests
@@ -159,7 +186,12 @@ class AiConversation:
         import time
 
         # If we already went to the server and have nothing new to tell it, we're done
-        if self._action_requests is not None and len(self._prompt_parts) == 0 and len(self._action_responses) == 0:
+        if (
+            self._action_requests is not None
+            and len(self._prompt_parts) == 0
+            and len(self._action_responses) == 0
+            and len(self._artificial_actions) == 0
+        ):
             return AiAnswer(
                 answer=None,
                 status=AiConversationStatus.DONE,
@@ -182,6 +214,7 @@ class AiConversation:
             conversation_id=self._conversation_id,
             prompt_parts=self._prompt_parts,  # Always send list, even if empty
             action_responses=self._action_responses,  # Always send list, even if empty
+            artificial_actions=self._artificial_actions,  # Always send list, even if empty
             options=self._options,
             change_vector=self._change_vector,
             stream_property_path=stream_property_path,
@@ -217,6 +250,7 @@ class AiConversation:
             # Clear the user prompt and tool responses after running the conversation
             self._prompt_parts.clear()
             self._action_responses.clear()
+            self._artificial_actions.clear()
 
     def _handle_server_reply(self, answer: AiAnswer) -> bool:
         """
@@ -249,7 +283,7 @@ class AiConversation:
                 raise RuntimeError(
                     f"There is no action defined for action '{action.name}' on agent '{self._agent_id}' "
                     f"({self._conversation_id}), but it was invoked by the model with: {action.arguments}. "
-                    f"Did you forget to call {self.receive.__name__}() or {self.handle.__name__}()? You can also handle unexpected action invocations using the {self.on_unhandled_action.__name__} event."
+                    f"Did you forget to call {self.receive.__name__}() or {self.handle.__name__}()? You can also handle unexpected action invocations using the 'on_unhandled_action' event."
                 )
 
         # If we have nothing to tell the server (no action responses), we're done

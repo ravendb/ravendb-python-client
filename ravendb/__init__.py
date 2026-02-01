@@ -102,6 +102,7 @@ from ravendb.documents.operations.ai.agents import (
     ConversationResult,
     AiAgentActionRequest,
     AiAgentActionResponse,
+    AiAgentArtificialActionResponse,
     AiUsage,
     AiConversationCreationOptions,
     GetAiAgentOperation,
