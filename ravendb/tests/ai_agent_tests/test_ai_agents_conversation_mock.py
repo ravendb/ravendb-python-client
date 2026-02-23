@@ -7,6 +7,7 @@ mocked so no LLM API key is required.
 """
 
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -61,6 +62,7 @@ def _action_result(action_name, tool_id, arguments, conversation_id="conversatio
     )
 
 
+@unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
 class TestAiAgentConversationMock(TestBase):
     """
     Hybrid tests: agent CRUD uses the real server; conversation calls are mocked.

@@ -23,7 +23,7 @@ from ravendb.documents.operations.connection_string.put_connection_string_operat
 from ravendb.tests.test_base import TestBase
 
 
-# @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
+@unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
 class TestAiAgentCrudOperations(TestBase):
     """Integration tests for AI agent CRUD operations (require server connection)."""
 
