@@ -723,13 +723,17 @@ class AbstractDocumentQuery(Generic[_T]):
         where_token = WhereToken.create(WhereOperator.REGEX, field_name, parameter)
         tokens.append(where_token)
 
-    def _and_also(self) -> None:
+    def _and_also(self, wrap_previous_query_clauses: bool = False) -> None:
         tokens = self.__get_current_where_tokens()
         if not tokens:
             return
 
         if isinstance(tokens[-1], QueryOperatorToken):
             raise TypeError("Cannot add AND, previous token was already an operator token")
+
+        if wrap_previous_query_clauses:
+            tokens.insert(0, OpenSubclauseToken.create())
+            tokens.append(CloseSubclauseToken.create())
 
         tokens.append(QueryOperatorToken.AND())
 
@@ -2499,8 +2503,8 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._where_regex(field_name, pattern)
         return self
 
-    def and_also(self) -> DocumentQuery[_T]:
-        self._and_also()
+    def and_also(self, wrap_previous_query_clauses: bool = False) -> DocumentQuery[_T]:
+        self._and_also(wrap_previous_query_clauses)
         return self
 
     def or_else(self) -> DocumentQuery[_T]:
