@@ -923,7 +923,7 @@ class AbstractDocumentQuery(Generic[_T]):
             query_text.append(" limit $")
             query_text.append(self.__add_query_parameter(self._start or 0))
             query_text.append(", $")
-            query_text.append(self.__add_query_parameter(self._page_size or 0))
+            query_text.append(self.__add_query_parameter(self._page_size))
 
     def __build_include(self, query_text: List[str]) -> None:
         if (
