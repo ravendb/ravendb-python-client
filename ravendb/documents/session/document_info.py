@@ -44,4 +44,5 @@ class DocumentInfo:
         if not change_vector or not isinstance(change_vector, str):
             raise ValueError(f"Document {key} must have a Change Vector")
 
-        return cls(key=key, document=document, metadata=metadata, entity=None, change_vector=change_vector)
+        # Shallow-copy metadata so mutations on this DocumentInfo don't alias the original document dict
+        return cls(key=key, document=document, metadata=dict(metadata), entity=None, change_vector=change_vector)
