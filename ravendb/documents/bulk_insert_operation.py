@@ -356,7 +356,7 @@ class BulkInsertOperation:
 
         result = state_request.result["Result"]
 
-        if result["$type"].starts_with("Raven.Client.Documents.Operations.OperationExceptionResult"):
+        if result["$type"].startswith("Raven.Client.Documents.Operations.OperationExceptionResult"):
             return BulkInsertAbortedException(result["Error"])
 
         return None
