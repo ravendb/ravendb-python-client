@@ -1183,6 +1183,51 @@ class InMemoryDocumentSessionOperations:
 
         return changes
 
+    def _what_changed_for(self, entity: object) -> List[DocumentsChanges]:
+        if (doc_info := self._documents_by_entity.get(entity)) is None:
+            return []
+        if entity in self._deleted_entities:
+            return [
+                DocumentsChanges(
+                    field_old_value="",
+                    field_new_value="",
+                    change=DocumentsChanges.ChangeType.DOCUMENT_DELETED,
+                )
+            ]
+        _update_metadata_modifications(doc_info.metadata_instance, doc_info.metadata)
+        new_obj = self.entity_to_json.convert_entity_to_json(entity, doc_info)
+        changes: Dict[str, List[DocumentsChanges]] = {}
+        if not self._entity_changed(new_obj, doc_info, changes):
+            return []
+        return [
+            DocumentsChanges(
+                field_old_value=d["old_value"],
+                field_new_value=d["new_value"],
+                change=d["change"],
+                field_name=d["field_name"],
+                field_path=d["field_path"],
+            )
+            for d in changes.get(doc_info.key, [])
+        ]
+
+    def _get_tracked_entities(self) -> Dict[str, dict]:
+        result = {}
+        for entity_result in self._documents_by_entity:
+            doc_info = entity_result.value
+            result[doc_info.key] = {
+                "id": doc_info.key,
+                "entity": entity_result.key,
+                "is_deleted": self.is_deleted(doc_info.key),
+            }
+        for key in self._known_missing_ids:
+            if key not in result:
+                result[key] = {
+                    "id": key,
+                    "entity": None,
+                    "is_deleted": True,
+                }
+        return result
+
     def __get_all_entities_changes(self, changes: Dict[str, List[DocumentsChanges]]) -> None:
         for key, value in self._documents_by_id.items():
             _update_metadata_modifications(value.metadata_instance, value.metadata)
