@@ -22,7 +22,7 @@ from ravendb.documents.session.tokens.misc import WhereOperator
 from ravendb.documents.session.tokens.query_tokens.query_token import QueryToken
 from ravendb.documents.session.utils.document_query import DocumentQueryHelper
 from ravendb.primitives.constants import VectorSearch
-from ravendb.tools.utils import Utils
+from ravendb.tools.utils import Utils, QueryFieldUtil
 
 
 class CompareExchangeValueIncludesToken(QueryToken):
@@ -992,7 +992,7 @@ class SuggestToken(QueryToken):
             return
 
         writer.append(" as ")
-        writer.append(self.__alias)
+        writer.append(QueryFieldUtil.escape_if_necessary(self.__alias))
 
 
 class VectorSearchToken(WhereToken):
