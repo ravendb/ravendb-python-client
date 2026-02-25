@@ -82,7 +82,7 @@ class JsonOperation:
             old_prop = original_json[prop]
 
             if isinstance(new_prop, (int, float, bool, str)):
-                if new_prop == old_prop or JsonOperation.compare_values(old_prop, new_prop):
+                if JsonOperation.compare_values(old_prop, new_prop):
                     continue
                 if changes is None:
                     return True
@@ -193,7 +193,10 @@ class JsonOperation:
                             DocumentsChanges.ChangeType.ARRAY_VALUE_CHANGED,
                         )
             elif isinstance(new_collection_item, (int, float, bool, str)):
-                if not str(old_collection_item) == str(new_collection_item):
+                if (
+                    type(old_collection_item) is not type(new_collection_item)
+                    or old_collection_item != new_collection_item
+                ):
                     if changes is not None:
                         JsonOperation.new_change(
                             JsonOperation.add_index_field_path(field_path, position),
