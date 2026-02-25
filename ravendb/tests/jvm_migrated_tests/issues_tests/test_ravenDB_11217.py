@@ -37,7 +37,7 @@ class TestRavenDB11217(TestBase):
         with self.store.open_session(session_options=no_tracking_options) as session:
             self.assertEqual(0, session.advanced.number_of_requests)
 
-            product1 = session.load("products/1-A", Product, lambda b: b.include_documents("supplier"))
+            product1 = session.load("products/1-A", Product)
 
             self.assertEqual(1, session.advanced.number_of_requests)
 
@@ -52,7 +52,7 @@ class TestRavenDB11217(TestBase):
             self.assertEqual(2, session.advanced.number_of_requests)
             self.assertFalse(session.advanced.is_loaded(supplier.Id))
 
-            product2 = session.load("products/1-A", Product, lambda b: b.include_documents(("supplier")))
+            product2 = session.load("products/1-A", Product)
             self.assertNotEqual(product2, product1)
 
         with self.store.open_session(session_options=no_tracking_options) as session:
@@ -79,7 +79,7 @@ class TestRavenDB11217(TestBase):
 
         with self.store.open_session(session_options=no_tracking_options) as session:
             self.assertEqual(0, session.advanced.number_of_requests)
-            products = list(session.query(object_type=Product).include("supplier"))
+            products = list(session.query(object_type=Product))
 
             self.assertEqual(1, session.advanced.number_of_requests)
             self.assertEqual(1, len(products))
@@ -95,7 +95,7 @@ class TestRavenDB11217(TestBase):
             self.assertEqual(2, session.advanced.number_of_requests)
             self.assertFalse(session.advanced.is_loaded(supplier.Id))
 
-            products = list(session.query(object_type=Product).include("supplier"))
+            products = list(session.query(object_type=Product))
             self.assertEqual(1, len(products))
 
             product2 = products[0]
