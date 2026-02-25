@@ -172,7 +172,7 @@ class BeforeDeleteEventArgs(EventArgs):
 
     @property
     def session(self) -> "InMemoryDocumentSessionOperations":
-        return self.session
+        return self.__session
 
     @property
     def key(self) -> str:
@@ -190,7 +190,7 @@ class BeforeQueryEventArgs(EventArgs):
 
     @property
     def session(self) -> "InMemoryDocumentSessionOperations":
-        return self.session
+        return self.__session
 
     @property
     def query_customization(self) -> DocumentQueryCustomization:

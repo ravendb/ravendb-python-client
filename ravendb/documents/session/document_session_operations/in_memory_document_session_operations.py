@@ -327,7 +327,7 @@ class DeletedEntitiesHolder(MutableSet):
         if items is None:
             items = []
         self.__deleted_entities = set(map(RefEq, items))
-        self.__prepare_entities_deleted = prepare_entities_deletes
+        self._prepare_entities_deleted = prepare_entities_deletes
         self.__on_before_deleted_entities: Union[set, None] = None
 
     def __getattribute__(self, item):
@@ -339,7 +339,7 @@ class DeletedEntitiesHolder(MutableSet):
             "discard",
             "DeletedEntitiesEnumeratorResult",
             "_DeletedEntitiesHolder__deleted_entities",
-            "_DeletedEntitiesHolder__prepare_entities_deleted",
+            "_prepare_entities_deleted",
             "_DeletedEntitiesHolder__on_before_deleted_entities",
         ]:
             return super().__getattribute__(item)
@@ -358,19 +358,17 @@ class DeletedEntitiesHolder(MutableSet):
         )
 
     def __iter__(self):
-        deleted_transformed_iterator = (
-            self.DeletedEntitiesEnumeratorResult(item.ref, True) for item in self.__deleted_entities
-        )
-        if self.__on_before_deleted_entities is None:
-            return deleted_transformed_iterator
-
-        on_before_deleted_iterator = (
-            self.DeletedEntitiesEnumeratorResult(item.ref, False) for item in self.__on_before_deleted_entities
-        )
-        return itertools.chain(deleted_transformed_iterator, on_before_deleted_iterator)
+        # Snapshot the main set so that cascade deletes registered by BeforeDelete
+        # handlers do not raise "Set changed size during iteration".
+        yield from (self.DeletedEntitiesEnumeratorResult(item.ref, True) for item in list(self.__deleted_entities))
+        if self.__on_before_deleted_entities:
+            yield from (
+                self.DeletedEntitiesEnumeratorResult(item.ref, False)
+                for item in list(self.__on_before_deleted_entities)
+            )
 
     def add(self, element: object) -> None:
-        if self.__prepare_entities_deleted:
+        if self._prepare_entities_deleted:
             if self.__on_before_deleted_entities is None:
                 self.__on_before_deleted_entities = set()
             self.__on_before_deleted_entities.add(RefEq(element))
@@ -393,7 +391,7 @@ class DeletedEntitiesHolder(MutableSet):
             self.__on_before_deleted_entities.clear()
 
     def evict(self, entity) -> None:
-        if self.__prepare_entities_deleted:
+        if self._prepare_entities_deleted:
             raise RuntimeError("Cannot evict entity during OnBeforeDelete")
         self.__deleted_entities.discard(RefEq(entity))
 
@@ -1034,42 +1032,52 @@ class InMemoryDocumentSessionOperations:
     def __prepare_for_entities_deletion(
         self, result: Union[None, SaveChangesData], changes: Union[None, Dict[str, List[DocumentsChanges]]]
     ) -> None:
-        for deleted_entity in self._deleted_entities:
-            document_info = self._documents_by_entity.get(deleted_entity.entity)
-            if document_info is None:
-                continue
-            if changes is not None:
-                doc_changes = []
-                change = DocumentsChanges("", "", DocumentsChanges.ChangeType.DOCUMENT_DELETED)
-                doc_changes.append(change)
-                changes[document_info.key] = doc_changes
-            else:
-                command = result.deferred_commands_map.get(
-                    IdTypeAndName.create(document_info.key, CommandType.CLIENT_ANY_COMMAND, None)
-                )
-                if command:
-                    self.__throw_invalid_deleted_document_with_deferred_command(command)
+        """Build delete commands for all entities in the deleted-entities set.
 
-                change_vector = None
-                document_info = self._documents_by_id.get(document_info.key)
+        While iterating, BeforeDelete event handlers may call session.delete(),
+        which stages new deletions for a second pass via DeletedEntitiesHolder.
+        """
+        self._deleted_entities._prepare_entities_deleted = True
+        try:
+            for deleted_entity in self._deleted_entities:
+                document_info = self._documents_by_entity.get(deleted_entity.entity)
+                if document_info is None:
+                    continue
+                if changes is not None:
+                    doc_changes = []
+                    change = DocumentsChanges("", "", DocumentsChanges.ChangeType.DOCUMENT_DELETED)
+                    doc_changes.append(change)
+                    changes[document_info.key] = doc_changes
+                else:
+                    command = result.deferred_commands_map.get(
+                        IdTypeAndName.create(document_info.key, CommandType.CLIENT_ANY_COMMAND, None)
+                    )
+                    if command:
+                        self.__throw_invalid_deleted_document_with_deferred_command(command)
 
-                if document_info:
-                    change_vector = document_info.change_vector
+                    change_vector = None
+                    document_info = self._documents_by_id.get(document_info.key)
 
-                    if document_info.entity is not None:
-                        result.on_success.remove_document_by_entity(document_info.entity)
-                        result.entities.append(document_info.entity)
+                    if document_info:
+                        change_vector = document_info.change_vector
 
-                    result.on_success.remove_document_by_id(document_info.key)
+                        if document_info.entity is not None:
+                            result.on_success.remove_document_by_entity(document_info.entity)
+                            result.entities.append(document_info.entity)
 
-                change_vector = change_vector if self._use_optimistic_concurrency else None
-                self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
-                result.session_commands.append(
-                    DeleteCommandData(document_info.key, change_vector, document_info.change_vector)
-                )
+                        result.on_success.remove_document_by_id(document_info.key)
 
-            if changes is None:
-                result.on_success.clear_deleted_entities()
+                    change_vector = change_vector if self._use_optimistic_concurrency else None
+                    if deleted_entity.execute_on_before_delete:
+                        self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
+                    result.session_commands.append(
+                        DeleteCommandData(document_info.key, change_vector, document_info.change_vector)
+                    )
+
+                if changes is None:
+                    result.on_success.clear_deleted_entities()
+        finally:
+            self._deleted_entities._prepare_entities_deleted = False
 
     def __prepare_for_entities_puts(self, result: SaveChangesData) -> None:
         should_ignore_entity_changes = self.conventions.should_ignore_entity_changes
