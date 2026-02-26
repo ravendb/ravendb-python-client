@@ -31,7 +31,6 @@ from ravendb.documents.operations.ai.open_ai_settings import OpenAiSettings
 from ravendb.documents.operations.connection_string.put_connection_string_operation import PutConnectionStringOperation
 from ravendb.tests.test_base import TestBase
 
-
 CONNECTION_STRING_NAME = "conv-mock-cs"
 AGENT_ID = "conv-mock-agent"
 
@@ -56,9 +55,7 @@ def _action_result(action_name, tool_id, arguments, conversation_id="conversatio
         change_vector=change_vector,
         response=None,
         usage=_make_usage(),
-        action_requests=[
-            AiAgentActionRequest(name=action_name, tool_id=tool_id, arguments=json.dumps(arguments))
-        ],
+        action_requests=[AiAgentActionRequest(name=action_name, tool_id=tool_id, arguments=json.dumps(arguments))],
     )
 
 
@@ -126,8 +123,11 @@ class TestAiAgentConversationMock(TestBase):
         return _send
 
     def test_basic_conversation_returns_answer(self):
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: _done_result(response={"answer": "Hello!"}))):
+        with patch.object(
+            self.store.maintenance,
+            "send",
+            side_effect=self._patched_send(lambda: _done_result(response={"answer": "Hello!"})),
+        ):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Hi there")
             result = chat.run()
@@ -135,9 +135,13 @@ class TestAiAgentConversationMock(TestBase):
         self.assertEqual("Hello!", result.answer["answer"])
 
     def test_conversation_id_and_change_vector_are_stored(self):
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(
-                              lambda: _done_result(conversation_id="conversations/99", change_vector="A:99"))):
+        with patch.object(
+            self.store.maintenance,
+            "send",
+            side_effect=self._patched_send(
+                lambda: _done_result(conversation_id="conversations/99", change_vector="A:99")
+            ),
+        ):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Hello")
             chat.run()
@@ -145,8 +149,7 @@ class TestAiAgentConversationMock(TestBase):
         self.assertEqual("A:99", chat._change_vector)
 
     def test_usage_is_populated(self):
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: _done_result())):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: _done_result())):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Hello")
             result = chat.run()
@@ -156,16 +159,18 @@ class TestAiAgentConversationMock(TestBase):
         self.assertEqual(30, result.usage.total_tokens)
 
     def test_elapsed_is_populated(self):
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: _done_result())):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: _done_result())):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Hello")
             result = chat.run()
         self.assertIsNotNone(result.elapsed)
 
     def test_context_manager_usage(self):
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: _done_result(response={"answer": "ctx"}))):
+        with patch.object(
+            self.store.maintenance,
+            "send",
+            side_effect=self._patched_send(lambda: _done_result(response={"answer": "ctx"})),
+        ):
             with self.store.ai.conversation(AGENT_ID, "conversations/") as chat:
                 chat.set_user_prompt("Hello from context manager")
                 result = chat.run()
@@ -178,18 +183,19 @@ class TestAiAgentConversationMock(TestBase):
 
     def test_handle_invokes_handler_and_sends_response(self):
         calls = []
-        responses = iter([
-            _action_result("store-result", "tool-1", {"result": "data"}),
-            _done_result(response={"answer": "stored"}),
-        ])
+        responses = iter(
+            [
+                _action_result("store-result", "tool-1", {"result": "data"}),
+                _done_result(response={"answer": "stored"}),
+            ]
+        )
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: next(responses))):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Store something")
-            chat.handle("store-result",
-                        lambda args: calls.append(args) or "ok",
-                        AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
+            chat.handle(
+                "store-result", lambda args: calls.append(args) or "ok", AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL
+            )
             result = chat.run()
 
         self.assertEqual(AiConversationStatus.DONE, result.status)
@@ -198,17 +204,18 @@ class TestAiAgentConversationMock(TestBase):
 
     def test_receive_invokes_handler_with_request_and_args(self):
         received = []
-        responses = iter([
-            _action_result("store-result", "tool-2", {"result": "payload"}),
-            _done_result(),
-        ])
+        responses = iter(
+            [
+                _action_result("store-result", "tool-2", {"result": "payload"}),
+                _done_result(),
+            ]
+        )
 
         def my_receiver(request, args):
             received.append((request, args))
             chat.add_action_response(request.tool_id, "done")
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: next(responses))):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Do something")
             chat.receive("store-result", my_receiver, AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
@@ -222,19 +229,18 @@ class TestAiAgentConversationMock(TestBase):
         self.assertEqual({"result": "payload"}, args)
 
     def test_multi_turn_action_loop(self):
-        responses = iter([
-            _action_result("store-result", "tool-a", {"result": "first"}),
-            _action_result("store-result", "tool-b", {"result": "second"}),
-            _done_result(response={"answer": "all done"}),
-        ])
+        responses = iter(
+            [
+                _action_result("store-result", "tool-a", {"result": "first"}),
+                _action_result("store-result", "tool-b", {"result": "second"}),
+                _done_result(response={"answer": "all done"}),
+            ]
+        )
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: next(responses))):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Do two things")
-            chat.handle("store-result",
-                        lambda args: "handled",
-                        AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
+            chat.handle("store-result", lambda args: "handled", AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
             result = chat.run()
 
         self.assertEqual(AiConversationStatus.DONE, result.status)
@@ -244,16 +250,17 @@ class TestAiAgentConversationMock(TestBase):
     # ------------------------------------------------------------------
 
     def test_handler_error_send_to_model(self):
-        responses = iter([
-            _action_result("store-result", "tool-err", {"result": "x"}),
-            _done_result(response={"answer": "recovered"}),
-        ])
+        responses = iter(
+            [
+                _action_result("store-result", "tool-err", {"result": "x"}),
+                _done_result(response={"answer": "recovered"}),
+            ]
+        )
 
         def bad_handler(args):
             raise ValueError("something went wrong")
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: next(responses))):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Trigger error")
             chat.handle("store-result", bad_handler, AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
@@ -269,8 +276,7 @@ class TestAiAgentConversationMock(TestBase):
         def bad_handler(args):
             raise RuntimeError("fatal error")
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(mock_send)):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(mock_send)):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Trigger fatal error")
             chat.handle("store-result", bad_handler, AiHandleErrorStrategy.RAISE_IMMEDIATELY)
@@ -283,17 +289,18 @@ class TestAiAgentConversationMock(TestBase):
 
     def test_on_unhandled_action_is_called(self):
         unhandled = []
-        responses = iter([
-            _action_result("unknown-action", "t-99", {"x": 1}),
-            _done_result(),
-        ])
+        responses = iter(
+            [
+                _action_result("unknown-action", "t-99", {"x": 1}),
+                _done_result(),
+            ]
+        )
 
         def on_unhandled(event_args):
             unhandled.append(event_args)
             event_args.sender.add_action_response(event_args.action.tool_id, "fallback")
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: next(responses))):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.on_unhandled_action = on_unhandled
             chat.set_user_prompt("Do something unhandled")
@@ -305,12 +312,13 @@ class TestAiAgentConversationMock(TestBase):
         self.assertEqual("unknown-action", unhandled[0].action.name)
 
     def test_no_handler_raises_runtime_error(self):
-        responses = iter([
-            _action_result("missing-action", "t-0", {}),
-        ])
+        responses = iter(
+            [
+                _action_result("missing-action", "t-0", {}),
+            ]
+        )
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: next(responses))):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Trigger missing handler")
             with self.assertRaises(RuntimeError):
@@ -389,8 +397,7 @@ class TestAiAgentConversationMock(TestBase):
         def mock_send():
             return _done_result(response={"answer": "streamed answer"})
 
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(mock_send)):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(mock_send)):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Stream this")
             result = chat.stream(stream_property_path="answer", on_chunk=chunks.append)
@@ -414,8 +421,7 @@ class TestAiAgentConversationMock(TestBase):
             _ = chat.required_actions
 
     def test_required_actions_after_run_returns_list(self):
-        with patch.object(self.store.maintenance, "send",
-                          side_effect=self._patched_send(lambda: _done_result())):
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: _done_result())):
             chat = self.store.ai.conversation(AGENT_ID, "conversations/")
             chat.set_user_prompt("Hello")
             chat.run()
@@ -435,5 +441,3 @@ class TestAiAgentConversationMock(TestBase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
