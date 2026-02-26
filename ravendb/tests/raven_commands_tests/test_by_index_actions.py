@@ -6,7 +6,7 @@ from ravendb.documents.commands.crud import PutDocumentCommand
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.operations.misc import QueryOperationOptions, DeleteByQueryOperation
-from ravendb.documents.operations.operation import Operation
+from ravendb.documents.operations.operation import BulkOperationResult, Operation
 from ravendb.documents.operations.patch import PatchByQueryOperation
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.tests.test_base import TestBase
@@ -113,8 +113,9 @@ class TestByIndexActions(TestBase):
                 response.operation_id,
                 response.operation_node_tag,
             )
-            # wait_for_completion doesnt return anything (None) when operation state is 'Completed'
-            self.assertIsNone(x.wait_for_completion())
+            result = x.wait_for_completion()
+            self.assertIsInstance(result, BulkOperationResult)
+            self.assertGreater(result.total, 0)
 
 
 if __name__ == "__main__":

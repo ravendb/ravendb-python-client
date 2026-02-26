@@ -112,7 +112,9 @@ class TestOperations(TestBase):
             response.operation_id,
             response.operation_node_tag,
         )
-        operation.wait_for_completion()
+        bulk_result = operation.wait_for_completion()
+        self.assertIsNotNone(bulk_result)
+        self.assertGreater(len(bulk_result.details), 0)
         with self.store.open_session() as session:
             result = session.load_starting_with("patches", Patch)
             values = list(map(lambda patch: patch.patched, result))
