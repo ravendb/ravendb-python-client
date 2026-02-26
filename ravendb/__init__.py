@@ -25,6 +25,7 @@ from ravendb.documents.indexes.definitions import (
     IndexSourceType,
     AutoIndexDefinition,
     AutoIndexFieldOptions,
+    ArchivedDataProcessingBehavior,
 )
 from ravendb.documents.indexes.abstract_index_creation_tasks import (
     AbstractIndexDefinitionBuilder,
@@ -176,6 +177,9 @@ from ravendb.documents.operations.statistics import (
     IndexInformation,
     GetDetailedStatisticsOperation,
     DetailedDatabaseStatistics,
+    GetEssentialStatisticsOperation,
+    EssentialDatabaseStatistics,
+    EssentialIndexInformation,
 )
 from ravendb.documents.queries.explanation import ExplanationOptions, Explanations
 from ravendb.documents.queries.facets.builders import RangeBuilder, FacetBuilder, FacetOperations
