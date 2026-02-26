@@ -1,6 +1,6 @@
 import base64
 import ssl
-from threading import Lock
+from threading import Event, Lock
 from typing import TYPE_CHECKING, Dict, Optional, Callable, Any, List
 
 from websocket import WebSocket
@@ -59,6 +59,7 @@ class DatabaseChanges:
 
         self._command_id = 0
         self._immediate_connection = 0
+        self._connected_event = Event()
 
         self._logger = logging.getLogger("database_changes")
         handler = logging.FileHandler("changes.log")
@@ -114,6 +115,7 @@ class DatabaseChanges:
             try:
                 if not self.client_websocket.connected:
                     self._ensure_websocket_connected(url)
+                    self._connected_event.set()
                 self.process_changes()
             except ChangeProcessingException as e:
                 self.notify_about_error(e)
@@ -179,6 +181,11 @@ class DatabaseChanges:
 
         for observable in observables.values():
             observable.send(result)
+
+    def ensure_connected_now(self, timeout: float = 15.0) -> None:
+        """Block until the websocket connection is established or timeout expires."""
+        if not self._connected_event.wait(timeout):
+            raise TimeoutError(f"DatabaseChanges failed to connect within {timeout}s")
 
     def close(self):
         self._closed = True

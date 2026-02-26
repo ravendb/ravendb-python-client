@@ -175,6 +175,30 @@ class DocumentStoreBase:
     def open_session(self, database: Optional[str] = None, session_options: Optional = None):
         pass
 
+    def add_before_store(self, event: Callable[[BeforeStoreEventArgs], None]):
+        self.__before_store.append(event)
+
+    def remove_before_store(self, event: Callable[[BeforeStoreEventArgs], None]):
+        self.__before_store.remove(event)
+
+    def add_after_save_changes(self, event: Callable[[AfterSaveChangesEventArgs], None]):
+        self.__after_save_changes.append(event)
+
+    def remove_after_save_changes(self, event: Callable[[AfterSaveChangesEventArgs], None]):
+        self.__after_save_changes.remove(event)
+
+    def add_before_delete(self, event: Callable[[BeforeDeleteEventArgs], None]):
+        self.__before_delete.append(event)
+
+    def remove_before_delete(self, event: Callable[[BeforeDeleteEventArgs], None]):
+        self.__before_delete.remove(event)
+
+    def add_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
+        self.__before_query.append(event)
+
+    def remove_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
+        self.__before_query.remove(event)
+
     def add_on_session_creation(self, event: Callable[[SessionCreatedEventArgs], None]):
         self.__on_session_creation.append(event)
 
@@ -313,7 +337,7 @@ class DocumentStore(DocumentStoreBase):
         self.urls = [urls] if isinstance(urls, str) else urls
         self.database = database
         self.__request_executors: Dict[str, Lazy[RequestExecutor]] = CaseInsensitiveDict()
-        # todo: aggressive cache
+        self.__aggressive_cache_changes: Dict[str, "DocumentStore._AggressiveCacheInvalidator"] = {}
         self.__maintenance_operation_executor: Optional[MaintenanceOperationExecutor] = None
         self.__operation_executor: Optional[OperationExecutor] = None
         # todo: database smuggler
@@ -379,7 +403,9 @@ class DocumentStore(DocumentStoreBase):
         for event in self.__before_close:
             event()
 
-        # todo: evict items from cache based on changes
+        for cache_invalidator in list(self.__aggressive_cache_changes.values()):
+            cache_invalidator.close()
+        self.__aggressive_cache_changes.clear()
 
         while len(self.__database_changes) > 0:
             self.__database_changes.popitem()[1].close()
@@ -529,7 +555,139 @@ class DocumentStore(DocumentStoreBase):
         self._initialized = True
         return self
 
-    # todo: aggressively cache
+    def aggressively_cache_for(
+        self,
+        cache_duration: datetime.timedelta,
+        database: Optional[str] = None,
+        mode: Optional["AggressiveCacheMode"] = None,
+    ) -> "DocumentStore._DisableAggressiveCachingContext":
+        from ravendb.http.misc import AggressiveCacheMode
+
+        if mode is None:
+            mode = AggressiveCacheMode.TRACK_CHANGES
+        context = self._set_aggressive_cache(cache_duration, mode, database)
+        return self._finalize_aggressive_cache(context, mode, database)
+
+    def _set_aggressive_cache(
+        self,
+        cache_duration: datetime.timedelta,
+        mode: "AggressiveCacheMode",
+        database: Optional[str] = None,
+    ) -> "DocumentStore._DisableAggressiveCachingContext":
+        from ravendb.http.misc import AggressiveCacheOptions
+
+        self.assert_initialized()
+        database = self.get_effective_database(database)
+        request_executor = self.get_request_executor(database)
+        options = AggressiveCacheOptions(cache_duration, mode)
+        return DocumentStore._DisableAggressiveCachingContext(request_executor, options)
+
+    def _finalize_aggressive_cache(
+        self,
+        context: "DocumentStore._DisableAggressiveCachingContext",
+        mode: "AggressiveCacheMode",
+        database: Optional[str] = None,
+    ) -> "DocumentStore._DisableAggressiveCachingContext":
+        from ravendb.http.misc import AggressiveCacheMode
+
+        try:
+            if mode != AggressiveCacheMode.DO_NOT_TRACK_CHANGES:
+                database = self.get_effective_database(database)
+                self._listen_to_changes_and_update_cache(database)
+            return context
+        except Exception:
+            context.__enter__()
+            context.__exit__(None, None, None)
+            raise
+
+    def _listen_to_changes_and_update_cache(self, database: str) -> None:
+        if database in self.__aggressive_cache_changes:
+            return
+        # This lock achieves ConcurrentDict-like behavior
+        cache_invalidator = DocumentStore._AggressiveCacheInvalidator(self, database)
+        with self.__add_change_lock:
+            if database not in self.__aggressive_cache_changes:
+                self.__aggressive_cache_changes[database] = cache_invalidator
+                cache_invalidator.ensure_connected()
+            else:
+                cache_invalidator.close()
+
+    def disable_aggressive_caching(
+        self, database: Optional[str] = None
+    ) -> "DocumentStore._DisableAggressiveCachingContext":
+        self.assert_initialized()
+        database = self.get_effective_database(database)
+        request_executor = self.get_request_executor(database)
+        return DocumentStore._DisableAggressiveCachingContext(request_executor)
+
+    class _DisableAggressiveCachingContext:
+        def __init__(self, request_executor, options=None):
+            self._request_executor = request_executor
+            self._options = options
+            self._old_options = None
+
+        def __enter__(self):
+            self._old_options = self._request_executor.aggressive_caching
+            self._request_executor.aggressive_caching = self._options
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self._request_executor.aggressive_caching = self._old_options
+
+    class _AggressiveCacheInvalidator:
+        """Subscribes to document/index changes and invalidates the request executor's aggressive cache."""
+
+        def __init__(self, store: "DocumentStore", database: str):
+            from ravendb.changes.observers import ActionObserver
+            from ravendb.changes.types import DocumentChangeType, IndexChangeTypes
+
+            self._request_executor = store.get_request_executor(database)
+            self._changes = store.changes(database)
+            self._unsubscribers: List[Callable[[], None]] = []
+
+            # Capture by reference so the lambdas below always see the live cache object,
+            # even if RequestExecutor.cache is replaced. (It isn't today, but be explicit.)
+            cache_ref = self._request_executor.cache
+
+            def _invalidate() -> None:
+                cache_ref.generation += 1
+
+            def on_document_change(change) -> None:
+                # Only Put and Delete affect query results; ConflictResolved etc. do not.
+                if change.type_of_change in (DocumentChangeType.PUT, DocumentChangeType.DELETE):
+                    _invalidate()
+
+            def on_index_change(change) -> None:
+                # BatchCompleted means new index results are available; IndexRemoved means
+                # stale queries might have been using it.
+                if change.type_of_change in (IndexChangeTypes.BATCH_COMPLETED, IndexChangeTypes.INDEX_REMOVED):
+                    _invalidate()
+
+            # subscribe_with_observer (not subscribe) so we can attach an on_error callback.
+            # subscribe() creates an ActionObserver with no on_error, which means a WebSocket
+            # disconnect silently swallows the error — cache.generation is never bumped and
+            # the aggressive cache serves stale data indefinitely after the connection dies.
+            self._unsubscribers.append(
+                self._changes.for_all_documents().subscribe_with_observer(
+                    ActionObserver(on_next=on_document_change, on_error=lambda e: _invalidate())
+                )
+            )
+            self._unsubscribers.append(
+                self._changes.for_all_indexes().subscribe_with_observer(
+                    ActionObserver(on_next=on_index_change, on_error=lambda e: _invalidate())
+                )
+            )
+
+        def ensure_connected(self) -> None:
+            self._changes.ensure_connected_now()
+
+        def close(self) -> None:
+            for unsub in self._unsubscribers:
+                try:
+                    unsub()
+                except Exception:
+                    pass
+            self._unsubscribers.clear()
 
     def bulk_insert(self, database_name: str = None, options: BulkInsertOptions = None) -> BulkInsertOperation:
         self.assert_initialized()

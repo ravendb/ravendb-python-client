@@ -41,6 +41,8 @@ class ReleaseCacheItem:
 
     @property
     def might_have_been_modified(self) -> bool:
+        if self.item is None:
+            return True
         return self.item.generation != self.__cache_generation
 
     def close(self):
@@ -73,7 +75,7 @@ class HttpCache:
         self.__items.__setitem__(key, value)
 
     def __getitem__(self, item):
-        self.__items.__getitem__(item)
+        return self.__items.__getitem__(item)
 
     def close(self):
         self.__items.clear()
@@ -108,29 +110,3 @@ class HttpCache:
             {ItemFlags.AGGRESSIVELY_CACHED, ItemFlags.NOT_FOUND} if aggressively_cached else {ItemFlags.NOT_FOUND}
         )
         self.__items[url] = http_cache_item
-
-    class ReleaseCacheItem:
-        def __init__(self, item: HttpCacheItem = None):
-            self.item: Union[None, HttpCacheItem] = item
-            self.__cache_generation = item.cache.generation if item else 0
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-        def not_modified(self) -> None:
-            if self.item is not None:
-                self.item.last_server_update = datetime.datetime.now()
-                self.item.generation = self.__cache_generation
-
-        @property
-        def age(self) -> datetime.timedelta:
-            if self.item is None:
-                return datetime.timedelta.max
-            return datetime.datetime.now() - self.item.last_server_update
-
-        @property
-        def might_have_been_modified(self) -> bool:
-            return self.item.generation != self.__cache_generation
