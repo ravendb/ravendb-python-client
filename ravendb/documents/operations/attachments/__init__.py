@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import enum
 import http
 import json
-from typing import Optional, TYPE_CHECKING, List
+from typing import Optional, TYPE_CHECKING, List, Dict
 
 import requests
 
 from ravendb.primitives import constants
 from ravendb.data.operation import AttachmentType
+from ravendb.documents.operations.backups.settings import S3StorageClass
 from ravendb.documents.operations.definitions import IOperation, VoidOperation
 from ravendb.http.http_cache import HttpCache
 from ravendb.http.misc import ResponseDisposeHandling
@@ -280,3 +282,166 @@ class DeleteAttachmentOperation(VoidOperation):
             )
             self._add_change_vector_if_not_none(self.__change_vector, request)
             return request
+
+
+class RemoteAttachmentFlags(enum.IntFlag):
+    NONE = 0
+    REMOTE = 0x1
+
+
+class RemoteAttachmentsS3Settings:
+    def __init__(
+        self,
+        aws_access_key: str = None,
+        aws_secret_key: str = None,
+        aws_session_token: str = None,
+        aws_region_name: str = None,
+        remote_folder_name: str = None,
+        bucket_name: str = None,
+        custom_server_url: str = None,
+        force_path_style: bool = None,
+        storage_class: Optional[S3StorageClass] = None,
+    ):
+        self.aws_access_key = aws_access_key
+        self.aws_secret_key = aws_secret_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.remote_folder_name = remote_folder_name
+        self.bucket_name = bucket_name
+        self.custom_server_url = custom_server_url
+        self.force_path_style = force_path_style
+        self.storage_class = storage_class
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> RemoteAttachmentsS3Settings:
+        storage_class_raw = json_dict.get("StorageClass")
+        return cls(
+            json_dict.get("AwsAccessKey"),
+            json_dict.get("AwsSecretKey"),
+            json_dict.get("AwsSessionToken"),
+            json_dict.get("AwsRegionName"),
+            json_dict.get("RemoteFolderName"),
+            json_dict.get("BucketName"),
+            json_dict.get("CustomServerUrl"),
+            json_dict.get("ForcePathStyle"),
+            S3StorageClass(storage_class_raw) if storage_class_raw is not None else None,
+        )
+
+    def to_json(self) -> dict:
+        result = {
+            "AwsAccessKey": self.aws_access_key,
+            "AwsSecretKey": self.aws_secret_key,
+            "AwsSessionToken": self.aws_session_token,
+            "AwsRegionName": self.aws_region_name,
+            "RemoteFolderName": self.remote_folder_name,
+            "BucketName": self.bucket_name,
+            "CustomServerUrl": self.custom_server_url,
+            "ForcePathStyle": self.force_path_style,
+        }
+        if self.storage_class is not None:
+            result["StorageClass"] = self.storage_class.value
+        return result
+
+
+class RemoteAttachmentsAzureSettings:
+    def __init__(
+        self,
+        storage_container: str = None,
+        remote_folder_name: str = None,
+        account_name: str = None,
+        account_key: str = None,
+        sas_token: str = None,
+    ):
+        self.storage_container = storage_container
+        self.remote_folder_name = remote_folder_name
+        self.account_name = account_name
+        self.account_key = account_key
+        self.sas_token = sas_token
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> RemoteAttachmentsAzureSettings:
+        return cls(
+            json_dict.get("StorageContainer"),
+            json_dict.get("RemoteFolderName"),
+            json_dict.get("AccountName"),
+            json_dict.get("AccountKey"),
+            json_dict.get("SasToken"),
+        )
+
+    def to_json(self) -> dict:
+        return {
+            "StorageContainer": self.storage_container,
+            "RemoteFolderName": self.remote_folder_name,
+            "AccountName": self.account_name,
+            "AccountKey": self.account_key,
+            "SasToken": self.sas_token,
+        }
+
+
+class RemoteAttachmentsDestinationConfiguration:
+    def __init__(
+        self,
+        disabled: bool = False,
+        s3_settings: Optional[RemoteAttachmentsS3Settings] = None,
+        azure_settings: Optional[RemoteAttachmentsAzureSettings] = None,
+    ):
+        self.disabled = disabled
+        self.s3_settings = s3_settings
+        self.azure_settings = azure_settings
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> RemoteAttachmentsDestinationConfiguration:
+        s3_raw = json_dict.get("S3Settings")
+        azure_raw = json_dict.get("AzureSettings")
+        return cls(
+            json_dict.get("Disabled", False),
+            RemoteAttachmentsS3Settings.from_json(s3_raw) if s3_raw is not None else None,
+            RemoteAttachmentsAzureSettings.from_json(azure_raw) if azure_raw is not None else None,
+        )
+
+    def to_json(self) -> dict:
+        return {
+            "Disabled": self.disabled,
+            "S3Settings": self.s3_settings.to_json() if self.s3_settings is not None else None,
+            "AzureSettings": self.azure_settings.to_json() if self.azure_settings is not None else None,
+        }
+
+
+class RemoteAttachmentsConfiguration:
+    def __init__(
+        self,
+        destinations: Optional[Dict[str, RemoteAttachmentsDestinationConfiguration]] = None,
+        check_frequency_in_sec: Optional[int] = None,
+        max_items_to_process: Optional[int] = None,
+        concurrent_uploads: Optional[int] = None,
+        disabled: bool = False,
+    ):
+        self.destinations = destinations if destinations is not None else {}
+        self.check_frequency_in_sec = check_frequency_in_sec
+        self.max_items_to_process = max_items_to_process
+        self.concurrent_uploads = concurrent_uploads
+        self.disabled = disabled
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> RemoteAttachmentsConfiguration:
+        destinations_raw = json_dict.get("Destinations") or {}
+        destinations = {
+            k: RemoteAttachmentsDestinationConfiguration.from_json(v)
+            for k, v in destinations_raw.items()
+        }
+        return cls(
+            destinations,
+            json_dict.get("CheckFrequencyInSec"),
+            json_dict.get("MaxItemsToProcess"),
+            json_dict.get("ConcurrentUploads"),
+            json_dict.get("Disabled", False),
+        )
+
+    def to_json(self) -> dict:
+        return {
+            "Destinations": {k: v.to_json() for k, v in self.destinations.items()} if self.destinations else {},
+            "CheckFrequencyInSec": self.check_frequency_in_sec,
+            "MaxItemsToProcess": self.max_items_to_process,
+            "ConcurrentUploads": self.concurrent_uploads,
+            "Disabled": self.disabled,
+        }
