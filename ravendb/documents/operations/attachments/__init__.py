@@ -12,10 +12,12 @@ import requests
 from ravendb.primitives import constants
 from ravendb.data.operation import AttachmentType
 from ravendb.documents.operations.backups.settings import S3StorageClass
-from ravendb.documents.operations.definitions import IOperation, VoidOperation
+from ravendb.documents.operations.definitions import IOperation, VoidOperation, MaintenanceOperation
 from ravendb.http.http_cache import HttpCache
 from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType, VoidRavenCommand
+from ravendb.http.topology import RaftCommand
+from ravendb.util.util import RaftIdGenerator
 from ravendb.http.server_node import ServerNode
 from ravendb.tools.utils import Utils
 
@@ -354,6 +356,33 @@ class DeleteAttachmentOperation(VoidOperation):
             return request
 
 
+class DeleteAttachmentsOperation(VoidOperation):
+    def __init__(self, attachments: List[AttachmentRequest]):
+        self.__attachments = attachments
+
+    def get_command(self, store: "DocumentStore", conventions: "DocumentConventions", cache=None) -> VoidRavenCommand:
+        return self.__DeleteAttachmentsCommand(self.__attachments)
+
+    class __DeleteAttachmentsCommand(VoidRavenCommand):
+        def __init__(self, attachments: List[AttachmentRequest]):
+            super().__init__()
+            if attachments is None:
+                raise ValueError("Attachments cannot be None")
+            self.__attachments = attachments
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "DELETE",
+                f"{node.url}/databases/{node.database}/attachments/bulk",
+                data={
+                    "Attachments": [
+                        {"DocumentId": a.document_id, "Name": a.name}
+                        for a in self.__attachments
+                    ]
+                },
+            )
+
+
 class RemoteAttachmentFlags(enum.IntFlag):
     NONE = 0
     REMOTE = 0x1
@@ -516,6 +545,30 @@ class RemoteAttachmentsConfiguration:
             json_dict.get("Disabled", False),
         )
 
+    def assert_configuration(self, database_name: str = None) -> None:
+        db_str = f" for database '{database_name}'" if database_name else ""
+
+        if self.check_frequency_in_sec is not None and self.check_frequency_in_sec <= 0:
+            raise ValueError(f"Remote attachments check frequency{db_str} must be greater than 0.")
+        if self.max_items_to_process is not None and self.max_items_to_process <= 0:
+            raise ValueError(f"Max items to process{db_str} must be greater than 0.")
+        if self.concurrent_uploads is not None and self.concurrent_uploads <= 0:
+            raise ValueError(f"Concurrent attachments uploads{db_str} must be greater than 0.")
+
+        if not self.destinations:
+            return
+
+        seen_keys = set()
+        for key, dest in self.destinations.items():
+            lower_key = key.lower()
+            if lower_key in seen_keys:
+                raise ValueError(
+                    f"Destination key '{key}' is duplicate. Duplicate keys are not allowed in remote attachments configuration{db_str}."
+                )
+            seen_keys.add(lower_key)
+            if dest is None:
+                raise ValueError(f"Destination configuration for key {key} is null{db_str}.")
+
     def to_json(self) -> dict:
         return {
             "Destinations": {k: v.to_json() for k, v in self.destinations.items()} if self.destinations else {},
@@ -550,3 +603,73 @@ class RemoteAttachmentParameters:
             "Identifier": self.identifier,
             "Flags": self.flags.to_str(),
         }
+
+
+
+class ConfigureRemoteAttachmentsOperationResult:
+    def __init__(self, raft_command_index: Optional[int] = None):
+        self.raft_command_index = raft_command_index
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> ConfigureRemoteAttachmentsOperationResult:
+        return cls(json_dict.get("RaftCommandIndex"))
+
+
+class ConfigureRemoteAttachmentsOperation(MaintenanceOperation[ConfigureRemoteAttachmentsOperationResult]):
+    def __init__(self, configuration: RemoteAttachmentsConfiguration):
+        if configuration is None:
+            raise ValueError("Configuration cannot be None.")
+        configuration.assert_configuration()
+        self.__configuration = configuration
+
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[ConfigureRemoteAttachmentsOperationResult]:
+        return self.__ConfigureAttachmentsRemoteCommand(self.__configuration)
+
+    class __ConfigureAttachmentsRemoteCommand(RavenCommand[ConfigureRemoteAttachmentsOperationResult], RaftCommand):
+        def __init__(self, configuration: RemoteAttachmentsConfiguration):
+            super().__init__(ConfigureRemoteAttachmentsOperationResult)
+            if configuration is None:
+                raise ValueError("Configuration cannot be None.")
+            self.__configuration = configuration
+
+        def is_read_request(self) -> bool:
+            return False
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            request = requests.Request(
+                "PUT",
+                f"{node.url}/databases/{node.database}/admin/attachments/remote/config",
+                data=self.__configuration.to_json(),
+            )
+            return request
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            if response is None:
+                self._throw_invalid_response()
+            self.result = ConfigureRemoteAttachmentsOperationResult.from_json(json.loads(response))
+
+        def get_raft_unique_request_id(self) -> str:
+            return RaftIdGenerator.new_id()
+
+
+class GetRemoteAttachmentsConfigurationOperation(MaintenanceOperation[RemoteAttachmentsConfiguration]):
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[RemoteAttachmentsConfiguration]:
+        return self.__GetRemoteAttachmentsConfigurationCommand()
+
+    class __GetRemoteAttachmentsConfigurationCommand(RavenCommand[RemoteAttachmentsConfiguration]):
+        def __init__(self):
+            super().__init__(RemoteAttachmentsConfiguration)
+
+        def is_read_request(self) -> bool:
+            return True
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            return requests.Request(
+                "GET",
+                f"{node.url}/databases/{node.database}/admin/attachments/remote/config",
+            )
+
+        def set_response(self, response: Optional[str], from_cache: bool) -> None:
+            if response is None:
+                return
+            self.result = RemoteAttachmentsConfiguration.from_json(json.loads(response))

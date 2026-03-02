@@ -1220,13 +1220,14 @@ class RequestExecutor:
             raw = None
             try:
                 raw = response.content.decode("utf-8")
-
-                def _decode(d: dict) -> ExceptionDispatcher.ExceptionSchema:
-                    return ExceptionDispatcher.ExceptionSchema(
-                        d.get("url"), d.get("class"), d.get("message"), d.get("error")
-                    )
-
-                return ExceptionDispatcher.get(json.loads(raw, object_hook=_decode), response.status_code, e)
+                d = json.loads(raw)
+                schema = ExceptionDispatcher.ExceptionSchema(
+                    d.get("Url") or d.get("url"),
+                    d.get("Type") or d.get("type") or d.get("class"),
+                    d.get("Message") or d.get("message"),
+                    d.get("Error") or d.get("error"),
+                )
+                return ExceptionDispatcher.get(schema, response.status_code, e, d)
             except Exception:
                 schema = ExceptionDispatcher.ExceptionSchema(
                     request.url if request else "",
