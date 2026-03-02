@@ -29,10 +29,15 @@ class AttachmentName:
         self.hash = hash
         self.content_type = content_type
         self.size = size
+        self.remote_parameters: Optional[RemoteAttachmentParameters] = None
 
     @classmethod
     def from_json(cls, json_dict: dict) -> AttachmentName:
-        return cls(json_dict["Name"], json_dict["Hash"], json_dict["ContentType"], json_dict["Size"])
+        obj = cls(json_dict["Name"], json_dict["Hash"], json_dict["ContentType"], json_dict["Size"])
+        remote_raw = json_dict.get("RemoteParameters")
+        if remote_raw is not None:
+            obj.remote_parameters = RemoteAttachmentParameters.from_json(remote_raw)
+        return obj
 
 
 class AttachmentDetails(AttachmentName):
@@ -89,6 +94,19 @@ class AttachmentRequest:
         self.name = name
 
 
+class StoreAttachmentParameters:
+    def __init__(self, name: str, stream):
+        if not name or name.isspace():
+            raise ValueError("Attachment name cannot be null or whitespace.")
+        if stream is None:
+            raise ValueError("Attachment stream cannot be null.")
+        self.name = name
+        self.stream = stream
+        self.change_vector: Optional[str] = None
+        self.content_type: Optional[str] = None
+        self.remote_parameters: Optional[RemoteAttachmentParameters] = None
+
+
 class PutAttachmentOperation(IOperation[AttachmentDetails]):
     def __init__(
         self,
@@ -96,6 +114,7 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
         name: str,
         stream: bytes,
         content_type: Optional[str] = None,
+        remote_parameters: Optional[RemoteAttachmentParameters] = None,
         change_vector: Optional[str] = None,
     ):
         super().__init__()
@@ -103,7 +122,21 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
         self.__name = name
         self.__stream = stream
         self.__content_type = content_type
+        self.__remote_parameters = remote_parameters
         self.__change_vector = change_vector
+
+    @classmethod
+    def from_store_attachment_parameters(
+        cls, document_id: str, parameters: StoreAttachmentParameters
+    ) -> PutAttachmentOperation:
+        return cls(
+            document_id,
+            parameters.name,
+            parameters.stream,
+            parameters.content_type,
+            parameters.remote_parameters,
+            parameters.change_vector,
+        )
 
     def get_command(self, store, conventions, cache=None):
         return self.__PutAttachmentCommand(
@@ -112,10 +145,19 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
             self.__stream,
             self.__content_type,
             self.__change_vector,
+            self.__remote_parameters,
         )
 
     class __PutAttachmentCommand(RavenCommand[AttachmentDetails]):
-        def __init__(self, document_id: str, name: str, stream: bytes, content_type: str, change_vector: str):
+        def __init__(
+            self,
+            document_id: str,
+            name: str,
+            stream: bytes,
+            content_type: str,
+            change_vector: str,
+            remote_parameters: Optional[RemoteAttachmentParameters] = None,
+        ):
             super().__init__(AttachmentDetails)
 
             if not document_id:
@@ -129,6 +171,7 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
             self.__stream = stream
             self.__content_type = content_type
             self.__change_vector = change_vector
+            self.__remote_parameters = remote_parameters
 
         def create_request(self, node: ServerNode) -> requests.Request:
             url = (
@@ -138,6 +181,10 @@ class PutAttachmentOperation(IOperation[AttachmentDetails]):
 
             if not self.__content_type.isspace():
                 url += f"&contentType={Utils.escape(self.__content_type, True, False)}"
+
+            if self.__remote_parameters is not None:
+                url += f"&remoteAt={Utils.escape(Utils.datetime_to_string(self.__remote_parameters.at), True, False)}"
+                url += f"&remoteIdentifier={Utils.escape(self.__remote_parameters.identifier, True, False)}"
 
             request = requests.Request("PUT", url)
             if isinstance(self.__stream, (bytes, bytearray)):
