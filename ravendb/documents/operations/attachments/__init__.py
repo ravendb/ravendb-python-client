@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import http
 import json
+import urllib.parse
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING, List, Dict
 
@@ -254,11 +255,32 @@ class GetAttachmentOperation(IOperation):
         def process_response(self, cache: HttpCache, response: requests.Response, url) -> http.ResponseDisposeHandling:
             content_type = response.headers.get("Content-Type")
             change_vector = response.headers.get(constants.Headers.ETAG)
-            hash = response.headers.get("Attachment-Hash")
-            size = response.headers.get("Attachment-Size", 0)
+            hash = response.headers.get(constants.Headers.ATTACHMENT_HASH)
+            size = response.headers.get(constants.Headers.ATTACHMENT_SIZE, 0)
+
+            remote_identifier_raw = response.headers.get(constants.Headers.ATTACHMENT_REMOTE_PARAMETERS_IDENTIFIER)
+            remote_identifier = urllib.parse.unquote(remote_identifier_raw) if remote_identifier_raw else None
+            remote_parameters = None
+            if remote_identifier:
+                at_raw = response.headers.get(constants.Headers.ATTACHMENT_REMOTE_PARAMETERS_AT)
+                if at_raw is None:
+                    raise RuntimeError(
+                        f"Attachment remote parameters header '{constants.Headers.ATTACHMENT_REMOTE_PARAMETERS_AT}' "
+                        f"is missing for attachment '{self.__name}' on document '{self.__document_id}'."
+                    )
+                flags_raw = response.headers.get(constants.Headers.ATTACHMENT_REMOTE_PARAMETERS_FLAGS)
+                if flags_raw is None:
+                    raise RuntimeError(
+                        f"Attachment remote parameters header '{constants.Headers.ATTACHMENT_REMOTE_PARAMETERS_FLAGS}' "
+                        f"is missing for attachment '{self.__name}' on document '{self.__document_id}'."
+                    )
+                remote_parameters = RemoteAttachmentParameters(remote_identifier, Utils.string_to_datetime(at_raw))
+                remote_parameters.flags = RemoteAttachmentFlags.from_str(flags_raw)
+
             attachment_details = AttachmentDetails(
                 self.__name, hash, content_type, size, change_vector, self.__document_id
             )
+            attachment_details.remote_parameters = remote_parameters
             self.result = CloseableAttachmentResult(response, attachment_details)
             return ResponseDisposeHandling.MANUALLY
 

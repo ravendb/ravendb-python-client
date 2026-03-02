@@ -51,6 +51,7 @@ class Headers:
     INCREMENTAL_TIME_SERIES_PREFIX = "INC:"
     SHARDED = "Sharded"
     ATTACHMENT_HASH = "Attachment-Hash"
+    ATTACHMENT_SIZE = "Attachment-Size"
     ATTACHMENT_REMOTE_PARAMETERS_AT = "Attachment-RemoteParameters-At"
     ATTACHMENT_REMOTE_PARAMETERS_FLAGS = "Attachment-RemoteParameters-Flags"
     ATTACHMENT_REMOTE_PARAMETERS_IDENTIFIER = "Attachment-RemoteParameters-Identifier"
