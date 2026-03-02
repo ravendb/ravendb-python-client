@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, Future, FIRST_COMPLETED, wait, ALL_COMPLETED
+from urllib.parse import unquote
 import uuid
 from json import JSONDecodeError
 from threading import Timer, Semaphore, Lock
@@ -564,7 +565,7 @@ class RequestExecutor:
                     ):
                         db_missing_header = response.headers.get("Database-Missing", None)
                         if db_missing_header is not None:
-                            raise DatabaseDoesNotExistException(db_missing_header)
+                            raise DatabaseDoesNotExistException(unquote(db_missing_header))
                         self._throw_failed_to_contact_all_nodes(command, request)
                     return  # we either handled this already in the unsuccessful response or we are throwing
                 self._on_succeed_request_invoke(self._database_name, url, response, request, attempt_num)
@@ -1114,8 +1115,16 @@ class RequestExecutor:
             return True
         else:
             command.on_response_failure(response)
+            db_missing_header = response.headers.get("Database-Missing", None)
+            if db_missing_header is not None:
+                raise DatabaseDoesNotExistException(unquote(db_missing_header))
             try:  # todo: exception dispatcher
-                raise RuntimeError(json.loads(response.text).get("Message", "Missing message"))
+                data = json.loads(response.text)
+                err_type = data.get("Type", "")
+                message = data.get("Message", "Missing message")
+                if err_type.endswith("DatabaseDoesNotExistException"):
+                    raise DatabaseDoesNotExistException(message)
+                raise RuntimeError(message)
             except JSONDecodeError as e:
                 raise RuntimeError(f"Failed to parse response: {response.text}") from e
 

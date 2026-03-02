@@ -29,7 +29,7 @@ class ArgumentOutOfRangeException(Exception):
     pass
 
 
-class DatabaseDoesNotExistException(Exception):
+class DatabaseDoesNotExistException(RuntimeError):
     pass
 
 
