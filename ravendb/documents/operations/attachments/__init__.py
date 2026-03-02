@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import http
 import json
+from datetime import datetime
 from typing import Optional, TYPE_CHECKING, List, Dict
 
 import requests
@@ -288,6 +289,15 @@ class RemoteAttachmentFlags(enum.IntFlag):
     NONE = 0
     REMOTE = 0x1
 
+    def to_str(self) -> str:
+        """Returns the PascalCase string representation matching C# Flags.ToString()."""
+        return self.name.capitalize() if self != RemoteAttachmentFlags.NONE else "None"
+
+    @classmethod
+    def from_str(cls, value: str) -> RemoteAttachmentFlags:
+        """Parses a PascalCase string from the server (e.g. 'None', 'Remote')."""
+        return cls[value.upper()]
+
 
 class RemoteAttachmentsS3Settings:
     def __init__(
@@ -444,4 +454,30 @@ class RemoteAttachmentsConfiguration:
             "MaxItemsToProcess": self.max_items_to_process,
             "ConcurrentUploads": self.concurrent_uploads,
             "Disabled": self.disabled,
+        }
+
+
+class RemoteAttachmentParameters:
+    def __init__(self, identifier: str, at: datetime):
+        if not identifier or identifier.isspace():
+            raise ValueError("Attachment identifier cannot be None or whitespace.")
+        if at is None or at == datetime.min:
+            raise ValueError("Attachment upload date cannot be default value.")
+        self.identifier = identifier
+        self.at = at
+        self.flags = RemoteAttachmentFlags.NONE
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> RemoteAttachmentParameters:
+        obj = cls.__new__(cls)
+        obj.identifier = json_dict["Identifier"]
+        obj.at = Utils.string_to_datetime(json_dict["At"])
+        obj.flags = RemoteAttachmentFlags.from_str(json_dict.get("Flags", "None"))
+        return obj
+
+    def to_json(self) -> dict:
+        return {
+            "At": Utils.datetime_to_string(self.at),
+            "Identifier": self.identifier,
+            "Flags": self.flags.to_str(),
         }
