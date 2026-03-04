@@ -98,15 +98,15 @@ class AttachmentRequest:
 
 
 class StoreAttachmentParameters:
-    def __init__(self, name: str, stream):
+    def __init__(self, name: str, stream, content_type: Optional[str] = None, change_vector: Optional[str] = None):
         if not name or name.isspace():
             raise ValueError("Attachment name cannot be null or whitespace.")
         if stream is None:
             raise ValueError("Attachment stream cannot be null.")
         self.name = name
         self.stream = stream
-        self.change_vector: Optional[str] = None
-        self.content_type: Optional[str] = None
+        self.change_vector = change_vector
+        self.content_type = content_type
         self.remote_parameters: Optional[RemoteAttachmentParameters] = None
 
 
