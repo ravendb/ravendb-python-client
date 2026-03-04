@@ -374,12 +374,7 @@ class DeleteAttachmentsOperation(VoidOperation):
             return requests.Request(
                 "DELETE",
                 f"{node.url}/databases/{node.database}/attachments/bulk",
-                data={
-                    "Attachments": [
-                        {"DocumentId": a.document_id, "Name": a.name}
-                        for a in self.__attachments
-                    ]
-                },
+                data={"Attachments": [{"DocumentId": a.document_id, "Name": a.name} for a in self.__attachments]},
             )
 
 
@@ -507,6 +502,23 @@ class RemoteAttachmentsDestinationConfiguration:
             RemoteAttachmentsAzureSettings.from_json(azure_raw) if azure_raw is not None else None,
         )
 
+    def _is_s3_configured(self) -> bool:
+        return self.s3_settings is not None and bool(self.s3_settings.bucket_name)
+
+    def _is_azure_configured(self) -> bool:
+        return (
+            self.azure_settings is not None
+            and bool(self.azure_settings.account_name)
+            and bool(self.azure_settings.storage_container)
+        )
+
+    def assert_configuration(self, key: str, database_name: str = None) -> None:
+        db_str = f" for database '{database_name}'" if database_name else ""
+        if not self._is_s3_configured() and not self._is_azure_configured():
+            raise ValueError(f"Exactly one uploader for RemoteAttachmentsConfiguration{db_str} must be configured.")
+        if self._is_s3_configured() and self._is_azure_configured():
+            raise ValueError(f"Only one uploader for RemoteAttachmentsConfiguration{db_str} can be configured.")
+
     def to_json(self) -> dict:
         return {
             "Disabled": self.disabled,
@@ -533,10 +545,7 @@ class RemoteAttachmentsConfiguration:
     @classmethod
     def from_json(cls, json_dict: dict) -> RemoteAttachmentsConfiguration:
         destinations_raw = json_dict.get("Destinations") or {}
-        destinations = {
-            k: RemoteAttachmentsDestinationConfiguration.from_json(v)
-            for k, v in destinations_raw.items()
-        }
+        destinations = {k: RemoteAttachmentsDestinationConfiguration.from_json(v) for k, v in destinations_raw.items()}
         return cls(
             destinations,
             json_dict.get("CheckFrequencyInSec"),
@@ -568,6 +577,7 @@ class RemoteAttachmentsConfiguration:
             seen_keys.add(lower_key)
             if dest is None:
                 raise ValueError(f"Destination configuration for key {key} is null{db_str}.")
+            dest.assert_configuration(key, database_name)
 
     def to_json(self) -> dict:
         return {
@@ -605,7 +615,6 @@ class RemoteAttachmentParameters:
         }
 
 
-
 class ConfigureRemoteAttachmentsOperationResult:
     def __init__(self, raft_command_index: Optional[int] = None):
         self.raft_command_index = raft_command_index
@@ -622,7 +631,9 @@ class ConfigureRemoteAttachmentsOperation(MaintenanceOperation[ConfigureRemoteAt
         configuration.assert_configuration()
         self.__configuration = configuration
 
-    def get_command(self, conventions: "DocumentConventions") -> RavenCommand[ConfigureRemoteAttachmentsOperationResult]:
+    def get_command(
+        self, conventions: "DocumentConventions"
+    ) -> RavenCommand[ConfigureRemoteAttachmentsOperationResult]:
         return self.__ConfigureAttachmentsRemoteCommand(self.__configuration)
 
     class __ConfigureAttachmentsRemoteCommand(RavenCommand[ConfigureRemoteAttachmentsOperationResult], RaftCommand):

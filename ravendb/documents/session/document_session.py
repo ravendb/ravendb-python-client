@@ -1324,7 +1324,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     )
 
                 self.__session.defer(
-                    PutAttachmentCommandData(entity_or_document_id, name, stream, content_type, change_vector, remote_parameters)
+                    PutAttachmentCommandData(
+                        entity_or_document_id, name, stream, content_type, change_vector, remote_parameters
+                    )
                 )
 
             def delete(self, entity_or_document_id, name):

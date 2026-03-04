@@ -63,7 +63,9 @@ class ExceptionDispatcher:
             self.error = error
 
     @staticmethod
-    def get(schema: ExceptionDispatcher.ExceptionSchema, code: int, inner: Exception = None, json_body: dict = None) -> RavenException:
+    def get(
+        schema: ExceptionDispatcher.ExceptionSchema, code: int, inner: Exception = None, json_body: dict = None
+    ) -> RavenException:
         message = schema.message
         type_as_string = schema.type
 
