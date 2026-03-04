@@ -1,8 +1,10 @@
 from ravendb.exceptions.exceptions import InvalidOperationException, ErrorResponseException
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.attachments import (
+    AttachmentRequest,
     PutAttachmentOperation,
     DeleteAttachmentOperation,
+    DeleteAttachmentsOperation,
 )
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.operations.misc import QueryOperationOptions, DeleteByQueryOperation
@@ -48,6 +50,35 @@ class TestOperations(TestBase):
             metadata = session.advanced.get_metadata_for(user)
             attachments = metadata.metadata.get(constants.Documents.Metadata.ATTACHMENTS, None)
             self.assertFalse(attachments)  # 0 or None
+
+    def test_delete_attachments_bulk(self):
+        # store two attachments on the same document
+        self.store.operations.send(PutAttachmentOperation("users/1-A", "pic1.png", b"\x01\x02\x03", "image/png"))
+        self.store.operations.send(PutAttachmentOperation("users/1-A", "pic2.png", b"\x04\x05\x06", "image/png"))
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A")
+            attachments = session.advanced.get_metadata_for(user).metadata.get(
+                constants.Documents.Metadata.ATTACHMENTS, []
+            )
+            self.assertEqual(2, len(attachments))
+
+        # bulk-delete both in one request
+        self.store.operations.send(
+            DeleteAttachmentsOperation(
+                [
+                    AttachmentRequest("users/1-A", "pic1.png"),
+                    AttachmentRequest("users/1-A", "pic2.png"),
+                ]
+            )
+        )
+
+        with self.store.open_session() as session:
+            user = session.load("users/1-A")
+            attachments = session.advanced.get_metadata_for(user).metadata.get(
+                constants.Documents.Metadata.ATTACHMENTS, None
+            )
+            self.assertFalse(attachments)  # both gone
 
     def test_patch_by_index(self):
         index = IndexDefinition()
