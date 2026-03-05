@@ -87,9 +87,7 @@ class ConfigureSchemaValidationOperation(MaintenanceOperation[ConfigureSchemaVal
     def get_command(self, conventions: DocumentConventions) -> RavenCommand:
         return self._ConfigureSchemaValidationCommand(self._configuration)
 
-    class _ConfigureSchemaValidationCommand(
-        RavenCommand[ConfigureSchemaValidationOperationResult], RaftCommand
-    ):
+    class _ConfigureSchemaValidationCommand(RavenCommand[ConfigureSchemaValidationOperationResult], RaftCommand):
         def __init__(self, configuration: SchemaValidationConfiguration):
             super().__init__(ConfigureSchemaValidationOperationResult)
             self._configuration = configuration
@@ -170,6 +168,7 @@ class ValidateSchemaResult(ValidateSchemaProgress):
             last_etag=json_dict.get("LastEtag", 0),
         )
 
+
 class StartSchemaValidationOperation(MaintenanceOperation[OperationIdResult]):
     class Parameters:
         def __init__(
@@ -238,4 +237,3 @@ class StartSchemaValidationOperation(MaintenanceOperation[OperationIdResult]):
 
         def get_raft_unique_request_id(self) -> str:
             return self._raft_unique_request_id
-

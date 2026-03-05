@@ -48,7 +48,7 @@ _SCHEMA_PROP_MULTIPLE_RULES = json.dumps(
 # Map that projects Schema.GetErrorsFor(doc) into an Errors field (LINQ syntax)
 _MAP_VALIDATE_DOCUMENT = (
     "from doc in docs "
-    "where MetadataFor(doc)[\"@collection\"] != \"@hilo\" "
+    'where MetadataFor(doc)["@collection"] != "@hilo" '
     "select new { Id = doc.Id, Errors = Schema.GetErrorsFor(doc) }"
 )
 
@@ -75,9 +75,7 @@ class TestSchemaValidation(TestBase):
     def test_can_configure_schema_validation(self):
         """Configure a schema for Users collection and read it back."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME)
-        config = SchemaValidationConfiguration(
-            validators_per_collection={"Users": schema_def}
-        )
+        config = SchemaValidationConfiguration(validators_per_collection={"Users": schema_def})
 
         self.store.maintenance.send(ConfigureSchemaValidationOperation(config))
 
@@ -90,9 +88,7 @@ class TestSchemaValidation(TestBase):
     def test_schema_validation_blocks_invalid_document(self):
         """Saving a document that violates the schema raises SchemaValidationException."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME)
-        config = SchemaValidationConfiguration(
-            validators_per_collection={"Users": schema_def}
-        )
+        config = SchemaValidationConfiguration(validators_per_collection={"Users": schema_def})
         self.store.maintenance.send(ConfigureSchemaValidationOperation(config))
 
         with self.assertRaises(SchemaValidationException):
@@ -105,9 +101,7 @@ class TestSchemaValidation(TestBase):
     def test_schema_validation_allows_valid_document(self):
         """Saving a document that satisfies the schema succeeds."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME)
-        config = SchemaValidationConfiguration(
-            validators_per_collection={"Users": schema_def}
-        )
+        config = SchemaValidationConfiguration(validators_per_collection={"Users": schema_def})
         self.store.maintenance.send(ConfigureSchemaValidationOperation(config))
 
         with self.store.open_session() as session:
@@ -122,9 +116,7 @@ class TestSchemaValidation(TestBase):
     def test_disabled_schema_allows_invalid_document(self):
         """When the schema is disabled, invalid documents are accepted."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME, disabled=True)
-        config = SchemaValidationConfiguration(
-            validators_per_collection={"Users": schema_def}
-        )
+        config = SchemaValidationConfiguration(validators_per_collection={"Users": schema_def})
         self.store.maintenance.send(ConfigureSchemaValidationOperation(config))
 
         with self.store.open_session() as session:
@@ -168,7 +160,7 @@ class TestSchemaValidation(TestBase):
         # Insert documents without a schema active so they bypass write-time validation
         with self.store.open_session() as session:
             session.store(User(name="Alice"), "users/1")
-            session.store(User(age=30), "users/2")   # missing 'name' — will fail audit
+            session.store(User(age=30), "users/2")  # missing 'name' — will fail audit
             session.save_changes()
 
         params = StartSchemaValidationOperation.Parameters(
@@ -189,7 +181,7 @@ class TestSchemaValidation(TestBase):
         """max_error_messages caps the number of error entries returned."""
         with self.store.open_session() as session:
             for i in range(5):
-                session.store(User(age=i), f"users/{i + 1}")   # all missing 'name'
+                session.store(User(age=i), f"users/{i + 1}")  # all missing 'name'
             session.save_changes()
 
         params = StartSchemaValidationOperation.Parameters(
@@ -218,8 +210,8 @@ class TestSchemaValidation(TestBase):
         """
         # Schema that requires 'name' to be a string — both docs violate it (age-only)
         with self.store.open_session() as session:
-            session.store(User(age=1), "users/1")   # inserted first → lower etag
-            session.store(User(age=2), "users/2")   # inserted second → higher etag
+            session.store(User(age=1), "users/1")  # inserted first → lower etag
+            session.store(User(age=2), "users/2")  # inserted second → higher etag
             session.save_changes()
 
         params1 = StartSchemaValidationOperation.Parameters(
@@ -272,7 +264,6 @@ class TestSchemaValidation(TestBase):
         self.assertEqual(3, result.error_count)
         # last_etag is set so a follow-up run can continue from here
         self.assertGreater(result.last_etag, 0)
-
 
 
 # ---------------------------------------------------------------------------
