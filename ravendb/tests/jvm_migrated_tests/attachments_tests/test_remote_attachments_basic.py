@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from ravendb.documents.operations.attachments import (
@@ -17,6 +18,7 @@ class TestRemoteAttachmentsBasic(TestBase):
 
     # ── CRUD tests ────────────────────────────────────────────────────────────
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_put_and_get_remote_attachments_configuration_with_case_insensitive_identifier(self):
         self.store.maintenance.send(
             ConfigureRemoteAttachmentsOperation(
@@ -40,6 +42,7 @@ class TestRemoteAttachmentsBasic(TestBase):
         self.assertFalse(dest_val.disabled)
         self.assertIsNone(config.check_frequency_in_sec)
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_put_and_get_remote_attachments_configuration_with_default_remote_frequency_in_sec(self):
         self.store.maintenance.send(
             ConfigureRemoteAttachmentsOperation(
@@ -63,6 +66,7 @@ class TestRemoteAttachmentsBasic(TestBase):
         self.assertFalse(dest_val.disabled)
         self.assertIsNone(config.check_frequency_in_sec)
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_put_and_get_remote_attachments_configuration(self):
         c1 = RemoteAttachmentsConfiguration(
             destinations={
@@ -104,6 +108,7 @@ class TestRemoteAttachmentsBasic(TestBase):
         self.assertTrue(dest_val2.disabled)
         self.assertEqual(10000, config2.check_frequency_in_sec)
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_put_and_update_remote_attachments_configuration(self):
         c1 = RemoteAttachmentsConfiguration(
             destinations={

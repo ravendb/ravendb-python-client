@@ -1,4 +1,6 @@
 import json
+import os
+import unittest
 
 from ravendb.documents.indexes.definitions import FieldStorage, IndexDefinition, IndexFieldOptions
 from ravendb.documents.operations.indexes import PutIndexesOperation, ResetIndexOperation
@@ -72,6 +74,7 @@ class TestSchemaValidation(TestBase):
     # Ported from SchemaValidationBasicTests.cs
     # ------------------------------------------------------------------
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_configure_schema_validation(self):
         """Configure a schema for Users collection and read it back."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME)
@@ -85,6 +88,7 @@ class TestSchemaValidation(TestBase):
         stored = result.validators_per_collection["Users"]
         self.assertEqual(_SCHEMA_REQUIRE_NAME, stored.schema)
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_schema_validation_blocks_invalid_document(self):
         """Saving a document that violates the schema raises SchemaValidationException."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME)
@@ -98,6 +102,7 @@ class TestSchemaValidation(TestBase):
                 session.store(user, "users/1")
                 session.save_changes()
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_schema_validation_allows_valid_document(self):
         """Saving a document that satisfies the schema succeeds."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME)
@@ -113,6 +118,7 @@ class TestSchemaValidation(TestBase):
             loaded = session.load("users/1", User)
             self.assertEqual("Alice", loaded.name)
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_disabled_schema_allows_invalid_document(self):
         """When the schema is disabled, invalid documents are accepted."""
         schema_def = SchemaDefinition(schema=_SCHEMA_REQUIRE_NAME, disabled=True)
@@ -333,10 +339,11 @@ class TestSchemaValidationIndexing(TestBase):
             )
             by_id = {r.Id: r for r in results}
 
-            self.assertIsNone(by_id[valid_doc_id].Errors)
+            # Server returns None or [] for a valid document
+            self.assertFalse(by_id[valid_doc_id].Errors)
 
             errors = by_id[invalid_doc_id].Errors
-            self.assertIsNotNone(errors)
+            self.assertTrue(errors)
             self.assertEqual(1, len(errors))
             self.assertIn("Prop", errors[0])
 
@@ -396,6 +403,7 @@ class TestSchemaValidationIndexing(TestBase):
     # ------------------------------------------------------------------
     # IndexingSchemaErrors_WhenSchemaDefinedInDatabase_ShouldIndexErrors
     # ------------------------------------------------------------------
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_indexing_schema_errors_when_schema_defined_in_database_should_index_errors(self):
         """
         When no schema_definitions are set on the index itself, but a database-level
@@ -431,9 +439,10 @@ class TestSchemaValidationIndexing(TestBase):
             )
             by_id = {r.Id: r for r in results}
 
-            self.assertIsNone(by_id[valid_doc_id].Errors)
+            # Server returns None or [] for a valid document
+            self.assertFalse(by_id[valid_doc_id].Errors)
 
             errors = by_id[invalid_doc_id].Errors
-            self.assertIsNotNone(errors)
+            self.assertTrue(errors)
             self.assertEqual(1, len(errors))
             self.assertIn("Prop", errors[0])
