@@ -6,7 +6,8 @@ from typing import Optional
 
 class RavenException(RuntimeError):
     def __init__(self, message: str = None, cause: BaseException = None):
-        super(RavenException, self).__init__((message, cause) or message)
+        super(RavenException, self).__init__(message)
+        self.cause = cause
         self.reached_leader = None
 
     @classmethod
@@ -79,3 +80,8 @@ class InsufficientQuotaException(TooManyRequestsException):
 
 class TooManyTokensException(TooManyRequestsException):
     pass
+
+
+class SchemaValidationException(RavenException):
+    def __init__(self, message: str = None):
+        super().__init__(message)

@@ -5,7 +5,7 @@ import os
 from datetime import timedelta
 
 from ravendb.exceptions.cluster import NodeIsPassiveException, NoLoaderException
-from ravendb.exceptions.documents import DocumentConflictException
+from ravendb.exceptions.documents import DocumentConflictException, DocumentDoesNotExistException
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException, BulkInsertProtocolViolationException
 from ravendb.exceptions.documents.indexes import IndexDoesNotExistException
 from ravendb.exceptions.raven_exceptions import (
@@ -19,6 +19,7 @@ from ravendb.exceptions.raven_exceptions import (
     RateLimitException,
     RavenException,
     RefusedToAnswerException,
+    SchemaValidationException,
     TooManyRequestsException,
     TooManyTokensException,
     UnsuccessfulAiRequestException,
@@ -45,9 +46,12 @@ _EXCEPTION_MAP: dict = {
     "TooManyTokensException": TooManyTokensException,
     # documents
     "DocumentConflictException": DocumentConflictException,
+    "DocumentDoesNotExistException": DocumentDoesNotExistException,
     "IndexDoesNotExistException": IndexDoesNotExistException,
     "BulkInsertAbortedException": BulkInsertAbortedException,
     "BulkInsertProtocolViolationException": BulkInsertProtocolViolationException,
+    # schema validation
+    "SchemaValidationException": SchemaValidationException,
     # cluster
     "NodeIsPassiveException": NodeIsPassiveException,
     "NoLoaderException": NoLoaderException,

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from ravendb import SessionOptions
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.documents.operations.time_series import (
     GetTimeSeriesOperation,
     TimeSeriesOperation,
@@ -572,9 +573,9 @@ class TestTimeSeriesOperations(TestBase):
         )
 
         time_series_batch = TimeSeriesBatchOperation("users/ayende", time_series_op)
-        self.assertRaisesWithMessage(
+        self.assertRaisesWithMessageContaining(
             self.store.operations.send,
-            RuntimeError,
+            RavenException,
             "Document 'users/ayende' does not exist. Cannot operate on time series of a missing document",
             time_series_batch,
         )

@@ -1085,10 +1085,13 @@ class RequestExecutor:
 
         elif response.status_code == HTTPStatus.CONFLICT:
             data = json.loads(response.text)
-            message = data.get("Message", None)
-            err_type = data.get("Type", None)
-
-            raise RuntimeError(f"{err_type}: {message}")  # todo: handle conflict (exception dispatcher involved)
+            schema = ExceptionDispatcher.ExceptionSchema(
+                url=self.url,
+                object_type=data.get("Type", ""),
+                message=data.get("Message", ""),
+                error=data.get("Error", ""),
+            )
+            raise ExceptionDispatcher.get(schema, response.status_code, json_body=data)
 
         elif response.status_code == 425:  # too early
             if not should_retry:
@@ -1114,8 +1117,15 @@ class RequestExecutor:
             return True
         else:
             command.on_response_failure(response)
-            try:  # todo: exception dispatcher
-                raise RuntimeError(json.loads(response.text).get("Message", "Missing message"))
+            try:
+                data = json.loads(response.text)
+                schema = ExceptionDispatcher.ExceptionSchema(
+                    url=self.url,
+                    object_type=data.get("Type", ""),
+                    message=data.get("Message", ""),
+                    error=data.get("Error", ""),
+                )
+                raise ExceptionDispatcher.get(schema, response.status_code, json_body=data)
             except JSONDecodeError as e:
                 raise RuntimeError(f"Failed to parse response: {response.text}") from e
 

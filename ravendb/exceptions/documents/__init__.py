@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from ravendb.exceptions.raven_exceptions import ConflictException, BadResponseException
+from ravendb.exceptions.raven_exceptions import ConflictException, BadResponseException, RavenException
+
+
+class DocumentDoesNotExistException(RavenException):
+    pass
 
 
 class DocumentConflictException(ConflictException):

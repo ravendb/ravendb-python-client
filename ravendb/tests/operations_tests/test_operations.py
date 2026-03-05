@@ -1,4 +1,5 @@
-from ravendb.exceptions.exceptions import InvalidOperationException, ErrorResponseException
+from ravendb.exceptions.documents.indexes import IndexDoesNotExistException
+from ravendb.exceptions.exceptions import ErrorResponseException
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.attachments import (
     AttachmentRequest,
@@ -120,7 +121,6 @@ class TestOperations(TestBase):
             for v in values:
                 self.assertTrue(v)
 
-    @unittest.skip("Exception dispatcher")
     def test_fail_patch_wrong_index_name(self):
         options = QueryOperationOptions(allow_stale=False, retrieve_details=True)
         query = IndexQuery("from index 'None' update {{this.name='NotExist'}}")
@@ -129,7 +129,7 @@ class TestOperations(TestBase):
             query_to_update=query,
             options=options,
         )
-        with self.assertRaises(InvalidOperationException):
+        with self.assertRaises(IndexDoesNotExistException):
             response = self.store.operations.send(operation)
             if response:
                 operation = NewOperation(
