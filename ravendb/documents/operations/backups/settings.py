@@ -12,6 +12,18 @@ class BackupType(Enum):
     SNAPSHOT = "Snapshot"
 
 
+class S3StorageClass(Enum):
+    DEEP_ARCHIVE = "DeepArchive"
+    GLACIER = "Glacier"
+    GLACIER_INSTANT_RETRIEVAL = "GlacierInstantRetrieval"
+    INTELLIGENT_TIERING = "IntelligentTiering"
+    ONE_ZONE_INFREQUENT_ACCESS = "OneZoneInfrequentAccess"
+    REDUCED_REDUNDANCY = "ReducedRedundancy"
+    STANDARD = "Standard"
+    STANDARD_INFREQUENT_ACCESS = "StandardInfrequentAccess"
+    EXPRESS_ONE_ZONE = "ExpressOneZone"
+
+
 class CompressionLevel(Enum):
     OPTIMAL = "Optimal"
     FASTEST = "Fastest"

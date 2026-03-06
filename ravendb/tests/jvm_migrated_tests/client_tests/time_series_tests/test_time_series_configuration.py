@@ -2,6 +2,7 @@ import json
 import unittest
 
 from ravendb import GetDatabaseRecordOperation
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.documents.operations.time_series import (
     ConfigureTimeSeriesOperation,
     TimeSeriesConfiguration,
@@ -158,9 +159,9 @@ class TestTimeSeriesConfiguration(TestBase):
             TimeSeriesPolicy("By30DaysFor5Years", TimeValue.of_days(30), TimeValue.of_years(5))
         ]
 
-        self.assertRaisesWithMessage(
+        self.assertRaisesWithMessageContaining(
             self.store.maintenance.send,
-            Exception,
+            RavenException,
             "Unable to compare 1 month with 30 days, since a month might have different number of days.",
             ConfigureTimeSeriesOperation(config),
         )
@@ -177,9 +178,9 @@ class TestTimeSeriesConfiguration(TestBase):
             TimeSeriesPolicy("By365DaysFor5Years", TimeValue.of_seconds(365 * 24 * 3600), TimeValue.of_years(5))
         ]
 
-        self.assertRaisesWithMessage(
+        self.assertRaisesWithMessageContaining(
             self.store.maintenance.send,
-            Exception,
+            RavenException,
             "Unable to compare 1 year with 365 days, since a month might have different number of days.",
             ConfigureTimeSeriesOperation(config2),
         )
@@ -197,9 +198,9 @@ class TestTimeSeriesConfiguration(TestBase):
             TimeSeriesPolicy("By364daysFor5Years", TimeValue.of_days(364), TimeValue.of_years(5)),
         ]
 
-        self.assertRaisesWithMessage(
+        self.assertRaisesWithMessageContaining(
             self.store.maintenance.send,
-            Exception,
+            RavenException,
             "The aggregation time of the policy 'By364daysFor5Years' (364 days) "
             "must be divided by the aggregation time of 'By27DaysFor1Year' (27 days) without a remainder.",
             ConfigureTimeSeriesOperation(config3),

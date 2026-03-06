@@ -8,7 +8,7 @@ pip install ravendb
 ````
 
 ## Introduction and changelog
-Python client API (v7.1) for [RavenDB](https://ravendb.net/), a NoSQL document database.
+Python client API (v7.2) for [RavenDB](https://ravendb.net/), a NoSQL document database.
 
 **Type-hinted entire project and API results** - using the API is now much more comfortable with IntelliSense
 

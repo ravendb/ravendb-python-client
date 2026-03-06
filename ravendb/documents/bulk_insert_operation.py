@@ -30,6 +30,7 @@ from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.json.metadata_as_dictionary import MetadataAsDictionary
 from ravendb.documents.commands.batches import CommandType
 from ravendb.documents.commands.bulkinsert import GetNextOperationIdCommand, KillOperationCommand
+from ravendb.documents.operations.attachments import StoreAttachmentParameters
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException
 from ravendb.documents.identity.hilo import GenerateEntityIdOnTheClient
 from ravendb.tools.utils import Utils
@@ -615,13 +616,16 @@ class BulkInsertOperation:
             self.key = key
 
         def store(self, name: str, attachment_bytes: bytes, content_type: Optional[str] = None) -> None:
-            self.operation._attachments_operation.store(self.key, name, attachment_bytes, content_type)
+            self.store_with_parameters(StoreAttachmentParameters(name, attachment_bytes, content_type=content_type))
+
+        def store_with_parameters(self, parameters: StoreAttachmentParameters) -> None:
+            self.operation._attachments_operation.store(self.key, parameters)
 
     class AttachmentsBulkInsertOperation:
         def __init__(self, operation: BulkInsertOperation):
             self.operation = operation
 
-        def store(self, key: str, name: str, attachment_bytes: bytes, content_type: Optional[str] = None):
+        def store(self, key: str, parameters: StoreAttachmentParameters):
             release_lock_callback = self.operation._concurrency_check()
             try:
                 self.operation._end_previous_command_if_needed()
@@ -634,22 +638,30 @@ class BulkInsertOperation:
                 if not self.operation._first:
                     self.operation._write_comma()
 
+                self.operation._first = False
+                self.operation._in_progress_command = CommandType.NONE
+
                 self.operation._write_string_no_escape('{"Id":"')
                 self.operation._write_string(key)
                 self.operation._write_string_no_escape('","Type":"AttachmentPUT","Name":"')
-                self.operation._write_string(name)
+                self.operation._write_string(parameters.name)
 
-                if content_type:
-                    self.operation._write_string_no_escape('","ContentType:"')
-                    self.operation._write_string(content_type)
+                if parameters.content_type:
+                    self.operation._write_string_no_escape('","ContentType":"')
+                    self.operation._write_string(parameters.content_type)
 
                 self.operation._write_string_no_escape('","ContentLength":')
-                self.operation._write_string_no_escape(str(len(attachment_bytes)))
+                self.operation._write_string_no_escape(str(len(parameters.stream)))
+
+                if parameters.remote_parameters is not None:
+                    self.operation._write_string_no_escape(',"RemoteParameters":')
+                    self.operation._write_string_no_escape(json.dumps(parameters.remote_parameters.to_json()))
+
                 self.operation._write_string_no_escape("}")
 
                 self.operation._flush_if_needed()
 
-                self.operation._current_data_buffer += bytearray(attachment_bytes)
+                self.operation._current_data_buffer += bytearray(parameters.stream)
 
                 self.operation._flush_if_needed()
 

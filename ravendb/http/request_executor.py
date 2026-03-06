@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 class RequestExecutor:
     __INITIAL_TOPOLOGY_ETAG = -2
     __GLOBAL_APPLICATION_IDENTIFIER = uuid.uuid4()
-    CLIENT_VERSION = "7.1.5"
+    CLIENT_VERSION = "7.2.0"
     logger = logging.getLogger("request_executor")
 
     # todo: initializer should take also cryptography certificates
@@ -1085,10 +1085,13 @@ class RequestExecutor:
 
         elif response.status_code == HTTPStatus.CONFLICT:
             data = json.loads(response.text)
-            message = data.get("Message", None)
-            err_type = data.get("Type", None)
-
-            raise RuntimeError(f"{err_type}: {message}")  # todo: handle conflict (exception dispatcher involved)
+            schema = ExceptionDispatcher.ExceptionSchema(
+                url=self.url,
+                object_type=data.get("Type", ""),
+                message=data.get("Message", ""),
+                error=data.get("Error", ""),
+            )
+            raise ExceptionDispatcher.get(schema, response.status_code, json_body=data)
 
         elif response.status_code == 425:  # too early
             if not should_retry:
@@ -1114,8 +1117,15 @@ class RequestExecutor:
             return True
         else:
             command.on_response_failure(response)
-            try:  # todo: exception dispatcher
-                raise RuntimeError(json.loads(response.text).get("Message", "Missing message"))
+            try:
+                data = json.loads(response.text)
+                schema = ExceptionDispatcher.ExceptionSchema(
+                    url=self.url,
+                    object_type=data.get("Type", ""),
+                    message=data.get("Message", ""),
+                    error=data.get("Error", ""),
+                )
+                raise ExceptionDispatcher.get(schema, response.status_code, json_body=data)
             except JSONDecodeError as e:
                 raise RuntimeError(f"Failed to parse response: {response.text}") from e
 
@@ -1220,13 +1230,14 @@ class RequestExecutor:
             raw = None
             try:
                 raw = response.content.decode("utf-8")
-
-                def _decode(d: dict) -> ExceptionDispatcher.ExceptionSchema:
-                    return ExceptionDispatcher.ExceptionSchema(
-                        d.get("url"), d.get("class"), d.get("message"), d.get("error")
-                    )
-
-                return ExceptionDispatcher.get(json.loads(raw, object_hook=_decode), response.status_code, e)
+                d = json.loads(raw)
+                schema = ExceptionDispatcher.ExceptionSchema(
+                    d.get("Url") or d.get("url"),
+                    d.get("Type") or d.get("type") or d.get("class"),
+                    d.get("Message") or d.get("message"),
+                    d.get("Error") or d.get("error"),
+                )
+                return ExceptionDispatcher.get(schema, response.status_code, e, d)
             except Exception:
                 schema = ExceptionDispatcher.ExceptionSchema(
                     request.url if request else "",

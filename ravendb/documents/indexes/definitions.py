@@ -2,7 +2,7 @@ from __future__ import annotations
 import datetime
 import enum
 import re
-from enum import Enum
+from enum import Enum, IntFlag
 from abc import ABC
 from typing import Union, Optional, List, Dict, Set, Iterable
 from ravendb.documents.indexes.spatial.configuration import SpatialOptions, AutoSpatialOptions
@@ -140,6 +140,38 @@ class AggregationOperation(Enum):
         return self.value
 
 
+class IndexDefinitionCompareDifferences(IntFlag):
+    NONE = 0
+    MAPS = 1 << 0
+    REDUCE = 1 << 1
+    FIELDS = 1 << 2
+    CONFIGURATION = 1 << 3
+    LOCK_MODE = 1 << 4
+    PRIORITY = 1 << 5
+    STATE = 1 << 6
+    ADDITIONAL_SOURCES = 1 << 7
+    ADDITIONAL_ASSEMBLIES = 1 << 8
+    DEPLOYMENT_MODE = 1 << 12
+    COMPOUND_FIELDS = 1 << 13
+    ARCHIVED_DATA_PROCESSING_BEHAVIOR = 1 << 14
+    SCHEMA_VALIDATION_CONFIGURATION = 1 << 15
+    ALL = (
+        MAPS
+        | REDUCE
+        | FIELDS
+        | CONFIGURATION
+        | LOCK_MODE
+        | PRIORITY
+        | STATE
+        | ADDITIONAL_SOURCES
+        | ADDITIONAL_ASSEMBLIES
+        | DEPLOYMENT_MODE
+        | COMPOUND_FIELDS
+        | ARCHIVED_DATA_PROCESSING_BEHAVIOR
+        | SCHEMA_VALIDATION_CONFIGURATION
+    )
+
+
 class GroupByArrayBehavior(Enum):
     NOT_APPLICABLE = "NotApplicable"
     BY_CONTENT = "ByContent"
@@ -205,6 +237,7 @@ class IndexDefinition(IndexDefinitionBase):
         pattern_references_collection_name: Optional[str] = None,
         deployment_mode: Optional[IndexDeploymentMode] = None,
         search_engine_type: Optional[SearchEngineType] = None,
+        schema_definitions: Optional[Dict[str, str]] = None,
     ):
         super(IndexDefinition, self).__init__(name, priority, state)
         self.lock_mode = lock_mode
@@ -222,6 +255,7 @@ class IndexDefinition(IndexDefinitionBase):
         self.pattern_references_collection_name = pattern_references_collection_name
         self.deployment_mode = deployment_mode
         self.search_engine_type = search_engine_type
+        self.schema_definitions = schema_definitions
 
     @classmethod
     def from_json(cls, json_dict: dict) -> IndexDefinition:
@@ -255,6 +289,7 @@ class IndexDefinition(IndexDefinitionBase):
         deploy = json_dict.get("DeploymentMode", None)
         if deploy is not None:
             result.deployment_mode = IndexDeploymentMode(deploy)
+        result.schema_definitions = json_dict.get("SchemaDefinitions")
         return result
 
     def to_json(self) -> dict:
@@ -278,6 +313,7 @@ class IndexDefinition(IndexDefinitionBase):
             "PatternForOutputReduceToCollectionReferences": self.pattern_for_output_reduce_to_collection_references,
             "PatternReferencesCollectionName": self.pattern_references_collection_name,
             "DeploymentMode": self.deployment_mode,
+            "SchemaDefinitions": self.schema_definitions,
         }
 
     @property

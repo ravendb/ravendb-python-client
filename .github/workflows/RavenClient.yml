@@ -2,9 +2,9 @@ name: tests/python
 
 on:
   push:
-    branches: [v7.1]
+    branches: [v7.2]
   pull_request:
-    branches: [v7.1]
+    branches: [v7.2]
   schedule:
     - cron: '0 10 * * *'
   workflow_dispatch:
@@ -30,7 +30,7 @@ jobs:
       strategy:
         matrix:
           python-version: [ '3.10' ,'3.11', '3.12', '3.13', '3.14']
-          serverVersion: [ '7.1', '7.2' ]
+          serverVersion: [ '7.2' ]
         fail-fast: false
 
       steps:

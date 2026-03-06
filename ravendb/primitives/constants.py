@@ -51,6 +51,10 @@ class Headers:
     INCREMENTAL_TIME_SERIES_PREFIX = "INC:"
     SHARDED = "Sharded"
     ATTACHMENT_HASH = "Attachment-Hash"
+    ATTACHMENT_SIZE = "Attachment-Size"
+    ATTACHMENT_REMOTE_PARAMETERS_AT = "Attachment-RemoteParameters-At"
+    ATTACHMENT_REMOTE_PARAMETERS_FLAGS = "Attachment-RemoteParameters-Flags"
+    ATTACHMENT_REMOTE_PARAMETERS_IDENTIFIER = "Attachment-RemoteParameters-Identifier"
     DATABASE_MISSING = "Database-Missing"
 
     class Encodings:
@@ -222,6 +226,8 @@ class Documents:
                 BOOST_PROPERTY_NAME = "$boost"
                 VECTOR_PROPERTY_NAME = "$vector"
                 LOAD_VECTOR_PROPERTY_NAME = "$loadvector"
+                LOAD_VECTOR_EMBEDDING_SOURCE_DOCUMENT_ID = "$embeddingSourceDocumentId"
+                LOAD_VECTOR_EMBEDDING_SOURCE_DOCUMENT_COLLECTION_NAME = "$embeddingSourceDocumentCollectionName"
 
         class Spatial:
             DEFAULT_DISTANCE_ERROR_PCT = 0.025

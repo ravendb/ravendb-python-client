@@ -261,6 +261,7 @@ class DetailedDatabaseStatistics(DatabaseStatistics):
         detailed_database_stats.count_of_identities = json_dict["CountOfIdentities"]
         detailed_database_stats.count_of_compare_exchange = json_dict["CountOfCompareExchange"]
         detailed_database_stats.count_of_compare_exchange_tombstones = json_dict["CountOfCompareExchangeTombstones"]
+        detailed_database_stats.count_of_remote_attachments = json_dict.get("CountOfRemoteAttachments", 0)
 
         return detailed_database_stats
 

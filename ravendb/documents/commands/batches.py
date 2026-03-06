@@ -23,6 +23,7 @@ from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
+    from ravendb.documents.operations.attachments import RemoteAttachmentParameters
     from ravendb.documents.operations.patch import PatchRequest
     from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
         InMemoryDocumentSessionOperations,
@@ -117,6 +118,8 @@ class SingleNodeBatchCommand(RavenCommand):
                 if self.__attachment_streams is None:
                     self.__attachment_streams = []
                 stream = command.stream
+                if stream is None:
+                    continue  # remote-only attachment — no stream to track
                 if stream in self.__attachment_streams:
                     raise RuntimeError(
                         "It is forbidden to re-use the same stream for more than one attachment. "
@@ -139,12 +142,13 @@ class SingleNodeBatchCommand(RavenCommand):
         for command in self.__commands:
             if command.command_type == CommandType.ATTACHMENT_PUT:
                 command: PutAttachmentCommandData
-                files[command.name] = (
-                    command.name,
-                    command.stream,
-                    command.content_type,
-                    {"Command-Type": "AttachmentStream"},
-                )
+                if command.stream is not None:
+                    files[command.name] = (
+                        command.name,
+                        command.stream,
+                        command.content_type,
+                        {"Command-Type": "AttachmentStream"},
+                    )
             if not request.data:
                 request.data = {"Commands": []}
             request.data["Commands"].append(command.serialize(self.__conventions))
@@ -526,7 +530,17 @@ class CountersBatchCommandData(CommandData):
 
 
 class PutAttachmentCommandData(CommandData):
-    def __init__(self, document_id: str, name: str, stream: bytes, content_type: str, change_vector: str):
+    def __init__(
+        self,
+        document_id: str,
+        name: str,
+        stream: bytes,
+        content_type: str,
+        change_vector: str,
+        remote_parameters: Optional["RemoteAttachmentParameters"] = None,
+        hash: str = None,
+        size_in_bytes: int = None,
+    ):
         if not document_id:
             raise ValueError(document_id)
         if not name:
@@ -535,6 +549,9 @@ class PutAttachmentCommandData(CommandData):
         super(PutAttachmentCommandData, self).__init__(document_id, name, change_vector, CommandType.ATTACHMENT_PUT)
         self.__stream = stream
         self.__content_type = content_type
+        self.__remote_parameters = remote_parameters
+        self.__hash = hash
+        self.__size_in_bytes = size_in_bytes
 
     @property
     def stream(self):
@@ -544,14 +561,23 @@ class PutAttachmentCommandData(CommandData):
     def content_type(self):
         return self.__content_type
 
+    @property
+    def remote_parameters(self) -> Optional["RemoteAttachmentParameters"]:
+        return self.__remote_parameters
+
     def serialize(self, conventions: DocumentConventions) -> dict:
-        return {
+        result = {
             "Id": self._key,
             "Name": self._name,
             "ContentType": self.__content_type,
             "ChangeVector": self._change_vector,
             "Type": str(self._command_type),
+            "RemoteParameters": self.__remote_parameters.to_json() if self.__remote_parameters is not None else None,
+            "Hash": self.__hash,
         }
+        if self.__size_in_bytes is not None:
+            result["SizeInBytes"] = self.__size_in_bytes
+        return result
 
 
 class CopyAttachmentCommandData(CommandData):
