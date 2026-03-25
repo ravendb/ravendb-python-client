@@ -1,3 +1,7 @@
+import unittest
+
+from ravendb.documents.commands.batches import CommandType, CountersBatchCommandData
+from ravendb.documents.operations.counters import CounterOperation, CounterOperationType
 from ravendb.documents.session.misc import SessionOptions, TransactionMode
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
@@ -74,3 +78,64 @@ class TestClusterTransaction(TestBase):
             user1.age = 10
             session.store(user1, "users/1")
             session.save_changes()
+
+    def test_throw_on_unsupported_operations(self):
+        session_options = SessionOptions(
+            transaction_mode=TransactionMode.CLUSTER_WIDE,
+            disable_atomic_document_writes_in_cluster_wide_transaction=True,
+        )
+
+        with self.store.open_session(session_options=session_options) as session:
+            from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+                InMemoryDocumentSessionOperations,
+            )
+
+            counter_op = CounterOperation("likes", CounterOperationType.INCREMENT, 1)
+            counter_cmd = CountersBatchCommandData("docs/1", counter_op)
+
+            save_changes_data = InMemoryDocumentSessionOperations.SaveChangesData(session)
+            save_changes_data.session_commands.append(counter_cmd)
+
+            with self.assertRaises(ValueError) as ctx:
+                session.validate_cluster_transaction(save_changes_data)
+
+            self.assertIn("not supported", str(ctx.exception))
+
+    def test_compare_exchange_double_create_raises(self):
+        session_options = SessionOptions(
+            transaction_mode=TransactionMode.CLUSTER_WIDE,
+            disable_atomic_document_writes_in_cluster_wide_transaction=True,
+        )
+
+        with self.store.open_session(session_options=session_options) as session:
+            session.advanced.cluster_transaction.create_compare_exchange_value("users/emails/john", "john@doe.com")
+
+            with self.assertRaises(RuntimeError):
+                session.advanced.cluster_transaction.create_compare_exchange_value("users/emails/john", "other@doe.com")
+
+
+class TestClusterTransactionValidation(unittest.TestCase):
+    def test_cluster_tx_rejects_unsupported_command_types(self):
+        import inspect
+        from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+            InMemoryDocumentSessionOperations,
+        )
+
+        src = inspect.getsource(InMemoryDocumentSessionOperations.validate_cluster_transaction)
+        self.assertNotIn(
+            "== CommandType.PUT or CommandType.DELETE",
+            src,
+            "Cluster TX validation uses 'x == A or B' (always True). Must use 'x in (A, B)'.",
+        )
+
+    def test_compare_exchange_rejects_double_create(self):
+        from ravendb.documents.operations.compare_exchange.compare_exchange import (
+            CompareExchangeSessionValue,
+            CompareExchangeValueState,
+        )
+
+        value = CompareExchangeSessionValue.__new__(CompareExchangeSessionValue)
+        value._key = "test"
+        value._state = CompareExchangeValueState.CREATED
+        with self.assertRaises(RuntimeError):
+            value._CompareExchangeSessionValue__assert_state()

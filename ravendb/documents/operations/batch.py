@@ -190,7 +190,7 @@ class BatchOperation:
             self._throw_missing_field(CommandType.PATCH, "PatchStatus")
 
         status = PatchStatus(patch_status)
-        if status == PatchStatus.CREATED or PatchStatus.PATCHED:
+        if status in (PatchStatus.CREATED, PatchStatus.PATCHED):
             document = batch_result.get("ModifiedDocument")
             if not document:
                 return

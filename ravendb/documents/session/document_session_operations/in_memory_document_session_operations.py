@@ -985,13 +985,13 @@ class InMemoryDocumentSessionOperations:
             )
 
         for command_data in result.session_commands:
-            if command_data.command_type == CommandType.PUT or CommandType.DELETE:
+            if command_data.command_type in (CommandType.PUT, CommandType.DELETE):
                 if command_data.change_vector is not None:
                     raise ValueError(
                         f"Optimistic concurrency for {command_data.key} "
                         f"is not supported when using a cluster transaction"
                     )
-            elif command_data.command_type == CommandType.COMPARE_EXCHANGE_DELETE or CommandType.COMPARE_EXCHANGE_PUT:
+            elif command_data.command_type in (CommandType.COMPARE_EXCHANGE_DELETE, CommandType.COMPARE_EXCHANGE_PUT):
                 pass
             else:
                 raise ValueError(f"The command '{command_data.command_type}' is not supported in a cluster session.")
