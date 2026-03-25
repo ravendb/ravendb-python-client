@@ -1857,7 +1857,7 @@ class InMemoryDocumentSessionOperations:
         def with_timeout(
             self, timeout: datetime.timedelta
         ) -> InMemoryDocumentSessionOperations.ReplicationWaitOptsBuilder:
-            self.get_options().replication_options.wait_for_indexes_timeout = timeout
+            self.get_options().replication_options.wait_for_replicas_timeout = timeout
             return self
 
         def throw_on_timeout(self, should_throw: bool) -> InMemoryDocumentSessionOperations.ReplicationWaitOptsBuilder:
@@ -1890,11 +1890,13 @@ class InMemoryDocumentSessionOperations:
             return self
 
         def throw_on_timeout(self, should_throw: bool) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
-            self.get_options().index_options.throw_on_timeout_in_wait_for_replicas = should_throw
+            self.get_options().index_options.throw_on_timeout_in_wait_for_indexes = should_throw
             return self
 
-        def wait_for_indexes(self, *indexes: str) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
-            self.get_options().index_options.wait_for_indexes = indexes
+        def wait_for_indexes(
+            self, indexes: Optional[List[str]] = None
+        ) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
+            self.get_options().index_options.wait_for_specific_indexes = indexes
             return self
 
     class SaveChangesData:
