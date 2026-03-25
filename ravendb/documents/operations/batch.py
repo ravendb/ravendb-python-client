@@ -127,9 +127,9 @@ class BatchOperation:
             elif command_type == CommandType.COUNTERS:
                 self._handle_counters(batch_result)
             elif command_type == CommandType.TIME_SERIES:
-                break  # todo: RavenDB-13474 add to time series cache
+                continue  # todo: RavenDB-13474 add to time series cache
             elif command_type == CommandType.TIME_SERIES_COPY or command_type == CommandType.BATCH_PATCH:
-                break
+                continue
             else:
                 raise ValueError(f"Command {command_type} is not supported")
 

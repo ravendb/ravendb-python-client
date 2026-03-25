@@ -1818,9 +1818,10 @@ class InMemoryDocumentSessionOperations:
             # todo: cast result on object_type
         raise TypeError(f"Unable to cast {result.__class__.__name__} to {object_type.__name__}")
 
-    # todo: implement method below
     def update_session_after_save_changes(self, result: BatchCommandResult):
         returned_transaction_index = result.transaction_index
+        if returned_transaction_index is not None:
+            self.session_info.last_cluster_transaction_index = returned_transaction_index
 
     def _process_query_parameters(
         self, object_type: type, index_name: str, collection_name: str, conventions: DocumentConventions

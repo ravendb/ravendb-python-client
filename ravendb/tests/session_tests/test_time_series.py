@@ -1,3 +1,5 @@
+import unittest
+
 from ravendb.tests.test_base import TestBase, User
 from datetime import datetime, timedelta
 
@@ -65,3 +67,40 @@ class TestTimeSeries(TestBase):
 
             tsf.get(base + timedelta(days=2), base + timedelta(days=6))
             self.assertEqual(session.advanced.number_of_requests, 4)
+
+    def test_batch_processes_all_results_after_time_series(self):
+        with self.store.open_session() as session:
+            session.store(User("Target"), "users/ts-target")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            session.store(User("NewDoc"), "users/new-doc")
+            tsf = session.time_series_for("users/ts-target", "HeartRate")
+            tsf.append_single(datetime.now(), 70, "watch")
+            session.save_changes()
+
+        with self.store.open_session() as session:
+            new_doc = session.load("users/new-doc", User)
+            self.assertIsNotNone(new_doc, "PUT after time series operation must be processed.")
+            self.assertEqual(new_doc.name, "NewDoc")
+
+
+class TestBatchResultProcessing(unittest.TestCase):
+    def test_batch_does_not_break_after_time_series(self):
+        import inspect
+        from ravendb.documents.operations.batch import BatchOperation
+
+        src = inspect.getsource(BatchOperation)
+        lines = src.split("\n")
+        for i, line in enumerate(lines):
+            if "CommandType.TIME_SERIES" in line:
+                for j in range(i + 1, min(i + 3, len(lines))):
+                    next_line = lines[j].strip()
+                    if next_line and not next_line.startswith("#"):
+                        self.assertNotEqual(
+                            next_line,
+                            "break",
+                            "Batch processing uses 'break' after TIME_SERIES, "
+                            "dropping all subsequent results. Must use 'continue'.",
+                        )
+                        break
