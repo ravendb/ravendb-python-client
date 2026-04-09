@@ -214,7 +214,6 @@ class TestEmbeddingsGenerationTasksManagement(TestBase):
         self.assertIn("PostContent", error_message)
         self.assertIn("ChunkingOptions", error_message)
 
-
     def test_database_record_contains_embeddings_generations(self):
         config = self._create_valid_config()
 
@@ -223,9 +222,7 @@ class TestEmbeddingsGenerationTasksManagement(TestBase):
         self._created_task_ids.append(add_result.task_id)
 
         # Retrieve the database record
-        record = self.store.maintenance.server.send(
-            GetDatabaseRecordOperation(self.store.database)
-        )
+        record = self.store.maintenance.server.send(GetDatabaseRecordOperation(self.store.database))
 
         # Assert embeddings_generations is populated and deserialized correctly
         self.assertIsNotNone(record.embeddings_generations)
