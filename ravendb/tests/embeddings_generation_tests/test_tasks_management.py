@@ -25,6 +25,7 @@ from ravendb.documents.operations.ongoing_tasks import (
     OngoingTaskState,
     OngoingTaskEmbeddingsGeneration,
 )
+from ravendb import GetDatabaseRecordOperation
 from ravendb.tests.test_base import TestBase
 
 
@@ -212,6 +213,31 @@ class TestEmbeddingsGenerationTasksManagement(TestBase):
         error_message = str(context.exception)
         self.assertIn("PostContent", error_message)
         self.assertIn("ChunkingOptions", error_message)
+
+
+    def test_database_record_contains_embeddings_generations(self):
+        config = self._create_valid_config()
+
+        # Add the task
+        add_result = self.store.maintenance.send(AddEmbeddingsGenerationOperation(config))
+        self._created_task_ids.append(add_result.task_id)
+
+        # Retrieve the database record
+        record = self.store.maintenance.server.send(
+            GetDatabaseRecordOperation(self.store.database)
+        )
+
+        # Assert embeddings_generations is populated and deserialized correctly
+        self.assertIsNotNone(record.embeddings_generations)
+        self.assertEqual(1, len(record.embeddings_generations))
+
+        eg_config = record.embeddings_generations[0]
+        self.assertIsInstance(eg_config, EmbeddingsGenerationConfiguration)
+        self.assertEqual(config.name, eg_config.name)
+        self.assertEqual(config.collection, eg_config.collection)
+        self.assertEqual(config.connection_string_name, eg_config.connection_string_name)
+        self.assertEqual(2, len(eg_config.embeddings_path_configurations))
+        self.assertIsNotNone(eg_config.chunking_options_for_querying)
 
 
 if __name__ == "__main__":

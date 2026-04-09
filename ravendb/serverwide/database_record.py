@@ -69,6 +69,7 @@ class DatabaseRecord:
         self.raven_etls: List[RavenEtlConfiguration] = []
         self.sql_etls: List[SqlEtlConfiguration] = []
         self.olap_etls: List[OlapEtlConfiguration] = []
+        self.embeddings_generations: List = []
         self.client: Optional[ClientConfiguration] = None
         self.studio: Optional[StudioConfiguration] = None
         self.truncated_cluster_transaction_commands_count: int = 0
@@ -166,6 +167,17 @@ class DatabaseRecord:
         record.raven_etls = json_dict.get("RavenEtls", None)
         record.sql_etls = json_dict.get("SqlEtls", None)
         record.olap_etls = json_dict.get("OlapEtls", None)
+        embeddings_generations_data = json_dict.get("EmbeddingsGenerations", [])
+        if embeddings_generations_data:
+            from ravendb.documents.operations.ai.embeddings_generation_configuration import (
+                EmbeddingsGenerationConfiguration,
+            )
+
+            record.embeddings_generations = [
+                EmbeddingsGenerationConfiguration.from_json(e) for e in embeddings_generations_data
+            ]
+        else:
+            record.embeddings_generations = []
         record.client = json_dict.get("Client", None)
         record.studio = json_dict.get("Studio", None)
         record.truncated_cluster_transaction_commands_count = json_dict.get("TruncatedClusterTransactionCommand", None)
