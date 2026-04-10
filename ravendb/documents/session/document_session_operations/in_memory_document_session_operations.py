@@ -1842,16 +1842,19 @@ class InMemoryDocumentSessionOperations:
         if document_info.entity is not None and not self.no_tracking:
             self.entity_to_json.remove_from_missing(document_info.entity)
 
-        document_info.entity = self.entity_to_json.convert_to_entity(
+        refreshed = self.entity_to_json.convert_to_entity(
             type(entity), document_info.key, document, not self.no_tracking
         )
         document_info.document = document
 
+        # Update the original entity object in-place so the caller's reference
+        # immediately reflects the new server state (C# behaviour).
         try:
-            entity = deepcopy(document_info.entity)
-        except Error as e:
-            raise RuntimeError(f"Unable to refresh entity: {e.args[0]}", e)
+            entity.__dict__.update(refreshed.__dict__)
+        except Exception as e:
+            raise RuntimeError(f"Unable to refresh entity: {e}") from e
 
+        document_info.entity = entity
         document_info_by_id = self._documents_by_id.get(document_info.key)
         if document_info_by_id is not None:
             document_info_by_id.entity = entity

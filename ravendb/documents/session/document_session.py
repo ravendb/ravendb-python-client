@@ -316,6 +316,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             result = load_operation.get_documents(object_type)
             return result.popitem()[1] if len(result) == 1 else result if result else None
 
+        if self.no_tracking:
+            raise InvalidOperationException(
+                "Cannot register includes when no_tracking is enabled. "
+                "Included documents are not tracked, so subsequent load operations for that data will still trigger additional server requests. "
+                "To avoid confusion, include operations are disallowed when tracking is disabled on the session or query."
+            )
+
         include_builder = IncludeBuilder(self.conventions)
         includes(include_builder)
 

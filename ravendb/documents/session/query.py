@@ -52,6 +52,7 @@ from ravendb.documents.queries.suggestions import (
     SuggestionBuilder,
 )
 from ravendb.documents.queries.utils import QueryFieldUtil
+from ravendb.exceptions.exceptions import InvalidOperationException
 from ravendb.documents.session.event_args import BeforeQueryEventArgs
 from ravendb.documents.session.loaders.include import IncludeBuilderBase, QueryIncludeBuilder
 from ravendb.documents.session.misc import MethodCall, CmpXchg, OrderingType, DocumentQueryCustomization
@@ -368,6 +369,12 @@ class AbstractDocumentQuery(Generic[_T]):
         return MoreLikeThisScope(token, self.__add_query_parameter, __action)
 
     def _include(self, path_or_include_builder: Union[str, IncludeBuilderBase]) -> None:
+        if self._the_session is not None and self._the_session.no_tracking:
+            raise InvalidOperationException(
+                "Cannot register includes when no_tracking is enabled. "
+                "Included documents are not tracked, so subsequent load operations for that data will still trigger additional server requests. "
+                "To avoid confusion, include operations are disallowed when tracking is disabled on the session or query."
+            )
         if isinstance(path_or_include_builder, str):
             self._document_includes.add(path_or_include_builder)
         elif isinstance(path_or_include_builder, IncludeBuilderBase):

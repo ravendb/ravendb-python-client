@@ -191,6 +191,8 @@ class LazySessionOperations:
     def load(
         self, ids: Union[List[str], str], object_type: Optional[Type[_T]] = None, on_eval: Callable = None
     ) -> Optional[Lazy[Union[Dict[str, object], object]]]:
+        if ids is None:
+            return Lazy(lambda: None)
         if not ids:
             return None
 
