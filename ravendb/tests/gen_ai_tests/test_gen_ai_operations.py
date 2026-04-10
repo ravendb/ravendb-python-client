@@ -253,6 +253,70 @@ class TestGenAiConfigurationSerialization(unittest.TestCase):
         self.assertEqual(original.max_concurrency, restored.max_concurrency)
         self.assertEqual(original.enable_tracing, restored.enable_tracing)
 
+    def test_version_not_in_json_when_none(self):
+        """Tests that Version key is omitted from JSON when version is None."""
+        config = GenAiConfiguration(
+            name="TestGenAi",
+            identifier="test-gen-ai-1",
+            collection="Documents",
+            connection_string_name="my-connection",
+            prompt="Test prompt",
+            gen_ai_transformation=GenAiTransformation(script="ai.genContext(ctx);"),
+            update_script="this.Summary = $result;",
+            sample_object='{"summary": "test"}',
+        )
+        json_data = config.to_json()
+        self.assertNotIn("Version", json_data)
+
+    def test_version_in_json_when_set(self):
+        """Tests that Version key is included in JSON when version has a value."""
+        config = GenAiConfiguration(
+            name="TestGenAi",
+            identifier="test-gen-ai-1",
+            collection="Documents",
+            connection_string_name="my-connection",
+            prompt="Test prompt",
+            gen_ai_transformation=GenAiTransformation(script="ai.genContext(ctx);"),
+            update_script="this.Summary = $result;",
+            sample_object='{"summary": "test"}',
+            version=1,
+        )
+        json_data = config.to_json()
+        self.assertEqual(1, json_data["Version"])
+
+    def test_version_round_trip(self):
+        """Tests that version survives serialization -> deserialization."""
+        config = GenAiConfiguration(
+            name="TestGenAi",
+            identifier="test-gen-ai-1",
+            collection="Documents",
+            connection_string_name="my-connection",
+            prompt="Test prompt",
+            gen_ai_transformation=GenAiTransformation(script="ai.genContext(ctx);"),
+            update_script="this.Summary = $result;",
+            sample_object='{"summary": "test"}',
+            version=1,
+        )
+        json_data = config.to_json()
+        restored = GenAiConfiguration.from_json(json_data)
+        self.assertEqual(1, restored.version)
+
+    def test_version_none_round_trip(self):
+        """Tests that None version survives serialization -> deserialization."""
+        config = GenAiConfiguration(
+            name="TestGenAi",
+            identifier="test-gen-ai-1",
+            collection="Documents",
+            connection_string_name="my-connection",
+            prompt="Test prompt",
+            gen_ai_transformation=GenAiTransformation(script="ai.genContext(ctx);"),
+            update_script="this.Summary = $result;",
+            sample_object='{"summary": "test"}',
+        )
+        json_data = config.to_json()
+        restored = GenAiConfiguration.from_json(json_data)
+        self.assertIsNone(restored.version)
+
 
 class TestGenAiTransformation(unittest.TestCase):
     """Tests for GenAiTransformation. No server required."""
