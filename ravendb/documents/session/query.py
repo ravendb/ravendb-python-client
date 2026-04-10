@@ -1309,9 +1309,9 @@ class AbstractDocumentQuery(Generic[_T]):
             raise RuntimeError("Alias cannot be None or empty")
 
         tokens = self.__get_current_where_tokens()
-        for token in tokens:
+        for i, token in enumerate(tokens):
             if isinstance(token, WhereToken):
-                token.add_alias(from_alias)
+                tokens[i] = token.add_alias(from_alias)
 
     def add_alias_to_includes_tokens(self, from_alias: str) -> str:
         if self._includes_alias is None:
@@ -2756,6 +2756,192 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
 
         self._suggest_using(suggestion_or_builder)
         return SuggestionDocumentQuery(self)
+
+    # Date-component filter methods.  The C# client achieves the same result via LINQ expression
+    # trees (e.g. Where(x => x.Date.Year == 2024)), which the LINQ provider translates to a
+    # JavaScript predicate (new Date(Date.parse(x.Date)).getFullYear() >= 1400) evaluated at
+    # query time.  Python has no expression-tree mechanism, so these methods use the RQL
+    # dot-notation field path directly ("date.Year = $p0"), which relies on the server's
+    # auto-indexer extracting the component from the stored ISO 8601 string.
+    #
+    # LIMITATION — dates before approximately year 1000:
+    #   The server's dynamic date-component extraction fails for very old dates because the
+    #   underlying JavaScript engine (used by the auto-indexer) cannot reliably parse ISO 8601
+    #   strings with years below ~1000 (Date.parse returns NaN).  Documents with such dates
+    #   will not match these where-clauses even when they should.
+    #
+    #   The C# LINQ approach is immune because its JavaScript predicate is evaluated at query
+    #   time rather than index time, but Python has no equivalent mechanism.
+    #
+    # No known workaround exists in the Python client.  The static-index approach
+    # (extracting e.date.Year etc. in a C# LINQ map) also fails for years < ~1000
+    # because the server's indexing pipeline hits the same JavaScript/date limitation.
+    #
+    # "exact" is intentionally omitted: date components are integers, so case/token options
+    # have no effect.
+    #
+    # where_ticks accepts a raw .NET tick count (100-nanosecond intervals since 0001-01-01).
+
+    def where_year(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Year", value)
+
+    def where_year_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Year", value)
+        return self
+
+    def where_year_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Year", value)
+        return self
+
+    def where_year_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Year", value)
+        return self
+
+    def where_year_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Year", value)
+        return self
+
+    def where_year_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Year", start, end)
+        return self
+
+    def where_month(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Month", value)
+
+    def where_month_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Month", value)
+        return self
+
+    def where_month_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Month", value)
+        return self
+
+    def where_month_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Month", value)
+        return self
+
+    def where_month_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Month", value)
+        return self
+
+    def where_month_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Month", start, end)
+        return self
+
+    def where_day_of_month(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Day", value)
+
+    def where_day_of_month_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Day", value)
+        return self
+
+    def where_day_of_month_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Day", value)
+        return self
+
+    def where_day_of_month_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Day", value)
+        return self
+
+    def where_day_of_month_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Day", value)
+        return self
+
+    def where_day_of_month_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Day", start, end)
+        return self
+
+    def where_hour(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Hour", value)
+
+    def where_hour_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Hour", value)
+        return self
+
+    def where_hour_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Hour", value)
+        return self
+
+    def where_hour_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Hour", value)
+        return self
+
+    def where_hour_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Hour", value)
+        return self
+
+    def where_hour_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Hour", start, end)
+        return self
+
+    def where_minute(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Minute", value)
+
+    def where_minute_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Minute", value)
+        return self
+
+    def where_minute_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Minute", value)
+        return self
+
+    def where_minute_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Minute", value)
+        return self
+
+    def where_minute_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Minute", value)
+        return self
+
+    def where_minute_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Minute", start, end)
+        return self
+
+    def where_second(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Second", value)
+
+    def where_second_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Second", value)
+        return self
+
+    def where_second_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Second", value)
+        return self
+
+    def where_second_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Second", value)
+        return self
+
+    def where_second_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Second", value)
+        return self
+
+    def where_second_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Second", start, end)
+        return self
+
+    def where_ticks(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        return self.where_equals(f"{field_name}.Ticks", value)
+
+    def where_ticks_greater_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than(f"{field_name}.Ticks", value)
+        return self
+
+    def where_ticks_greater_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_greater_than_or_equal(f"{field_name}.Ticks", value)
+        return self
+
+    def where_ticks_less_than(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than(f"{field_name}.Ticks", value)
+        return self
+
+    def where_ticks_less_than_or_equal(self, field_name: str, value: int) -> "DocumentQuery[_T]":
+        self._where_less_than_or_equal(f"{field_name}.Ticks", value)
+        return self
+
+    def where_ticks_between(self, field_name: str, start: int, end: int) -> "DocumentQuery[_T]":
+        self._where_between(f"{field_name}.Ticks", start, end)
+        return self
 
 
 class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
