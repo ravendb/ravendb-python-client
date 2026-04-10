@@ -253,6 +253,11 @@ class JavaScriptArray:
 
         return self
 
+    def remove_all(self, predicate_js: str) -> "JavaScriptArray":
+        path = self.__path_to_array
+        self.__script_lines.append(f"this.{path} = this.{path}.filter(function(item){{ return !({predicate_js}); }});")
+        return self
+
 
 class JavaScriptMap(Generic[_T_Key, _T_Value]):
     def __init__(self, suffix: int, path_to_map: str):
