@@ -983,13 +983,13 @@ class InMemoryDocumentSessionOperations:
             )
 
         for command_data in result.session_commands:
-            if command_data.command_type == CommandType.PUT or CommandType.DELETE:
+            if command_data.command_type in (CommandType.PUT, CommandType.DELETE):
                 if command_data.change_vector is not None:
                     raise ValueError(
                         f"Optimistic concurrency for {command_data.key} "
                         f"is not supported when using a cluster transaction"
                     )
-            elif command_data.command_type == CommandType.COMPARE_EXCHANGE_DELETE or CommandType.COMPARE_EXCHANGE_PUT:
+            elif command_data.command_type in (CommandType.COMPARE_EXCHANGE_DELETE, CommandType.COMPARE_EXCHANGE_PUT):
                 pass
             else:
                 raise ValueError(f"The command '{command_data.command_type}' is not supported in a cluster session.")
@@ -1874,9 +1874,10 @@ class InMemoryDocumentSessionOperations:
             # todo: cast result on object_type
         raise TypeError(f"Unable to cast {result.__class__.__name__} to {object_type.__name__}")
 
-    # todo: implement method below
     def update_session_after_save_changes(self, result: BatchCommandResult):
         returned_transaction_index = result.transaction_index
+        if returned_transaction_index is not None:
+            self.session_info.last_cluster_transaction_index = returned_transaction_index
 
     def _process_query_parameters(
         self, object_type: type, index_name: str, collection_name: str, conventions: DocumentConventions
@@ -1913,7 +1914,7 @@ class InMemoryDocumentSessionOperations:
         def with_timeout(
             self, timeout: datetime.timedelta
         ) -> InMemoryDocumentSessionOperations.ReplicationWaitOptsBuilder:
-            self.get_options().replication_options.wait_for_indexes_timeout = timeout
+            self.get_options().replication_options.wait_for_replicas_timeout = timeout
             return self
 
         def throw_on_timeout(self, should_throw: bool) -> InMemoryDocumentSessionOperations.ReplicationWaitOptsBuilder:
@@ -1946,11 +1947,13 @@ class InMemoryDocumentSessionOperations:
             return self
 
         def throw_on_timeout(self, should_throw: bool) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
-            self.get_options().index_options.throw_on_timeout_in_wait_for_replicas = should_throw
+            self.get_options().index_options.throw_on_timeout_in_wait_for_indexes = should_throw
             return self
 
-        def wait_for_indexes(self, *indexes: str) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
-            self.get_options().index_options.wait_for_indexes = indexes
+        def wait_for_indexes(
+            self, indexes: Optional[List[str]] = None
+        ) -> InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder:
+            self.get_options().index_options.wait_for_specific_indexes = indexes
             return self
 
     class SaveChangesData:

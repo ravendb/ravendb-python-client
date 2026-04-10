@@ -133,7 +133,7 @@ class CompareExchangeSessionValue(Generic[_T]):
         self._state = CompareExchangeValueState.DELETED
 
     def __assert_state(self) -> None:
-        if self._state == CompareExchangeValueState.NONE or CompareExchangeValueState.MISSING:
+        if self._state in (CompareExchangeValueState.NONE, CompareExchangeValueState.MISSING):
             return
         elif self._state == CompareExchangeValueState.CREATED:
             raise RuntimeError(f"The compare exchange value with key {self._key} was already stored.")
@@ -144,7 +144,7 @@ class CompareExchangeSessionValue(Generic[_T]):
         self, conventions: DocumentConventions
     ) -> Optional[Union[DeleteCompareExchangeCommandData, PutCompareExchangeCommandData]]:
         s = self._state
-        if s == CompareExchangeValueState.NONE or CompareExchangeValueState.CREATED:
+        if s in (CompareExchangeValueState.NONE, CompareExchangeValueState.CREATED):
             if not self.__value:
                 return None
 

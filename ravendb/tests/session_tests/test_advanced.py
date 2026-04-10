@@ -3,6 +3,7 @@ from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.tests.test_base import TestBase
 from ravendb.exceptions.exceptions import InvalidOperationException
+import datetime
 import unittest
 import pathlib
 import os
@@ -125,6 +126,74 @@ class TestAdvanced(TestBase):
                 session.advanced.attachments.store("users/1-A", "my_text_file", binary_list, content_type="text/plain")
                 with self.assertRaises(InvalidOperationException):
                     session.advanced.attachments.delete("users/1-A", "my_text_file")
+
+    def test_wait_for_replication_timeout_propagates(self):
+        with self.store.open_session() as session:
+            session.store(User("Idan", 30), "users/1-A")
+            session.advanced.wait_for_replication_after_save_changes(
+                lambda opts: opts.with_timeout(datetime.timedelta(seconds=5))
+            )
+            batch_options = session._save_changes_options
+            self.assertIsNotNone(batch_options)
+            self.assertIsNotNone(batch_options.replication_options)
+            self.assertEqual(batch_options.replication_options.wait_for_replicas_timeout, datetime.timedelta(seconds=5))
+
+    def test_wait_for_indexes_throw_on_timeout_propagates(self):
+        with self.store.open_session() as session:
+            session.store(User("Idan", 30), "users/1-A")
+            session.advanced.wait_for_indexes_after_save_changes(lambda opts: opts.throw_on_timeout(False))
+            batch_options = session._save_changes_options
+            self.assertIsNotNone(batch_options)
+            self.assertIsNotNone(batch_options.index_options)
+            self.assertIs(batch_options.index_options.throw_on_timeout_in_wait_for_indexes, False)
+
+    def test_wait_for_indexes_specific_indexes_propagates(self):
+        with self.store.open_session() as session:
+            session.store(User("Idan", 30), "users/1-A")
+            session.advanced.wait_for_indexes_after_save_changes(lambda opts: opts.wait_for_indexes(["MyIndex"]))
+            batch_options = session._save_changes_options
+            self.assertIsNotNone(batch_options)
+            self.assertIsNotNone(batch_options.index_options)
+            self.assertIn("MyIndex", batch_options.index_options.wait_for_specific_indexes)
+
+
+class _FakeSession:
+    def __init__(self):
+        self._save_changes_options = None
+
+
+class TestWaitForOptions(unittest.TestCase):
+    def test_replication_timeout_propagates(self):
+        from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+            InMemoryDocumentSessionOperations,
+        )
+
+        session = _FakeSession()
+        builder = InMemoryDocumentSessionOperations.ReplicationWaitOptsBuilder(session)
+        builder.with_timeout(datetime.timedelta(seconds=5))
+        self.assertEqual(
+            session._save_changes_options.replication_options.wait_for_replicas_timeout, datetime.timedelta(seconds=5)
+        )
+
+    def test_indexes_throw_on_timeout_propagates(self):
+        from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+            InMemoryDocumentSessionOperations,
+        )
+
+        session = _FakeSession()
+        builder = InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder(session)
+        builder.throw_on_timeout(False)
+        self.assertIs(session._save_changes_options.index_options.throw_on_timeout_in_wait_for_indexes, False)
+
+    def test_specific_indexes_propagates(self):
+        from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+            InMemoryDocumentSessionOperations,
+        )
+
+        session = _FakeSession()
+        builder = InMemoryDocumentSessionOperations.IndexesWaitOptsBuilder(session)
+        builder.wait_for_indexes(["MyIndex"])
+        self.assertIn("MyIndex", session._save_changes_options.index_options.wait_for_specific_indexes)
 
 
 if __name__ == "__main__":

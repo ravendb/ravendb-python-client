@@ -841,7 +841,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             builder_options = builder.get_options()
             replication_options = builder_options.replication_options
             if replication_options is None:
-                builder_options.replication_options = ReplicationBatchOptions()
+                replication_options = ReplicationBatchOptions()
+                builder_options.replication_options = replication_options
 
             if replication_options.wait_for_replicas_timeout is None:
                 replication_options.wait_for_replicas_timeout = (
@@ -860,7 +861,8 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             index_options = builder_options.index_options
 
             if index_options is None:
-                builder_options.index_options = IndexBatchOptions()
+                index_options = IndexBatchOptions()
+                builder_options.index_options = index_options
 
             if index_options.wait_for_indexes_timeout is None:
                 index_options.wait_for_indexes_timeout = (
