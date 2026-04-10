@@ -803,6 +803,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def what_changed(self) -> Dict[str, List[DocumentsChanges]]:
             return self._session._what_changed()
 
+        def what_changed_for(self, entity: object) -> List[DocumentsChanges]:
+            return self._session._what_changed_for(entity)
+
+        def get_tracked_entities(self) -> Dict[str, dict]:
+            return self._session._get_tracked_entities()
+
         def exists(self, key: str) -> bool:
             if key is None:
                 raise ValueError("Key cannot be None")
