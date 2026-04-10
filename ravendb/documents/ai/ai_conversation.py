@@ -12,6 +12,7 @@ from ravendb.documents.operations.ai.agents import (
     AiAgentActionResponse,
     AiConversationCreationOptions,
 )
+from ravendb.exceptions.exceptions import InvalidOperationException
 from ravendb.documents.operations.ai.agents.run_conversation_operation import AiAgentArtificialActionResponse
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ class AiConversation:
         self._change_vector = change_vector
 
         self._prompt_parts: List[ContentPart] = []
-        self._action_responses: List[AiAgentActionResponse] = []
+        self._action_responses: Dict[str, AiAgentActionResponse] = {}
         self._artificial_actions: List[AiAgentArtificialActionResponse] = []
         self._action_requests: Optional[List[AiAgentActionRequest]] = None
 
@@ -114,15 +115,25 @@ class AiConversation:
         Args:
             action_id: The ID of the action to respond to
             action_response: The response content
+
+        Raises:
+            InvalidOperationException: If a response for the given tool-id was already added
         """
         from ravendb.documents.operations.ai.agents import AiAgentActionResponse
+
+        if action_id in self._action_responses:
+            raise InvalidOperationException(
+                f"An action response for tool-id '{action_id}' was already added. "
+                f"Each tool call must have exactly one response. "
+                f"If you're using handle, return the value from the handler (don't call add_action_response manually)."
+            )
 
         response = AiAgentActionResponse(tool_id=action_id)
 
         if isinstance(action_response, str):
             response.content = action_response
 
-        self._action_responses.append(response)
+        self._action_responses[action_id] = response
 
     def add_artificial_action_with_response(self, tool_id: str, action_response) -> None:
         """
@@ -211,7 +222,7 @@ class AiConversation:
             agent_id=self._agent_id,
             conversation_id=self._conversation_id,
             prompt_parts=self._prompt_parts,  # Always send list, even if empty
-            action_responses=self._action_responses,  # Always send list, even if empty
+            action_responses=list(self._action_responses.values()),  # Always send list, even if empty
             artificial_actions=self._artificial_actions,  # Always send list, even if empty
             options=self._options,
             change_vector=self._change_vector,
