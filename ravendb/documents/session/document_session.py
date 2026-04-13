@@ -9,6 +9,7 @@ import os
 import time
 import uuid
 from typing import (
+    BinaryIO,
     Union,
     Callable,
     TYPE_CHECKING,
@@ -374,7 +375,9 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
         return load_operation.get_documents(object_type)
 
-    def _load_internal_stream(self, keys: List[str], operation: LoadOperation, stream: Optional[bytes] = None) -> None:
+    def _load_internal_stream(
+        self, keys: List[str], operation: LoadOperation, stream: Optional[BinaryIO] = None
+    ) -> None:
         operation.by_keys(keys)
 
         command = operation.create_request()
@@ -382,13 +385,13 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         if command:
             self._request_executor.execute_command(command, self.session_info)
 
-            if stream:
+            if stream is not None:
                 try:
                     result = command.result
-                    stream_to_dict = json.loads(stream.decode("utf-8"))
-                    result.__dict__.update(stream_to_dict)
-                except IOError as e:
-                    raise RuntimeError(f"Unable to serialize returned value into stream {e.args[0]}", e)
+                    data = json.dumps({k: v for k, v in result.to_json().items() if v is not None}).encode("utf-8")
+                    stream.write(data)
+                except Exception as e:
+                    raise RuntimeError("Unable to serialize returned value into stream") from e
             else:
                 operation.set_result(command.result)
 
@@ -411,16 +414,20 @@ class DocumentSession(InMemoryDocumentSessionOperations):
     def load_starting_with_into_stream(
         self,
         id_prefix: str,
+        output: BinaryIO,
         matches: str = None,
         start: int = 0,
         page_size: int = 25,
         exclude: str = None,
         start_after: str = None,
-    ) -> bytes:
+    ) -> None:
+        """Load documents whose ID starts with ``id_prefix`` and write the raw JSON response to ``output``."""
         if id_prefix is None:
-            raise ValueError("Arg 'id_prefix' is cannot be None.")
-        return self._load_starting_with_into_stream_internal(
-            id_prefix, LoadStartingWithOperation(self), matches, start, page_size, exclude, start_after
+            raise ValueError("id_prefix cannot be None.")
+        if output is None:
+            raise ValueError("output cannot be None")
+        self._load_starting_with_into_stream_internal(
+            id_prefix, LoadStartingWithOperation(self), output, matches, start, page_size, exclude, start_after
         )
 
     def _load_starting_with_internal(
@@ -444,23 +451,23 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         self,
         id_prefix: str,
         operation: LoadStartingWithOperation,
+        output: BinaryIO,
         matches: str,
         start: int,
         page_size: int,
         exclude: str,
         start_after: str,
-    ) -> bytes:
+    ) -> None:
         operation.with_start_with(id_prefix, matches, start, page_size, exclude, start_after)
         command = operation.create_request()
-        bytes_result = None
         if command:
             self.request_executor.execute_command(command, self.session_info)
             try:
                 result = command.result
-                bytes_result = json.dumps(result.to_json()).encode("utf-8")
+                data = json.dumps({k: v for k, v in result.to_json().items() if v is not None}).encode("utf-8")
+                output.write(data)
             except Exception as e:
-                raise RuntimeError("Unable sto serialize returned value into stream") from e
-        return bytes_result
+                raise RuntimeError("Unable to serialize returned value into stream") from e
 
     def document_query_from_index_type(self, index_type: Type[_TIndex], object_type: Type[_T]) -> DocumentQuery[_T]:
         try:
@@ -888,19 +895,29 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         def load_starting_with_into_stream(
             self,
             id_prefix: str,
+            output: BinaryIO,
             matches: str = None,
             start: int = 0,
             page_size: int = 25,
             exclude: str = None,
             start_after: str = None,
-        ) -> bytes:
+        ) -> None:
             return self._session.load_starting_with_into_stream(
-                id_prefix, matches, start, page_size, exclude, start_after
+                id_prefix, output, matches, start, page_size, exclude, start_after
             )
 
-        def load_into_stream(self, keys: List[str], output: bytes) -> None:
+        def load_into_stream(self, keys: List[str], output: BinaryIO) -> None:
+            """Load documents by keys and write the raw JSON response to a binary stream.
+
+            Use this instead of ``load()`` when you need the server response as raw bytes
+            (e.g. forwarding to a file or HTTP response) without deserializing into entities.
+            ``output`` must be a binary-writable stream such as ``io.BytesIO`` or a file
+            opened with ``open(..., "wb")``.
+            """
             if keys is None:
                 raise ValueError("Keys cannot be None")
+            if output is None:
+                raise ValueError("output cannot be None")
 
             self._session._load_internal_stream(keys, LoadOperation(self._session), output)
 
@@ -1187,8 +1204,22 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 object_type=query.query_class,
             )
 
-        def stream_into(self):  # query: Union[DocumentQuery, RawDocumentQuery], output: iter):
-            pass
+        def stream_into(self, query: AbstractDocumentQuery, output: BinaryIO) -> None:
+            """Execute the query and write the results as ``{"Results":[...]}`` JSON to a binary stream."""
+            stream_operation = StreamOperation(self._session)
+            command = stream_operation.create_request(query.index_query)
+
+            self.request_executor.execute_command(command, self.session_info)
+
+            with stream_operation.set_result(command.result) as result_iter:
+                output.write(b'{"Results":[')
+                first = True
+                for item in result_iter:
+                    if not first:
+                        output.write(b",")
+                    output.write(json.dumps(item).encode("utf-8"))
+                    first = False
+                output.write(b"]}")
 
         def conditional_load(
             self, key: str, change_vector: str, object_type: Type[_T] = None

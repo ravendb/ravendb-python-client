@@ -5,6 +5,7 @@ import os
 import warnings
 from copy import copy
 from typing import (
+    BinaryIO,
     Generic,
     TypeVar,
     List,
@@ -2768,6 +2769,10 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._suggest_using(suggestion_or_builder)
         return SuggestionDocumentQuery(self)
 
+    def to_stream(self, output: BinaryIO) -> None:
+        """Execute the query and write results as JSON to ``output``."""
+        self._the_session.advanced.stream_into(self, output)
+
 
 class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
     def __init__(self, object_type: Type[_T], session: InMemoryDocumentSessionOperations, raw_query: str):
@@ -2844,6 +2849,10 @@ class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
     def projection(self, projection_behavior: ProjectionBehavior) -> RawDocumentQuery[_T]:
         self._projection(projection_behavior)
         return self
+
+    def to_stream(self, output: BinaryIO) -> None:
+        """Execute the raw query and write results as JSON to ``output``."""
+        self._the_session.advanced.stream_into(self, output)
 
 
 class DocumentQueryCustomizationDelegate(DocumentQueryCustomization):
