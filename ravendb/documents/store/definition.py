@@ -44,6 +44,7 @@ T = TypeVar("T")
 
 if TYPE_CHECKING:
     from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
+    from ravendb.http.misc import AggressiveCacheMode, AggressiveCacheOptions
 
 
 class DocumentStoreBase:
@@ -560,7 +561,7 @@ class DocumentStore(DocumentStoreBase):
         cache_duration: datetime.timedelta,
         database: Optional[str] = None,
         mode: Optional["AggressiveCacheMode"] = None,
-    ) -> "DocumentStore._DisableAggressiveCachingContext":
+    ) -> "DocumentStore._AggressiveCacheOverrideScope":
         from ravendb.http.misc import AggressiveCacheMode
 
         if mode is None:
@@ -573,21 +574,21 @@ class DocumentStore(DocumentStoreBase):
         cache_duration: datetime.timedelta,
         mode: "AggressiveCacheMode",
         database: Optional[str] = None,
-    ) -> "DocumentStore._DisableAggressiveCachingContext":
+    ) -> "DocumentStore._AggressiveCacheOverrideScope":
         from ravendb.http.misc import AggressiveCacheOptions
 
         self.assert_initialized()
         database = self.get_effective_database(database)
         request_executor = self.get_request_executor(database)
         options = AggressiveCacheOptions(cache_duration, mode)
-        return DocumentStore._DisableAggressiveCachingContext(request_executor, options)
+        return DocumentStore._AggressiveCacheOverrideScope(request_executor, options)
 
     def _finalize_aggressive_cache(
         self,
-        context: "DocumentStore._DisableAggressiveCachingContext",
+        context: "DocumentStore._AggressiveCacheOverrideScope",
         mode: "AggressiveCacheMode",
         database: Optional[str] = None,
-    ) -> "DocumentStore._DisableAggressiveCachingContext":
+    ) -> "DocumentStore._AggressiveCacheOverrideScope":
         from ravendb.http.misc import AggressiveCacheMode
 
         try:
@@ -614,17 +615,17 @@ class DocumentStore(DocumentStoreBase):
 
     def disable_aggressive_caching(
         self, database: Optional[str] = None
-    ) -> "DocumentStore._DisableAggressiveCachingContext":
+    ) -> "DocumentStore._AggressiveCacheOverrideScope":
         self.assert_initialized()
         database = self.get_effective_database(database)
         request_executor = self.get_request_executor(database)
-        return DocumentStore._DisableAggressiveCachingContext(request_executor)
+        return DocumentStore._AggressiveCacheOverrideScope(request_executor)
 
-    class _DisableAggressiveCachingContext:
-        def __init__(self, request_executor, options=None):
+    class _AggressiveCacheOverrideScope:
+        def __init__(self, request_executor: RequestExecutor, options: AggressiveCacheOptions = None):
             self._request_executor = request_executor
             self._options = options
-            self._old_options = None
+            self._old_options: Optional[AggressiveCacheOptions] = None
 
         def __enter__(self):
             self._old_options = self._request_executor.aggressive_caching

@@ -34,6 +34,7 @@ from ravendb.http.misc import (
     LoadBalanceBehavior,
     Broadcast,
     AggressiveCacheMode,
+    AggressiveCacheOptions,
 )
 from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
