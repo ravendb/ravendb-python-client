@@ -540,14 +540,14 @@ class InMemoryDocumentSessionOperations:
     def add_before_delete(self, event: Callable[[BeforeDeleteEventArgs], None]):
         self._before_delete.append(event)
 
-    def remove_before_delete_entity(self, event: Callable[[BeforeDeleteEventArgs], None]):
+    def remove_before_delete(self, event: Callable[[BeforeDeleteEventArgs], None]):
         self._before_delete.remove(event)
 
     def add_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
         self._before_query.append(event)
 
     def remove_before_query(self, event: Callable[[BeforeQueryEventArgs], None]):
-        self._before_query.append(event)
+        self._before_query.remove(event)
 
     def before_store_invoke(self, before_store_event_args: BeforeStoreEventArgs):
         for event in self._before_store:

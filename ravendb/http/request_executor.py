@@ -8,7 +8,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, Future, FIRST_COMPLETED, wait, ALL_COMPLETED
 import uuid
 from json import JSONDecodeError
-from threading import Timer, Semaphore, Lock
+from threading import Timer, Semaphore, Lock, local
 
 import requests
 from copy import copy
@@ -27,8 +27,14 @@ from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 from ravendb.exceptions.raven_exceptions import ClientVersionMismatchException
 
 
-from ravendb.http.http_cache import HttpCache
-from ravendb.http.misc import ReadBalanceBehavior, ResponseDisposeHandling, LoadBalanceBehavior, Broadcast
+from ravendb.http.http_cache import HttpCache, ItemFlags, ReleaseCacheItem
+from ravendb.http.misc import (
+    ReadBalanceBehavior,
+    ResponseDisposeHandling,
+    LoadBalanceBehavior,
+    Broadcast,
+    AggressiveCacheMode,
+)
 from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import Topology, NodeStatus, NodeSelector, CurrentIndexAndNode, UpdateTopologyParameters
@@ -106,12 +112,24 @@ class RequestExecutor:
         self._disposed: Union[None, bool] = None
 
         self.__synchronized_lock = Lock()
+        self._aggressive_caching_local = local()
 
         # --- events ---
         self._on_before_request: List[Callable[[BeforeRequestEventArgs], Any]] = []
         self.__on_failed_request: List[Callable[[FailedRequestEventArgs], None]] = []
         self.__on_succeed_request: List[Callable[[SucceedRequestEventArgs], None]] = []
         self._on_topology_updated: List[Callable[[Topology], None]] = []
+
+    @property
+    def aggressive_caching(self) -> Optional["AggressiveCacheOptions"]:
+        # threading.local mirrors C#'s AsyncLocal<AggressiveCacheOptions>: each thread
+        # (each request context) gets its own setting. Without this, one thread enabling
+        # aggressive caching would bleed into every other thread on the same executor.
+        return getattr(self._aggressive_caching_local, "value", None)
+
+    @aggressive_caching.setter
+    def aggressive_caching(self, value: Optional["AggressiveCacheOptions"]) -> None:
+        self._aggressive_caching_local.value = value
 
     def __enter__(self):
         return self
@@ -522,7 +540,38 @@ class RequestExecutor:
         no_caching = session_info.no_caching if session_info else False
 
         cached_item, change_vector, cached_value = self._get_from_cache(command, not no_caching, url)
-        # todo: if change_vector exists try get from cache - aggressive caching
+
+        # Aggressive-cache short-circuit: serve from local cache without touching the server.
+        # All five conditions must hold:
+        #   1. Session didn't disable caching.
+        #   2. Aggressive caching is active on this thread.
+        #   3. The command doesn't opt out (streaming commands set can_cache_aggressively=False).
+        #   4. The item is actually in cache AND young enough.
+        #   5. Under TRACK_CHANGES mode, the cache generation must not have advanced since we
+        #      retrieved the item — if it has, _AggressiveCacheInvalidator saw a server change and
+        #      bumped the generation, so we must revalidate.
+        if (
+            not no_caching
+            and self.aggressive_caching is not None
+            and command.can_cache_aggressively
+            and cached_item.item is not None
+            and cached_item.age < self.aggressive_caching.duration
+            and (
+                not cached_item.might_have_been_modified
+                or self.aggressive_caching.mode != AggressiveCacheMode.TRACK_CHANGES
+            )
+        ):
+            if ItemFlags.NOT_FOUND in cached_item.item.flags:
+                # Cached 404: only trust it when it was itself received inside an aggressive-
+                # cache context (AGGRESSIVELY_CACHED flag set by set_not_found). A 404 cached
+                # outside aggressive mode might have been a transient error; re-fetch it.
+                if ItemFlags.AGGRESSIVELY_CACHED in cached_item.item.flags:
+                    command.set_response(None, True)
+                    return
+            elif cached_value is not None:
+                command.set_response(cached_value, True)
+                return
+
         with cached_item:
             # todo: try get from cache
             self._set_request_headers(session_info, change_vector, request)
@@ -785,7 +834,7 @@ class RequestExecutor:
 
     def _get_from_cache(
         self, command: RavenCommand, use_cache: bool, url: str
-    ) -> Tuple[HttpCache.ReleaseCacheItem, Optional[str], Optional[str]]:
+    ) -> Tuple[ReleaseCacheItem, Optional[str], Optional[str]]:
         if (
             use_cache
             and command.can_cache
@@ -794,7 +843,7 @@ class RequestExecutor:
         ):
             return self._cache.get(url)
 
-        return HttpCache.ReleaseCacheItem(), None, None
+        return ReleaseCacheItem(), None, None
 
     @staticmethod
     def __try_get_server_version(response: requests.Response) -> Union[None, str]:
@@ -1014,7 +1063,7 @@ class RequestExecutor:
         should_retry: bool,
     ) -> bool:
         if response.status_code == HTTPStatus.NOT_FOUND:
-            self._cache.set_not_found(url, False)  # todo : check if aggressively cached, don't just pass False
+            self._cache.set_not_found(url, self.aggressive_caching is not None)
             if command.response_type == RavenCommandResponseType.EMPTY:
                 return True
             elif command.response_type == RavenCommandResponseType.OBJECT:
