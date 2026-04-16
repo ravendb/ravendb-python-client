@@ -438,6 +438,47 @@ class TestAiAgentConversationMock(TestBase):
         with self.assertRaises(ValueError):
             chat.handle("store-result", lambda args: None, AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
 
+    def test_action_responses_cleared_between_turns(self):
+        """After a server round-trip, action_responses are cleared so the same tool-id can be reused."""
+        responses = iter(
+            [
+                _action_result("store-result", "tool-x", {"result": "a"}),
+                _action_result("store-result", "tool-x", {"result": "b"}),
+                _done_result(response={"answer": "ok"}),
+            ]
+        )
+
+        with patch.object(self.store.maintenance, "send", side_effect=self._patched_send(lambda: next(responses))):
+            chat = self.store.ai.conversation(AGENT_ID, "conversations/")
+            chat.set_user_prompt("Multi-turn with same tool-id")
+            chat.handle("store-result", lambda args: "handled", AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL)
+            result = chat.run()
+
+        self.assertEqual(AiConversationStatus.DONE, result.status)
+
+
+class TestAiConversationActionResponseValidation(unittest.TestCase):
+    """Pure client-side tests — no server or license required."""
+
+    def test_duplicate_action_response_raises(self):
+        """Adding two action responses for the same tool-id must raise."""
+        from ravendb.documents.ai.ai_conversation import AiConversation
+        from ravendb.exceptions.exceptions import InvalidOperationException
+
+        chat = AiConversation(store=None, agent_id="dummy")
+        chat.add_action_response("tool-1", "first response")
+        with self.assertRaises(InvalidOperationException):
+            chat.add_action_response("tool-1", "second response")
+
+    def test_different_tool_ids_allowed(self):
+        """Different tool-ids should not conflict."""
+        from ravendb.documents.ai.ai_conversation import AiConversation
+
+        chat = AiConversation(store=None, agent_id="dummy")
+        chat.add_action_response("tool-1", "response-1")
+        chat.add_action_response("tool-2", "response-2")
+        self.assertEqual(2, len(chat._action_responses))
+
 
 if __name__ == "__main__":
     unittest.main()

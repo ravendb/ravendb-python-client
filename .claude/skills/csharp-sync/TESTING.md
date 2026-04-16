@@ -1,10 +1,12 @@
 # Testing Conventions
 
+See CLAUDE.md for base testing infrastructure and common gotchas. This file covers only migration-specific testing patterns.
+
 ## Infrastructure
 
 - All tests extend `TestBase` from `ravendb/tests/test_base.py`.
 - `self.store` is pre-configured with a fresh database per test — no manual setup needed.
-- Run tests: `.venv1\Scripts\python.exe -m unittest <module.path> -v`
+- Run tests: `python -m unittest <module.path> -v`
 
 ## Assertion helpers
 
@@ -60,11 +62,7 @@ class _IndexResult:
 
 Then query with `select_fields(_IndexResult, "Id", "Errors")`.
 
-## Common gotchas
+## Migration-specific testing notes
 
-- **Datetime**: always `datetime.datetime.now(datetime.timezone.utc)`, never `utcnow()`.
-- **Empty vs None**: server may return `[]` instead of `null` for empty collections — use `assertFalse`/`assertTrue` not `assertIsNone`/`assertIsNotNone`.
-- **Exception messages**: the dispatcher wraps the full server error (message + stack trace) into the exception string — always use `assertRaisesWithMessageContaining` with a meaningful substring.
-- **`RavenException.__init__`**: stores message as plain string in `args[0]`, not `(message, cause)` tuple.
 - **Async operations**: use `store.maintenance.send_async(op)` → `op.wait_for_completion()` → `op.fetch_operations_status()["Result"]`.
 

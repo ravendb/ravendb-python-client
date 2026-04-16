@@ -33,6 +33,7 @@ class GenAiConfiguration(AbstractAiIntegrationConfiguration):
         queries: List[AiAgentToolQuery] = None,
         enable_tracing: bool = False,
         expiration_in_sec: int = None,
+        version: int = None,
         disabled: bool = False,
         mentor_node: str = None,
         pin_to_mentor_node: bool = False,
@@ -60,6 +61,7 @@ class GenAiConfiguration(AbstractAiIntegrationConfiguration):
         self.queries: List[AiAgentToolQuery] = queries or []
         self.enable_tracing = enable_tracing
         self.expiration_in_sec: Optional[int] = expiration_in_sec
+        self.version: Optional[int] = version
 
         self._transforms: Optional[List[Transformation]] = None
 
@@ -179,6 +181,8 @@ class GenAiConfiguration(AbstractAiIntegrationConfiguration):
                 "ExpirationInSec": self.expiration_in_sec,
             }
         )
+        if self.version is not None:
+            result["Version"] = self.version
         return result
 
     @classmethod
@@ -201,6 +205,7 @@ class GenAiConfiguration(AbstractAiIntegrationConfiguration):
             queries=[AiAgentToolQuery.from_json(q) for q in queries_data] if queries_data else None,
             enable_tracing=json_dict.get("EnableTracing", False),
             expiration_in_sec=json_dict.get("ExpirationInSec"),
+            version=json_dict.get("Version"),
             disabled=json_dict.get("Disabled", False),
             mentor_node=json_dict.get("MentorNode"),
             pin_to_mentor_node=json_dict.get("PinToMentorNode", False),
