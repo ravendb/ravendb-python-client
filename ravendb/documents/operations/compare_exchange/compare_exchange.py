@@ -95,7 +95,10 @@ class CompareExchangeSessionValue(Generic[_T]):
                 else:
                     entity = self.__original_value.value
 
-                value = CompareExchangeValue(self._key, self._index, entity)
+                metadata = (
+                    self.__original_value.metadata if self.__original_value.has_metadata else None
+                )
+                value = CompareExchangeValue(self._key, self._index, entity, metadata)
                 self.__value = value
                 return value
 
