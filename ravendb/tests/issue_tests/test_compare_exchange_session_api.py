@@ -11,9 +11,7 @@ class TestCompareExchangeSessionApi(TestBase):
         options = SessionOptions(transaction_mode=TransactionMode.CLUSTER_WIDE)
 
         with self.store.open_session(session_options=options) as session:
-            value = session.advanced.cluster_transaction.create_compare_exchange_value(
-                key, User(name="Simon")
-            )
+            value = session.advanced.cluster_transaction.create_compare_exchange_value(key, User(name="Simon"))
             value.metadata["@expires"] = "2099-01-01T00:00:00.0000000Z"
             value.metadata["@created-at"] = "2026-04-15T12:27:51.556568Z"
             value.metadata["Custom-Tag"] = "hello"
@@ -34,9 +32,7 @@ class TestCompareExchangeSessionApi(TestBase):
         options = SessionOptions(transaction_mode=TransactionMode.CLUSTER_WIDE)
 
         with self.store.open_session(session_options=options) as session:
-            session.advanced.cluster_transaction.create_compare_exchange_value(
-                key, User(name="Simon")
-            )
+            session.advanced.cluster_transaction.create_compare_exchange_value(key, User(name="Simon"))
             session.save_changes()
 
         with self.store.open_session(session_options=options) as session:
@@ -55,18 +51,14 @@ class TestCompareExchangeSessionApi(TestBase):
         options = SessionOptions(transaction_mode=TransactionMode.CLUSTER_WIDE)
 
         with self.store.open_session(session_options=options) as session:
-            session.advanced.cluster_transaction.create_compare_exchange_value(
-                key, User(name="Simon")
-            )
+            session.advanced.cluster_transaction.create_compare_exchange_value(key, User(name="Simon"))
             session.save_changes()
 
         with self.store.open_session(session_options=options) as session:
             current = session.advanced.cluster_transaction.get_compare_exchange_value(key, User)
             self.assertIsNotNone(current)
 
-            session.advanced.cluster_transaction.delete_compare_exchange_value(
-                current.key, current.index
-            )
+            session.advanced.cluster_transaction.delete_compare_exchange_value(current.key, current.index)
             session.save_changes()
 
         with self.store.open_session(session_options=options) as session:
