@@ -443,7 +443,24 @@ class InMemoryDocumentSessionOperations:
 
         self._no_tracking = options.no_tracking
 
-        self._use_optimistic_concurrency = self._request_executor.conventions.use_optimistic_concurrency
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        # SessionOptions wins over Conventions.
+        resolved_mode = options.optimistic_concurrency_mode
+        if resolved_mode is None:
+            resolved_mode = self._request_executor.conventions.optimistic_concurrency_mode
+        if options.no_tracking and resolved_mode != OptimisticConcurrencyMode.NONE:
+            raise RuntimeError(
+                f"optimistic_concurrency_mode cannot be set to {resolved_mode} when no_tracking is True."
+            )
+        self._optimistic_concurrency_mode = resolved_mode
+        self._optimistic_concurrency_mode_was_set = options.optimistic_concurrency_mode is not None
+        self._use_optimistic_concurrency_was_set = False
+
+        self._tracked_entities = TrackedEntitiesHolder(
+            should_track=resolved_mode == OptimisticConcurrencyMode.WRITES_AND_READS
+        )
+
         self._max_number_of_requests_per_session = self._request_executor.conventions.max_number_of_requests_per_session
         self._generate_entity_id_on_client = GenerateEntityIdOnTheClient(
             self._request_executor.conventions, self._generate_id
@@ -458,7 +475,7 @@ class InMemoryDocumentSessionOperations:
             options.disable_atomic_document_writes_in_cluster_wide_transaction
         )
 
-        self._known_missing_ids = CaseInsensitiveSet()
+        self._known_missing_ids = KnownMissingIdsHolder(self._tracked_entities)
         self._documents_by_id = DocumentsByIdHolder()
         self._included_documents_by_id = CaseInsensitiveDict()
         self.include_revisions_by_change_vector = CaseInsensitiveDict()
@@ -767,6 +784,7 @@ class InMemoryDocumentSessionOperations:
         self._documents_by_entity[info.entity] = info
         self._documents_by_id.add(info)
         self._included_documents_by_id.remove(info.key)
+        self._tracked_entities.try_add(info.key, info.change_vector)
 
     def track_entity(
         self,
@@ -788,6 +806,7 @@ class InMemoryDocumentSessionOperations:
             if not no_tracking:
                 self._included_documents_by_id.pop(key, None)
                 self._documents_by_entity[doc_info.entity] = doc_info
+                self._tracked_entities[doc_info.key] = doc_info.change_vector
 
             return doc_info.entity
 
@@ -800,6 +819,7 @@ class InMemoryDocumentSessionOperations:
                 self._included_documents_by_id.pop(key, None)
                 self._documents_by_id[doc_info.key] = doc_info
                 self._documents_by_entity[doc_info.entity] = doc_info
+                self._tracked_entities[doc_info.key] = doc_info.change_vector
 
             return doc_info.entity
 
@@ -815,6 +835,7 @@ class InMemoryDocumentSessionOperations:
             )
             self._documents_by_id[new_document_info.key] = new_document_info
             self._documents_by_entity[new_document_info.entity] = new_document_info
+            self._tracked_entities[new_document_info.key] = new_document_info.change_vector
 
         return entity
 
@@ -836,8 +857,10 @@ class InMemoryDocumentSessionOperations:
                     self._documents_by_entity.pop(document_info.entity, None)
                 self._documents_by_id.pop(key, None)
                 change_vector = document_info.change_vector
+                self._known_missing_ids.add_with_tracking(key, change_vector)
+            else:
+                self._known_missing_ids.add_without_tracking(key)
 
-            self._known_missing_ids.add(key)
             change_vector = change_vector if self._use_optimistic_concurrency else None
             if self._counters_by_doc_id:
                 self._counters_by_doc_id.pop(key, None)
@@ -864,7 +887,7 @@ class InMemoryDocumentSessionOperations:
         self._included_documents_by_id.pop(value.key, None)
         if self._counters_by_doc_id:
             self._counters_by_doc_id.pop(value.key, None)
-        self._known_missing_ids.add(value.key)
+        self._known_missing_ids.add_with_tracking(value.key, value.change_vector)
 
     def store(self, entity: object, key: Optional[str] = None, change_vector: Optional[str] = None) -> None:
         if all([entity, not key, not change_vector]):
@@ -957,6 +980,7 @@ class InMemoryDocumentSessionOperations:
         self._documents_by_entity[entity] = document_info
         if key is not None:
             self._documents_by_id[key] = document_info
+        self._tracked_entities.try_add(key, change_vector)
 
     def prepare_for_save_changes(self) -> SaveChangesData:
         result = InMemoryDocumentSessionOperations.SaveChangesData(self)
@@ -977,15 +1001,19 @@ class InMemoryDocumentSessionOperations:
         for deferred_command in result.deferred_commands:
             deferred_command.on_before_save_changes(self)
 
+        self._tracked_entities.prepare_for_entities_track(result)
+
         return result
 
     def validate_cluster_transaction(self, result: SaveChangesData) -> None:
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
         if self.transaction_mode != TransactionMode.CLUSTER_WIDE:
             return
 
-        if self._use_optimistic_concurrency:
+        if self._optimistic_concurrency_mode != OptimisticConcurrencyMode.NONE:
             raise RuntimeError(
-                f"useOptimisticConcurrency is not supported with TransactionMode set to {TransactionMode.CLUSTER_WIDE}"
+                f"optimistic_concurrency_mode is not supported with TransactionMode set to {TransactionMode.CLUSTER_WIDE}"
             )
 
         for command_data in result.session_commands:
@@ -1076,6 +1104,8 @@ class InMemoryDocumentSessionOperations:
                     change_vector = change_vector if self._use_optimistic_concurrency else None
                     if deleted_entity.execute_on_before_delete:
                         self.before_delete_invoke(BeforeDeleteEventArgs(self, document_info.key, document_info.entity))
+                    if change_vector is not None:
+                        result.ids_already_checked_for_concurrency.add(document_info.key)
                     result.session_commands.append(
                         DeleteCommandData(document_info.key, change_vector, document_info.change_vector)
                     )
@@ -1145,6 +1175,9 @@ class InMemoryDocumentSessionOperations:
                 if creation_strategy is not None:
                     self._ids_for_creating_forced_revisions.pop(entity.value.key, None)
                     force_revision_creation_strategy = creation_strategy
+
+            if change_vector is not None and entity.value.key is not None:
+                result.ids_already_checked_for_concurrency.add(entity.value.key)
 
             result.session_commands.append(
                 PutCommandDataWithJson(entity.value.key, change_vector, document, force_revision_creation_strategy)
@@ -1301,6 +1334,37 @@ class InMemoryDocumentSessionOperations:
         if self._document_store.disposed:
             raise RuntimeError("The document store has already been disposed and cannot be used")
 
+    @property
+    def _use_optimistic_concurrency(self) -> bool:
+        # Derived view; mode is the source of truth.
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        return self._optimistic_concurrency_mode not in (None, OptimisticConcurrencyMode.NONE)
+
+    @_use_optimistic_concurrency.setter
+    def _use_optimistic_concurrency(self, value: bool) -> None:
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        self._optimistic_concurrency_mode = (
+            OptimisticConcurrencyMode.WRITES if value else OptimisticConcurrencyMode.NONE
+        )
+
+    def _set_optimistic_concurrency_mode(self, value) -> None:
+        if self._use_optimistic_concurrency_was_set:
+            raise RuntimeError("optimistic_concurrency_mode cannot be combined with use_optimistic_concurrency.")
+        self._optimistic_concurrency_mode_was_set = True
+        self._optimistic_concurrency_mode = value
+
+    def _set_use_optimistic_concurrency(self, value: bool) -> None:
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        if self._optimistic_concurrency_mode_was_set:
+            raise RuntimeError("use_optimistic_concurrency cannot be combined with optimistic_concurrency_mode.")
+        self._use_optimistic_concurrency_was_set = True
+        self._optimistic_concurrency_mode = (
+            OptimisticConcurrencyMode.WRITES if value else OptimisticConcurrencyMode.NONE
+        )
+
     def register_missing(self, *keys: str) -> None:
         if self.no_tracking:
             return
@@ -1321,6 +1385,7 @@ class InMemoryDocumentSessionOperations:
             if JsonExtensions.try_get_conflict(new_document_info.metadata):
                 continue
             self._included_documents_by_id[new_document_info.key] = new_document_info
+            self._tracked_entities.try_add(new_document_info.key, new_document_info.change_vector)
 
     def register_missing_includes(self, results, includes: dict, include_paths: List[str]):
         if self.no_tracking:
@@ -1872,6 +1937,7 @@ class InMemoryDocumentSessionOperations:
         document_info_by_id = self._documents_by_id.get(document_info.key)
         if document_info_by_id is not None:
             document_info_by_id.entity = entity
+        self._tracked_entities.try_update(document_info.key, document_info.change_vector)
         return entity
 
     def _get_operation_result(self, object_type: Type[_T], result: _T) -> _T:
@@ -1978,6 +2044,8 @@ class InMemoryDocumentSessionOperations:
             self.entities: List = []
             self.options = session._save_changes_options
             self.on_success = InMemoryDocumentSessionOperations.SaveChangesData.ActionsToRunOnSuccess(session)
+            self.track_changes_command_data = None
+            self.ids_already_checked_for_concurrency: Set[str] = set()
 
         class ActionsToRunOnSuccess:
             def __init__(self, session: InMemoryDocumentSessionOperations):
@@ -2017,3 +2085,90 @@ class InMemoryDocumentSessionOperations:
 
             def clear_deleted_entities(self) -> None:
                 self.__clear_deleted_entities = True
+
+
+class TrackedEntitiesHolder:
+    # Per-id change vectors for WRITES_AND_READS. No-op when should_track=False.
+    def __init__(self, should_track: bool):
+        self._should_track = should_track
+        self._tracked: Dict[str, str] = {}
+
+    def any(self) -> bool:
+        return self._should_track and bool(self._tracked)
+
+    def try_add(self, entity_id: str, change_vector: str) -> None:
+        if self._should_track and entity_id not in self._tracked:
+            self._tracked[entity_id] = change_vector
+
+    def try_remove(self, entity_id: str) -> None:
+        if self._should_track:
+            self._tracked.pop(entity_id, None)
+
+    def try_update(self, entity_id: str, change_vector: str) -> bool:
+        if not self._should_track or entity_id not in self._tracked:
+            return False
+        self._tracked[entity_id] = change_vector
+        return True
+
+    def __setitem__(self, entity_id: str, change_vector: str) -> None:
+        if self._should_track:
+            self._tracked[entity_id] = change_vector
+
+    def __getitem__(self, entity_id: str) -> str:
+        return self._tracked[entity_id]
+
+    def clear(self) -> None:
+        if self._should_track:
+            self._tracked.clear()
+
+    def prepare_for_entities_track(self, save_changes_data) -> None:
+        if not self.any():
+            return
+        from ravendb.documents.commands.batches import BatchTrackChangesCommandData
+
+        save_changes_data.track_changes_command_data = BatchTrackChangesCommandData(
+            dict(self._tracked), set(save_changes_data.ids_already_checked_for_concurrency)
+        )
+        save_changes_data.session_commands.insert(0, save_changes_data.track_changes_command_data)
+
+
+class KnownMissingIdsHolder:
+    # CaseInsensitiveSet of missing ids, mirrored into TrackedEntitiesHolder
+    # so WRITES_AND_READS sees them as part of the read set.
+    def __init__(self, tracked_entities: TrackedEntitiesHolder):
+        self._tracked = tracked_entities
+        self._ids = CaseInsensitiveSet()
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._ids
+
+    def __iter__(self):
+        return iter(self._ids)
+
+    def __len__(self) -> int:
+        return len(self._ids)
+
+    def any(self) -> bool:
+        return len(self._ids) > 0
+
+    def add(self, entity_id: str) -> None:
+        self._tracked.try_add(entity_id, "")
+        self._ids.add(entity_id)
+
+    def discard(self, entity_id: str) -> None:
+        self._ids.discard(entity_id)
+
+    def clear(self) -> None:
+        self._ids.clear()
+
+    def update(self, ids) -> None:
+        for entity_id in ids:
+            self.add(entity_id)
+
+    def add_with_tracking(self, entity_id: str, change_vector: str) -> None:
+        self._tracked.try_update(entity_id, change_vector)
+        self._ids.add(entity_id)
+
+    def add_without_tracking(self, entity_id: str) -> None:
+        self._tracked.try_remove(entity_id)
+        self._ids.add(entity_id)

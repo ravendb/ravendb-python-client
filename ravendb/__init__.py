@@ -239,6 +239,7 @@ from ravendb.documents.session.misc import (
     DocumentsChanges,
     ForceRevisionStrategy,
     MethodCall,
+    OptimisticConcurrencyMode,
     OrderingType,
     JavaScriptMap,
     DocumentQueryCustomization,

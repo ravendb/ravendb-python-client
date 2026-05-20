@@ -30,6 +30,18 @@ class TransactionMode(Enum):
         return self.value
 
 
+class OptimisticConcurrencyMode(Enum):
+    # WRITES_AND_READS additionally tracks change vectors for *all* loaded
+    # entities so concurrent reads-then-writes are detected. Incompatible with
+    # no_tracking, ClusterWide, and sharded databases.
+    NONE = "None"
+    WRITES = "Writes"
+    WRITES_AND_READS = "WritesAndReads"
+
+    def __str__(self):
+        return self.value
+
+
 class ForceRevisionStrategy(Enum):
     NONE = "None"
     BEFORE = "Before"
@@ -145,15 +157,58 @@ class SessionOptions:
         request_executor: Optional[RequestExecutor] = None,
         transaction_mode: Optional[TransactionMode] = None,
         disable_atomic_document_writes_in_cluster_wide_transaction: Optional[bool] = None,
+        optimistic_concurrency_mode: Optional[OptimisticConcurrencyMode] = None,
     ):
         self.database = database
-        self.no_tracking = no_tracking
         self.no_caching = no_caching
         self.request_executor = request_executor
-        self.transaction_mode = transaction_mode
         self.disable_atomic_document_writes_in_cluster_wide_transaction = (
             disable_atomic_document_writes_in_cluster_wide_transaction
         )
+        # Backing fields written directly so property setters don't fire
+        # mid-init before the other two fields exist.
+        self._no_tracking = no_tracking
+        self._transaction_mode = transaction_mode
+        self._optimistic_concurrency_mode = optimistic_concurrency_mode
+        self._validate_combination()
+
+    def _validate_combination(self) -> None:
+        mode = self._optimistic_concurrency_mode
+        if mode is None or mode == OptimisticConcurrencyMode.NONE:
+            return
+        if self._no_tracking:
+            raise RuntimeError(f"optimistic_concurrency_mode cannot be set to {mode} when no_tracking is True.")
+        if self._transaction_mode == TransactionMode.CLUSTER_WIDE:
+            raise RuntimeError(
+                f"optimistic_concurrency_mode cannot be set to {mode} when transaction_mode is CLUSTER_WIDE."
+            )
+
+    @property
+    def no_tracking(self) -> Optional[bool]:
+        return self._no_tracking
+
+    @no_tracking.setter
+    def no_tracking(self, value: Optional[bool]) -> None:
+        self._no_tracking = value
+        self._validate_combination()
+
+    @property
+    def transaction_mode(self) -> Optional[TransactionMode]:
+        return self._transaction_mode
+
+    @transaction_mode.setter
+    def transaction_mode(self, value: Optional[TransactionMode]) -> None:
+        self._transaction_mode = value
+        self._validate_combination()
+
+    @property
+    def optimistic_concurrency_mode(self) -> Optional[OptimisticConcurrencyMode]:
+        return self._optimistic_concurrency_mode
+
+    @optimistic_concurrency_mode.setter
+    def optimistic_concurrency_mode(self, value: Optional[OptimisticConcurrencyMode]) -> None:
+        self._optimistic_concurrency_mode = value
+        self._validate_combination()
 
 
 class DocumentQueryCustomization:

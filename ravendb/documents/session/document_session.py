@@ -668,12 +668,23 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self._session.transaction_mode = value
 
         @property
+        def optimistic_concurrency_mode(self):
+            return self._session._optimistic_concurrency_mode
+
+        @optimistic_concurrency_mode.setter
+        def optimistic_concurrency_mode(self, value):
+            self._session._set_optimistic_concurrency_mode(value)
+
+        @property
         def use_optimistic_concurrency(self) -> bool:
-            return self._session._use_optimistic_concurrency
+            # Derived view; setter routes through optimistic_concurrency_mode.
+            from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+            return self._session._optimistic_concurrency_mode not in (None, OptimisticConcurrencyMode.NONE)
 
         @use_optimistic_concurrency.setter
         def use_optimistic_concurrency(self, value: bool):
-            self._session._use_optimistic_concurrency = value
+            self._session._set_use_optimistic_concurrency(value)
 
         def is_loaded(self, key: str) -> bool:
             return self._session.is_loaded_or_deleted(key)
@@ -753,6 +764,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                     self._session._counters_by_doc_id.pop(document_info.key, None)
                 if self._session.time_series_by_doc_id:
                     self._session.time_series_by_doc_id.pop(document_info.key, None)
+                self._session._tracked_entities.try_remove(document_info.key)
 
             self._session._deleted_entities.evict(entity)
             self._session.entity_to_json.remove_from_missing(entity)
@@ -772,6 +784,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self._session._clear_cluster_session()
             self._session._pending_lazy_operations.clear()
             self._session.entity_to_json.clear()
+            self._session._tracked_entities.clear()
 
         def document_query(
             self,
