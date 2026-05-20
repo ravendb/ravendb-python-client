@@ -463,7 +463,7 @@ class AbstractDocumentQuery(Generic[_T]):
         tokens = self.__get_current_where_tokens()
         self.__append_operator_if_needed(tokens)
 
-        if self.__if_value_is_method(WhereOperator.EQUALS, params, tokens):
+        if self._if_value_is_method(WhereOperator.EQUALS, params, tokens):
             return
 
         transform_to_equal_value = self.__transform_value(params)
@@ -476,8 +476,13 @@ class AbstractDocumentQuery(Generic[_T]):
         )
         tokens.append(where_token)
 
-    def __if_value_is_method(self, op: WhereOperator, where_params: WhereParams, tokens: List[QueryToken]) -> bool:
+    def _if_value_is_method(self, op: WhereOperator, where_params: WhereParams, tokens: List[QueryToken]) -> bool:
+        # MethodCall values (RavenDocumentQuery.now/today, CmpXchg) emit a
+        # method-flavored WhereToken instead of binding as a parameter.
+        # Returns True if a token was appended (caller should short-circuit).
         if isinstance(where_params.value, MethodCall):
+            from ravendb.documents.queries.raven_document_query import RavenDocumentQuery
+
             mc = where_params.value
 
             args = []
@@ -485,8 +490,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 args.append(self.__add_query_parameter(arg))
 
             token: Optional[WhereToken] = None
-            object_type = type(mc)
-            if object_type == CmpXchg:
+            if isinstance(mc, CmpXchg):
                 token = WhereToken.create(
                     op,
                     where_params.field_name,
@@ -500,8 +504,22 @@ class AbstractDocumentQuery(Generic[_T]):
                         )
                     ),
                 )
+            elif isinstance(mc, RavenDocumentQuery.Time):
+                token = WhereToken.create(
+                    op,
+                    where_params.field_name,
+                    None,
+                    WhereToken.WhereOptions(
+                        method_type__parameters__property__exact=(
+                            mc.method_type,
+                            args,
+                            mc.access_path,
+                            where_params.exact,
+                        )
+                    ),
+                )
             else:
-                raise TypeError(f"Unknown method {object_type}")
+                raise TypeError(f"Unknown method {type(mc)}")
 
             tokens.append(token)
             return True
@@ -537,7 +555,7 @@ class AbstractDocumentQuery(Generic[_T]):
 
         where_params.field_name = self._ensure_valid_field_name(where_params.field_name, where_params.nested_path)
 
-        if self.__if_value_is_method(WhereOperator.NOT_EQUALS, where_params, tokens):
+        if self._if_value_is_method(WhereOperator.NOT_EQUALS, where_params, tokens):
             return
 
         where_token = WhereToken.create(
@@ -639,82 +657,46 @@ class AbstractDocumentQuery(Generic[_T]):
         )
         tokens.append(where_token)
 
-    def _where_greater_than(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
+    def _where_compare(
+        self,
+        op: WhereOperator,
+        field_name: str,
+        value: object,
+        exact: Optional[bool],
+        null_sentinel: str,
+    ) -> None:
+        # Shared body for >/>=/</<=. Routes through _if_value_is_method first
+        # so MethodCall values (now/today/cmpxchg) are emitted as RQL calls.
         field_name = self._ensure_valid_field_name(field_name, False)
-
         tokens = self.__get_current_where_tokens()
         self.__append_operator_if_needed(tokens)
         self.__negate_if_needed(tokens, field_name)
         where_params = WhereParams()
         where_params.value = value
         where_params.field_name = field_name
+        where_params.exact = exact
 
-        parameter = self.__add_query_parameter("*" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.GREATER_THAN,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
+        if self._if_value_is_method(op, where_params, tokens):
+            return
+
+        parameter = self.__add_query_parameter(
+            null_sentinel if value is None else self.__transform_value(where_params, True)
         )
-        tokens.append(where_token)
+        tokens.append(
+            WhereToken.create(op, field_name, parameter, WhereToken.WhereOptions(exact__from__to=(exact, None, None)))
+        )
+
+    def _where_greater_than(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
+        self._where_compare(WhereOperator.GREATER_THAN, field_name, value, exact, "*")
 
     def _where_greater_than_or_equal(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
-        field_name = self._ensure_valid_field_name(field_name, False)
-
-        tokens = self.__get_current_where_tokens()
-        self.__append_operator_if_needed(tokens)
-        self.__negate_if_needed(tokens, field_name)
-        where_params = WhereParams()
-        where_params.value = value
-        where_params.field_name = field_name
-
-        parameter = self.__add_query_parameter("*" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.GREATER_THAN_OR_EQUAL,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
-        )
-        tokens.append(where_token)
+        self._where_compare(WhereOperator.GREATER_THAN_OR_EQUAL, field_name, value, exact, "*")
 
     def _where_less_than(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
-        field_name = self._ensure_valid_field_name(field_name, False)
-
-        tokens = self.__get_current_where_tokens()
-        self.__append_operator_if_needed(tokens)
-        self.__negate_if_needed(tokens, field_name)
-        where_params = WhereParams()
-        where_params.value = value
-        where_params.field_name = field_name
-
-        parameter = self.__add_query_parameter("*" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.LESS_THAN,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
-        )
-        tokens.append(where_token)
+        self._where_compare(WhereOperator.LESS_THAN, field_name, value, exact, "NULL")
 
     def _where_less_than_or_equal(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
-        field_name = self._ensure_valid_field_name(field_name, False)
-
-        tokens = self.__get_current_where_tokens()
-        self.__append_operator_if_needed(tokens)
-        self.__negate_if_needed(tokens, field_name)
-
-        where_params = WhereParams()
-        where_params.value = value
-        where_params.field_name = field_name
-
-        parameter = self.__add_query_parameter("NULL" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.LESS_THAN_OR_EQUAL,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
-        )
-        tokens.append(where_token)
+        self._where_compare(WhereOperator.LESS_THAN_OR_EQUAL, field_name, value, exact, "NULL")
 
     def _where_regex(self, field_name: str, pattern: str) -> None:
         field_name = self._ensure_valid_field_name(field_name, False)

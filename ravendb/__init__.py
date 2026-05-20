@@ -195,6 +195,7 @@ from ravendb.documents.queries.group_by import GroupBy, GroupByMethod
 from ravendb.documents.queries.highlighting import HighlightingOptions, QueryHighlightings
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.queries.misc import SearchOperator
+from ravendb.documents.queries.raven_document_query import RavenDocumentQuery
 from ravendb.documents.queries.more_like_this import (
     MoreLikeThisOperations,
     MoreLikeThisBase,

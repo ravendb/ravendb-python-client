@@ -303,9 +303,16 @@ class MethodCall(ABC):
 class CmpXchg(MethodCall):
     @classmethod
     def value(cls, key: str) -> CmpXchg:
+        # Kept for back-compat; prefer RavenDocumentQuery.cmp_xchg().
+        import warnings
+
+        warnings.warn(
+            "CmpXchg.value is deprecated; use RavenDocumentQuery.cmp_xchg() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         cmp_xchg = cls()
         cmp_xchg.args = [key]
-
         return cmp_xchg
 
 
