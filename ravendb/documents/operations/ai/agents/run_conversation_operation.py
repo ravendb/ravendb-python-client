@@ -1,4 +1,5 @@
 from __future__ import annotations
+import enum
 import json
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, TypeVar, Generic, Callable
@@ -14,13 +15,28 @@ from ravendb.documents.ai.content_part import ContentPart
 TSchema = TypeVar("TSchema")
 
 
-class AiAgentActionRequest:
-    """Represents an action request from an AI agent."""
+class AiAgentActionRequestType(enum.Enum):
+    USER_ACTION = "UserAction"
+    SUB_AGENT = "SubAgent"
 
-    def __init__(self, name: str = None, tool_id: str = None, arguments: str = None):
+    def __str__(self) -> str:
+        return self.value
+
+
+class AiAgentActionRequest:
+    def __init__(
+        self,
+        name: str = None,
+        tool_id: str = None,
+        arguments: str = None,
+        type: AiAgentActionRequestType = AiAgentActionRequestType.USER_ACTION,
+        sub_conversation_id: Optional[str] = None,
+    ):
         self.name = name
         self.tool_id = tool_id
         self.arguments = arguments
+        self.type = type
+        self.sub_conversation_id = sub_conversation_id
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentActionRequest:
@@ -28,6 +44,8 @@ class AiAgentActionRequest:
             name=json_dict.get("Name"),
             tool_id=json_dict.get("ToolId"),
             arguments=json_dict.get("Arguments"),
+            type=AiAgentActionRequestType(json_dict.get("Type") or "UserAction"),
+            sub_conversation_id=json_dict.get("SubConversationId"),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -35,13 +53,30 @@ class AiAgentActionRequest:
             "Name": self.name,
             "ToolId": self.tool_id,
             "Arguments": self.arguments,
+            "Type": self.type.value,
+            "SubConversationId": self.sub_conversation_id,
         }
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AiAgentActionRequest):
+            return False
+        return (
+            self.tool_id == other.tool_id
+            and self.name == other.name
+            and self.arguments == other.arguments
+            and self.type == other.type
+            and self.sub_conversation_id == other.sub_conversation_id
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.tool_id, self.name, self.arguments, self.type, self.sub_conversation_id))
+
+    def __repr__(self) -> str:
+        return json.dumps(self.to_json())
 
 
 @dataclass
 class AiAgentActionResponse:
-    """Represents a response to an AI agent action request."""
-
     tool_id: Optional[str] = None
     content: Optional[str] = None
 
@@ -58,16 +93,12 @@ class AiAgentActionResponse:
 
 @dataclass
 class AiAgentArtificialActionResponse:
-    """
-    Represents an artificial action (tool call) and response to inject into the model's conversation context.
-    This allows programmatically prompting the agent by making it "believe" it executed a tool.
-    """
-
+    # Synthetic (tool_id, content) pair injected to make the model "believe"
+    # it executed a tool. Sent in addition to a real ActionResponses entry.
     tool_id: Optional[str] = None
     content: Optional[str] = None
 
     def validate(self) -> None:
-        """Validates that tool_id and content are not empty."""
         if not self.tool_id or self.tool_id.isspace():
             raise ValueError("tool_id cannot be None or empty")
         if not self.content or self.content.isspace():
@@ -86,8 +117,6 @@ class AiAgentArtificialActionResponse:
 
 @dataclass
 class AiUsage:
-    """Represents AI token usage statistics."""
-
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -115,27 +144,15 @@ class AiUsage:
 
     @staticmethod
     def get_usage_difference(current: AiUsage, previous: AiUsage) -> AiUsage:
-        """
-        Calculate the usage difference between current and previous usage.
-
-        Args:
-            current: The current usage statistics
-            previous: The previous usage statistics
-
-        Returns:
-            An AiUsage object representing the difference
-        """
+        # cached/completion/reasoning are last-response-only, so they pass
+        # through. prompt/total are clamped against bogus negative model output.
         previous_total_without_reasoning = (
             previous.completion_tokens - previous.reasoning_tokens + previous.prompt_tokens
         )
         return AiUsage(
-            # in case the model gives us crappy results and current.prompt_tokens - previous_total_without_reasoning < 0
             prompt_tokens=max(current.prompt_tokens - previous_total_without_reasoning, 0),
-            # in case the model gives us crappy results and current.total_tokens - previous_total_without_reasoning < 0
             total_tokens=max(current.total_tokens - previous_total_without_reasoning, 0),
-            # we don't want to subtract cached tokens, as they are only for the last response
             cached_tokens=current.cached_tokens,
-            # we don't want to subtract completion tokens, as they are only for the last response
             completion_tokens=current.completion_tokens,
             reasoning_tokens=current.reasoning_tokens,
         )
