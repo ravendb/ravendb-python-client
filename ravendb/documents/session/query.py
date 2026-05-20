@@ -1533,7 +1533,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistance")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             field_name = field_or_field_name
 
@@ -1560,7 +1560,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistance")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
@@ -1584,7 +1584,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistanceDescending")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
@@ -1613,7 +1613,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistanceDescending")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
