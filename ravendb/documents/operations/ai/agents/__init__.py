@@ -12,6 +12,7 @@ from .ai_agent_configuration import (
     AiAgentTruncateChat,
     AiAgentHistoryConfiguration,
 )
+from .ai_agent_tool_sub_agent import AiAgentToolSubAgent
 
 from .add_or_update_ai_agent_operation import (
     AddOrUpdateAiAgentOperation,
@@ -45,6 +46,7 @@ __all__ = [
     "AiAgentToolAction",
     "AiAgentToolQuery",
     "AiAgentToolQueryOptions",
+    "AiAgentToolSubAgent",
     "AiAgentPersistenceConfiguration",
     "AiAgentChatTrimmingConfiguration",
     "AiAgentSummarizationByTokens",

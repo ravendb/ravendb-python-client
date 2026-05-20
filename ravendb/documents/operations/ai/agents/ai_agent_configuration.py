@@ -306,7 +306,10 @@ class AiAgentConfiguration:
         chat_trimming: AiAgentChatTrimmingConfiguration = None,
         max_model_iterations_per_call: int = None,
         disabled: bool = False,
+        sub_agents: List["AiAgentToolSubAgent"] = None,
     ):
+        from ravendb.documents.operations.ai.agents.ai_agent_tool_sub_agent import AiAgentToolSubAgent
+
         self.name = name
         self.connection_string_name = connection_string_name
         self.system_prompt = system_prompt
@@ -320,10 +323,10 @@ class AiAgentConfiguration:
         self.chat_trimming: Optional[AiAgentChatTrimmingConfiguration] = chat_trimming
         self.max_model_iterations_per_call: Optional[int] = max_model_iterations_per_call
         self.disabled: bool = disabled
+        self.sub_agents: List[AiAgentToolSubAgent] = sub_agents or []
 
     @staticmethod
     def _normalize_parameters(parameters: List[Union[str, AiAgentParameter]]) -> List[AiAgentParameter]:
-        """Convert a list of strings or AiAgentParameter objects to a list of AiAgentParameter objects."""
         if not parameters:
             return []
         result = []
@@ -344,6 +347,7 @@ class AiAgentConfiguration:
             "OutputSchema": self.output_schema,
             "Queries": [q.to_json() for q in self.queries],
             "Actions": [a.to_json() for a in self.actions],
+            "SubAgents": [s.to_json() for s in self.sub_agents],
             "Persistence": self.persistence.to_json() if self.persistence else None,
             "Parameters": [p.to_json() for p in self.parameters],
             "ChatTrimming": self.chat_trimming.to_json() if self.chat_trimming else None,
@@ -368,6 +372,12 @@ class AiAgentConfiguration:
         actions_data = json_dict.get("actions") or json_dict.get("Actions")
         if actions_data:
             instance.actions = [AiAgentToolAction.from_json(a) for a in actions_data]
+
+        from ravendb.documents.operations.ai.agents.ai_agent_tool_sub_agent import AiAgentToolSubAgent
+
+        sub_agents_data = json_dict.get("subAgents") or json_dict.get("SubAgents")
+        if sub_agents_data:
+            instance.sub_agents = [AiAgentToolSubAgent.from_json(s) for s in sub_agents_data]
 
         persistence_data = json_dict.get("persistence") or json_dict.get("Persistence")
         if persistence_data:

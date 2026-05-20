@@ -95,6 +95,7 @@ from ravendb.documents.operations.ai.agents import (
     AiAgentParameterValueType,
     AiAgentToolAction,
     AiAgentToolQuery,
+    AiAgentToolSubAgent,
     AiAgentPersistenceConfiguration,
     AiAgentChatTrimmingConfiguration,
     AiAgentSummarizationByTokens,
