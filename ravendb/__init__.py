@@ -91,6 +91,8 @@ from ravendb.documents.operations.ai.agents import (
     AiAgentConfiguration,
     AiAgentConfigurationResult,
     AiAgentParameter,
+    AiAgentParameterPolicy,
+    AiAgentParameterValueType,
     AiAgentToolAction,
     AiAgentToolQuery,
     AiAgentPersistenceConfiguration,

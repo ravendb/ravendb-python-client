@@ -1,6 +1,8 @@
 from .ai_agent_configuration import (
     AiAgentConfiguration,
     AiAgentParameter,
+    AiAgentParameterPolicy,
+    AiAgentParameterValueType,
     AiAgentToolAction,
     AiAgentToolQuery,
     AiAgentToolQueryOptions,
@@ -38,6 +40,8 @@ __all__ = [
     "AiAgentConfiguration",
     "AiAgentConfigurationResult",
     "AiAgentParameter",
+    "AiAgentParameterPolicy",
+    "AiAgentParameterValueType",
     "AiAgentToolAction",
     "AiAgentToolQuery",
     "AiAgentToolQueryOptions",

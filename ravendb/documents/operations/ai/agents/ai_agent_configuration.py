@@ -1,58 +1,79 @@
 from __future__ import annotations
+import enum
 from typing import List, Optional, Dict, Any, Union
 
 
-class AiAgentParameter:
-    """
-    Represents a parameter for an AI agent configuration.
-    Parameters can be used to pass values to the agent's system prompt.
-    """
+class AiAgentParameterPolicy(enum.IntFlag):
+    # FORBID_MODEL_GENERATION blocks a parent agent from generating values for
+    # this parameter when invoking a sub-agent that declares it.
+    DEFAULT = 0
+    FORBID_MODEL_GENERATION = 1
 
+
+class AiAgentParameterValueType(enum.Enum):
+    DEFAULT = "Default"
+    STRING = "String"
+    NUMBER = "Number"
+    BOOLEAN = "Boolean"
+    ARRAY_OF_STRING = "ArrayOfString"
+    ARRAY_OF_NUMBER = "ArrayOfNumber"
+    ARRAY_OF_BOOLEAN = "ArrayOfBoolean"
+    NULL = "Null"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class AiAgentParameter:
     def __init__(
         self,
         name: str = None,
         description: str = None,
         send_to_model: bool = None,
+        policy: AiAgentParameterPolicy = AiAgentParameterPolicy.DEFAULT,
+        type: AiAgentParameterValueType = AiAgentParameterValueType.DEFAULT,
     ):
-        """
-        Initialize an agent parameter.
-
-        Args:
-            name: The parameter name. Cannot be null or empty.
-            description: A human-readable description. May be null or empty.
-            send_to_model: When False, the parameter is hidden from the model
-                          (it will not be included in prompts/echo messages).
-                          When True, the parameter is exposed to the model.
-                          If None (default), treated as exposed.
-        """
         self.name = name
         self.description: Optional[str] = description
         self.send_to_model: Optional[bool] = send_to_model
+        self.policy: AiAgentParameterPolicy = policy
+        self.type: AiAgentParameterValueType = type
 
     def to_json(self) -> Dict[str, Any]:
         return {
             "Name": self.name,
             "Description": self.description,
             "SendToModel": self.send_to_model,
+            "Policy": int(self.policy),
+            "Type": self.type.value,
         }
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentParameter:
+        # Server emits Policy as either int (1) or PascalCase ("ForbidModelGeneration").
+        policy_raw = json_dict.get("policy") if "policy" in json_dict else json_dict.get("Policy")
+        if policy_raw is None or policy_raw == 0 or policy_raw == "":
+            policy = AiAgentParameterPolicy.DEFAULT
+        elif isinstance(policy_raw, str):
+            snake = "".join("_" + c if i > 0 and c.isupper() else c for i, c in enumerate(policy_raw)).upper()
+            policy = AiAgentParameterPolicy[snake]
+        else:
+            policy = AiAgentParameterPolicy(policy_raw)
+
+        type_raw = json_dict.get("type") if "type" in json_dict else json_dict.get("Type")
+        type_ = AiAgentParameterValueType(type_raw) if type_raw else AiAgentParameterValueType.DEFAULT
+
         return cls(
             name=json_dict.get("name") or json_dict.get("Name"),
             description=json_dict.get("description") or json_dict.get("Description"),
             send_to_model=json_dict.get("sendToModel") if "sendToModel" in json_dict else json_dict.get("SendToModel"),
+            policy=policy,
+            type=type_,
         )
 
 
 class AiAgentToolQuery:
-    """
-    Represents a query tool that can be invoked by an AI agent.
-    The tool includes a name, description, query string, and parameter schema or sample object.
-    When invoked by the AI model, the query is expected to be executed by the server (database),
-    and its results provided back to the model.
-    """
-
+    # Database-side RQL the model can call. Results are sent back to the model.
     def __init__(
         self,
         name: str = None,
@@ -98,12 +119,8 @@ class AiAgentToolQuery:
 
 
 class AiAgentToolAction:
-    """
-    Represents a tool action that can be invoked by an AI agent.
-    Includes metadata such as name, description, and optional parameters schema or sample.
-    Tool actions represent external functions whose results are provided by the user
-    """
-
+    # External function the model can call. Its result is supplied by the user
+    # (vs AiAgentToolQuery whose result comes from the database).
     def __init__(
         self,
         name: str = None,
@@ -137,11 +154,6 @@ class AiAgentToolAction:
 
 
 class AiAgentPersistenceConfiguration:
-    """
-    Configuration for persisting chat history in RavenDB.
-    Defines where chat sessions should be stored and optionally how long they should be retained (expiration).
-    """
-
     def __init__(self, conversation_id_prefix: str = None, expires: int = None):
         self.conversation_id_prefix = conversation_id_prefix
         self.conversation_expiration_in_sec: Optional[int] = expires
@@ -163,10 +175,6 @@ class AiAgentPersistenceConfiguration:
 
 
 class AiAgentSummarizationByTokens:
-    """
-    Configuration settings for AI agent conversation summarization.
-    """
-
     DEFAULT_MAX_TOKENS_BEFORE_SUMMARIZATION = 32 * 1024
 
     def __init__(
@@ -208,10 +216,6 @@ class AiAgentSummarizationByTokens:
 
 
 class AiAgentTruncateChat:
-    """
-    Configuration for truncating the AI chat history based on message count.
-    """
-
     DEFAULT_MESSAGES_LENGTH_BEFORE_TRUNCATE = 500
 
     def __init__(self, messages_length_before_truncate: int = None, messages_length_after_truncate: int = None):
@@ -241,10 +245,6 @@ class AiAgentTruncateChat:
 
 
 class AiAgentHistoryConfiguration:
-    """
-    Defines the configuration for retention and expiration of AI agent chat history documents.
-    """
-
     def __init__(self, history_expiration_in_sec: int = None):
         self.history_expiration_in_sec: Optional[int] = history_expiration_in_sec
 
@@ -261,10 +261,6 @@ class AiAgentHistoryConfiguration:
 
 
 class AiAgentChatTrimmingConfiguration:
-    """
-    Defines configuration options for reducing the size of the AI agent's chat history.
-    """
-
     def __init__(
         self,
         tokens_config: AiAgentSummarizationByTokens = None,
@@ -295,11 +291,6 @@ class AiAgentChatTrimmingConfiguration:
 
 
 class AiAgentConfiguration:
-    """
-    Defines the configuration for an AI agent in RavenDB, including the system prompt,
-    tools (queries/actions), output schema, persistence settings, and connection string.
-    """
-
     def __init__(
         self,
         name: str = None,
@@ -363,7 +354,6 @@ class AiAgentConfiguration:
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentConfiguration:
         instance = cls()
-        # Handle both camelCase and PascalCase for compatibility
         instance.identifier = json_dict.get("identifier") or json_dict.get("Identifier")
         instance.name = json_dict.get("name") or json_dict.get("Name")
         instance.connection_string_name = json_dict.get("connectionStringName") or json_dict.get("ConnectionStringName")
