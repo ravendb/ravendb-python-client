@@ -35,6 +35,8 @@ from .run_conversation_operation import (
     AiAgentArtificialActionResponse,
     AiUsage,
     AiConversationCreationOptions,
+    AiConversationParameter,
+    AiConversationParameterOptions,
 )
 
 __all__ = [
@@ -60,6 +62,8 @@ __all__ = [
     "AiAgentArtificialActionResponse",
     "AiUsage",
     "AiConversationCreationOptions",
+    "AiConversationParameter",
+    "AiConversationParameterOptions",
     "GetAiAgentOperation",
     "GetAiAgentsResponse",
     "AddOrUpdateAiAgentOperation",
