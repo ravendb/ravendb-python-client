@@ -497,6 +497,7 @@ class RequestExecutor:
         self.__failed_nodes_timers.clear()
 
     def execute_command(self, command: RavenCommand, session_info: Optional[SessionInfo] = None) -> None:
+        self._throw_if_disposed_at_entry()
         topology_update = self._first_topology_update_task
         if (
             topology_update is not None
@@ -509,6 +510,21 @@ class RequestExecutor:
             )
         else:
             self.__unlikely_execute(command, topology_update, session_info)
+
+    @staticmethod
+    def _throw_object_disposed() -> None:
+        raise RuntimeError("The request executor has already been disposed and cannot be used")
+
+    def _throw_if_disposed_at_entry(self) -> None:
+        # Entry guard from C# RequestExecutor.ExecuteAsync (v7.2.3).
+        from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+            _DISABLE_DISPOSE_CHECKS,
+        )
+
+        if _DISABLE_DISPOSE_CHECKS:
+            return
+        if self._disposed:
+            self._throw_object_disposed()
 
     def execute(
         self,

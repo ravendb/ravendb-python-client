@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import itertools
 import json
+import os
 from abc import abstractmethod
 
 from ravendb.documents.operations.executor import OperationExecutor
@@ -60,6 +61,11 @@ if TYPE_CHECKING:
     from ravendb.documents.operations.lazy.definition import LazyOperation
     from ravendb.documents.store.definition import DocumentStore
     from ravendb.http.request_executor import RequestExecutor
+
+
+# Escape hatch for the cross-component store-disposed guard (the session's
+# own disposed check is unaffected). Mirrors C# DisableDisposeChecks.
+_DISABLE_DISPOSE_CHECKS: bool = os.environ.get("RAVEN_DISABLE_DISPOSE_CHECKS", "").lower() == "true"
 
 
 class RefEq:
@@ -1286,6 +1292,14 @@ class InMemoryDocumentSessionOperations:
 
     def close(self) -> None:
         self.__close(True)
+
+    def assert_not_disposed(self) -> None:
+        if self._is_disposed:
+            raise RuntimeError("The session has already been disposed and cannot be used")
+        if _DISABLE_DISPOSE_CHECKS:
+            return
+        if self._document_store.disposed:
+            raise RuntimeError("The document store has already been disposed and cannot be used")
 
     def register_missing(self, *keys: str) -> None:
         if self.no_tracking:

@@ -166,6 +166,7 @@ class DocumentSession(InMemoryDocumentSessionOperations):
         return self._operation_executor
 
     def save_changes(self) -> None:
+        self.assert_not_disposed()
         save_changes_operation = BatchOperation(self)
         command = save_changes_operation.create_request()
         if command:
