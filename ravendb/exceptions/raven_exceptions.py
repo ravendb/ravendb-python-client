@@ -82,6 +82,10 @@ class TooManyTokensException(TooManyRequestsException):
     pass
 
 
+class MissingAiAgentParameterException(RavenException):
+    pass
+
+
 class SchemaValidationException(RavenException):
     def __init__(self, message: str = None):
         super().__init__(message)

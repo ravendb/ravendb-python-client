@@ -17,6 +17,8 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
         super().__init__(api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches)
         if deployment_name is None:
             raise ValueError("deployment_name cannot be None")
+        if endpoint is None or (isinstance(endpoint, str) and endpoint.strip() == ""):
+            raise ValueError("endpoint cannot be None or empty")
         self.deployment_name = deployment_name
 
     @classmethod

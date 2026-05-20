@@ -15,6 +15,7 @@ from ravendb.exceptions.raven_exceptions import (
     ConcurrencyException,
     IndexCompactionInProgressException,
     InsufficientQuotaException,
+    MissingAiAgentParameterException,
     PortInUseException,
     RateLimitException,
     RavenException,
@@ -44,6 +45,7 @@ _EXCEPTION_MAP: dict = {
     "RateLimitException": RateLimitException,
     "InsufficientQuotaException": InsufficientQuotaException,
     "TooManyTokensException": TooManyTokensException,
+    "MissingAiAgentParameterException": MissingAiAgentParameterException,
     # documents
     "DocumentConflictException": DocumentConflictException,
     "DocumentDoesNotExistException": DocumentDoesNotExistException,
