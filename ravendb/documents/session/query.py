@@ -168,6 +168,7 @@ class AbstractDocumentQuery(Generic[_T]):
         self._query_stats = QueryStatistics()
         self._disable_entities_tracking: Optional[bool] = None
         self._disable_caching: Optional[bool] = None
+        self._query_tag: Optional[str] = None
         self._projection_behavior: Optional[ProjectionBehavior] = None
         self.parameter_prefix = "p"
         self._query_timings: Optional[QueryTimings] = None
@@ -876,6 +877,7 @@ class AbstractDocumentQuery(Generic[_T]):
         index_query.wait_for_non_stale_results_timeout = self._timeout
         index_query.query_parameters = self._query_parameters
         index_query.disable_caching = self._disable_caching
+        index_query.tag = self._query_tag
         index_query.projection_behavior = self._projection_behavior
 
         if self._page_size is not None:
@@ -1395,6 +1397,11 @@ class AbstractDocumentQuery(Generic[_T]):
 
     def _no_caching(self) -> None:
         self._disable_caching = True
+
+    def _with_tag(self, tag: str) -> None:
+        if tag is None or (isinstance(tag, str) and (tag == "" or tag.isspace())):
+            raise ValueError("Query tag cannot be None or whitespace.")
+        self._query_tag = tag
 
     def _include_timings(self, timings_callback: Callable[[QueryTimings], None] = None) -> None:
         if self._query_timings is not None:
@@ -2395,6 +2402,10 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._no_caching()
         return self
 
+    def with_tag(self, tag: str) -> DocumentQuery[_T]:
+        self._with_tag(tag)
+        return self
+
     def include(
         self, path_or_include_builder_callback: Union[str, Callable[[QueryIncludeBuilder], None]]
     ) -> DocumentQuery[_T]:
@@ -2622,6 +2633,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         query._query_highlightings = self._query_highlightings
         query._disable_entities_tracking = self._disable_entities_tracking
         query._disable_caching = self._disable_caching
+        query._query_tag = self._query_tag
         query._projection_behavior = (
             query_data.projection_behavior if query_data is not None else None
         ) or self._projection_behavior
@@ -2804,6 +2816,10 @@ class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
 
     def no_caching(self) -> RawDocumentQuery[_T]:
         self._no_caching()
+        return self
+
+    def with_tag(self, tag: str) -> RawDocumentQuery[_T]:
+        self._with_tag(tag)
         return self
 
     def using_default_operator(self, query_operator: QueryOperator) -> RawDocumentQuery[_T]:

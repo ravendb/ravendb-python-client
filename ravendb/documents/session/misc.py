@@ -161,6 +161,10 @@ class DocumentQueryCustomization:
         self.query = query
         self.query_operation: QueryOperation = None
 
+    def with_tag(self, tag: str) -> "DocumentQueryCustomization":
+        self.query._with_tag(tag)
+        return self
+
 
 class DocumentsChanges:
     class ChangeType(Enum):

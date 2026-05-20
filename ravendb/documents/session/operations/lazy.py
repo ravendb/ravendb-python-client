@@ -4,6 +4,7 @@ import datetime
 import json
 from http import HTTPStatus
 from typing import Union, List, Generic, TypeVar, Type, Callable, Dict, TYPE_CHECKING, Optional
+from urllib.parse import quote
 
 from ravendb.documents.operations.compare_exchange.compare_exchange_value_result_parser import (
     CompareExchangeValueResultParser,
@@ -376,6 +377,8 @@ class LazyQueryOperation(Generic[_T], LazyOperation[_T]):
         request.url = "/queries"
         request.method = "POST"
         request.query = f"?queryHash={self.__query_operation.index_query.get_query_hash()}"
+        if self.__query_operation.index_query.tag:
+            request.query += f"&tag={quote(self.__query_operation.index_query.tag)}"
         request.content = IndexQueryContent(self.__session.conventions, self.__query_operation.index_query)
         return request
 
@@ -445,6 +448,8 @@ class LazyAggregationQueryOperation(LazyOperation):
         request.url = "/queries"
         request.method = "POST"
         request.query = f"?queryHash={self.__index_query.get_query_hash()}"
+        if self.__index_query.tag:
+            request.query += f"&tag={quote(self.__index_query.tag)}"
         request.content = IndexQueryContent(self.__session.conventions, self.__index_query)
         return request
 
@@ -491,6 +496,8 @@ class LazySuggestionQueryOperation(LazyOperation):
         request.url = "/queries"
         request.method = "POST"
         request.query = f"?queryHash={self.__index_query.get_query_hash()}"
+        if self.__index_query.tag:
+            request.query += f"&tag={quote(self.__index_query.tag)}"
         request.content = IndexQueryContent(self.__session.conventions, self.__index_query)
         return request
 

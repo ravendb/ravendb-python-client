@@ -78,10 +78,12 @@ class QueryOperation:
         self.__sp = Stopwatch().start()
 
     def log_query(self) -> None:
+        tag_suffix = f" with tag '{self.__index_query.tag}'" if self.__index_query.tag else ""
         self.__logger.debug(
             f"Executing query {self.__index_query.query} "
             f"on index {self.__index_name} "
             f"in {self.__session.advanced.store_identifier}"
+            f"{tag_suffix}"
         )
 
     def enter_query_context(self) -> None:  # todo: make it return Closeable

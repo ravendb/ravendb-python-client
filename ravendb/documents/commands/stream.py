@@ -1,5 +1,6 @@
 import requests
 from typing import TypeVar, Generic, Iterator
+from urllib.parse import quote
 
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.conventions import DocumentConventions
@@ -79,6 +80,8 @@ class QueryStreamCommand(RavenCommand[StreamResultResponse]):
         request = requests.Request("POST")
         request.data = JsonExtensions.write_index_query(self._conventions, self._index_query)
         request.url = f"{node.url}/databases/{node.database}/streams/queries?format=jsonl"
+        if self._index_query.tag:
+            request.url += f"&tag={quote(self._index_query.tag)}"
         return request
 
     def process_response(self, cache: HttpCache, response: requests.Response, url) -> ResponseDisposeHandling:

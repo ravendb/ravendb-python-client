@@ -1,5 +1,6 @@
 import json
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import requests
 
@@ -41,6 +42,9 @@ class QueryCommand(RavenCommand[QueryResult]):
 
         if self.__index_entries_only:
             path.append("&debug=entries")
+
+        if self.__index_query.tag:
+            path.append(f"&tag={quote(self.__index_query.tag)}")
 
         request = requests.Request("POST", "".join(path))
         request.data = JsonExtensions.write_index_query(self.__session.conventions, self.__index_query)
