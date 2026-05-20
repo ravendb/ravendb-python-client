@@ -28,18 +28,32 @@ class GetDatabaseTopologyCommand(RavenCommand):
             url += f"&applicationIdentifier=" + str(self.__application_identifier)
         if ".fiddler" in node.url.lower():
             url += f"&localUrl={Utils.escape(node.url,False,False)}"
+        self._last_url = url
         return requests.Request(method="GET", url=url)
 
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:
             return
 
-        # todo: that's pretty bad way to do that, replace with initialization function that take nested object types
-        self.result: Topology = Utils.initialize_object(json.loads(response), self._result_class, True)
-        node_list = []
-        for node in self.result.nodes:
-            node_list.append(Utils.initialize_object(node, ServerNode, True))
-        self.result.nodes = node_list
+        try:
+            parsed = json.loads(response)
+            # todo: replace with an initializer that knows nested object types
+            self.result: Topology = Utils.initialize_object(parsed, self._result_class, True)
+            if self.result is None or self.result.nodes is None:
+                self._throw_unexpected_topology_response(response)
+            node_list = []
+            for node in self.result.nodes:
+                node_list.append(Utils.initialize_object(node, ServerNode, True))
+            self.result.nodes = node_list
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            self._throw_unexpected_topology_response(response, e)
+
+    def _throw_unexpected_topology_response(self, response: str, inner: Optional[Exception] = None) -> None:
+        message = (
+            f"Received an unexpected database topology response from '{getattr(self, '_last_url', '')}'. "
+            f"This may indicate that the URL does not point to a RavenDB server. Response: {response}"
+        )
+        raise RuntimeError(message) from inner
 
 
 class GetClusterTopologyCommand(RavenCommand[ClusterTopologyResponse]):
@@ -51,14 +65,26 @@ class GetClusterTopologyCommand(RavenCommand[ClusterTopologyResponse]):
         url = f"{node.url}/cluster/topology"
         if self.__debug_tag is not None:
             url += f"?{self.__debug_tag}"
-
+        self._last_url = url
         return requests.Request("GET", url)
 
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:
             super()._throw_invalid_response()
 
-        self.result: ClusterTopologyResponse = ClusterTopologyResponse.from_json(json.loads(response))
+        try:
+            self.result: ClusterTopologyResponse = ClusterTopologyResponse.from_json(json.loads(response))
+            if self.result is None or self.result.topology is None:
+                self._throw_unexpected_topology_response(response)
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            self._throw_unexpected_topology_response(response, e)
+
+    def _throw_unexpected_topology_response(self, response: str, inner: Optional[Exception] = None) -> None:
+        message = (
+            f"Received an unexpected cluster topology response from '{getattr(self, '_last_url', '')}'. "
+            f"This may indicate that the URL does not point to a RavenDB server. Response: {response}"
+        )
+        raise RuntimeError(message) from inner
 
     def is_read_request(self) -> bool:
         return True
