@@ -877,9 +877,7 @@ class TestStoreApiIntegration(TestBase):
             session.store(Doc("v1"), "docs/track/1")
             session.save_changes()
 
-        with self.store.aggressively_cache_for(
-            datetime.timedelta(minutes=5), mode=AggressiveCacheMode.TRACK_CHANGES
-        ):
+        with self.store.aggressively_cache_for(datetime.timedelta(minutes=5), mode=AggressiveCacheMode.TRACK_CHANGES):
             with self.store.open_session() as session:
                 self.assertEqual("v1", session.load("docs/track/1", Doc).name)
 
