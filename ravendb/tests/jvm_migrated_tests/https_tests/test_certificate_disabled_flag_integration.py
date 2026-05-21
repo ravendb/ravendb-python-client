@@ -71,9 +71,13 @@ class TestCertificateDisabledFlagIntegration(TestBase):
 
     def test_edit_can_re_enable_certificate(self):
         with self.secured_document_store as store:
+            # Use READ_WRITE rather than READ: a READ-only DatabaseAccess is
+            # treated by the server as a "read-only certificate", which is a
+            # licensed feature (AssertCanAddReadOnlyCertificates).  This test
+            # is about the disabled-flag round-trip, not permission levels.
             create_op = CreateClientCertificateOperation(
                 "test-reenable-cert",
-                {"test_db": DatabaseAccess.READ},
+                {"test_db": DatabaseAccess.READ_WRITE},
                 SecurityClearance.VALID_USER,
             )
             store.maintenance.server.send(create_op)
@@ -87,7 +91,7 @@ class TestCertificateDisabledFlagIntegration(TestBase):
                     EditClientCertificateOperation(
                         EditClientCertificateOperation.Parameters(
                             thumbprint=mine.thumbprint,
-                            permissions={"test_db": DatabaseAccess.READ},
+                            permissions={"test_db": DatabaseAccess.READ_WRITE},
                             name="test-reenable-cert",
                             clearance=SecurityClearance.VALID_USER,
                             disabled=desired_state,
