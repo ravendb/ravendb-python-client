@@ -3,24 +3,16 @@ from typing import Dict, Any
 
 
 class AiMessagePromptFields:
-    """Constants for AI message prompt field names."""
-
     TEXT = "text"
     TYPE = "type"
+    IMAGE = "image"
 
 
 class AiMessagePromptTypes:
-    """Constants for AI message prompt types."""
-
     TEXT = "text"
 
 
 class ContentPart:
-    """
-    Base class for content parts in AI prompts.
-    Content parts allow structured prompt content with different types (text, etc.).
-    """
-
     def __init__(self, content_type: str):
         self._type = content_type
 
@@ -29,18 +21,10 @@ class ContentPart:
         return self._type
 
     def to_json(self) -> Dict[str, Any]:
-        """
-        Converts the content part to a JSON-serializable dictionary.
-        Subclasses should override this method to include their specific fields.
-        """
         return {AiMessagePromptFields.TYPE: self._type}
 
 
 class TextPart(ContentPart):
-    """
-    Represents a text content part in AI prompts.
-    """
-
     def __init__(self, text: str):
         super().__init__(AiMessagePromptTypes.TEXT)
         self._text = text

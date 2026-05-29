@@ -91,8 +91,11 @@ from ravendb.documents.operations.ai.agents import (
     AiAgentConfiguration,
     AiAgentConfigurationResult,
     AiAgentParameter,
+    AiAgentParameterPolicy,
+    AiAgentParameterValueType,
     AiAgentToolAction,
     AiAgentToolQuery,
+    AiAgentToolSubAgent,
     AiAgentPersistenceConfiguration,
     AiAgentChatTrimmingConfiguration,
     AiAgentSummarizationByTokens,
@@ -101,10 +104,13 @@ from ravendb.documents.operations.ai.agents import (
     RunConversationOperation,
     ConversationResult,
     AiAgentActionRequest,
+    AiAgentActionRequestType,
     AiAgentActionResponse,
     AiAgentArtificialActionResponse,
     AiUsage,
     AiConversationCreationOptions,
+    AiConversationParameter,
+    AiConversationParameterOptions,
     GetAiAgentOperation,
     GetAiAgentsResponse,
     AddOrUpdateAiAgentOperation,
@@ -195,6 +201,7 @@ from ravendb.documents.queries.group_by import GroupBy, GroupByMethod
 from ravendb.documents.queries.highlighting import HighlightingOptions, QueryHighlightings
 from ravendb.documents.queries.index_query import IndexQuery
 from ravendb.documents.queries.misc import SearchOperator
+from ravendb.documents.queries.raven_document_query import RavenDocumentQuery
 from ravendb.documents.queries.more_like_this import (
     MoreLikeThisOperations,
     MoreLikeThisBase,
@@ -238,6 +245,7 @@ from ravendb.documents.session.misc import (
     DocumentsChanges,
     ForceRevisionStrategy,
     MethodCall,
+    OptimisticConcurrencyMode,
     OrderingType,
     JavaScriptMap,
     DocumentQueryCustomization,

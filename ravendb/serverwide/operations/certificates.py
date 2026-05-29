@@ -56,6 +56,7 @@ class CertificateMetadata:
         collection_primary_key: str = None,
         public_key_pinning_hash: str = None,
         not_before: datetime = None,
+        disabled: bool = False,
     ):
         self.name = name
         self.security_clearance = security_clearance
@@ -66,6 +67,7 @@ class CertificateMetadata:
         self.collection_secondary_keys = collection_secondary_keys
         self.public_key_pinning_hash = public_key_pinning_hash
         self.not_before = not_before
+        self.disabled = disabled
 
     @classmethod
     def from_json(cls, json_dict: dict) -> CertificateMetadata:
@@ -79,6 +81,7 @@ class CertificateMetadata:
             json_dict.get("CollectionPrimaryKey", None),
             json_dict.get("PublicKeyPinningHash", None),
             Utils.string_to_datetime(json_dict["NotBefore"]) if "NotBefore" in json_dict else None,
+            json_dict.get("Disabled", False),
         )
 
 
@@ -95,6 +98,7 @@ class CertificateDefinition(CertificateMetadata):
         collection_secondary_keys: List[str] = None,
         collection_primary_key: str = None,
         public_key_pinning_hash: str = None,
+        disabled: bool = False,
     ):
         super().__init__(
             name,
@@ -105,6 +109,7 @@ class CertificateDefinition(CertificateMetadata):
             collection_secondary_keys,
             collection_primary_key,
             public_key_pinning_hash,
+            disabled=disabled,
         )
         self.certificate = certificate
         self.password = password
@@ -120,6 +125,7 @@ class CertificateDefinition(CertificateMetadata):
             "PublicKeyPinningHash": self.public_key_pinning_hash,
             "Certificate": self.certificate,
             "Password": self.password,
+            "Disabled": self.disabled,
         }
         if self.not_after:
             json_dict.update({"NotAfter": Utils.datetime_to_string(self.not_after)})
@@ -138,6 +144,7 @@ class CertificateDefinition(CertificateMetadata):
             json_dict["CollectionSecondaryKeys"],
             json_dict["CollectionPrimaryKey"],
             json_dict["PublicKeyPinningHash"],
+            disabled=json_dict.get("Disabled", False),
         )
 
 
@@ -443,12 +450,18 @@ class PutClientCertificateOperation(VoidServerOperation):
 class EditClientCertificateOperation(VoidServerOperation):
     class Parameters:
         def __init__(
-            self, thumbprint: str, permissions: Dict[str, DatabaseAccess], name: str, clearance: SecurityClearance
+            self,
+            thumbprint: str,
+            permissions: Dict[str, DatabaseAccess],
+            name: str,
+            clearance: SecurityClearance,
+            disabled: bool = False,
         ):
             self.thumbprint = thumbprint
             self.permissions = permissions
             self.name = name
             self.clearance = clearance
+            self.disabled = disabled
 
     def __init__(self, parameters: Parameters):
         if parameters is None:
@@ -467,19 +480,28 @@ class EditClientCertificateOperation(VoidServerOperation):
         self.__thumbprint = parameters.thumbprint
         self.__permissions = parameters.permissions
         self.__clearance = parameters.clearance
+        self.__disabled = parameters.disabled
 
     def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
-        return self.__EditCertificateClientCommand(self.__thumbprint, self.__name, self.__permissions, self.__clearance)
+        return self.__EditCertificateClientCommand(
+            self.__thumbprint, self.__name, self.__permissions, self.__clearance, self.__disabled
+        )
 
     class __EditCertificateClientCommand(VoidRavenCommand, RaftCommand):
         def __init__(
-            self, thumbprint: str, name: str, permissions: Dict[str, DatabaseAccess], clearance: SecurityClearance
+            self,
+            thumbprint: str,
+            name: str,
+            permissions: Dict[str, DatabaseAccess],
+            clearance: SecurityClearance,
+            disabled: bool,
         ):
             super().__init__()
             self.__thumbprint = thumbprint
             self.__name = name
             self.__permissions = permissions
             self.__clearance = clearance
+            self.__disabled = disabled
 
         def is_read_request(self) -> bool:
             return False
@@ -492,6 +514,7 @@ class EditClientCertificateOperation(VoidServerOperation):
             definition.permissions = self.__permissions
             definition.security_clearance = self.__clearance
             definition.name = self.__name
+            definition.disabled = self.__disabled
 
             request = requests.Request("POST", url)
             request.data = definition.to_json()

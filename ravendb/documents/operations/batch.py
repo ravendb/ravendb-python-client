@@ -78,6 +78,7 @@ class BatchOperation:
                     "it. So it was executed ONLY on the requested node on " + self._session.request_executor.url
                 )
 
+        skip = 0
         for i in range(self._session_commands_count):
             batch_result = result.results[i]
             if batch_result is None:
@@ -86,7 +87,7 @@ class BatchOperation:
             command_type = get_command_type(batch_result)
 
             if command_type == CommandType.PUT:
-                self._handle_put(i, batch_result, False)
+                self._handle_put(i - skip, batch_result, False)
             elif command_type == CommandType.FORCE_REVISION_CREATION:
                 self._handle_force_revision_creation(batch_result)
             elif command_type == CommandType.DELETE:
@@ -95,6 +96,10 @@ class BatchOperation:
                 self._handle_compare_exchange_put(batch_result)
             elif command_type == CommandType.COMPARE_EXCHANGE_DELETE:
                 self._handle_compare_exchange_delete(batch_result)
+            elif command_type == CommandType.BATCH_TRACK_CHANGES:
+                # No client-side state to update; bump skip so PUT indices
+                # remain aligned with the SaveChangesData.entities array.
+                skip += 1
             else:
                 raise ValueError(f"Command {command_type} is not supported")
 
@@ -129,6 +134,8 @@ class BatchOperation:
             elif command_type == CommandType.TIME_SERIES:
                 continue  # todo: RavenDB-13474 add to time series cache
             elif command_type == CommandType.TIME_SERIES_COPY or command_type == CommandType.BATCH_PATCH:
+                continue
+            elif command_type == CommandType.BATCH_TRACK_CHANGES:
                 continue
             else:
                 raise ValueError(f"Command {command_type} is not supported")
@@ -229,6 +236,7 @@ class BatchOperation:
             return
 
         self._session.documents_by_id.pop(key, None)
+        self._session._tracked_entities.try_remove(key)
 
         if document_info.entity is not None:
             self._session.documents_by_entity.pop(document_info.entity, None)
@@ -305,6 +313,8 @@ class BatchOperation:
 
         document_info.key = key
         document_info.change_vector = change_vector
+
+        self._session._tracked_entities.try_update(key, change_vector)
 
         self._apply_metadata_modifications(key, document_info)
 

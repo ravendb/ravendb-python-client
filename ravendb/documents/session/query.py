@@ -168,6 +168,7 @@ class AbstractDocumentQuery(Generic[_T]):
         self._query_stats = QueryStatistics()
         self._disable_entities_tracking: Optional[bool] = None
         self._disable_caching: Optional[bool] = None
+        self._query_tag: Optional[str] = None
         self._projection_behavior: Optional[ProjectionBehavior] = None
         self.parameter_prefix = "p"
         self._query_timings: Optional[QueryTimings] = None
@@ -462,7 +463,7 @@ class AbstractDocumentQuery(Generic[_T]):
         tokens = self.__get_current_where_tokens()
         self.__append_operator_if_needed(tokens)
 
-        if self.__if_value_is_method(WhereOperator.EQUALS, params, tokens):
+        if self._if_value_is_method(WhereOperator.EQUALS, params, tokens):
             return
 
         transform_to_equal_value = self.__transform_value(params)
@@ -475,8 +476,13 @@ class AbstractDocumentQuery(Generic[_T]):
         )
         tokens.append(where_token)
 
-    def __if_value_is_method(self, op: WhereOperator, where_params: WhereParams, tokens: List[QueryToken]) -> bool:
+    def _if_value_is_method(self, op: WhereOperator, where_params: WhereParams, tokens: List[QueryToken]) -> bool:
+        # MethodCall values (RavenDocumentQuery.now/today, CmpXchg) emit a
+        # method-flavored WhereToken instead of binding as a parameter.
+        # Returns True if a token was appended (caller should short-circuit).
         if isinstance(where_params.value, MethodCall):
+            from ravendb.documents.queries.raven_document_query import RavenDocumentQuery
+
             mc = where_params.value
 
             args = []
@@ -484,8 +490,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 args.append(self.__add_query_parameter(arg))
 
             token: Optional[WhereToken] = None
-            object_type = type(mc)
-            if object_type == CmpXchg:
+            if isinstance(mc, CmpXchg):
                 token = WhereToken.create(
                     op,
                     where_params.field_name,
@@ -499,8 +504,22 @@ class AbstractDocumentQuery(Generic[_T]):
                         )
                     ),
                 )
+            elif isinstance(mc, RavenDocumentQuery.Time):
+                token = WhereToken.create(
+                    op,
+                    where_params.field_name,
+                    None,
+                    WhereToken.WhereOptions(
+                        method_type__parameters__property__exact=(
+                            mc.method_type,
+                            args,
+                            mc.access_path,
+                            where_params.exact,
+                        )
+                    ),
+                )
             else:
-                raise TypeError(f"Unknown method {object_type}")
+                raise TypeError(f"Unknown method {type(mc)}")
 
             tokens.append(token)
             return True
@@ -536,7 +555,7 @@ class AbstractDocumentQuery(Generic[_T]):
 
         where_params.field_name = self._ensure_valid_field_name(where_params.field_name, where_params.nested_path)
 
-        if self.__if_value_is_method(WhereOperator.NOT_EQUALS, where_params, tokens):
+        if self._if_value_is_method(WhereOperator.NOT_EQUALS, where_params, tokens):
             return
 
         where_token = WhereToken.create(
@@ -638,82 +657,46 @@ class AbstractDocumentQuery(Generic[_T]):
         )
         tokens.append(where_token)
 
-    def _where_greater_than(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
+    def _where_compare(
+        self,
+        op: WhereOperator,
+        field_name: str,
+        value: object,
+        exact: Optional[bool],
+        null_sentinel: str,
+    ) -> None:
+        # Shared body for >/>=/</<=. Routes through _if_value_is_method first
+        # so MethodCall values (now/today/cmpxchg) are emitted as RQL calls.
         field_name = self._ensure_valid_field_name(field_name, False)
-
         tokens = self.__get_current_where_tokens()
         self.__append_operator_if_needed(tokens)
         self.__negate_if_needed(tokens, field_name)
         where_params = WhereParams()
         where_params.value = value
         where_params.field_name = field_name
+        where_params.exact = exact
 
-        parameter = self.__add_query_parameter("*" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.GREATER_THAN,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
+        if self._if_value_is_method(op, where_params, tokens):
+            return
+
+        parameter = self.__add_query_parameter(
+            null_sentinel if value is None else self.__transform_value(where_params, True)
         )
-        tokens.append(where_token)
+        tokens.append(
+            WhereToken.create(op, field_name, parameter, WhereToken.WhereOptions(exact__from__to=(exact, None, None)))
+        )
+
+    def _where_greater_than(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
+        self._where_compare(WhereOperator.GREATER_THAN, field_name, value, exact, "*")
 
     def _where_greater_than_or_equal(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
-        field_name = self._ensure_valid_field_name(field_name, False)
-
-        tokens = self.__get_current_where_tokens()
-        self.__append_operator_if_needed(tokens)
-        self.__negate_if_needed(tokens, field_name)
-        where_params = WhereParams()
-        where_params.value = value
-        where_params.field_name = field_name
-
-        parameter = self.__add_query_parameter("*" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.GREATER_THAN_OR_EQUAL,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
-        )
-        tokens.append(where_token)
+        self._where_compare(WhereOperator.GREATER_THAN_OR_EQUAL, field_name, value, exact, "*")
 
     def _where_less_than(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
-        field_name = self._ensure_valid_field_name(field_name, False)
-
-        tokens = self.__get_current_where_tokens()
-        self.__append_operator_if_needed(tokens)
-        self.__negate_if_needed(tokens, field_name)
-        where_params = WhereParams()
-        where_params.value = value
-        where_params.field_name = field_name
-
-        parameter = self.__add_query_parameter("*" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.LESS_THAN,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
-        )
-        tokens.append(where_token)
+        self._where_compare(WhereOperator.LESS_THAN, field_name, value, exact, "NULL")
 
     def _where_less_than_or_equal(self, field_name: str, value: object, exact: Optional[bool] = False) -> None:
-        field_name = self._ensure_valid_field_name(field_name, False)
-
-        tokens = self.__get_current_where_tokens()
-        self.__append_operator_if_needed(tokens)
-        self.__negate_if_needed(tokens, field_name)
-
-        where_params = WhereParams()
-        where_params.value = value
-        where_params.field_name = field_name
-
-        parameter = self.__add_query_parameter("NULL" if value is None else self.__transform_value(where_params, True))
-        where_token = WhereToken.create(
-            WhereOperator.LESS_THAN_OR_EQUAL,
-            field_name,
-            parameter,
-            WhereToken.WhereOptions(exact__from__to=(exact, None, None)),
-        )
-        tokens.append(where_token)
+        self._where_compare(WhereOperator.LESS_THAN_OR_EQUAL, field_name, value, exact, "NULL")
 
     def _where_regex(self, field_name: str, pattern: str) -> None:
         field_name = self._ensure_valid_field_name(field_name, False)
@@ -876,6 +859,7 @@ class AbstractDocumentQuery(Generic[_T]):
         index_query.wait_for_non_stale_results_timeout = self._timeout
         index_query.query_parameters = self._query_parameters
         index_query.disable_caching = self._disable_caching
+        index_query.tag = self._query_tag
         index_query.projection_behavior = self._projection_behavior
 
         if self._page_size is not None:
@@ -1396,6 +1380,11 @@ class AbstractDocumentQuery(Generic[_T]):
     def _no_caching(self) -> None:
         self._disable_caching = True
 
+    def _with_tag(self, tag: str) -> None:
+        if tag is None or (isinstance(tag, str) and (tag == "" or tag.isspace())):
+            raise ValueError("Query tag cannot be None or whitespace.")
+        self._query_tag = tag
+
     def _include_timings(self, timings_callback: Callable[[QueryTimings], None] = None) -> None:
         if self._query_timings is not None:
             timings_callback(self._query_timings)
@@ -1533,7 +1522,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistance")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             field_name = field_or_field_name
 
@@ -1560,7 +1549,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistance")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
@@ -1584,7 +1573,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistanceDescending")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
@@ -1613,7 +1602,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 raise ValueError("Field cannot be None")
             self.__assert_is_dynamic_query(field_or_field_name, "orderByDistanceDescending")
             round_factor = field_or_field_name.round_factor
-            field_name = f"'{field_or_field_name.to_field(self._ensure_valid_field_name)}'"
+            field_name = field_or_field_name.to_field(self._ensure_valid_field_name)
         else:
             round_factor = self.__add_query_parameter(round_factor) if round_factor != 0 else None
             field_name = field_or_field_name
@@ -2395,6 +2384,10 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         self._no_caching()
         return self
 
+    def with_tag(self, tag: str) -> DocumentQuery[_T]:
+        self._with_tag(tag)
+        return self
+
     def include(
         self, path_or_include_builder_callback: Union[str, Callable[[QueryIncludeBuilder], None]]
     ) -> DocumentQuery[_T]:
@@ -2622,6 +2615,7 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         query._query_highlightings = self._query_highlightings
         query._disable_entities_tracking = self._disable_entities_tracking
         query._disable_caching = self._disable_caching
+        query._query_tag = self._query_tag
         query._projection_behavior = (
             query_data.projection_behavior if query_data is not None else None
         ) or self._projection_behavior
@@ -2804,6 +2798,10 @@ class RawDocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
 
     def no_caching(self) -> RawDocumentQuery[_T]:
         self._no_caching()
+        return self
+
+    def with_tag(self, tag: str) -> RawDocumentQuery[_T]:
+        self._with_tag(tag)
         return self
 
     def using_default_operator(self, query_operator: QueryOperator) -> RawDocumentQuery[_T]:

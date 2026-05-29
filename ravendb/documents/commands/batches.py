@@ -4,7 +4,7 @@ import datetime
 import json
 from abc import abstractmethod
 from enum import Enum
-from typing import Callable, Union, Optional, TYPE_CHECKING, List, Set, Dict
+from typing import Callable, IO, Union, Optional, TYPE_CHECKING, List, Set, Dict
 
 import requests
 
@@ -49,6 +49,7 @@ class CommandType(Enum):
     TIME_SERIES_BULK_INSERT = "TIME_SERIES_BULK_INSERT"
     TIME_SERIES_COPY = "TIME_SERIES_COPY"
     BATCH_PATCH = "BatchPATCH"
+    BATCH_TRACK_CHANGES = "BatchTrackChanges"
     CLIENT_ANY_COMMAND = "CLIENT_ANY_COMMAND"
     CLIENT_MODIFY_DOCUMENT_COMMAND = "CLIENT_MODIFY_DOCUMENT_COMMAND"
 
@@ -81,6 +82,8 @@ class CommandType(Enum):
             return cls.COUNTERS
         elif value == "BatchPATCH":
             return cls.BATCH_PATCH
+        elif value == "BatchTrackChanges":
+            return cls.BATCH_TRACK_CHANGES
         elif value == "ForceRevisionCreation":
             return cls.FORCE_REVISION_CREATION
         elif value == "TimeSeries":
@@ -119,7 +122,7 @@ class SingleNodeBatchCommand(RavenCommand):
                     self.__attachment_streams = []
                 stream = command.stream
                 if stream is None:
-                    continue  # remote-only attachment — no stream to track
+                    continue  # remote-only attachment has no local stream
                 if stream in self.__attachment_streams:
                     raise RuntimeError(
                         "It is forbidden to re-use the same stream for more than one attachment. "
@@ -268,6 +271,27 @@ class CommandData:
     @abstractmethod
     def serialize(self, conventions: DocumentConventions) -> dict:
         pass
+
+
+class BatchTrackChangesCommandData(CommandData):
+    # Emitted in OptimisticConcurrencyMode.WRITES_AND_READS: carries the change
+    # vector of every tracked entity not already covered by a PUT/DELETE, so
+    # the server can verify none of them changed underneath us.
+    def __init__(self, tracked_entities: Dict[str, str], ids_to_skip: Set[str]):
+        super().__init__(command_type=CommandType.BATCH_TRACK_CHANGES)
+        self.tracked_entities = tracked_entities
+        self._ids_to_skip = ids_to_skip
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        tracked = {
+            entity_id: change_vector
+            for entity_id, change_vector in self.tracked_entities.items()
+            if entity_id not in self._ids_to_skip
+        }
+        return {
+            "Type": str(CommandType.BATCH_TRACK_CHANGES),
+            "TrackedEntities": tracked,
+        }
 
 
 class DeleteCommandData(CommandData):
@@ -534,7 +558,7 @@ class PutAttachmentCommandData(CommandData):
         self,
         document_id: str,
         name: str,
-        stream: bytes,
+        stream: Union[bytes, IO[bytes]],
         content_type: str,
         change_vector: str,
         remote_parameters: Optional["RemoteAttachmentParameters"] = None,
@@ -554,11 +578,11 @@ class PutAttachmentCommandData(CommandData):
         self.__size_in_bytes = size_in_bytes
 
     @property
-    def stream(self):
+    def stream(self) -> Union[bytes, IO[bytes]]:
         return self.__stream
 
     @property
-    def content_type(self):
+    def content_type(self) -> str:
         return self.__content_type
 
     @property

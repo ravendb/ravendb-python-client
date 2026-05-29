@@ -51,7 +51,10 @@ class DocumentConventions(object):
 
         # Flags
         self.disable_topology_updates = False
-        self.use_optimistic_concurrency = False
+        self._optimistic_concurrency_mode = None
+        # Track which setter the user touched so we can reject mixing them.
+        self._use_optimistic_concurrency_was_set = False
+        self._optimistic_concurrency_mode_was_set = False
         self.throw_if_query_page_size_is_not_set = False
         self._send_application_identifier = True
         self._save_enums_as_integers: Optional[bool] = None
@@ -376,6 +379,39 @@ class DocumentConventions(object):
                 "Conventions has been frozen after documentStore.initialize()" " and no changes can be applied to them"
             )
 
+    @property
+    def optimistic_concurrency_mode(self):
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        return self._optimistic_concurrency_mode or OptimisticConcurrencyMode.NONE
+
+    @optimistic_concurrency_mode.setter
+    def optimistic_concurrency_mode(self, value) -> None:
+        self._assert_not_frozen()
+        if self._use_optimistic_concurrency_was_set:
+            raise RuntimeError("optimistic_concurrency_mode cannot be combined with use_optimistic_concurrency.")
+        self._optimistic_concurrency_mode_was_set = True
+        self._optimistic_concurrency_mode = value
+
+    @property
+    def use_optimistic_concurrency(self) -> bool:
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        return self._optimistic_concurrency_mode not in (None, OptimisticConcurrencyMode.NONE)
+
+    @use_optimistic_concurrency.setter
+    def use_optimistic_concurrency(self, value: bool) -> None:
+        # Legacy bool view: True <-> WRITES, False <-> NONE.
+        from ravendb.documents.session.misc import OptimisticConcurrencyMode
+
+        self._assert_not_frozen()
+        if self._optimistic_concurrency_mode_was_set:
+            raise RuntimeError("use_optimistic_concurrency cannot be combined with optimistic_concurrency_mode.")
+        self._use_optimistic_concurrency_was_set = True
+        self._optimistic_concurrency_mode = (
+            OptimisticConcurrencyMode.WRITES if value else OptimisticConcurrencyMode.NONE
+        )
+
     def clone(self) -> DocumentConventions:
         cloned = DocumentConventions()
         cloned._list_of_registered_id_conventions = [*self._list_of_registered_id_conventions]
@@ -392,7 +428,9 @@ class DocumentConventions(object):
         cloned._find_collection_name = self._find_collection_name
         cloned._find_python_class_name = self.find_python_class_name
 
-        cloned.use_optimistic_concurrency = self.use_optimistic_concurrency
+        cloned._optimistic_concurrency_mode = self._optimistic_concurrency_mode
+        cloned._use_optimistic_concurrency_was_set = self._use_optimistic_concurrency_was_set
+        cloned._optimistic_concurrency_mode_was_set = self._optimistic_concurrency_mode_was_set
         cloned.throw_if_query_page_size_is_not_set = self.throw_if_query_page_size_is_not_set
         cloned.max_number_of_requests_per_session = self.max_number_of_requests_per_session
 

@@ -56,6 +56,8 @@ class Headers:
     ATTACHMENT_REMOTE_PARAMETERS_FLAGS = "Attachment-RemoteParameters-Flags"
     ATTACHMENT_REMOTE_PARAMETERS_IDENTIFIER = "Attachment-RemoteParameters-Identifier"
     DATABASE_MISSING = "Database-Missing"
+    COMMAND_TYPE = "Command-Type"
+    ATTACHMENT_STREAM = "AttachmentStream"
 
     class Encodings:
         GZIP = "gzip"

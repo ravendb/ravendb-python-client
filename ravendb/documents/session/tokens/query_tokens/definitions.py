@@ -576,6 +576,8 @@ class ShapeToken(QueryToken):
 class WhereToken(QueryToken):
     class MethodsType(enum.Enum):
         CMP_X_CHG = "CmpXChg"
+        NOW = "Now"
+        TODAY = "Today"
 
     class WhereMethodCall:
         def __init__(
@@ -674,10 +676,21 @@ class WhereToken(QueryToken):
 
     def __write_method(self, writer: List[str]) -> bool:
         if self.options.method is not None:
-            if self.options.method.method_type == WhereToken.MethodsType.CMP_X_CHG:
+            method_type = self.options.method.method_type
+            if method_type == WhereToken.MethodsType.NOW:
+                writer.append("now(")
+                if self.options.method.parameters:
+                    writer.append("$")
+                    writer.append(self.options.method.parameters[0])
+                writer.append(")")
+                return True
+            if method_type == WhereToken.MethodsType.TODAY:
+                writer.append("today()")
+                return True
+            if method_type == WhereToken.MethodsType.CMP_X_CHG:
                 writer.append("cmpxchg(")
             else:
-                raise ValueError(f"Unsupported method: {self.options.method.method_type}")
+                raise ValueError(f"Unsupported method: {method_type}")
 
             first = True
             for parameter in self.options.method.parameters:

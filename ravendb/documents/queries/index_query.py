@@ -19,6 +19,7 @@ class IndexQueryBase(Generic[_T]):
         self.start: Union[None, int] = None
         self.wait_for_non_stale_results: Union[None, bool] = None
         self.wait_for_non_stale_results_timeout: Union[None, datetime.timedelta] = None
+        self.tag: Optional[str] = None
 
     def __str__(self):
         return self.query
@@ -81,6 +82,7 @@ class IndexQueryBase(Generic[_T]):
             "Start": self.start,
             "WaitForNonStaleResults": self.wait_for_non_stale_results,
             "WaitForNonStaleResultsTimeout": self.wait_for_non_stale_results_timeout,
+            "Tag": self.tag,
         }
 
 

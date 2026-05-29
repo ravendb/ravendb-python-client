@@ -1,4 +1,5 @@
 from __future__ import annotations
+import enum
 import json
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, TypeVar, Generic, Callable
@@ -14,13 +15,28 @@ from ravendb.documents.ai.content_part import ContentPart
 TSchema = TypeVar("TSchema")
 
 
-class AiAgentActionRequest:
-    """Represents an action request from an AI agent."""
+class AiAgentActionRequestType(enum.Enum):
+    USER_ACTION = "UserAction"
+    SUB_AGENT = "SubAgent"
 
-    def __init__(self, name: str = None, tool_id: str = None, arguments: str = None):
+    def __str__(self) -> str:
+        return self.value
+
+
+class AiAgentActionRequest:
+    def __init__(
+        self,
+        name: str = None,
+        tool_id: str = None,
+        arguments: str = None,
+        type: AiAgentActionRequestType = AiAgentActionRequestType.USER_ACTION,
+        sub_conversation_id: Optional[str] = None,
+    ):
         self.name = name
         self.tool_id = tool_id
         self.arguments = arguments
+        self.type = type
+        self.sub_conversation_id = sub_conversation_id
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentActionRequest:
@@ -28,6 +44,8 @@ class AiAgentActionRequest:
             name=json_dict.get("Name"),
             tool_id=json_dict.get("ToolId"),
             arguments=json_dict.get("Arguments"),
+            type=AiAgentActionRequestType(json_dict.get("Type") or "UserAction"),
+            sub_conversation_id=json_dict.get("SubConversationId"),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -35,13 +53,30 @@ class AiAgentActionRequest:
             "Name": self.name,
             "ToolId": self.tool_id,
             "Arguments": self.arguments,
+            "Type": self.type.value,
+            "SubConversationId": self.sub_conversation_id,
         }
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AiAgentActionRequest):
+            return False
+        return (
+            self.tool_id == other.tool_id
+            and self.name == other.name
+            and self.arguments == other.arguments
+            and self.type == other.type
+            and self.sub_conversation_id == other.sub_conversation_id
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.tool_id, self.name, self.arguments, self.type, self.sub_conversation_id))
+
+    def __repr__(self) -> str:
+        return json.dumps(self.to_json())
 
 
 @dataclass
 class AiAgentActionResponse:
-    """Represents a response to an AI agent action request."""
-
     tool_id: Optional[str] = None
     content: Optional[str] = None
 
@@ -58,16 +93,12 @@ class AiAgentActionResponse:
 
 @dataclass
 class AiAgentArtificialActionResponse:
-    """
-    Represents an artificial action (tool call) and response to inject into the model's conversation context.
-    This allows programmatically prompting the agent by making it "believe" it executed a tool.
-    """
-
+    # Synthetic (tool_id, content) pair injected to make the model "believe"
+    # it executed a tool. Sent in addition to a real ActionResponses entry.
     tool_id: Optional[str] = None
     content: Optional[str] = None
 
     def validate(self) -> None:
-        """Validates that tool_id and content are not empty."""
         if not self.tool_id or self.tool_id.isspace():
             raise ValueError("tool_id cannot be None or empty")
         if not self.content or self.content.isspace():
@@ -86,8 +117,6 @@ class AiAgentArtificialActionResponse:
 
 @dataclass
 class AiUsage:
-    """Represents AI token usage statistics."""
-
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -115,27 +144,15 @@ class AiUsage:
 
     @staticmethod
     def get_usage_difference(current: AiUsage, previous: AiUsage) -> AiUsage:
-        """
-        Calculate the usage difference between current and previous usage.
-
-        Args:
-            current: The current usage statistics
-            previous: The previous usage statistics
-
-        Returns:
-            An AiUsage object representing the difference
-        """
+        # cached/completion/reasoning are last-response-only, so they pass
+        # through. prompt/total are clamped against bogus negative model output.
         previous_total_without_reasoning = (
             previous.completion_tokens - previous.reasoning_tokens + previous.prompt_tokens
         )
         return AiUsage(
-            # in case the model gives us crappy results and current.prompt_tokens - previous_total_without_reasoning < 0
             prompt_tokens=max(current.prompt_tokens - previous_total_without_reasoning, 0),
-            # in case the model gives us crappy results and current.total_tokens - previous_total_without_reasoning < 0
             total_tokens=max(current.total_tokens - previous_total_without_reasoning, 0),
-            # we don't want to subtract cached tokens, as they are only for the last response
             cached_tokens=current.cached_tokens,
-            # we don't want to subtract completion tokens, as they are only for the last response
             completion_tokens=current.completion_tokens,
             reasoning_tokens=current.reasoning_tokens,
         )
@@ -158,103 +175,113 @@ class ConversationResult(Generic[TSchema]):
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> ConversationResult:
-        usage = None
-        if json_dict.get("Usage"):
-            usage = AiUsage.from_json(json_dict["Usage"])
-
-        action_requests = None
-        if json_dict.get("ActionRequests"):
-            action_requests = [AiAgentActionRequest.from_json(req) for req in json_dict["ActionRequests"]]
-
         return cls(
             conversation_id=json_dict.get("ConversationId"),
             change_vector=json_dict.get("ChangeVector"),
             response=json_dict.get("Response"),
-            usage=usage,
-            action_requests=action_requests,
+            usage=AiUsage.from_json(json_dict["Usage"]) if json_dict.get("Usage") else None,
+            action_requests=(
+                [AiAgentActionRequest.from_json(req) for req in json_dict["ActionRequests"]]
+                if json_dict.get("ActionRequests")
+                else None
+            ),
         )
 
 
+class AiConversationParameterOptions:
+    def __init__(self, send_to_model: bool = True):
+        self.send_to_model = send_to_model
+
+
+class AiConversationParameter:
+    def __init__(self, value: Any = None, send_to_model: bool = True):
+        self.value = value
+        self.send_to_model = send_to_model
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "Value": self.value.to_json() if callable(getattr(self.value, "to_json", None)) else self.value,
+            "SendToModel": self.send_to_model,
+        }
+
+
 class AiConversationCreationOptions:
-    """
-    Options for creating AI agent conversations, including parameters and expiration settings.
-    """
-
-    def __init__(self, parameters: Optional[Dict[str, Any]] = None, expiration_in_sec: Optional[int] = None):
+    def __init__(
+        self,
+        parameters: Optional[Dict[str, Any]] = None,
+        expiration_in_sec: Optional[int] = None,
+        max_model_iterations_per_call: Optional[int] = None,
+    ):
         self.expiration_in_sec: Optional[int] = expiration_in_sec
-        self.parameters: Optional[Dict[str, Any]] = parameters
+        self.max_model_iterations_per_call: Optional[int] = max_model_iterations_per_call
+        self.parameters: Optional[Dict[str, AiConversationParameter]] = None
+        if parameters:
+            for name, value in parameters.items():
+                self.add_parameter(name, value)
 
-    def add_parameter(self, name: str, value: Any) -> AiConversationCreationOptions:
-        """
-        Adds a parameter to the conversation creation options.
-
-        Args:
-            name: The parameter name
-            value: The parameter value
-
-        Returns:
-            Self for method chaining
-        """
+    def add_parameter(
+        self,
+        name: str,
+        value: Any,
+        options: Optional[AiConversationParameterOptions] = None,
+    ) -> AiConversationCreationOptions:
+        # `value` may be a raw value (wrapped here) or an AiConversationParameter.
         if self.parameters is None:
             self.parameters = {}
+        if not isinstance(value, AiConversationParameter):
+            value = AiConversationParameter(
+                value=value,
+                send_to_model=options.send_to_model if options else True,
+            )
         self.parameters[name] = value
         return self
 
     def to_json(self) -> Dict[str, Any]:
-        """
-        Converts the creation options to a JSON-serializable dictionary.
-
-        Returns:
-            Dictionary representation of the creation options
-        """
-        return {"ExpirationInSec": self.expiration_in_sec, "Parameters": self.parameters}
+        return {
+            "ExpirationInSec": self.expiration_in_sec,
+            "MaxModelIterationsPerCall": self.max_model_iterations_per_call,
+            "Parameters": (
+                {name: param.to_json() for name, param in self.parameters.items()}
+                if self.parameters is not None
+                else None
+            ),
+        }
 
 
 class ConversationRequestBody:
-    """
-    Request body for AI agent conversation operations, containing user prompts,
-    action responses, artificial actions, and creation options.
-    """
-
     def __init__(
         self,
         action_responses: Optional[List[AiAgentActionResponse]] = None,
         artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = None,
         user_prompt: Optional[List[ContentPart]] = None,
         creation_options: Optional[AiConversationCreationOptions] = None,
+        attachment_commands: Optional[List[Any]] = None,
     ):
         self.action_responses: Optional[List[AiAgentActionResponse]] = action_responses
         self.artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = artificial_actions
-        self.user_prompt: Optional[List[ContentPart]] = user_prompt  # List of ContentPart objects
+        self.user_prompt: Optional[List[ContentPart]] = user_prompt
         self.creation_options: Optional[AiConversationCreationOptions] = creation_options
+        self.attachment_commands: Optional[List[Any]] = attachment_commands
 
     def to_json(self) -> Dict[str, Any]:
-        """
-        Converts the request body to a JSON-serializable dictionary.
-
-        Returns:
-            Dictionary representation of the request body
-        """
         return {
             "ActionResponses": (
-                None if self.action_responses is None else [resp.to_json() for resp in self.action_responses]
+                [resp.to_json() for resp in self.action_responses] if self.action_responses is not None else None
             ),
             "ArtificialActions": (
-                None if self.artificial_actions is None else [resp.to_json() for resp in self.artificial_actions]
+                [resp.to_json() for resp in self.artificial_actions] if self.artificial_actions is not None else None
             ),
             "CreationOptions": (self.creation_options or AiConversationCreationOptions()).to_json(),
-            "UserPrompt": None if self.user_prompt is None else [part.to_json() for part in self.user_prompt],
+            "UserPrompt": [part.to_json() for part in self.user_prompt] if self.user_prompt is not None else None,
+            "AttachmentCommands": (
+                [cmd.serialize(None) for cmd in self.attachment_commands]
+                if self.attachment_commands is not None
+                else None
+            ),
         }
 
 
 class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]):
-    """
-    Operation for running AI agent conversations.
-
-    Both agent_id and conversation_id are required. The agent_id identifies which AI agent to use,
-    while conversation_id tracks the conversation state across multiple turns.
-    """
-
     def __init__(
         self,
         agent_id: str,
@@ -266,21 +293,8 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         change_vector: Optional[str] = None,
         stream_property_path: Optional[str] = None,
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
+        attachments_commands: Optional[List[Any]] = None,
     ):
-        """
-        Initialize a RunConversationOperation.
-
-        Args:
-            agent_id: The ID of the AI agent (required)
-            conversation_id: The ID of the conversation (required)
-            prompt_parts: List of ContentPart objects to send to the agent
-            action_responses: List of action responses from previous turn
-            artificial_actions: List of artificial actions to inject into conversation context
-            options: Creation options including parameters and expiration
-            change_vector: Change vector for optimistic concurrency
-            stream_property_path: Optional response property name to stream
-            streamed_chunks_callback: Optional callback invoked per streamed chunk
-        """
         if not agent_id or (isinstance(agent_id, str) and agent_id.isspace()):
             raise ValueError("agent_id cannot be None or empty")
         if not conversation_id or (isinstance(conversation_id, str) and conversation_id.isspace()):
@@ -297,6 +311,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         self._change_vector = change_vector
         self._stream_property_path = stream_property_path
         self._streamed_chunks_callback = streamed_chunks_callback
+        self._attachments_commands = attachments_commands or []
 
     def get_command(self, conventions: DocumentConventions) -> RavenCommand[ConversationResult[TSchema]]:
         return RunConversationCommand(
@@ -310,6 +325,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             stream_property_path=self._stream_property_path,
             streamed_chunks_callback=self._streamed_chunks_callback,
             conventions=conventions,
+            attachments_commands=self._attachments_commands,
         )
 
 
@@ -326,8 +342,10 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         stream_property_path: Optional[str] = None,
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         conventions: Optional[DocumentConventions] = None,
+        attachments_commands: Optional[List[Any]] = None,
     ):
         from ravendb.util.util import RaftIdGenerator
+        from ravendb.documents.commands.batches import PutAttachmentCommandData
 
         super().__init__(ConversationResult)
         self._agent_id = agent_id
@@ -340,78 +358,103 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         self._stream_property_path = stream_property_path
         self._streamed_chunks_callback = streamed_chunks_callback
         self._conventions = conventions
-        self._raft_id = RaftIdGenerator.dont_care_id()
+        self._attachments_commands = attachments_commands or []
+
+        # Raft id pinned at construction so retries keep the same id.
+        self._raft_id = (
+            RaftIdGenerator.new_id() if self._conversation_id.endswith("|") else RaftIdGenerator.dont_care_id()
+        )
+
+        # Each PutAttachmentCommandData must carry a unique stream — re-using
+        # a stream across commands corrupts the multipart upload.
+        seen_streams = set()
+        self._put_attachments: List[PutAttachmentCommandData] = []
+        for cmd in self._attachments_commands:
+            if isinstance(cmd, PutAttachmentCommandData):
+                stream = cmd.stream
+                if stream is None:
+                    continue
+                stream_id = id(stream)
+                if stream_id in seen_streams:
+                    raise RuntimeError(
+                        "It is forbidden to re-use the same stream for more than one attachment. "
+                        "Use a unique stream per put attachment command."
+                    )
+                seen_streams.add(stream_id)
+                self._put_attachments.append(cmd)
 
     def is_read_request(self) -> bool:
         return False
 
     def create_request(self, node: ServerNode) -> requests.Request:
         from urllib.parse import quote
-        from ravendb.util.util import RaftIdGenerator
+        from ravendb.primitives.constants import Headers
 
-        # Build URL with required query parameters
         url = (
             f"{node.url}/databases/{node.database}/ai/agent"
             f"?conversationId={quote(self._conversation_id)}"
             f"&agentId={quote(self._agent_id)}"
         )
-
-        # Check if this is a Raft operation (conversation_id ends with '|')
-        if self._conversation_id.endswith("|"):
-            self._raft_id = RaftIdGenerator.new_id()
-
-        # Add changeVector to URL if provided (for optimistic concurrency)
         if self._change_vector:
             url += f"&changeVector={quote(self._change_vector)}"
-
-        # Add streaming flags if requested
         if self._stream_property_path:
             url += f"&streaming=true&streamPropertyPath={quote(self._stream_property_path)}"
 
-        # Build request body with correct structure to match .NET client
         request_body = ConversationRequestBody(
             action_responses=self._action_responses,
             artificial_actions=self._artificial_actions,
             user_prompt=self._prompt_parts,
             creation_options=self._options,
+            attachment_commands=self._attachments_commands if self._attachments_commands else None,
         )
-
         body = json.dumps(request_body.to_json())
-
-        # Create request
         request = requests.Request("POST", url)
-        request.headers = {"Content-Type": "application/json"}
 
-        request.data = body
+        if self._attachments_commands:
+            # Positional multipart matching the server's MultipartReader
+            # (AbstractAiAgentProcessor.ParseMultipartAsync on v7.2):
+            #   0: conversation body, 1: {"Commands": [...]}, 2+: streams.
+            commands_payload = json.dumps(
+                {"Commands": [cmd.serialize(self._conventions) for cmd in self._attachments_commands]}
+            )
+            files = {
+                "body": (None, body, "application/json"),
+                "commands": (None, commands_payload, "application/json"),
+            }
+            for put in self._put_attachments:
+                files[put.name] = (
+                    put.name,
+                    put.stream,
+                    put.content_type,
+                    {Headers.COMMAND_TYPE: Headers.ATTACHMENT_STREAM},
+                )
+            request.files = files
+        else:
+            request.headers = {"Content-Type": "application/json"}
+            request.data = body
         return request
 
-    # todo: this should be handled by writing custom set_response_raw method, and ravendcommandresponsetype set to RAW
+    # todo: rewrite via custom set_response_raw + RAW response type
     def process_response(self, cache, response: requests.Response, url) -> ResponseDisposeHandling:
-        # If not streaming, delegate to the default handler
         if not self._stream_property_path:
             return super().process_response(cache, response, url)
 
-        try:
-            for line in response.iter_lines(decode_unicode=True):
-                if not line:
-                    continue
-                if line.startswith("{"):
-                    response_json = json.loads(line)
-                    self.result = ConversationResult.from_json(response_json)
-                    return ResponseDisposeHandling.AUTOMATIC
-                # Non-final lines are JSON-encoded strings (e.g. "\\\"chunk\\\"")
-                try:
-                    chunk = json.loads(line)
-                except Exception:
-                    chunk = line
-                if self._streamed_chunks_callback:
-                    self._streamed_chunks_callback(chunk)
-            # No final JSON object received; set empty result
-            self.result = ConversationResult()
-            return ResponseDisposeHandling.AUTOMATIC
-        finally:
-            # Response will be closed by RequestExecutor when AUTOMATIC is returned
-            pass
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            if line.startswith("{"):
+                response_json = json.loads(line)
+                self.result = ConversationResult.from_json(response_json)
+                return ResponseDisposeHandling.AUTOMATIC
+            # Non-final lines are JSON-encoded chunks (e.g. "\\\"chunk\\\"").
+            try:
+                chunk = json.loads(line)
+            except Exception:
+                chunk = line
+            if self._streamed_chunks_callback:
+                self._streamed_chunks_callback(chunk)
+        self.result = ConversationResult()
+        return ResponseDisposeHandling.AUTOMATIC
 
     def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
         if self._stream_property_path:
@@ -424,7 +467,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
 
     def set_response(self, response: str, from_cache: bool) -> None:
         if response is None:
-            self.result = ConversationResult()  # Uses default constructor with all None values
+            self.result = ConversationResult()
             return
 
         response_json = json.loads(response)

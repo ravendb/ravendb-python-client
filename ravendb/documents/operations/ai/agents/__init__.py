@@ -1,6 +1,8 @@
 from .ai_agent_configuration import (
     AiAgentConfiguration,
     AiAgentParameter,
+    AiAgentParameterPolicy,
+    AiAgentParameterValueType,
     AiAgentToolAction,
     AiAgentToolQuery,
     AiAgentToolQueryOptions,
@@ -10,6 +12,7 @@ from .ai_agent_configuration import (
     AiAgentTruncateChat,
     AiAgentHistoryConfiguration,
 )
+from .ai_agent_tool_sub_agent import AiAgentToolSubAgent
 
 from .add_or_update_ai_agent_operation import (
     AddOrUpdateAiAgentOperation,
@@ -27,19 +30,25 @@ from .run_conversation_operation import (
     RunConversationOperation,
     ConversationResult,
     AiAgentActionRequest,
+    AiAgentActionRequestType,
     AiAgentActionResponse,
     AiAgentArtificialActionResponse,
     AiUsage,
     AiConversationCreationOptions,
+    AiConversationParameter,
+    AiConversationParameterOptions,
 )
 
 __all__ = [
     "AiAgentConfiguration",
     "AiAgentConfigurationResult",
     "AiAgentParameter",
+    "AiAgentParameterPolicy",
+    "AiAgentParameterValueType",
     "AiAgentToolAction",
     "AiAgentToolQuery",
     "AiAgentToolQueryOptions",
+    "AiAgentToolSubAgent",
     "AiAgentPersistenceConfiguration",
     "AiAgentChatTrimmingConfiguration",
     "AiAgentSummarizationByTokens",
@@ -48,10 +57,13 @@ __all__ = [
     "RunConversationOperation",
     "ConversationResult",
     "AiAgentActionRequest",
+    "AiAgentActionRequestType",
     "AiAgentActionResponse",
     "AiAgentArtificialActionResponse",
     "AiUsage",
     "AiConversationCreationOptions",
+    "AiConversationParameter",
+    "AiConversationParameterOptions",
     "GetAiAgentOperation",
     "GetAiAgentsResponse",
     "AddOrUpdateAiAgentOperation",

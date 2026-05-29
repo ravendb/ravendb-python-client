@@ -862,6 +862,73 @@ class TestStoreApiIntegration(TestBase):
         self.assertEqual(2, len(fired))
         self.store.remove_after_save_changes(on_after)
 
+    def test_track_changes_mode_evicts_cache_on_out_of_band_modification(self):
+        """End-to-end: under TRACK_CHANGES mode, a modification made through a
+        second session must invalidate the aggressive cache so that the next
+        load returns the new value rather than the cached one."""
+        import time
+        from ravendb.http.misc import AggressiveCacheMode
+
+        class Doc:
+            def __init__(self, name=None):
+                self.name = name
+
+        with self.store.open_session() as session:
+            session.store(Doc("v1"), "docs/track/1")
+            session.save_changes()
+
+        with self.store.aggressively_cache_for(datetime.timedelta(minutes=5), mode=AggressiveCacheMode.TRACK_CHANGES):
+            with self.store.open_session() as session:
+                self.assertEqual("v1", session.load("docs/track/1", Doc).name)
+
+            # Out-of-band modification — a fresh executor would not see the
+            # cached value, but the executor inside this scope still must
+            # because the Changes API notification evicts the cache entry.
+            with self.store.open_session() as session:
+                session.load("docs/track/1", Doc).name = "v2"
+                session.save_changes()
+
+            deadline = time.time() + 10
+            observed = None
+            while time.time() < deadline:
+                with self.store.open_session() as session:
+                    observed = session.load("docs/track/1", Doc).name
+                if observed == "v2":
+                    break
+                time.sleep(0.1)
+
+            self.assertEqual("v2", observed)
+
+    def test_do_not_track_changes_serves_cached_value_after_out_of_band_modification(self):
+        """End-to-end: under DO_NOT_TRACK_CHANGES, no Changes API subscription
+        is opened, so an out-of-band modification within the scope is not
+        observed — the cached value is served for the duration of the scope."""
+        from ravendb.http.misc import AggressiveCacheMode
+
+        class Doc:
+            def __init__(self, name=None):
+                self.name = name
+
+        with self.store.open_session() as session:
+            session.store(Doc("v1"), "docs/notrack/1")
+            session.save_changes()
+
+        with self.store.aggressively_cache_for(
+            datetime.timedelta(minutes=5), mode=AggressiveCacheMode.DO_NOT_TRACK_CHANGES
+        ):
+            with self.store.open_session() as session:
+                self.assertEqual("v1", session.load("docs/notrack/1", Doc).name)
+
+            with self.store.open_session() as session:
+                session.load("docs/notrack/1", Doc).name = "v2"
+                session.save_changes()
+
+            with self.store.open_session() as session:
+                self.assertEqual("v1", session.load("docs/notrack/1", Doc).name)
+
+        with self.store.open_session() as session:
+            self.assertEqual("v2", session.load("docs/notrack/1", Doc).name)
+
     def test_cache_context_does_not_affect_event_registration(self):
         """Entering/exiting the cache context does not remove registered event handlers."""
         store = self.store
