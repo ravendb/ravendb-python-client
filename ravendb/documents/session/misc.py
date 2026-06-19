@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime
 import hashlib
+import json
 import threading
 from abc import ABC
 from enum import Enum
@@ -338,15 +339,26 @@ class JavaScriptMap(Generic[_T_Key, _T_Value]):
         self._arg_counter += 1
         return f"val_{self._arg_counter - 1}_{self._suffix}"
 
+    @staticmethod
+    def _format_key_for_javascript(key: _T_Key) -> str:
+        # Emit the key as a JS string literal (with surrounding quotes and proper escaping) so that keys
+        # containing dots, spaces, quotes, or numeric/special characters are handled correctly.
+        if key is None:
+            raise ValueError("Dictionary key cannot be None")
+        return json.dumps(str(key))
+
     def put(self, key: _T_Key, value: _T_Value) -> JavaScriptMap[_T_Key, _T_Value]:
         argument_name = self._get_next_argument_name()
 
-        self._script_lines.append(f"this.{self._path_to_map}.{key} = args.{argument_name};")
+        formatted_key = self._format_key_for_javascript(key)
+        self._script_lines.append(f"this.{self._path_to_map}[{formatted_key}] = args.{argument_name};")
         self.parameters[argument_name] = value
         return self
 
     def remove(self, key: _T_Key) -> JavaScriptMap[_T_Key, _T_Value]:
-        self._script_lines.append(f"delete this.{self._path_to_map}.{key};")
+        formatted_key = self._format_key_for_javascript(key)
+        self._script_lines.append(f"delete this.{self._path_to_map}[{formatted_key}];")
+        return self
 
 
 class MethodCall(ABC):
@@ -376,6 +388,25 @@ class OrderingType(Enum):
     LONG = " AS long"
     FLOAT = " AS double"
     ALPHA_NUMERIC = " AS alphaNumeric"
+
+    def __str__(self):
+        return self.value
+
+
+class NullsOrdering(Enum):
+    """
+    Controls where ``null`` values are placed in the result of an ``ORDER BY`` clause.
+
+    Per-query null placement (``FIRST`` / ``LAST``) is supported only by the Corax indexing engine.
+    Queries that specify ``FIRST`` or ``LAST`` against a Lucene index are rejected.
+    """
+
+    # No per-query placement is specified; the index/server configuration decides where nulls go.
+    DEFAULT = "Default"
+    # Null values appear first in the result, regardless of sort direction. Corax only.
+    FIRST = "First"
+    # Null values appear last in the result, regardless of sort direction. Corax only.
+    LAST = "Last"
 
     def __str__(self):
         return self.value

@@ -18,3 +18,4 @@
 *.raven-cluster-topology
 /build/lib/ravendb
 /venv/
+/.venv/

@@ -25,10 +25,20 @@ class ChunkingOptions:
         chunking_method: Optional[ChunkingMethod] = None,
         max_tokens_per_chunk: int = 512,
         overlap_tokens: int = 0,
+        context_prefix: Optional[str] = None,
     ):
         self.chunking_method = chunking_method
         self.max_tokens_per_chunk = max_tokens_per_chunk
         self.overlap_tokens = overlap_tokens
+
+        # Optional constant text prepended to every produced chunk before it is sent to the embedding model.
+        # Useful for adding broader document context (e.g. title) to isolated chunks. The prefix's tokens count
+        # against max_tokens_per_chunk - the effective chunking budget is reduced accordingly.
+        self.context_prefix = context_prefix
+
+        # Internal-only marker: when set, the value is emitted unchunked with context_prefix prepended, and
+        # max_tokens_per_chunk / overlap_tokens are ignored. Never set by user-constructed config; not serialized.
+        self.no_chunking = False
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "ChunkingOptions":
@@ -36,6 +46,7 @@ class ChunkingOptions:
             chunking_method=ChunkingMethod(json_dict["ChunkingMethod"]),
             max_tokens_per_chunk=json_dict.get("MaxTokensPerChunk", None),
             overlap_tokens=json_dict.get("OverlapTokens", None),
+            context_prefix=json_dict.get("ContextPrefix", None),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -43,6 +54,7 @@ class ChunkingOptions:
             "ChunkingMethod": self.chunking_method.value if self.chunking_method else None,
             "MaxTokensPerChunk": self.max_tokens_per_chunk,
             "OverlapTokens": self.overlap_tokens,
+            "ContextPrefix": self.context_prefix,
         }
 
     def validate(self, source: str, errors: List[str]) -> None:
@@ -52,6 +64,16 @@ class ChunkingOptions:
             source: The source context for error messages (e.g., 'embeddings.generate').
             errors: List to append validation errors to.
         """
+        if self.context_prefix is not None and not self.context_prefix.strip():
+            errors.append(
+                f"{source}: ContextPrefix cannot be empty or whitespace-only. "
+                f"Either provide a non-empty value or omit it."
+            )
+
+        # no_chunking is set only by the with_context_prefix handler on raw strings/arrays and bypasses budget rules.
+        if self.no_chunking:
+            return
+
         if self.max_tokens_per_chunk <= 0:
             errors.append(f"{source}: MaxTokensPerChunk must be greater than 0.")
 
@@ -87,7 +109,17 @@ class ChunkingOptions:
             self.chunking_method == other.chunking_method
             and self.max_tokens_per_chunk == other.max_tokens_per_chunk
             and self.overlap_tokens == other.overlap_tokens
+            and self.context_prefix == other.context_prefix
+            and self.no_chunking == other.no_chunking
         )
 
     def __hash__(self) -> int:
-        return hash((self.chunking_method, self.max_tokens_per_chunk, self.overlap_tokens))
+        return hash(
+            (
+                self.chunking_method,
+                self.max_tokens_per_chunk,
+                self.overlap_tokens,
+                self.context_prefix,
+                self.no_chunking,
+            )
+        )

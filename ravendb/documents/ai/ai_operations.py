@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, Any, Type
+from typing import TYPE_CHECKING, Dict, Any, Optional, Type
 
 import warnings
 
@@ -77,6 +77,7 @@ class AiOperations:
         conversation_id: str,
         creation_options: "AiConversationCreationOptions" = None,
         change_vector: str = None,
+        debug: Optional[bool] = None,
     ) -> AiConversation:
         """
         Creates a new conversation with the specified AI agent.
@@ -86,12 +87,13 @@ class AiOperations:
             conversation_id: The unique identifier for the conversation. You can also use e.g. chats/ for automatic id.
             creation_options: Optional creation options for the conversation
             change_vector: Optional change vector for concurrency control
+            debug: Optional flag enabling server-side conversation debugging
 
         Returns:
             Conversation operations interface for managing the conversation
         """
 
-        return AiConversation(self._store, agent_id, creation_options, conversation_id, change_vector)
+        return AiConversation(self._store, agent_id, creation_options, conversation_id, change_vector, debug)
 
     def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> AiConversation:
         """
