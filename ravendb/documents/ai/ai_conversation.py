@@ -42,18 +42,21 @@ class AiConversation:
         options: AiConversationCreationOptions = None,
         conversation_id: str = None,
         change_vector: str = None,
+        debug: Optional[bool] = None,
     ):
         self._store = store
         self._agent_id = agent_id
         self._options = options or AiConversationCreationOptions()
         self._conversation_id = conversation_id
         self._change_vector = change_vector
+        self._debug = debug
 
         self._prompt_parts: List[ContentPart] = []
         self._action_responses: Dict[str, AiAgentActionResponse] = {}
         self._artificial_actions: List[AiAgentArtificialActionResponse] = []
         self._action_requests: Optional[List[AiAgentActionRequest]] = None
         self._attachments_commands: List = []
+        self._dispatched_tool_ids: set = set()
 
         self._invocations: Dict[str, Callable[[AiAgentActionRequest], None]] = {}
         self.on_unhandled_action: Optional[Callable[[UnhandledActionEventArgs], None]] = None
@@ -135,6 +138,8 @@ class AiConversation:
         self._artificial_actions.append(AiAgentArtificialActionResponse(tool_id=tool_id, content=content))
 
     def run(self) -> AiAnswer:
+        self._dispatched_tool_ids.clear()
+
         while True:
             r = self._run_internal()
             if self._handle_server_reply(r):
@@ -154,9 +159,10 @@ class AiConversation:
         from ravendb.documents.operations.ai.agents import RunConversationOperation
         import time
 
-        # Already round-tripped and nothing new to send.
+        # Already round-tripped and nothing new to send (no pending actions either).
         if (
             self._action_requests is not None
+            and len(self._action_requests) == 0
             and len(self._prompt_parts) == 0
             and len(self._action_responses) == 0
             and len(self._artificial_actions) == 0
@@ -187,6 +193,7 @@ class AiConversation:
             stream_property_path=stream_property_path,
             streamed_chunks_callback=streamed_chunks_callback,
             attachments_commands=self._attachments_commands,
+            debug=self._debug,
         )
 
         try:
@@ -225,6 +232,11 @@ class AiConversation:
             )
 
         for action in self._action_requests:
+            # Skip actions we've already dispatched in a previous turn of this run
+            if action.tool_id in self._dispatched_tool_ids:
+                continue
+            self._dispatched_tool_ids.add(action.tool_id)
+
             if action.name in self._invocations:
                 self._invocations[action.name](action)
             elif self.on_unhandled_action is not None:

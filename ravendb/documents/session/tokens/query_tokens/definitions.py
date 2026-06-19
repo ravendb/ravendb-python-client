@@ -13,7 +13,7 @@ from ravendb.documents.session.time_series import (
     TimeSeriesCountRange,
 )
 from ravendb.primitives import constants
-from ravendb.documents.session.misc import OrderingType
+from ravendb.documents.session.misc import OrderingType, NullsOrdering
 from ravendb.documents.indexes.spatial.configuration import SpatialUnits
 from ravendb.documents.queries.group_by import GroupByMethod
 from ravendb.documents.queries.misc import SearchOperator
@@ -273,7 +273,13 @@ class OrderByToken(QueryToken):
     def score_descending(cls) -> OrderByToken:
         return cls("score()", True, OrderingType.STRING)
 
-    def __init__(self, field_name: str, descending: bool, ordering_or_sorter_name: Union[OrderingType, str]):
+    def __init__(
+        self,
+        field_name: str,
+        descending: bool,
+        ordering_or_sorter_name: Union[OrderingType, str],
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
+    ):
         self.__field_name = field_name
         self.__descending = descending
 
@@ -282,10 +288,15 @@ class OrderByToken(QueryToken):
 
         self.__ordering = ordering_or_sorter_name if is_ordering else None
         self.__sorter_name = None if is_ordering else ordering_or_sorter_name
+        self.__nulls_ordering = nulls if nulls is not None else NullsOrdering.DEFAULT
 
     @classmethod
     def create_distance_ascending_wkt(
-        cls, field_name: str, wkt_parameter_name: str, round_factor_parameter_name: str
+        cls,
+        field_name: str,
+        wkt_parameter_name: str,
+        round_factor_parameter_name: str,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> OrderByToken:
         return cls(
             f"spatial.distance({field_name}), "
@@ -293,6 +304,7 @@ class OrderByToken(QueryToken):
             f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             False,
             OrderingType.STRING,
+            nulls,
         )
 
     @classmethod
@@ -302,6 +314,7 @@ class OrderByToken(QueryToken):
         latitude_parameter_name: str,
         longitude_parameter_name: str,
         round_factor_parameter_name: str,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> OrderByToken:
         return cls(
             f"spatial.distance({field_name}, "
@@ -310,16 +323,24 @@ class OrderByToken(QueryToken):
             f"{'' if round_factor_parameter_name is None else ', $'+round_factor_parameter_name})",
             False,
             OrderingType.STRING,
+            nulls,
         )
 
     @classmethod
-    def create_distance_descending_wkt(cls, field_name: str, wkt_parameter_name: str, round_factor_parameter_name: str):
+    def create_distance_descending_wkt(
+        cls,
+        field_name: str,
+        wkt_parameter_name: str,
+        round_factor_parameter_name: str,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
+    ):
         return cls(
             f"spatial.distance({field_name}, "
             f"spatial.wkt(${wkt_parameter_name})"
             f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             True,
             OrderingType.STRING,
+            nulls,
         )
 
     @classmethod
@@ -329,6 +350,7 @@ class OrderByToken(QueryToken):
         latitude_parameter_name: str,
         longitude_parameter_name: str,
         round_factor_parameter_name: str,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> OrderByToken:
         return cls(
             f"spatial.distance({field_name}, "
@@ -337,6 +359,7 @@ class OrderByToken(QueryToken):
             f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             True,
             OrderingType.STRING,
+            nulls,
         )
 
     @classmethod
@@ -347,12 +370,22 @@ class OrderByToken(QueryToken):
         return cls("random('" + seed.replace("'", "''") + "')", False, OrderingType.STRING)
 
     @classmethod
-    def create_ascending(cls, field_name: str, sorter_name_or_ordering_type: Union[OrderingType, str]) -> OrderByToken:
-        return cls(field_name, False, sorter_name_or_ordering_type)
+    def create_ascending(
+        cls,
+        field_name: str,
+        sorter_name_or_ordering_type: Union[OrderingType, str],
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
+    ) -> OrderByToken:
+        return cls(field_name, False, sorter_name_or_ordering_type, nulls)
 
     @classmethod
-    def create_descending(cls, field_name: str, sorter_name_or_ordering_type: Union[OrderingType, str]) -> OrderByToken:
-        return cls(field_name, True, sorter_name_or_ordering_type)
+    def create_descending(
+        cls,
+        field_name: str,
+        sorter_name_or_ordering_type: Union[OrderingType, str],
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
+    ) -> OrderByToken:
+        return cls(field_name, True, sorter_name_or_ordering_type, nulls)
 
     def write_to(self, writer: List[str]) -> None:
         if self.__sorter_name is not None:
@@ -374,6 +407,11 @@ class OrderByToken(QueryToken):
 
         if self.__descending:
             writer.append(" desc")
+
+        if self.__nulls_ordering == NullsOrdering.FIRST:
+            writer.append(" nulls first")
+        elif self.__nulls_ordering == NullsOrdering.LAST:
+            writer.append(" nulls last")
 
 
 class GroupByToken(QueryToken):

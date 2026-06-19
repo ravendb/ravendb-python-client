@@ -56,7 +56,13 @@ from ravendb.documents.queries.utils import QueryFieldUtil
 from ravendb.exceptions.exceptions import InvalidOperationException
 from ravendb.documents.session.event_args import BeforeQueryEventArgs
 from ravendb.documents.session.loaders.include import IncludeBuilderBase, QueryIncludeBuilder
-from ravendb.documents.session.misc import MethodCall, CmpXchg, OrderingType, DocumentQueryCustomization
+from ravendb.documents.session.misc import (
+    MethodCall,
+    CmpXchg,
+    OrderingType,
+    NullsOrdering,
+    DocumentQueryCustomization,
+)
 from ravendb.documents.session.operations.lazy import LazyQueryOperation
 from ravendb.documents.session.operations.query import QueryOperation
 from ravendb.documents.session.query_group_by import GroupByDocumentQuery
@@ -806,7 +812,10 @@ class AbstractDocumentQuery(Generic[_T]):
         where_token.options.proximity = proximity
 
     def _order_by(
-        self, field: str, sorter_name_or_ordering_type: Optional[Union[str, OrderingType]] = OrderingType.STRING
+        self,
+        field: str,
+        sorter_name_or_ordering_type: Optional[Union[str, OrderingType]] = OrderingType.STRING,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> None:
         is_ordering_type = isinstance(sorter_name_or_ordering_type, OrderingType)
         if not is_ordering_type and sorter_name_or_ordering_type.isspace():
@@ -814,10 +823,13 @@ class AbstractDocumentQuery(Generic[_T]):
 
         self.__assert_no_raw_query()
         f = self._ensure_valid_field_name(field, False)
-        self._order_by_tokens.append(OrderByToken.create_ascending(f, sorter_name_or_ordering_type))
+        self._order_by_tokens.append(OrderByToken.create_ascending(f, sorter_name_or_ordering_type, nulls))
 
     def _order_by_descending(
-        self, field: str, sorter_name_or_ordering_type: Optional[Union[str, OrderingType]] = OrderingType.STRING
+        self,
+        field: str,
+        sorter_name_or_ordering_type: Optional[Union[str, OrderingType]] = OrderingType.STRING,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> None:
         is_ordering_type = isinstance(sorter_name_or_ordering_type, OrderingType)
         if not is_ordering_type and sorter_name_or_ordering_type.isspace():
@@ -825,7 +837,7 @@ class AbstractDocumentQuery(Generic[_T]):
 
         self.__assert_no_raw_query()
         f = self._ensure_valid_field_name(field, False)
-        self._order_by_tokens.append(OrderByToken.create_descending(f, sorter_name_or_ordering_type))
+        self._order_by_tokens.append(OrderByToken.create_descending(f, sorter_name_or_ordering_type, nulls))
 
     def _order_by_score(self) -> None:
         self.__assert_no_raw_query()
@@ -1515,6 +1527,7 @@ class AbstractDocumentQuery(Generic[_T]):
         latitude: float,
         longitude: float,
         round_factor: float = 0,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> None:
         is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
         if is_dynamic_field:
@@ -1534,6 +1547,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 self.__add_query_parameter(latitude),
                 self.__add_query_parameter(longitude),
                 round_factor_parameter_name,
+                nulls,
             )
         )
 
@@ -1542,6 +1556,7 @@ class AbstractDocumentQuery(Generic[_T]):
         field_or_field_name: Union[DynamicSpatialField, str],
         shape_wkt: str,
         round_factor: float = 0,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> None:
         is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
         if is_dynamic_field:
@@ -1556,7 +1571,7 @@ class AbstractDocumentQuery(Generic[_T]):
 
         round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
         self._order_by_tokens.append(
-            OrderByToken.create_distance_ascending_wkt(field_name, shape_wkt, round_factor_parameter_name)
+            OrderByToken.create_distance_ascending_wkt(field_name, shape_wkt, round_factor_parameter_name, nulls)
         )
 
     def _order_by_distance_descending(
@@ -1565,6 +1580,7 @@ class AbstractDocumentQuery(Generic[_T]):
         latitude: float,
         longitude: float,
         round_factor: float = 0,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> None:
         is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
 
@@ -1586,6 +1602,7 @@ class AbstractDocumentQuery(Generic[_T]):
                 self.__add_query_parameter(latitude),
                 self.__add_query_parameter(longitude),
                 round_factor_parameter_name,
+                nulls,
             )
         )
 
@@ -1594,6 +1611,7 @@ class AbstractDocumentQuery(Generic[_T]):
         field_or_field_name: Union[DynamicSpatialField, str],
         shape_wkt: str,
         round_factor: float = 0,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ):
         is_dynamic_field = isinstance(field_or_field_name, DynamicSpatialField)
 
@@ -1609,7 +1627,7 @@ class AbstractDocumentQuery(Generic[_T]):
         round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
 
         self._order_by_tokens.append(
-            OrderByToken.create_distance_descending_wkt(field_name, shape_wkt, round_factor_parameter_name)
+            OrderByToken.create_distance_descending_wkt(field_name, shape_wkt, round_factor_parameter_name, nulls)
         )
 
     def _init_sync(self) -> None:
@@ -1859,12 +1877,16 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         return self
 
     def add_order(
-        self, field_name: str, descending: bool, ordering: OrderingType = OrderingType.STRING
+        self,
+        field_name: str,
+        descending: bool,
+        ordering: OrderingType = OrderingType.STRING,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
         if descending:
-            self._order_by_descending(field_name, ordering)
+            self._order_by_descending(field_name, ordering, nulls)
         else:
-            self._order_by(field_name, ordering)
+            self._order_by(field_name, ordering, nulls)
         return self
 
     def add_after_query_executed_listener(self, action: Callable[[QueryResult], None]) -> DocumentQuery[_T]:
@@ -2536,15 +2558,21 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         return self.create_document_query_internal(t_result_class)
 
     def order_by(
-        self, field: str, sorter_name_or_ordering_type: Union[str, OrderingType] = OrderingType.STRING
+        self,
+        field: str,
+        sorter_name_or_ordering_type: Union[str, OrderingType] = OrderingType.STRING,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
-        self._order_by(field, sorter_name_or_ordering_type)
+        self._order_by(field, sorter_name_or_ordering_type, nulls)
         return self
 
     def order_by_descending(
-        self, field: str, sorter_name_or_ordering_type: Union[str, OrderingType] = OrderingType.STRING
+        self,
+        field: str,
+        sorter_name_or_ordering_type: Union[str, OrderingType] = OrderingType.STRING,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
-        self._order_by_descending(field, sorter_name_or_ordering_type)
+        self._order_by_descending(field, sorter_name_or_ordering_type, nulls)
         return self
 
     def add_before_query_executed_listener(self, action: Callable[[IndexQuery], None]) -> DocumentQuery[_T]:
@@ -2700,14 +2728,18 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         latitude: float,
         longitude: float,
         round_factor: Optional[float] = 0.0,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
-        self._order_by_distance(field_or_field_name, latitude, longitude, round_factor)
+        self._order_by_distance(field_or_field_name, latitude, longitude, round_factor, nulls)
         return self
 
     def order_by_distance_wkt(
-        self, field_or_field_name: Union[str, DynamicSpatialField], shape_wkt: str
+        self,
+        field_or_field_name: Union[str, DynamicSpatialField],
+        shape_wkt: str,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
-        self._order_by_distance_wkt(field_or_field_name, shape_wkt)
+        self._order_by_distance_wkt(field_or_field_name, shape_wkt, nulls=nulls)
         return self
 
     def order_by_distance_descending(
@@ -2716,14 +2748,18 @@ class DocumentQuery(Generic[_T], AbstractDocumentQuery[_T]):
         latitude: float,
         longitude: float,
         round_factor: Optional[float] = 0.0,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
-        self._order_by_distance_descending(field_or_field_name, latitude, longitude, round_factor)
+        self._order_by_distance_descending(field_or_field_name, latitude, longitude, round_factor, nulls)
         return self
 
     def order_by_distance_descending_wkt(
-        self, field_or_field_name: Union[str, DynamicSpatialField], shape_wkt: str
+        self,
+        field_or_field_name: Union[str, DynamicSpatialField],
+        shape_wkt: str,
+        nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> DocumentQuery[_T]:
-        self._order_by_distance_descending_wkt(field_or_field_name, shape_wkt)
+        self._order_by_distance_descending_wkt(field_or_field_name, shape_wkt, nulls=nulls)
         return self
 
     def more_like_this(

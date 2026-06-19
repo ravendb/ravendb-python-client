@@ -194,6 +194,7 @@ class Documents:
         EMBEDDINGS_CACHE_COLLECTION = "@embeddings-cache"
         AI_AGENT_CONVERSATIONS_COLLECTION = "@conversations"
         AI_AGGENT_CONVERSATION_HISTORY_COLLECTION = "@conversations-history"
+        AI_AGENT_CONVERSATION_DEBUG_COLLECTION = "@conversations-debug"
         NESTED_OBJECT_TYPES = "@nested-object-types"
 
     class Ai:

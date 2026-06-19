@@ -247,6 +247,7 @@ from ravendb.documents.session.misc import (
     MethodCall,
     OptimisticConcurrencyMode,
     OrderingType,
+    NullsOrdering,
     JavaScriptMap,
     DocumentQueryCustomization,
     ResponseTimeInformation,

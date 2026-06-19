@@ -294,6 +294,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         stream_property_path: Optional[str] = None,
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         attachments_commands: Optional[List[Any]] = None,
+        debug: Optional[bool] = None,
     ):
         if not agent_id or (isinstance(agent_id, str) and agent_id.isspace()):
             raise ValueError("agent_id cannot be None or empty")
@@ -312,6 +313,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         self._stream_property_path = stream_property_path
         self._streamed_chunks_callback = streamed_chunks_callback
         self._attachments_commands = attachments_commands or []
+        self._debug = debug
 
     def get_command(self, conventions: DocumentConventions) -> RavenCommand[ConversationResult[TSchema]]:
         return RunConversationCommand(
@@ -326,6 +328,7 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             streamed_chunks_callback=self._streamed_chunks_callback,
             conventions=conventions,
             attachments_commands=self._attachments_commands,
+            debug=self._debug,
         )
 
 
@@ -343,6 +346,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         conventions: Optional[DocumentConventions] = None,
         attachments_commands: Optional[List[Any]] = None,
+        debug: Optional[bool] = None,
     ):
         from ravendb.util.util import RaftIdGenerator
         from ravendb.documents.commands.batches import PutAttachmentCommandData
@@ -358,6 +362,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         self._stream_property_path = stream_property_path
         self._streamed_chunks_callback = streamed_chunks_callback
         self._conventions = conventions
+        self._debug = debug
         self._attachments_commands = attachments_commands or []
 
         # Raft id pinned at construction so retries keep the same id.
@@ -399,6 +404,10 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
             url += f"&changeVector={quote(self._change_vector)}"
         if self._stream_property_path:
             url += f"&streaming=true&streamPropertyPath={quote(self._stream_property_path)}"
+
+        # Add debug flag if requested
+        if self._debug is not None:
+            url += f"&debug={self._debug}"
 
         request_body = ConversationRequestBody(
             action_responses=self._action_responses,
