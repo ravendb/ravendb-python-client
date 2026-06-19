@@ -72,6 +72,12 @@ class TestRavenDB16334(TestBase):
             related.value = 42
             session.save_changes()
 
+        # MyIndex references related/A via LoadDocument, so updating it marks the
+        # index stale asynchronously. Guard the assertion against that reference-
+        # reindex race the same way the first query is guarded by wait_for_indexing
+        # above; otherwise the query can observe the stale value (21.5) intermittently.
+        self.wait_for_indexing(self.store)
+
         # assert
         with self.store.open_session() as session:
             result = session.query_index_type(MyIndex, MyIndex.Result).select_fields(MyIndex.Result).single()
