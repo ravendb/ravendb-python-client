@@ -1,0 +1,70 @@
+name: Prepare release PR
+
+# Step 1 of the release flow.
+# Manually triggered. Bumps the version in setup.py and RequestExecutor.CLIENT_VERSION,
+# then opens a PR labelled `release`. Merging that PR fires `publish.yml`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 7.2.3 (sets the ravendb package version)."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # setup.py carries the full PEP 440 version, incl. any .postN/.devN/rcN suffix.
+          sed -i -E "s/version=\"[0-9][^\"]*\"/version=\"${VERSION}\"/" setup.py
+
+          # RequestExecutor.CLIENT_VERSION is the server-facing client version and tracks
+          # the clean release number only (a 7.2.1.post1 hotfix keeps CLIENT_VERSION 7.2.1).
+          CLIENT_VERSION="$(printf '%s' "${VERSION}" | sed -E 's/(\.post[0-9]+|\.dev[0-9]+|(a|b|rc)[0-9]+).*$//')"
+          sed -i -E "s/CLIENT_VERSION = \".*\"/CLIENT_VERSION = \"${CLIENT_VERSION}\"/" ravendb/http/request_executor.py
+
+          echo "----- setup.py -----"
+          grep -nE 'version=' setup.py || true
+          echo "----- request_executor.py -----"
+          grep -nE 'CLIENT_VERSION = ' ravendb/http/request_executor.py || true
+
+          if git diff --quiet; then
+            echo "::error::No version strings changed. Check the sed patterns."
+            exit 1
+          fi
+
+      - name: Create release PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.repository.default_branch }}
+          branch: release/${{ inputs.version }}
+          delete-branch: true
+          commit-message: "Release ${{ inputs.version }}"
+          title: "Release ${{ inputs.version }}"
+          labels: release
+          body: |
+            Automated release for **ravendb ${{ inputs.version }}** (Python client).
+
+            Bumps `version` in `setup.py` and `RequestExecutor.CLIENT_VERSION`
+            (`.postN`/`.devN`/`rcN` suffixes are stripped from `CLIENT_VERSION`).
+
+            > [!WARNING]
+            > Merging this PR **while the `release` label is set** triggers the
+            > **Publish to PyPI** workflow, which builds and uploads the package and
+            > creates the `${{ inputs.version }}` GitHub release.
+
+            Review the diff, then merge to publish. Remove the `release` label before
+            merging if you do **not** want to publish.
