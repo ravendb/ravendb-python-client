@@ -1571,7 +1571,9 @@ class AbstractDocumentQuery(Generic[_T]):
 
         round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
         self._order_by_tokens.append(
-            OrderByToken.create_distance_ascending_wkt(field_name, shape_wkt, round_factor_parameter_name, nulls)
+            OrderByToken.create_distance_ascending_wkt(
+                field_name, self.__add_query_parameter(shape_wkt), round_factor_parameter_name, nulls
+            )
         )
 
     def _order_by_distance_descending(
@@ -1627,7 +1629,9 @@ class AbstractDocumentQuery(Generic[_T]):
         round_factor_parameter_name = None if round_factor == 0 else self.__add_query_parameter(round_factor)
 
         self._order_by_tokens.append(
-            OrderByToken.create_distance_descending_wkt(field_name, shape_wkt, round_factor_parameter_name, nulls)
+            OrderByToken.create_distance_descending_wkt(
+                field_name, self.__add_query_parameter(shape_wkt), round_factor_parameter_name, nulls
+            )
         )
 
     def _init_sync(self) -> None:
