@@ -44,8 +44,8 @@ class ChunkingOptions:
     def from_json(cls, json_dict: Dict[str, Any]) -> "ChunkingOptions":
         return cls(
             chunking_method=ChunkingMethod(json_dict["ChunkingMethod"]),
-            max_tokens_per_chunk=json_dict.get("MaxTokensPerChunk", None),
-            overlap_tokens=json_dict.get("OverlapTokens", None),
+            max_tokens_per_chunk=json_dict.get("MaxTokensPerChunk", 512),
+            overlap_tokens=json_dict.get("OverlapTokens", 0),
             context_prefix=json_dict.get("ContextPrefix", None),
         )
 

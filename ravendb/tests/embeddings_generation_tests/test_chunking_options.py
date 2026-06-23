@@ -64,6 +64,17 @@ class TestChunkingOptionsContextPrefix(unittest.TestCase):
             self.assertEqual(1, len(errors), method)
             self.assertIn("OverlapTokens", errors[0])
 
+    def test_from_json_missing_int_keys_use_csharp_defaults(self):
+        # Missing MaxTokensPerChunk/OverlapTokens must default to 512/0 (matching C#'s non-nullable
+        # int initializers), not None. None would crash validate() with a TypeError.
+        options = ChunkingOptions.from_json({"ChunkingMethod": "HtmlStrip"})
+        self.assertEqual(512, options.max_tokens_per_chunk)
+        self.assertEqual(0, options.overlap_tokens)
+
+        errors = []
+        options.validate("source", errors)  # must not raise TypeError on the defaults
+        self.assertEqual([], errors)
+
 
 if __name__ == "__main__":
     unittest.main()
