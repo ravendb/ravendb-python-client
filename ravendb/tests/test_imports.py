@@ -29,7 +29,9 @@ class TestImports(TestBase):
         from ravendb import GetBuildNumberOperation
 
         # from ravendb import ReorderDatabaseMembersOperation
-        # from ravendb import ConfigureRevisionsForConflictsOperation
+        from ravendb import ConfigureRevisionsForConflictsOperation
+        from ravendb import ConfigureRevisionsForConflictsResult
+
         # from ravendb import UpdateDatabaseOperation
         # from ravendb import GetServerWideBackupConfigurationOperation
         # from ravendb import SetDatabaseDynamicDistributionOperation
@@ -215,9 +217,19 @@ class TestImports(TestBase):
         from ravendb import PatchResult
         from ravendb import PatchStatus
 
-        # from ravendb import ConfigureRevisionsOperation
-        # from ravendb import GetRevisionsOperation
-        # from ravendb import RevisionsResult
+        from ravendb import ConfigureRevisionsOperation
+        from ravendb import ConfigureRevisionsOperationResult
+        from ravendb import GetRevisionsOperation
+        from ravendb import RevisionsResult
+        from ravendb import EnforceRevisionsConfigurationOperation
+        from ravendb import AdoptOrphanedRevisionsOperation
+        from ravendb import DeleteRevisionsOperation
+        from ravendb import RevertRevisionsByIdOperation
+        from ravendb import ConfigureRevisionsBinCleanerOperation
+        from ravendb import ConfigureRevisionsBinCleanerOperationResult
+        from ravendb import RevisionsBinConfiguration
+        from ravendb import RevisionsOperationParameters
+        from ravendb import RevisionsOperationContinuationParameters
         from ravendb import RevisionsCollectionConfiguration
         from ravendb import RevisionsConfiguration
         from ravendb import DetailedDatabaseStatistics

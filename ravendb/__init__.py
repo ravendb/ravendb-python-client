@@ -173,6 +173,23 @@ from ravendb.documents.operations.replication.definitions import (
 from ravendb.documents.operations.revisions import (
     RevisionsCollectionConfiguration,
     RevisionsConfiguration,
+    RevisionsResult,
+    ConfigureRevisionsOperation,
+    ConfigureRevisionsOperationResult,
+    GetRevisionsOperation,
+    EnforceRevisionsConfigurationOperation,
+    AdoptOrphanedRevisionsOperation,
+    DeleteRevisionsOperation,
+    RevertRevisionsByIdOperation,
+    ConfigureRevisionsBinCleanerOperation,
+    ConfigureRevisionsBinCleanerOperationResult,
+    RevisionsBinConfiguration,
+    RevisionsOperationParameters,
+    RevisionsOperationContinuationParameters,
+)
+from ravendb.serverwide.operations.revisions import (
+    ConfigureRevisionsForConflictsOperation,
+    ConfigureRevisionsForConflictsResult,
 )
 from ravendb.documents.operations.statistics import (
     GetCollectionStatisticsOperation,
@@ -340,7 +357,6 @@ from ravendb.documents.identity.hilo import (
 
 # todo: Serverwide
 # ReorderDatabaseMembersOperation
-# ConfigureRevisionsForConflictsOperation
 # UpdateDatabaseOperation
 # GetServerWideBackupConfigurationOperation
 # SetDatabaseDynamicDistributionOperation
@@ -420,9 +436,6 @@ from ravendb.documents.identity.hilo import (
 # LazyRevisionOperation
 # LazyRevisionOperations
 # StreamOperation
-# ConfigureRevisionsOperation
-# GetRevisionsOperation
-# RevisionsResult
 # GetConnectionStringsOperation
 # RemoveConnectionStringOperation
 # SqlEtlTable
