@@ -150,22 +150,22 @@ class TestImports(TestBase):
         # from ravendb import SeedIdentityForOperation
         # from ravendb import IOperationProgress
         # from ravendb import IOperationResult
-        # from ravendb import UpdateExternalReplicationOperation
+        from ravendb import UpdateExternalReplicationOperation
+        from ravendb import PullReplicationDefinitionAndCurrentConnections
+        from ravendb import PutPullReplicationAsHubOperation
+        from ravendb import DetailedReplicationHubAccess
+        from ravendb import GetReplicationHubAccessOperation
+        from ravendb import PreventDeletionsMode
+        from ravendb import PullReplicationMode
+        from ravendb import RegisterReplicationHubAccessOperation
+        from ravendb import ReplicationHubAccess
+        from ravendb import ReplicationHubAccessResult
+        from ravendb import UnregisterReplicationHubAccessOperation
+        from ravendb import UpdatePullReplicationAsSinkOperation
+        from ravendb import GetPullReplicationTasksInfoOperation
 
-        # from ravendb import PullReplicationDefinitionAndCurrentConnections
-        # from ravendb import PutPullReplicationAsHubOperation
-
-        # from ravendb import DetailedReplicationHubAccess
-        # from ravendb import GetReplicationHubAccessOperation
         # from ravendb import IExternalReplication
-        # from ravendb import PreventDeletionsMode
-        # from ravendb import PullReplicationMode
-        # from ravendb import RegisterReplicationHubAccessOperation
-        # from ravendb import ReplicationHubAccess
-        # from ravendb import ReplicationHubAccessResult
         # from ravendb import ReplicationHubAccessResponse
-        # from ravendb import UnregisterReplicationHubAccessOperation
-        # from ravendb import UpdatePullReplicationAsSinkOperation
         # from ravendb import GetConflictsCommand
         from ravendb import SetIndexesLockOperation
         from ravendb import SetIndexesPriorityOperation
@@ -259,9 +259,9 @@ class TestImports(TestBase):
         # from ravendb import DisableDatabaseToggleResult
         # from ravendb import ConfigureExpirationOperation
         # from ravendb import DeleteOngoingTaskOperation
-        # from ravendb import GetPullReplicationHubTasksInfoOperation
-        # from ravendb import OngoingTaskPullReplicationAsSink
-        # from ravendb import OngoingTaskPullReplicationAsHub
+        from ravendb import OngoingTaskPullReplicationAsSink
+        from ravendb import OngoingTaskPullReplicationAsHub
+
         # from ravendb import OngoingTaskType
         # from ravendb import RunningBackup
         # from ravendb import NextBackup

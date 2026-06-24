@@ -165,10 +165,29 @@ from ravendb.documents.operations.patch import (
 from ravendb.documents.operations.refresh.configuration import RefreshConfiguration
 from ravendb.documents.operations.replication.definitions import (
     ExternalReplication,
+    ExternalReplicationBase,
+    ReplicationNode,
     PullReplicationAsSink,
     PullReplicationDefinition,
-    ReplicationNode,
-    ExternalReplicationBase,
+    PullReplicationMode,
+    PreventDeletionsMode,
+    ReplicationHubAccess,
+    DetailedReplicationHubAccess,
+    ReplicationHubAccessResult,
+    PullReplicationDefinitionAndCurrentConnections,
+)
+from ravendb.documents.operations.replication.pull_replication import (
+    PutPullReplicationAsHubOperation,
+    UpdatePullReplicationAsSinkOperation,
+    UpdateExternalReplicationOperation,
+    RegisterReplicationHubAccessOperation,
+    UnregisterReplicationHubAccessOperation,
+    GetReplicationHubAccessOperation,
+    GetPullReplicationTasksInfoOperation,
+)
+from ravendb.documents.operations.ongoing_tasks import (
+    OngoingTaskPullReplicationAsSink,
+    OngoingTaskPullReplicationAsHub,
 )
 from ravendb.documents.operations.revisions import (
     RevisionsCollectionConfiguration,
@@ -411,17 +430,7 @@ from ravendb.documents.identity.hilo import (
 # SeedIdentityForOperation
 # IOperationProgress
 # IOperationResult
-# PullReplicationDefinitionAndCurrentConnections
-# DetailedReplicationHubAccess
-# GetReplicationHubAccessOperation
-# PreventDeletionsMode
-# PullReplicationMode
-# RegisterReplicationHubAccessOperation
-# ReplicationHubAccess
-# ReplicationHubAccessResult
 # ReplicationHubAccessResponse
-# UnregisterReplicationHubAccessOperation
-# UpdatePullReplicationAsSinkOperation
 # GetConflictsCommand
 # PutAttachmentCommandHelper
 # SetupDocumentBase
@@ -448,9 +457,6 @@ from ravendb.documents.identity.hilo import (
 # DisableDatabaseToggleResult
 # ConfigureExpirationOperation
 # DeleteOngoingTaskOperation
-# GetPullReplicationHubTasksInfoOperation
-# OngoingTaskPullReplicationAsSink
-# OngoingTaskPullReplicationAsHub
 # OngoingTaskType
 # RunningBackup
 # NextBackup

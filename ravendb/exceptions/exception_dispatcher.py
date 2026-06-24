@@ -20,6 +20,7 @@ from ravendb.exceptions.raven_exceptions import (
     RateLimitException,
     RavenException,
     RefusedToAnswerException,
+    ReplicationHubNotFoundException,
     SchemaValidationException,
     TooManyRequestsException,
     TooManyTokensException,
@@ -54,6 +55,8 @@ _EXCEPTION_MAP: dict = {
     "BulkInsertProtocolViolationException": BulkInsertProtocolViolationException,
     # schema validation
     "SchemaValidationException": SchemaValidationException,
+    # replication
+    "ReplicationHubNotFoundException": ReplicationHubNotFoundException,
     # cluster
     "NodeIsPassiveException": NodeIsPassiveException,
     "NoLoaderException": NoLoaderException,
