@@ -20,7 +20,13 @@ class TcpUtils:
 
         is_ssl_socket = server_certificate_base64 and client_certificate_pem_path
         if is_ssl_socket:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+            # PROTOCOL_TLS_CLIENT replaces the deprecated PROTOCOL_TLSv1_2. Its defaults turn on
+            # CA verification and hostname checking, which this code intentionally does not use -
+            # the server is validated below by exact-certificate pinning - so disable both to keep
+            # the previous behavior. (check_hostname must be cleared before setting CERT_NONE.)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
             context.load_cert_chain(client_certificate_pem_path, password=certificate_private_key_password)
             s = context.wrap_socket(s)
 
