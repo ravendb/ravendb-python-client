@@ -135,8 +135,14 @@ class EmbeddingsGenerationConfiguration(AbstractAiIntegrationConfiguration):
 
         if not has_paths and not has_transformation:
             errors.append("Either EmbeddingsPathConfigurations or EmbeddingsTransformation must be provided")
-        elif has_paths and has_transformation:
-            errors.append("Cannot specify both EmbeddingsPathConfigurations and EmbeddingsTransformation")
+
+        # Validate each path's chunking options (mirrors the server / C# client; both may be set).
+        if self.embeddings_path_configurations:
+            for path_configuration in self.embeddings_path_configurations:
+                if path_configuration.chunking_options is not None:
+                    path_configuration.chunking_options.validate(path_configuration.path, errors)
+                else:
+                    errors.append(f"Path '{path_configuration.path}': ChunkingOptions must be provided.")
 
         # Validate transformation if provided
         if has_transformation:

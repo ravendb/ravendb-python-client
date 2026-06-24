@@ -299,7 +299,7 @@ class OrderByToken(QueryToken):
         nulls: NullsOrdering = NullsOrdering.DEFAULT,
     ) -> OrderByToken:
         return cls(
-            f"spatial.distance({field_name}), "
+            f"spatial.distance({field_name}, "
             f"spatial.wkt(${wkt_parameter_name})"
             f"{'' if round_factor_parameter_name is None else ', $' + round_factor_parameter_name})",
             False,

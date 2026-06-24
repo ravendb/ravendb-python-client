@@ -48,6 +48,28 @@ class TestOrderByDistanceQuoting(TestBase):
             self.assertGreaterEqual(len(results), 2)
             self.assertEqual("geo/2", results[0].Id)
 
+    def test_order_by_distance_wkt_ascending_with_dynamic_point_field(self):
+        # Regression for the create_distance_ascending_wkt RQL bug: a stray ')' produced
+        # 'spatial.distance(<field>), spatial.wkt(...)', which the server rejects at parse time.
+        # WKT is "POINT(longitude latitude)"; the point below is geo/1 (Greenwich).
+        with self.store.open_session() as s:
+            results = list(
+                s.query(object_type=_Geo).order_by_distance_wkt(PointField("lat", "lng"), "POINT(0.0015 51.4779)")
+            )
+            self.assertGreaterEqual(len(results), 2)
+            self.assertEqual("geo/1", results[0].Id)
+
+    def test_order_by_distance_wkt_descending_with_dynamic_point_field(self):
+        # Same WKT path, descending: the farthest document (New York) comes first.
+        with self.store.open_session() as s:
+            results = list(
+                s.query(object_type=_Geo).order_by_distance_descending_wkt(
+                    PointField("lat", "lng"), "POINT(0.0015 51.4779)"
+                )
+            )
+            self.assertGreaterEqual(len(results), 2)
+            self.assertEqual("geo/2", results[0].Id)
+
 
 if __name__ == "__main__":
     unittest.main()

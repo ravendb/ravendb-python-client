@@ -11,11 +11,11 @@ class ChunkingMethod(Enum):
     HTML_STRIP = "HtmlStrip"
 
 
-# Methods that support overlap tokens
+# Methods that support overlap tokens. Mirrors the server (TextChunker.cs) and the C#/Node clients:
+# only the two *paragraph* methods consume OverlapTokens; every other method ignores it.
 METHODS_SUPPORTING_OVERLAP_TOKENS = {
-    ChunkingMethod.PLAIN_TEXT_SPLIT,
-    ChunkingMethod.PLAIN_TEXT_SPLIT_LINES,
     ChunkingMethod.PLAIN_TEXT_SPLIT_PARAGRAPHS,
+    ChunkingMethod.MARK_DOWN_SPLIT_PARAGRAPHS,
 }
 
 
@@ -44,8 +44,8 @@ class ChunkingOptions:
     def from_json(cls, json_dict: Dict[str, Any]) -> "ChunkingOptions":
         return cls(
             chunking_method=ChunkingMethod(json_dict["ChunkingMethod"]),
-            max_tokens_per_chunk=json_dict.get("MaxTokensPerChunk", None),
-            overlap_tokens=json_dict.get("OverlapTokens", None),
+            max_tokens_per_chunk=json_dict.get("MaxTokensPerChunk", 512),
+            overlap_tokens=json_dict.get("OverlapTokens", 0),
             context_prefix=json_dict.get("ContextPrefix", None),
         )
 
@@ -84,10 +84,8 @@ class ChunkingOptions:
             errors.append(f"{source}: OverlapTokens cannot be greater than MaxTokensPerChunk.")
 
         if self.overlap_tokens > 0 and self.chunking_method not in METHODS_SUPPORTING_OVERLAP_TOKENS:
-            errors.append(
-                f"{source}: OverlapTokens is only supported for PlainTextSplit, "
-                f"PlainTextSplitLines, and PlainTextSplitParagraphs chunking methods."
-            )
+            supported = ", ".join(sorted(method.value for method in METHODS_SUPPORTING_OVERLAP_TOKENS))
+            errors.append(f"{source}: OverlapTokens is only supported for the following chunking methods: {supported}.")
 
     @staticmethod
     def are_equal(left: Optional["ChunkingOptions"], right: Optional["ChunkingOptions"]) -> bool:

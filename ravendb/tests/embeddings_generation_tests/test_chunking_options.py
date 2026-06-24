@@ -45,6 +45,36 @@ class TestChunkingOptionsContextPrefix(unittest.TestCase):
         options.validate("source", errors)
         self.assertEqual([], errors)
 
+    def test_overlap_allowed_only_on_paragraph_methods(self):
+        # Matches the server / C# / Node clients: overlap is consumed only by the two paragraph methods.
+        for method in (ChunkingMethod.PLAIN_TEXT_SPLIT_PARAGRAPHS, ChunkingMethod.MARK_DOWN_SPLIT_PARAGRAPHS):
+            errors = []
+            ChunkingOptions(method, 100, 10).validate("source", errors)
+            self.assertEqual([], errors, method)
+
+    def test_overlap_rejected_on_non_paragraph_methods(self):
+        for method in (
+            ChunkingMethod.PLAIN_TEXT_SPLIT,
+            ChunkingMethod.PLAIN_TEXT_SPLIT_LINES,
+            ChunkingMethod.MARK_DOWN_SPLIT_LINES,
+            ChunkingMethod.HTML_STRIP,
+        ):
+            errors = []
+            ChunkingOptions(method, 100, 10).validate("source", errors)
+            self.assertEqual(1, len(errors), method)
+            self.assertIn("OverlapTokens", errors[0])
+
+    def test_from_json_missing_int_keys_use_csharp_defaults(self):
+        # Missing MaxTokensPerChunk/OverlapTokens must default to 512/0 (matching C#'s non-nullable
+        # int initializers), not None. None would crash validate() with a TypeError.
+        options = ChunkingOptions.from_json({"ChunkingMethod": "HtmlStrip"})
+        self.assertEqual(512, options.max_tokens_per_chunk)
+        self.assertEqual(0, options.overlap_tokens)
+
+        errors = []
+        options.validate("source", errors)  # must not raise TypeError on the defaults
+        self.assertEqual([], errors)
+
 
 if __name__ == "__main__":
     unittest.main()

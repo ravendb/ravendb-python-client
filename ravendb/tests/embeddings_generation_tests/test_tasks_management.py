@@ -14,6 +14,7 @@ from ravendb.documents.operations.ai import (
     UpdateEmbeddingsGenerationOperation,
 )
 from ravendb.documents.operations.ai.embedded_settings import EmbeddedSettings
+from ravendb.documents.operations.ai.embeddings_transformation import EmbeddingsTransformation
 from ravendb.documents.operations.connection_string.put_connection_string_operation import PutConnectionStringOperation
 from ravendb.documents.operations.connection_string.remove_connection_string_operation import (
     RemoveConnectionStringOperation,
@@ -213,6 +214,27 @@ class TestEmbeddingsGenerationTasksManagement(TestBase):
         error_message = str(context.exception)
         self.assertIn("PostContent", error_message)
         self.assertIn("ChunkingOptions", error_message)
+
+    def test_can_add_task_with_both_paths_and_transformation(self):
+        """The server imposes no mutual-exclusivity between paths and transformation, so a config
+        that sets BOTH must be accepted (the client must not reject it pre-send either)."""
+        config = EmbeddingsGenerationConfiguration(
+            name="ai-task-both",
+            connection_string_name=self.CONNECTION_STRING_NAME,
+            embeddings_path_configurations=[
+                EmbeddingPathConfiguration(path="PostContent", chunking_options=self.DEFAULT_CHUNKING_OPTIONS),
+            ],
+            embeddings_transformation=EmbeddingsTransformation(
+                script="embeddings.generate(this.Comments)",
+                chunking_options=self.DEFAULT_CHUNKING_OPTIONS,
+            ),
+            collection="Posts",
+            chunking_options_for_querying=self.DEFAULT_CHUNKING_OPTIONS,
+        )
+
+        add_result = self.store.maintenance.send(AddEmbeddingsGenerationOperation(config))
+        self.assertIsNotNone(add_result.task_id)
+        self._created_task_ids.append(add_result.task_id)
 
     def test_database_record_contains_embeddings_generations(self):
         config = self._create_valid_config()
