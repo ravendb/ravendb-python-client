@@ -1,5 +1,5 @@
 from ravendb.documents.operations.compare_exchange.operations import PutCompareExchangeValueOperation
-from ravendb.documents.session.misc import CmpXchg
+from ravendb.documents.queries.raven_document_query import RavenDocumentQuery
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
 
@@ -27,8 +27,8 @@ class TestQueriesWithCustomFunctions(TestBase):
         with self.store.open_session() as session:
             q = (
                 session.advanced.document_query(object_type=User)
-                .where_equals("name", CmpXchg.value("Hera"))
-                .where_equals("last_name", CmpXchg.value("Tom"))
+                .where_equals("name", RavenDocumentQuery.cmp_xchg("Hera"))
+                .where_equals("last_name", RavenDocumentQuery.cmp_xchg("Tom"))
             )
 
             self.assertEqual("from 'Users' where name = cmpxchg($p0) and last_name = cmpxchg($p1)", q.index_query.query)
@@ -38,7 +38,9 @@ class TestQueriesWithCustomFunctions(TestBase):
             self.assertEqual("Zeus", query_result[0].name)
 
             user = list(
-                session.advanced.document_query(object_type=User).where_not_equals("name", CmpXchg.value("Hera"))
+                session.advanced.document_query(object_type=User).where_not_equals(
+                    "name", RavenDocumentQuery.cmp_xchg("Hera")
+                )
             )
             self.assertEqual(1, len(user))
 
