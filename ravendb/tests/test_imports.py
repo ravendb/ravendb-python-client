@@ -29,7 +29,9 @@ class TestImports(TestBase):
         from ravendb import GetBuildNumberOperation
 
         # from ravendb import ReorderDatabaseMembersOperation
-        # from ravendb import ConfigureRevisionsForConflictsOperation
+        from ravendb import ConfigureRevisionsForConflictsOperation
+        from ravendb import ConfigureRevisionsForConflictsResult
+
         # from ravendb import UpdateDatabaseOperation
         # from ravendb import GetServerWideBackupConfigurationOperation
         # from ravendb import SetDatabaseDynamicDistributionOperation
@@ -148,22 +150,22 @@ class TestImports(TestBase):
         # from ravendb import SeedIdentityForOperation
         # from ravendb import IOperationProgress
         # from ravendb import IOperationResult
-        # from ravendb import UpdateExternalReplicationOperation
+        from ravendb import UpdateExternalReplicationOperation
+        from ravendb import PullReplicationDefinitionAndCurrentConnections
+        from ravendb import PutPullReplicationAsHubOperation
+        from ravendb import DetailedReplicationHubAccess
+        from ravendb import GetReplicationHubAccessOperation
+        from ravendb import PreventDeletionsMode
+        from ravendb import PullReplicationMode
+        from ravendb import RegisterReplicationHubAccessOperation
+        from ravendb import ReplicationHubAccess
+        from ravendb import ReplicationHubAccessResult
+        from ravendb import UnregisterReplicationHubAccessOperation
+        from ravendb import UpdatePullReplicationAsSinkOperation
+        from ravendb import GetPullReplicationTasksInfoOperation
 
-        # from ravendb import PullReplicationDefinitionAndCurrentConnections
-        # from ravendb import PutPullReplicationAsHubOperation
-
-        # from ravendb import DetailedReplicationHubAccess
-        # from ravendb import GetReplicationHubAccessOperation
         # from ravendb import IExternalReplication
-        # from ravendb import PreventDeletionsMode
-        # from ravendb import PullReplicationMode
-        # from ravendb import RegisterReplicationHubAccessOperation
-        # from ravendb import ReplicationHubAccess
-        # from ravendb import ReplicationHubAccessResult
         # from ravendb import ReplicationHubAccessResponse
-        # from ravendb import UnregisterReplicationHubAccessOperation
-        # from ravendb import UpdatePullReplicationAsSinkOperation
         # from ravendb import GetConflictsCommand
         from ravendb import SetIndexesLockOperation
         from ravendb import SetIndexesPriorityOperation
@@ -215,9 +217,19 @@ class TestImports(TestBase):
         from ravendb import PatchResult
         from ravendb import PatchStatus
 
-        # from ravendb import ConfigureRevisionsOperation
-        # from ravendb import GetRevisionsOperation
-        # from ravendb import RevisionsResult
+        from ravendb import ConfigureRevisionsOperation
+        from ravendb import ConfigureRevisionsOperationResult
+        from ravendb import GetRevisionsOperation
+        from ravendb import RevisionsResult
+        from ravendb import EnforceRevisionsConfigurationOperation
+        from ravendb import AdoptOrphanedRevisionsOperation
+        from ravendb import DeleteRevisionsOperation
+        from ravendb import RevertRevisionsByIdOperation
+        from ravendb import ConfigureRevisionsBinCleanerOperation
+        from ravendb import ConfigureRevisionsBinCleanerOperationResult
+        from ravendb import RevisionsBinConfiguration
+        from ravendb import RevisionsOperationParameters
+        from ravendb import RevisionsOperationContinuationParameters
         from ravendb import RevisionsCollectionConfiguration
         from ravendb import RevisionsConfiguration
         from ravendb import DetailedDatabaseStatistics
@@ -247,9 +259,9 @@ class TestImports(TestBase):
         # from ravendb import DisableDatabaseToggleResult
         # from ravendb import ConfigureExpirationOperation
         # from ravendb import DeleteOngoingTaskOperation
-        # from ravendb import GetPullReplicationHubTasksInfoOperation
-        # from ravendb import OngoingTaskPullReplicationAsSink
-        # from ravendb import OngoingTaskPullReplicationAsHub
+        from ravendb import OngoingTaskPullReplicationAsSink
+        from ravendb import OngoingTaskPullReplicationAsHub
+
         # from ravendb import OngoingTaskType
         # from ravendb import RunningBackup
         # from ravendb import NextBackup

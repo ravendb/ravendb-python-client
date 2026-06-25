@@ -1,5 +1,6 @@
 import atexit
 import datetime
+import logging
 import threading
 import time
 import unittest
@@ -402,6 +403,9 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         self.conventions = conventions
 
     def setUp(self):
+        # Silence noisy background-thread logs (e.g. the subscription worker reporting
+        # expected connection drops on teardown) so test output stays readable.
+        logging.disable(logging.ERROR)
         RavenTestDriver.__init__(self)
         self._locator = TestBase.TestServiceLocator()
         self._secured_locator = TestBase.TestSecuredServiceLocator()

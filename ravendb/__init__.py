@@ -165,14 +165,50 @@ from ravendb.documents.operations.patch import (
 from ravendb.documents.operations.refresh.configuration import RefreshConfiguration
 from ravendb.documents.operations.replication.definitions import (
     ExternalReplication,
+    ExternalReplicationBase,
+    ReplicationNode,
     PullReplicationAsSink,
     PullReplicationDefinition,
-    ReplicationNode,
-    ExternalReplicationBase,
+    PullReplicationMode,
+    PreventDeletionsMode,
+    ReplicationHubAccess,
+    DetailedReplicationHubAccess,
+    ReplicationHubAccessResult,
+    PullReplicationDefinitionAndCurrentConnections,
+)
+from ravendb.documents.operations.replication.pull_replication import (
+    PutPullReplicationAsHubOperation,
+    UpdatePullReplicationAsSinkOperation,
+    UpdateExternalReplicationOperation,
+    RegisterReplicationHubAccessOperation,
+    UnregisterReplicationHubAccessOperation,
+    GetReplicationHubAccessOperation,
+    GetPullReplicationTasksInfoOperation,
+)
+from ravendb.documents.operations.ongoing_tasks import (
+    OngoingTaskPullReplicationAsSink,
+    OngoingTaskPullReplicationAsHub,
 )
 from ravendb.documents.operations.revisions import (
     RevisionsCollectionConfiguration,
     RevisionsConfiguration,
+    RevisionsResult,
+    ConfigureRevisionsOperation,
+    ConfigureRevisionsOperationResult,
+    GetRevisionsOperation,
+    EnforceRevisionsConfigurationOperation,
+    AdoptOrphanedRevisionsOperation,
+    DeleteRevisionsOperation,
+    RevertRevisionsByIdOperation,
+    ConfigureRevisionsBinCleanerOperation,
+    ConfigureRevisionsBinCleanerOperationResult,
+    RevisionsBinConfiguration,
+    RevisionsOperationParameters,
+    RevisionsOperationContinuationParameters,
+)
+from ravendb.serverwide.operations.revisions import (
+    ConfigureRevisionsForConflictsOperation,
+    ConfigureRevisionsForConflictsResult,
 )
 from ravendb.documents.operations.statistics import (
     GetCollectionStatisticsOperation,
@@ -340,7 +376,6 @@ from ravendb.documents.identity.hilo import (
 
 # todo: Serverwide
 # ReorderDatabaseMembersOperation
-# ConfigureRevisionsForConflictsOperation
 # UpdateDatabaseOperation
 # GetServerWideBackupConfigurationOperation
 # SetDatabaseDynamicDistributionOperation
@@ -395,17 +430,7 @@ from ravendb.documents.identity.hilo import (
 # SeedIdentityForOperation
 # IOperationProgress
 # IOperationResult
-# PullReplicationDefinitionAndCurrentConnections
-# DetailedReplicationHubAccess
-# GetReplicationHubAccessOperation
-# PreventDeletionsMode
-# PullReplicationMode
-# RegisterReplicationHubAccessOperation
-# ReplicationHubAccess
-# ReplicationHubAccessResult
 # ReplicationHubAccessResponse
-# UnregisterReplicationHubAccessOperation
-# UpdatePullReplicationAsSinkOperation
 # GetConflictsCommand
 # PutAttachmentCommandHelper
 # SetupDocumentBase
@@ -420,9 +445,6 @@ from ravendb.documents.identity.hilo import (
 # LazyRevisionOperation
 # LazyRevisionOperations
 # StreamOperation
-# ConfigureRevisionsOperation
-# GetRevisionsOperation
-# RevisionsResult
 # GetConnectionStringsOperation
 # RemoveConnectionStringOperation
 # SqlEtlTable
@@ -435,9 +457,6 @@ from ravendb.documents.identity.hilo import (
 # DisableDatabaseToggleResult
 # ConfigureExpirationOperation
 # DeleteOngoingTaskOperation
-# GetPullReplicationHubTasksInfoOperation
-# OngoingTaskPullReplicationAsSink
-# OngoingTaskPullReplicationAsHub
 # OngoingTaskType
 # RunningBackup
 # NextBackup
