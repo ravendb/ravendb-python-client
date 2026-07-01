@@ -39,6 +39,21 @@ from .run_conversation_operation import (
     AiConversationParameterOptions,
 )
 
+from .ai_conversation_detail_level import AiConversationDetailLevel
+
+from .ai_conversation_message import (
+    AiMessageRole,
+    AiToolCallResult,
+    AiConversationMessage,
+)
+
+from .ai_conversation_messages_result import AiConversationMessagesResult
+
+from .get_conversation_messages_operation import (
+    GetConversationMessagesOptions,
+    GetConversationMessagesOperation,
+)
+
 __all__ = [
     "AiAgentConfiguration",
     "AiAgentConfigurationResult",
@@ -68,4 +83,11 @@ __all__ = [
     "GetAiAgentsResponse",
     "AddOrUpdateAiAgentOperation",
     "DeleteAiAgentOperation",
+    "AiConversationDetailLevel",
+    "AiMessageRole",
+    "AiToolCallResult",
+    "AiConversationMessage",
+    "AiConversationMessagesResult",
+    "GetConversationMessagesOptions",
+    "GetConversationMessagesOperation",
 ]
