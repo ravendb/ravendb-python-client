@@ -15,7 +15,7 @@ except ImportError:
     from collections import Iterable, Sequence
 
 from ravendb.tools.projection import create_entity_with_mapper
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from threading import Timer
 from copy import deepcopy
@@ -958,4 +958,8 @@ class Utils(object):
 
     @staticmethod
     def get_unix_time_in_ms(date: datetime) -> int:
+        # Naive datetimes are treated as UTC (consistent with Utils.datetime_to_string) so that
+        # bulk-insert time-series timestamps are not shifted by the machine's local UTC offset.
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=timezone.utc)
         return int(date.timestamp() * 1000)

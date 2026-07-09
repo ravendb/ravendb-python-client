@@ -100,7 +100,9 @@ class TestCustomEntityName(TestBase):
         )
 
     def __test_when_collection_and_id_contain_special_chars(self, c: str) -> None:
-        if 14 <= ord(c) <= 31:
+        # RavenDB now rejects control characters in document ids (including the generated HiLo id),
+        # so skip the whole C0 control range rather than only 14..31.
+        if ord(c) <= 31:
             return
 
         self.c = c
