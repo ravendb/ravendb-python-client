@@ -1,10 +1,6 @@
-import unittest
-from datetime import timedelta
-
 from ravendb.serverwide.operations.logs import (
     GetLogsConfigurationOperation,
-    GetLogsConfigurationResult,
-    LogMode,
+    LogLevel,
     SetLogsConfigurationOperation,
 )
 from ravendb.tests.test_base import TestBase
@@ -14,37 +10,28 @@ class TestRavenDB11440(TestBase):
     def setUp(self):
         super().setUp()
 
-    @unittest.skip("TODO")
     def test_can_get_logs_configuration_and_change_mode(self):
-        configuration: GetLogsConfigurationResult = self.store.maintenance.server.send(GetLogsConfigurationOperation())
+        configuration = self.store.maintenance.server.send(GetLogsConfigurationOperation())
         try:
-            if configuration.current_mode == LogMode.NONE:
-                mode_to_set = LogMode.INFORMATION
-            elif configuration.current_mode == LogMode.OPERATIONS:
-                mode_to_set = LogMode.INFORMATION
-            elif configuration.current_mode == LogMode.INFORMATION:
-                mode_to_set = LogMode.NONE
-            else:
-                raise RuntimeError(f"Invalid mode: {configuration.current_mode}")
+            current = configuration.logs.current_min_level
+            level_to_set = LogLevel.TRACE if current != LogLevel.TRACE else LogLevel.DEBUG
 
-            time = timedelta(days=1000)
-
-            parameters = SetLogsConfigurationOperation.Parameters(mode_to_set, time)
-            set_logs_operation = SetLogsConfigurationOperation(parameters)
-            self.store.maintenance.server.send(set_logs_operation)
-
-            configuration2: GetLogsConfigurationResult = self.store.maintenance.server.send(
-                GetLogsConfigurationOperation()
+            self.store.maintenance.server.send(
+                SetLogsConfigurationOperation(SetLogsConfigurationOperation.LogsConfiguration(level_to_set))
             )
 
-            self.assertEqual(mode_to_set, configuration2.current_mode)
-            self.assertEqual(time, configuration2.retention_time)
-            self.assertEqual(configuration.mode, configuration2.mode)
-            self.assertEqual(configuration.path, configuration2.path)
-            self.assertEqual(configuration.use_utc_time, configuration2.use_utc_time)
+            configuration2 = self.store.maintenance.server.send(GetLogsConfigurationOperation())
 
+            self.assertEqual(level_to_set, configuration2.logs.current_min_level)
+            self.assertEqual(configuration.logs.min_level, configuration2.logs.min_level)
+            self.assertEqual(configuration.logs.path, configuration2.logs.path)
+            self.assertEqual(
+                configuration.logs.enable_archive_file_compression,
+                configuration2.logs.enable_archive_file_compression,
+            )
         finally:
-            parameters = SetLogsConfigurationOperation.Parameters(
-                configuration.current_mode, configuration.retention_time
+            self.store.maintenance.server.send(
+                SetLogsConfigurationOperation(
+                    SetLogsConfigurationOperation.LogsConfiguration(configuration.logs.current_min_level)
+                )
             )
-            self.store.maintenance.server.send(SetLogsConfigurationOperation(parameters))
