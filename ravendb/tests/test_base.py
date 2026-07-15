@@ -253,7 +253,9 @@ class TestBase(unittest.TestCase, RavenTestDriver):
         pass
 
     def _customize_store(self, store: DocumentStore) -> None:
-        pass
+        # Tests don't exercise the on-disk topology cache by default (the dedicated topology test opts in),
+        # so keep the many per-test stores from writing files into the user's cache directory.
+        store.conventions.disable_topology_cache = True
 
     @property
     def secured_document_store(self) -> DocumentStore:
@@ -336,10 +338,19 @@ class TestBase(unittest.TestCase, RavenTestDriver):
     @staticmethod
     def delete_all_topology_files():
         import os
+        from ravendb.documents.conventions import DocumentConventions
 
-        file_list = [f for f in os.listdir(".") if f.endswith("topology")]
-        for f in file_list:
-            os.remove(f)
+        # clean both the working dir and the default per-user topology-cache dir so tests leave no artifacts
+        for directory in {".", DocumentConventions._default_topology_cache_location()}:
+            try:
+                for f in os.listdir(directory):
+                    if f.endswith("topology"):
+                        try:
+                            os.remove(os.path.join(directory, f))
+                        except OSError:
+                            pass
+            except OSError:
+                pass
 
     @staticmethod
     def wait_for_database_topology(store, database_name, replication_factor=1):

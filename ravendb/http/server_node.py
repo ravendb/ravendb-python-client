@@ -47,6 +47,24 @@ class ServerNode:
     def last_server_version(self) -> str:
         return self.__last_server_version
 
+    def to_json(self) -> dict:
+        return {
+            "Url": self.url,
+            "Database": self.database,
+            "ClusterTag": self.cluster_tag,
+            "ServerRole": self.server_role.value if self.server_role is not None else None,
+        }
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> "ServerNode":
+        role = json_dict.get("ServerRole")
+        return cls(
+            json_dict.get("Url"),
+            json_dict.get("Database"),
+            json_dict.get("ClusterTag"),
+            cls.Role(role) if role else None,
+        )
+
     @classmethod
     def create_from(cls, topology: "ClusterTopology"):
         nodes = []
