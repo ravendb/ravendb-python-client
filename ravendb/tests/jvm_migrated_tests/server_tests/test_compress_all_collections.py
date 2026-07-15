@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from ravendb import GetDatabaseRecordOperation, DocumentsCompressionConfiguration
@@ -9,7 +10,7 @@ class TestCompressAllCollections(TestBase):
     def setUp(self):
         super(TestCompressAllCollections, self).setUp()
 
-    @unittest.skip("Skipping due to license on CI/CD")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_compress_all_collections_after_docs_change(self):
         # we are running in memory - just check if command will be sent to server
         self.store.maintenance.send(

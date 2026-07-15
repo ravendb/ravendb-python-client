@@ -1,3 +1,4 @@
+import os
 import unittest
 from typing import List
 
@@ -19,7 +20,7 @@ class TestServerWideBackup(TestBase):
     def setUp(self):
         super().setUp()
 
-    @unittest.skip("Skipping due to license on CI/CD")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_crud_server_wide_backup(self):
         try:
             put_configuration = ServerWideBackupConfiguration()

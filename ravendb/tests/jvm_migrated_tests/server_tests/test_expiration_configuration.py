@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from ravendb import ExpirationConfiguration
@@ -9,7 +10,7 @@ class TestExpirationConfiguration(TestBase):
     def setUp(self):
         super().setUp()
 
-    @unittest.skip("License on ci/cd")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_setup_expiration(self):
         expiration_configuration = ExpirationConfiguration(False, 5)
         configure_operation = ConfigureExpirationOperation(expiration_configuration)
