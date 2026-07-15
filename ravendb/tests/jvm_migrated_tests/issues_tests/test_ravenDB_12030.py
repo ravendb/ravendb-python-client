@@ -1,7 +1,7 @@
 import unittest
 
 from ravendb import AbstractIndexCreationTask
-from ravendb.documents.indexes.definitions import FieldIndexing
+from ravendb.documents.indexes.definitions import FieldIndexing, SearchEngineType
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
 
@@ -14,6 +14,7 @@ class Fox:
 class Fox_Search(AbstractIndexCreationTask):
     def __init__(self):
         super(Fox_Search, self).__init__()
+        self.search_engine_type = SearchEngineType.LUCENE
         self.map = "from f in docs.Foxes select new { f.name }"
         self._index("name", FieldIndexing.SEARCH)
 
@@ -22,7 +23,10 @@ class TestRavenDB12030(TestBase):
     def setUp(self):
         super().setUp()
 
-    @unittest.skip("Corax doesn't support proximity")
+    def _customize_db_record(self, db_record):
+        # fuzzy is a Lucene-only feature; force the auto-index engine to Lucene
+        db_record.settings["Indexing.Auto.SearchEngineType"] = "Lucene"
+
     def test_simple_proximity(self):
         Fox_Search().execute(self.store)
         with self.store.open_session() as session:
@@ -52,7 +56,6 @@ class TestRavenDB12030(TestBase):
             self.assertEqual("a quick brown fox", foxes[0].name)
             self.assertEqual("the fox is quick", foxes[1].name)
 
-    @unittest.skip("Corax doesn't support fuzzy")
     def test_simple_fuzzy(self):
         with self.store.open_session() as session:
             hr = Company()

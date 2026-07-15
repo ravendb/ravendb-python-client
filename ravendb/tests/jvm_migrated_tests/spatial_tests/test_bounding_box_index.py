@@ -2,6 +2,7 @@ import unittest
 
 from ravendb import AbstractIndexCreationTask
 from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactory
+from ravendb.documents.indexes.definitions import SearchEngineType
 from ravendb.tests.test_base import TestBase
 
 
@@ -13,6 +14,7 @@ class SpatialDoc:
 class BBoxIndex(AbstractIndexCreationTask):
     def __init__(self):
         super(BBoxIndex, self).__init__()
+        self.search_engine_type = SearchEngineType.LUCENE
         self.map = "docs.SpatialDocs.Select(doc => new {\n" "    shape = this.CreateSpatialField(doc.shape)\n" "})"
         self._spatial("shape", lambda x: x.cartesian().bounding_box_index())
 
@@ -20,6 +22,7 @@ class BBoxIndex(AbstractIndexCreationTask):
 class QuadTreeIndex(AbstractIndexCreationTask):
     def __init__(self):
         super(QuadTreeIndex, self).__init__()
+        self.search_engine_type = SearchEngineType.LUCENE
         self.map = "docs.SpatialDocs.Select(doc => new {\n" "    shape = this.CreateSpatialField(doc.shape)\n" "})"
         self._spatial(
             "shape",
@@ -31,7 +34,6 @@ class TestBoundingBoxIndex(TestBase):
     def setUp(self):
         super(TestBoundingBoxIndex, self).setUp()
 
-    @unittest.skip("flaky")
     def test_bounding_box(self):
         polygon = "POLYGON ((0 0, 0 5, 1 5, 1 1, 5 1, 5 5, 6 5, 6 0, 0 0))"
         rectangle1 = "2 2 4 4"

@@ -24,7 +24,11 @@ class TestBasicTimeSeriesIndexesJavaScript(TestBase):
     def setUp(self):
         super(TestBasicTimeSeriesIndexesJavaScript, self).setUp()
 
-    @unittest.skip("flaky")
+    def _customize_db_record(self, db_record):
+        # An empty timeSeriesNamesFor array indexes as a (blank) term on Corax but produces no term on
+        # Lucene; force the static index engine to Lucene so the "no time series -> no names" expectation holds.
+        db_record.settings["Indexing.Static.SearchEngineType"] = "Lucene"
+
     def test_time_series_names_for(self):
         now = RavenTestHelper.utc_today()
         index = Companies_ByTimeSeriesNames()

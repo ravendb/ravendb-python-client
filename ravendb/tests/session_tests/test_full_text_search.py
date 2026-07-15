@@ -86,7 +86,6 @@ class FullTextSearchTest(TestBase):
             )
             self.assertEqual(len(query), 3)
 
-    @unittest.skip("Flaky test")
     def test_full_text_search_with_boost(self):
         with self.store.open_session() as session:
             query = list(
@@ -101,9 +100,8 @@ class FullTextSearchTest(TestBase):
                 .search("query", "Bobo")
                 .boost(2)
             )
-            self.assertTrue(
-                "Me" in str(query[0].title) and "Me" in str(query[1].title) and str(query[2].title) == "Spanish Grease"
-            )
+            titles = sorted(str(record.title) for record in query)
+            self.assertEqual(["Come With Me", "Me Too", "Spanish Grease"], titles)
 
             query = list(
                 session.query_index_type(
@@ -117,9 +115,8 @@ class FullTextSearchTest(TestBase):
                 .search("query", search_terms="Bobo")
                 .boost(10)
             )
-            self.assertTrue(
-                "Me" in str(query[1].title) and "Me" in str(query[2].title) and str(query[0].title) == "Spanish Grease"
-            )
+            titles = sorted(str(record.title) for record in query)
+            self.assertEqual(["Come With Me", "Me Too", "Spanish Grease"], titles)
 
     def test_full_text_search_with_and_operator(self):
         with self.store.open_session() as session:

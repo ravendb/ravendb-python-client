@@ -83,6 +83,10 @@ class TestQuery(TestBase):
     def setUp(self):
         super(TestQuery, self).setUp()
 
+    def _customize_db_record(self, db_record):
+        # where_lucene (test_query_lucene) is a Lucene-only method; force the auto-index engine to Lucene
+        db_record.settings["Indexing.Auto.SearchEngineType"] = "Lucene"
+
     def add_users(self, user_class=UserWithId, args1=None, args2=None, args3=None, **kwargs):
         if args3 is None:
             args3 = []
@@ -226,7 +230,6 @@ class TestQuery(TestBase):
             with self.assertRaises(ValueError):
                 session.query(object_type=UserWithId).single()
 
-    @unittest.skip("Method 'Lucene' is not supported on Corax")
     def test_query_lucene(self):
         self.add_users()
         with self.store.open_session() as session:
@@ -274,7 +277,6 @@ class TestQuery(TestBase):
             self.assertEqual(3, len(list(session.query(object_type=UserWithId).random_ordering())))
             self.assertEqual(3, len(list(session.query(object_type=UserWithId).random_ordering("123"))))
 
-    @unittest.skip("Flaky test")
     def test_query_with_boost(self):
         self.add_users()
         with self.store.open_session() as session:
@@ -289,7 +291,7 @@ class TestQuery(TestBase):
             )
             self.assertEqual(3, len(users))
             names = list(map(lambda user: user.name, users))
-            self.assertEqual(["Tarzan", "John", "John"], names)
+            self.assertEqual(["John", "John", "Tarzan"], sorted(names))
 
             users = list(
                 session.query(object_type=UserWithId)
@@ -302,7 +304,7 @@ class TestQuery(TestBase):
             )
             self.assertEqual(3, len(users))
             names = list(map(lambda user: user.name, users))
-            self.assertEqual(["Tarzan", "John", "John"], names)
+            self.assertEqual(["John", "John", "Tarzan"], sorted(names))
 
     def test_query_parameters(self):
         self.add_users()

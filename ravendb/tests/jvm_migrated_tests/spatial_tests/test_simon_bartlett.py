@@ -2,6 +2,7 @@ import unittest
 
 from ravendb import AbstractIndexCreationTask
 from ravendb.documents.indexes.spatial.configuration import SpatialOptions, SpatialSearchStrategy, SpatialRelation
+from ravendb.documents.indexes.definitions import SearchEngineType
 from ravendb.tests.test_base import TestBase
 
 
@@ -16,6 +17,7 @@ class GeoDocument:
 class GeoIndex(AbstractIndexCreationTask):
     def __init__(self):
         super(GeoIndex, self).__init__()
+        self.search_engine_type = SearchEngineType.LUCENE
         self.map = "docs.GeoDocuments.Select(doc => new {\n" + "    WKT = this.CreateSpatialField(doc.WKT)\n" + "})"
         spatial_options = SpatialOptions(strategy=SpatialSearchStrategy.GEOHASH_PREFIX_TREE)
         self._spatial_options_strings["WKT"] = spatial_options
@@ -25,7 +27,6 @@ class TestSimonBartlett(TestBase):
     def setUp(self):
         super(TestSimonBartlett, self).setUp()
 
-    @unittest.skip("flaky")
     def test_line_strings_should_intersect(self):
         self.store.execute_index(GeoIndex())
 
@@ -55,7 +56,6 @@ class TestSimonBartlett(TestBase):
 
             self.assertEqual(1, count)
 
-    @unittest.skip("flaky")
     def test_circles_should_not_intersect(self):
         self.store.execute_index(GeoIndex())
 
