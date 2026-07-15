@@ -2,6 +2,7 @@ import unittest
 
 from ravendb.documents.commands.query import QueryCommand
 from ravendb.exceptions import exceptions
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.documents.commands.crud import PutDocumentCommand
 from ravendb.documents.indexes.definitions import IndexDefinition
 from ravendb.documents.operations.indexes import PutIndexesOperation
@@ -61,14 +62,13 @@ class TestByIndexActions(TestBase):
             patch_command.result.operation_node_tag,
         ).wait_for_completion()
 
-    @unittest.skip("Exception dispatcher")
     def test_update_by_index_fail(self):
         index_query = IndexQuery("from index 'TeSort' update {{{0}}}".format(self.patch))
         patch_command = PatchByQueryOperation(
             index_query,
             options=QueryOperationOptions(allow_stale=False),
         ).get_command(self.store, self.store.conventions)
-        with self.assertRaises(exceptions.InvalidOperationException):
+        with self.assertRaises(RavenException):
             self.requests_executor.execute_command(patch_command)
             Operation(
                 self.requests_executor,
@@ -78,12 +78,11 @@ class TestByIndexActions(TestBase):
                 patch_command.result.operation_node_tag,
             ).wait_for_completion()
 
-    @unittest.skip("Exception dispatcher")
     def test_delete_by_index_fail(self):
         delete_by_index_command = DeleteByQueryOperation("From Index 'region_2' WHERE Name = 'Western'").get_command(
             self.store, self.store.conventions
         )
-        with self.assertRaises(exceptions.InvalidOperationException):
+        with self.assertRaises(RavenException):
             self.requests_executor.execute_command(delete_by_index_command)
             self.assertIsNotNone(delete_by_index_command.result)
             Operation(

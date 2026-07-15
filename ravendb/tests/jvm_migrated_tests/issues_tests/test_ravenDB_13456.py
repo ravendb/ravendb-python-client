@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from ravendb.documents.operations.configuration.definitions import ClientConfiguration
@@ -12,7 +13,7 @@ class TestRavenDB13456(TestBase):
     def setUp(self):
         super().setUp()
 
-    @unittest.skip("Fails on cicd due to free license - adding the client configuration is disallowed")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_change_identity_parts_separator(self):
         with self.store.open_session() as session:
             company1 = Company()
@@ -44,7 +45,7 @@ class TestRavenDB13456(TestBase):
 
         with self.store.open_session(session_options=session_options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("company|", Company())
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 session.save_changes,
                 RuntimeError,  # todo: change to RavenException when the Exception Dispatcher will be ready
                 "Document id company| cannot end with '|' or '/' as part of cluster transaction",
@@ -52,7 +53,7 @@ class TestRavenDB13456(TestBase):
 
         with self.store.open_session(session_options=session_options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("company/", Company())
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 session.save_changes,
                 RuntimeError,  # todo: change to RavenException when the Exception Dispatcher will be ready
                 "Document id company/ cannot end with '|' or '/' as part of cluster transaction",
@@ -90,7 +91,7 @@ class TestRavenDB13456(TestBase):
         with self.store.open_session(session_options=session_options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("company:", Company())
 
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 session.save_changes,
                 RuntimeError,  # todo: change to RavenException when the Exception Dispatcher will be ready
                 "Document id company: cannot end with '|' or ':' as part of cluster transaction",
@@ -99,7 +100,7 @@ class TestRavenDB13456(TestBase):
         with self.store.open_session(session_options=session_options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("company|", Company())
 
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 session.save_changes,
                 RuntimeError,  # todo: change to RavenException when the Exception Dispatcher will be ready
                 "Document id company| cannot end with '|' or ':' as part of cluster transaction",
@@ -148,7 +149,7 @@ class TestRavenDB13456(TestBase):
         with self.store.open_session(session_options=session_options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("company|", Company())
 
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 session.save_changes,
                 RuntimeError,  # todo: change to RavenException when the Exception Dispatcher will be ready
                 "Document id company| cannot end with '|' or '/' as part of cluster transaction",
@@ -156,7 +157,7 @@ class TestRavenDB13456(TestBase):
 
         with self.store.open_session(session_options=session_options) as session:
             session.advanced.cluster_transaction.create_compare_exchange_value("company/", Company())
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 session.save_changes,
                 RuntimeError,  # todo: change to RavenException when the Exception Dispatcher will be ready
                 "Document id company/ cannot end with '|' or '/' as part of cluster transaction",

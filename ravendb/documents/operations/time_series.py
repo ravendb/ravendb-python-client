@@ -101,8 +101,8 @@ class TimeSeriesCollectionConfiguration:
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "Policies": [policy.to_json() for policy in self.policies],
-            "RawPolicy": self.raw_policy.to_json(),
+            "Policies": [policy.to_json() for policy in (self.policies or [])],
+            "RawPolicy": self.raw_policy.to_json() if self.raw_policy is not None else None,
         }
 
 

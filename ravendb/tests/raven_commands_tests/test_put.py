@@ -1,4 +1,5 @@
 from ravendb.documents.commands.crud import PutDocumentCommand, GetDocumentsCommand
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tests.test_base import *
 
 
@@ -17,10 +18,9 @@ class TestPut(TestBase):
         self.assertEqual(response.results[0]["@metadata"]["@id"], "testing/1")
         request_executor.close()
 
-    @unittest.skip("Exception Dispatcher")
     def test_put_fail(self):
         request_executor = self.store.get_request_executor()
-        with self.assertRaises(ValueError):
+        with self.assertRaises(RavenException):
             command = PutDocumentCommand("testing/2", None, "document")
             request_executor.execute_command(command)
 
