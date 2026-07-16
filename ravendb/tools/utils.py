@@ -942,7 +942,19 @@ class Utils(object):
 
     @staticmethod
     def entity_to_dict(entity, default_method) -> dict:
-        return json.loads(json.dumps(entity, default=default_method))
+        def _normalize_enum_keys(obj):
+            """Recursively convert Enum dict keys to their values so json.dumps accepts them."""
+            if isinstance(obj, dict):
+                return {(k.value if isinstance(k, Enum) else k): _normalize_enum_keys(v) for k, v in obj.items()}
+            if isinstance(obj, (list, set, tuple)):
+                return [_normalize_enum_keys(i) for i in obj]
+            return obj
+
+        def _normalized_default(o):
+            result = default_method(o)
+            return _normalize_enum_keys(result)
+
+        return json.loads(json.dumps(entity, default=_normalized_default))
 
     @staticmethod
     def add_hours(date: datetime, hours: int):
