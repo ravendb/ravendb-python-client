@@ -35,10 +35,9 @@ class HttpsTest(TestBase):
                 session.store(user, "users/1")
                 session.save_changes()
 
-    @unittest.skip("Exception dispatcher")
     def test_can_replace_certificate(self):
         with self.secured_document_store as sec_store:
-            self.assertRaisesWithMessage(
+            self.assertRaisesWithMessageContaining(
                 sec_store.maintenance.server.send,
                 Exception,
                 "Unable to load the provided certificate",

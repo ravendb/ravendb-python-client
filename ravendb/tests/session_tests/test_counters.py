@@ -8,7 +8,6 @@ class User:
         self.name = name
 
 
-@unittest.skip("Counters")
 class TestCounters(TestBase):
     def setUp(self):
         super().setUp()
@@ -65,9 +64,9 @@ class TestCounters(TestBase):
             document_counter.get("Shares")
             document_counter.get_all()
 
-            self.assertEqual(session.advanced.number_of_requests_in_session(), 2)
+            self.assertEqual(session.advanced.number_of_requests, 2)
             document_counter.get("Likes")
-            self.assertEqual(session.advanced.number_of_requests_in_session(), 2)
+            self.assertEqual(session.advanced.number_of_requests, 2)
 
 
 if __name__ == "__main__":

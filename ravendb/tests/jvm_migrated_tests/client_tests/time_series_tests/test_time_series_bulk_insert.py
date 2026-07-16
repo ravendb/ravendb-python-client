@@ -1,5 +1,5 @@
 import time
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import List
 
 from ravendb.documents.session.time_series import TimeSeriesEntry
@@ -401,21 +401,21 @@ class TestTimeSeriesBulkInsert(TestBase):
             user = User()
             bulk_insert.store_as(user, document_id_1)
             with bulk_insert.time_series_for(document_id_1, "Nasdaq2") as time_series_bulk_insert:
-                time_series_bulk_insert.append_single(datetime.utcnow(), 7547.31, "web")
+                time_series_bulk_insert.append_single(datetime.now(timezone.utc).replace(tzinfo=None), 7547.31, "web")
 
         with self.store.bulk_insert() as bulk_insert:
             with bulk_insert.time_series_for(document_id_1, "Heartrate2") as time_series_bulk_insert2:
-                time_series_bulk_insert2.append_single(datetime.utcnow(), 7547.31, "web")
+                time_series_bulk_insert2.append_single(datetime.now(timezone.utc).replace(tzinfo=None), 7547.31, "web")
 
         with self.store.bulk_insert() as bulk_insert:
             user = User()
             bulk_insert.store_as(user, document_id_2)
             with bulk_insert.time_series_for(document_id_2, "Nasdaq") as time_series_bulk_insert:
-                time_series_bulk_insert.append_single(datetime.utcnow(), 7547.31, "web")
+                time_series_bulk_insert.append_single(datetime.now(timezone.utc).replace(tzinfo=None), 7547.31, "web")
 
         with self.store.bulk_insert() as bulk_insert:
             with bulk_insert.time_series_for(document_id_2, "Heartrate") as time_series_bulk_insert:
-                time_series_bulk_insert.append_single(datetime.utcnow(), 58, "fitbit")
+                time_series_bulk_insert.append_single(datetime.now(timezone.utc).replace(tzinfo=None), 58, "fitbit")
 
         with self.store.open_session() as session:
             user = session.load(document_id_2, User)

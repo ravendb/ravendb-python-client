@@ -31,7 +31,6 @@ class TestAdvanced(TestBase):
             id_ = s.advanced.get_document_id(user)
             self.assertFalse(id_.endswith("/"))
 
-    @unittest.skip("Query streaming")
     def test_stream_query(self):
         maps = "from user in docs.Users " "select new {" "name = user.name," "age = user.age}"
         index_definition = IndexDefinition()
@@ -46,7 +45,7 @@ class TestAdvanced(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            query = session.query(object_type=User, index_name="UserByName")
+            query = session.query_index("UserByName", User)
             results = session.advanced.stream(query)
             result_counter = 0
             for _ in results:

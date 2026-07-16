@@ -1,4 +1,5 @@
 from ravendb.serverwide.operations.common import GetDatabaseNamesOperation
+from ravendb.exceptions.raven_exceptions import RavenException
 from ravendb.tests.test_base import *
 import unittest
 
@@ -21,13 +22,13 @@ class TestServerOperations(TestBase):
             except Exception as exception:
                 raise exception
 
-    @unittest.skip("Exception dispatcher")
     def test_cannot_create_database_with_the_same_name(self):
         name = "Duplicate"
         try:
             self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(name)))
             TestBase.wait_for_database_topology(self.store, name)
-            self.assertIsNone(self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(name))))
+            with self.assertRaises(RavenException):
+                self.store.maintenance.server.send(CreateDatabaseOperation(DatabaseRecord(name)))
 
         finally:
             try:

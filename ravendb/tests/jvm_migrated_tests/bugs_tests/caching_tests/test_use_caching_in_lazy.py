@@ -17,13 +17,16 @@ class TestUseCachingInLazy(TestBase):
     def setUp(self):
         super(TestUseCachingInLazy, self).setUp()
 
-    @unittest.skip("Aggressive caching in MultiGetCommand")
+    @unittest.skip(
+        "MultiGet create_request does not set If-None-Match from cache, so a repeated not-found "
+        "returns 404 instead of 304 - needs client HTTP-cache wiring (tracked separately)"
+    )
     def test_lazily_load__when_query_not_found_not_modified__should_use_cache(self):
         not_exists_doc_id = "NotExistDocId"
 
         with self.store.open_session() as session:
             # Add "NotExistDocId" to cache
-            session.advanced.lazily.load(TestObj, not_exists_doc_id).value
+            session.advanced.lazily.load(not_exists_doc_id, TestObj).value
 
         request_executor = self.store.get_request_executor()
         with self.store.open_session() as session:

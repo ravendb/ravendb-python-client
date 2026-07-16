@@ -85,7 +85,6 @@ class TestIndexActions(TestBase):
 
         self.assertEqual(IndexSourceType.TIME_SERIES, index.source_type)
 
-    @unittest.skip("Counters")
     def test_counters_index_creation(self):
         with self.store.open_session() as session:
             user = User("Idan")
@@ -93,7 +92,7 @@ class TestIndexActions(TestBase):
             session.save_changes()
 
         with self.store.open_session() as session:
-            session.counters_for("users/1").increment("Shares", 1)  # todo: implement counters_for
+            session.counters_for("users/1").increment("Shares", 1)
             session.save_changes()
 
         map_ = (
@@ -109,7 +108,7 @@ class TestIndexActions(TestBase):
         index_definition.maps = map_
         self.store.maintenance.send(PutIndexesOperation(index_definition))
 
-        self.assertEqual(index_definition.source_type, IndexSourceType.counters)
+        self.assertEqual(index_definition.source_type, IndexSourceType.COUNTERS)
 
 
 if __name__ == "__main__":

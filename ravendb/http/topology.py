@@ -25,6 +25,16 @@ class Topology:
         self.etag = etag
         self.nodes = nodes
 
+    def to_json(self) -> Dict:
+        return {"Etag": self.etag, "Nodes": [node.to_json() for node in (self.nodes or [])]}
+
+    @classmethod
+    def from_json(cls, json_dict: Dict) -> "Topology":
+        return cls(
+            json_dict.get("Etag"),
+            [ServerNode.from_json(node_json) for node_json in (json_dict.get("Nodes") or [])],
+        )
+
 
 class ClusterTopology:
     def __init__(self):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from ravendb.tests.test_base import TestBase
@@ -263,7 +263,7 @@ class TestFirstClassPatch(TestBase):
             session.store(user2, docid2)
             session.save_changes()
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         with self.store.open_session() as session:
             session.advanced.patch(self.doc_id, "numbers[0]", 31)

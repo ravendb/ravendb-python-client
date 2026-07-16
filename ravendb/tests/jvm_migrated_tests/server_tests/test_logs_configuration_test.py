@@ -1,6 +1,4 @@
-import unittest
-
-from ravendb.serverwide.operations.logs import GetLogsConfigurationOperation, LogMode, SetLogsConfigurationOperation
+from ravendb.serverwide.operations.logs import GetLogsConfigurationOperation, LogLevel, SetLogsConfigurationOperation
 from ravendb.tests.test_base import TestBase
 
 
@@ -8,33 +6,23 @@ class TestLogsConfiguration(TestBase):
     def setUp(self):
         super().setUp()
 
-    @unittest.skip("7.0 logging system breaking changes")
     def test_can_get_and_set_logging(self):
+        logs_config = self.store.maintenance.server.send(GetLogsConfigurationOperation())
+        initial_current = logs_config.logs.current_min_level
+        persisted = logs_config.logs.min_level
+
         try:
-            get_operation = GetLogsConfigurationOperation()
+            # change the runtime min level (not persisted)
+            self.store.maintenance.server.send(
+                SetLogsConfigurationOperation(SetLogsConfigurationOperation.LogsConfiguration(LogLevel.WARN))
+            )
 
-            logs_config = self.store.maintenance.server.send(get_operation)
-
-            self.assertEqual(LogMode.NONE, logs_config.current_mode)
-
-            self.assertEqual(LogMode.NONE, logs_config.mode)
-
-            # now try to set mode to operations and info
-            parameters = SetLogsConfigurationOperation.Parameters(LogMode.INFORMATION)
-            set_operation = SetLogsConfigurationOperation(parameters)
-
-            self.store.maintenance.server.send(set_operation)
-
-            get_operation = GetLogsConfigurationOperation()
-
-            logs_config = self.store.maintenance.server.send(get_operation)
-
-            self.assertEqual(LogMode.INFORMATION, logs_config.current_mode)
-
-            self.assertEqual(LogMode.NONE, logs_config.mode)
+            logs_config = self.store.maintenance.server.send(GetLogsConfigurationOperation())
+            self.assertEqual(LogLevel.WARN, logs_config.logs.current_min_level)
+            # without persist, the persisted MinLevel is unchanged
+            self.assertEqual(persisted, logs_config.logs.min_level)
         finally:
-            # try to clean up
-
-            parameters = SetLogsConfigurationOperation.Parameters(LogMode.OPERATIONS)
-            set_operation = SetLogsConfigurationOperation(parameters)
-            self.store.maintenance.server.send(set_operation)
+            # restore the original runtime level
+            self.store.maintenance.server.send(
+                SetLogsConfigurationOperation(SetLogsConfigurationOperation.LogsConfiguration(initial_current))
+            )

@@ -24,6 +24,7 @@ class RavenTestDriver:
         embedded_server = RavenServerRunner.get_embedded_server(locator)
         store = embedded_server.get_document_store("test.manager")
         store.conventions.disable_topology_updates = True
+        store.conventions.disable_topology_cache = True
 
         return store, embedded_server
 

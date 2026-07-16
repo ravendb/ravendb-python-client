@@ -59,7 +59,7 @@ _OPENAI_ENDPOINT = "https://api.openai.com/v1"
 # the decorator below or change it back to `@unittest.skipIf(_OPENAI_KEY is None ...)`.
 
 
-@unittest.skip("Needs OpenAI API key — see module docstring to run locally.")
+@unittest.skipIf(_OPENAI_KEY is None, "Needs OpenAI API key. Skipping on CI/CD.")
 class TestAiConversationAgainstRealLLM(TestBase):
     """End-to-end AI conversation tests using a real OpenAI endpoint."""
 

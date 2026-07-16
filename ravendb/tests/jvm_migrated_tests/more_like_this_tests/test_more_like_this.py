@@ -4,7 +4,7 @@ from abc import ABC
 from typing import Optional, List, Type, TypeVar
 
 from ravendb import AbstractIndexCreationTask, DocumentStore
-from ravendb.documents.indexes.definitions import FieldStorage, FieldTermVector, FieldIndexing
+from ravendb.documents.indexes.definitions import FieldStorage, FieldTermVector, FieldIndexing, SearchEngineType
 from ravendb.documents.queries.more_like_this import MoreLikeThisStopWords, MoreLikeThisOptions
 from ravendb.tests.test_base import TestBase
 
@@ -68,6 +68,7 @@ class DataIndex(AbstractIndexCreationTask):
 class ComplexDataIndex(AbstractIndexCreationTask):
     def __init__(self):
         super(ComplexDataIndex, self).__init__()
+        self.search_engine_type = SearchEngineType.LUCENE
         self.map = "from doc in docs.ComplexDatas select new { doc.prop, doc.prop.body }"
         self._index("body", FieldIndexing.SEARCH)
 
@@ -362,7 +363,6 @@ class TestMoreLikeThis(TestBase):
 
         self._assert_more_like_this_has_matches_for(Data, DataIndex, self.store, Id)
 
-    @unittest.skip("Flaky")
     def test_can_make_dynamic_document_queries_with_complex_properties(self):
         ComplexDataIndex().execute(self.store)
 

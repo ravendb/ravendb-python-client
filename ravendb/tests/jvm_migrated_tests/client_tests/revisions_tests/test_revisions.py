@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from time import sleep
 
 from ravendb import RevisionsConfiguration, RevisionsCollectionConfiguration, GetStatisticsOperation
@@ -361,9 +361,15 @@ class TestRevisions(TestBase):
             self.assertEqual(1, session.advanced.number_of_requests)
 
         with self.store.open_session() as session:
-            revision = session.advanced.revisions.get_by_before_date("users/1", datetime.utcnow(), User)
-            revisions_lazily = session.advanced.revisions.lazily.get_by_before_date("users/1", datetime.utcnow(), User)
-            session.advanced.revisions.lazily.get_by_before_date("users/2", datetime.utcnow(), User)
+            revision = session.advanced.revisions.get_by_before_date(
+                "users/1", datetime.now(timezone.utc).replace(tzinfo=None), User
+            )
+            revisions_lazily = session.advanced.revisions.lazily.get_by_before_date(
+                "users/1", datetime.now(timezone.utc).replace(tzinfo=None), User
+            )
+            session.advanced.revisions.lazily.get_by_before_date(
+                "users/2", datetime.now(timezone.utc).replace(tzinfo=None), User
+            )
 
             revisions_lazily_result = revisions_lazily.value
 

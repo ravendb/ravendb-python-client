@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ravendb import GetTermsOperation
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractJavaScriptIndexCreationTask
@@ -24,7 +24,11 @@ class TestBasicTimeSeriesIndexesJavaScript(TestBase):
     def setUp(self):
         super(TestBasicTimeSeriesIndexesJavaScript, self).setUp()
 
-    @unittest.skip("flaky")
+    def _customize_db_record(self, db_record):
+        # An empty timeSeriesNamesFor array indexes as a (blank) term on Corax but produces no term on
+        # Lucene; force the static index engine to Lucene so the "no time series -> no names" expectation holds.
+        db_record.settings["Indexing.Static.SearchEngineType"] = "Lucene"
+
     def test_time_series_names_for(self):
         now = RavenTestHelper.utc_today()
         index = Companies_ByTimeSeriesNames()
@@ -64,7 +68,7 @@ class TestBasicTimeSeriesIndexesJavaScript(TestBase):
         self.assertIn("true", terms)
 
     def test_basic_map_index_with_load(self):
-        now1 = datetime.utcnow()
+        now1 = datetime.now(timezone.utc).replace(tzinfo=None)
         now2 = now1 + timedelta(seconds=1)
 
         with self.store.open_session() as session:
@@ -168,7 +172,7 @@ class TestBasicTimeSeriesIndexesJavaScript(TestBase):
         self.assertIn("la", terms)
 
     def test_can_map_all_time_series_from_collection(self):
-        now1 = datetime.utcnow()
+        now1 = datetime.now(timezone.utc).replace(tzinfo=None)
         now2 = now1 + timedelta(seconds=1)
 
         with self.store.open_session() as session:

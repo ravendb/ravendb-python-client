@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ravendb import PutIndexesOperation, GetTermsOperation
 from ravendb.documents.indexes.time_series import TimeSeriesIndexDefinition
@@ -11,7 +11,7 @@ class TestBasicTimeSeriesIndexes_MixedSyntax(TestBase):
         super(TestBasicTimeSeriesIndexes_MixedSyntax, self).setUp()
 
     def test_basic_map_index(self):
-        now1 = datetime.utcnow()
+        now1 = datetime.now(timezone.utc).replace(tzinfo=None)
 
         with self.store.open_session() as session:
             company = Company()

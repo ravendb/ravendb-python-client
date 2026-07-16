@@ -2,7 +2,7 @@ import unittest
 from typing import Optional
 
 from ravendb import AbstractIndexCreationTask, Explanations, ExplanationOptions
-from ravendb.documents.indexes.definitions import FieldStorage
+from ravendb.documents.indexes.definitions import FieldStorage, SearchEngineType
 from ravendb.infrastructure.orders import Company
 from ravendb.tests.test_base import TestBase
 
@@ -16,6 +16,7 @@ class Companies_ByName(AbstractIndexCreationTask):
 
     def __init__(self):
         super(Companies_ByName, self).__init__()
+        self.search_engine_type = SearchEngineType.LUCENE
         self.map = "from c in docs.Companies select new { key = c.name, count = 1 }"
         self.reduce = (
             "from result in results "
@@ -34,7 +35,10 @@ class TestRavenDB9745(TestBase):
     def setUp(self):
         super(TestRavenDB9745, self).setUp()
 
-    @unittest.skip("Corax doesn't support explanations yet")
+    def _customize_db_record(self, db_record):
+        # explanations on a dynamic query is a Lucene-only feature; force the auto-index engine to Lucene
+        db_record.settings["Indexing.Auto.SearchEngineType"] = "Lucene"
+
     def test_explain(self):
         Companies_ByName().execute(self.store)
 

@@ -39,6 +39,7 @@ from ravendb.http.misc import (
 from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
 from ravendb.http.topology import Topology, NodeStatus, NodeSelector, CurrentIndexAndNode, UpdateTopologyParameters
+from ravendb.http import topology_local_cache
 from ravendb.serverwide.commands import GetDatabaseTopologyCommand, GetClusterTopologyCommand
 
 from http import HTTPStatus
@@ -416,6 +417,14 @@ class RequestExecutor:
 
                 self._topology_etag = self._node_selector.topology.etag
 
+                if not self.conventions.disable_topology_cache and self.conventions.topology_cache_location:
+                    topology_local_cache.try_save(
+                        self.conventions.topology_cache_location,
+                        topology_local_cache.server_hash(parameters.node.url, self._database_name),
+                        self._node_selector.topology,
+                        topology_local_cache.DATABASE_TOPOLOGY_EXTENSION,
+                    )
+
                 self._on_topology_updated_invoke(topology)
             except Exception as e:
                 if not self._disposed:
@@ -456,6 +465,16 @@ class RequestExecutor:
 
                     errors.append((url, e))
 
+            # all initial urls unreachable - fall back to the on-disk topology cache when enabled
+            for url in initial_urls:
+                cached_topology = self._try_load_topology_from_cache(url)
+                if cached_topology is not None:
+                    self._node_selector = NodeSelector(cached_topology, self._thread_pool_executor)
+                    self._topology_etag = cached_topology.etag
+                    self.__initialize_update_topology_timer()
+                    self.__topology_taken_from_node = ServerNode(url, self._database_name)
+                    return
+
             topology = Topology(
                 self._topology_etag,
                 (
@@ -475,6 +494,13 @@ class RequestExecutor:
             # todo: details from exceptions in inner_list
 
         return self._thread_pool_executor.submit(__run, errors)
+
+    def _try_load_topology_from_cache(self, url):
+        return topology_local_cache.try_load(
+            None if self.conventions.disable_topology_cache else self.conventions.topology_cache_location,
+            topology_local_cache.server_hash(url, self._database_name),
+            topology_local_cache.DATABASE_TOPOLOGY_EXTENSION,
+        )
 
     @staticmethod
     def validate_urls(initial_urls: List[str]) -> List[str]:
@@ -635,7 +661,7 @@ class RequestExecutor:
                     return  # we either handled this already in the unsuccessful response or we are throwing
                 self._on_succeed_request_invoke(self._database_name, url, response, request, attempt_num)
                 response_dispose = command.process_response(self._cache, response, url)
-                self._last_returned_response = datetime.datetime.utcnow()
+                self._last_returned_response = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             finally:
                 if response_dispose == ResponseDisposeHandling.AUTOMATIC:
                     response.close()
@@ -1445,6 +1471,14 @@ class ClusterRequestExecutor(RequestExecutor):
                 new_topology = Topology(results.etag, nodes)
                 self._topology_etag = results.etag
 
+                if not self.conventions.disable_topology_cache and self.conventions.topology_cache_location:
+                    topology_local_cache.try_save(
+                        self.conventions.topology_cache_location,
+                        topology_local_cache.server_hash(parameters.node.url),
+                        new_topology,
+                        topology_local_cache.CLUSTER_TOPOLOGY_EXTENSION,
+                    )
+
                 if self._node_selector is None:
                     self._node_selector = NodeSelector(new_topology, self._thread_pool_executor)
 
@@ -1468,6 +1502,13 @@ class ClusterRequestExecutor(RequestExecutor):
             return True
 
         return self._thread_pool_executor.submit(__supply_async)
+
+    def _try_load_topology_from_cache(self, url):
+        return topology_local_cache.try_load(
+            None if self.conventions.disable_topology_cache else self.conventions.topology_cache_location,
+            topology_local_cache.server_hash(url),
+            topology_local_cache.CLUSTER_TOPOLOGY_EXTENSION,
+        )
 
     def _throw_exceptions(self, details: str):
         raise RuntimeError(f"Failed to retrieve cluster topology from all known nodes {os.linesep}{details}")

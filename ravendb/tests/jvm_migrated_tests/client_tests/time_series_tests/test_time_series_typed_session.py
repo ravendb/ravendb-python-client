@@ -1,6 +1,6 @@
 import time
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple, Optional
 
 from ravendb import GetDatabaseRecordOperation
@@ -380,7 +380,7 @@ class TestTimeSeriesTypedSession(TestBase):
 
         # please notice we don't modify server time here!
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         base_line = RavenTestHelper.utc_today() - timedelta(days=12)
 
         total = TimeValue.of_days(12).value // 60
@@ -431,11 +431,11 @@ class TestTimeSeriesTypedSession(TestBase):
                 else:
                     self.assertEqual(5, len(res.values))
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         with self.store.open_session() as session:
             ts = session.time_series_rollup_for(StockPrice, "users/karmel", p1.name)
-            a = TypedTimeSeriesRollupEntry(StockPrice, datetime.utcnow())
+            a = TypedTimeSeriesRollupEntry(StockPrice, datetime.now(timezone.utc).replace(tzinfo=None))
             a.max.close = 1
             ts.append_entry(a)
             session.save_changes()

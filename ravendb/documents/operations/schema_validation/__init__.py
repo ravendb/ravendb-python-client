@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 import requests
@@ -23,7 +23,7 @@ class SchemaDefinition:
     ):
         self.schema = schema
         self.disabled = disabled
-        self.last_modified_time = last_modified_time or datetime.utcnow()
+        self.last_modified_time = last_modified_time or datetime.now(timezone.utc).replace(tzinfo=None)
 
     def to_json(self) -> Dict[str, Any]:
         return {

@@ -1,4 +1,5 @@
 import datetime
+import os
 import time
 import unittest
 
@@ -20,7 +21,7 @@ class TestRavenDB13735(TestBase):
 
         store.maintenance.send(ConfigureRefreshOperation(config))
 
-    @unittest.skip("Fails on cicd due to free license - refresh frequency is below allowed 36 hours")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_refresh_will_update_document_change_vector(self):
         self._setup_refresh(self.store)
 

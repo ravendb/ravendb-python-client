@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 
 from ravendb import GetDatabaseRecordOperation
@@ -38,7 +39,7 @@ class TestTimeSeriesConfiguration(TestBase):
         self.assertEqual(TimeValueUnit.NONE, time_value.unit)
         self.assertEqual(0, time_value.value)
 
-    @unittest.skip("Disable on pull request")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_configure_time_series(self):
         config = TimeSeriesConfiguration()
         self.store.maintenance.send(ConfigureTimeSeriesOperation(config))
@@ -90,7 +91,7 @@ class TestTimeSeriesConfiguration(TestBase):
         self.assertEqual(TimeValue.of_years(3), policies[5].retention_time)
         self.assertEqual(TimeValue.of_years(1), policies[5].aggregation_time)
 
-    @unittest.skip("Disable on pull request")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_can_configure_time_series_2(self):
         collection_name = "Users"
 
@@ -206,7 +207,7 @@ class TestTimeSeriesConfiguration(TestBase):
             ConfigureTimeSeriesOperation(config3),
         )
 
-    @unittest.skip("Disable on pull request")
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_configure_time_series_3(self):
         self.store.time_series.set_policy(
             User, "By15SecondsFor1Minute", TimeValue.of_seconds(15), TimeValue.of_seconds(60)
@@ -245,7 +246,7 @@ class TestTimeSeriesConfiguration(TestBase):
         self.assertEqual(TimeValue.of_years(3), policies[5].retention_time)
         self.assertEqual(TimeValue.of_years(1), policies[5].aggregation_time)
 
-        self.assertRaisesWithMessage(
+        self.assertRaisesWithMessageContaining(
             self.store.time_series.remove_policy,
             Exception,
             "The policy 'By15SecondsFor1Minute' has a retention time of '60 seconds' "
@@ -254,7 +255,7 @@ class TestTimeSeriesConfiguration(TestBase):
             "ByMinuteFor3Hours",
         )
 
-        self.assertRaisesWithMessage(
+        self.assertRaisesWithMessageContaining(
             self.store.time_series.set_raw_policy,
             Exception,
             "The policy 'rawpolicy' has a retention time of '10 seconds' but should be aggregated by policy "

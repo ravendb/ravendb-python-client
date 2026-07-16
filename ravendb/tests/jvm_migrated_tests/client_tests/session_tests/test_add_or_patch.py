@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
 from typing import List
@@ -24,14 +24,18 @@ class TestAddOrPatch(TestBase):
         key = "users/1"
 
         with self.store.open_session() as session:
-            new_user = User(first_name="Hibernating", last_name="Rhinos", last_login=datetime.utcnow())
+            new_user = User(
+                first_name="Hibernating", last_name="Rhinos", last_login=datetime.now(timezone.utc).replace(tzinfo=None)
+            )
             session.store(new_user, key)
             session.save_changes()
             self.assertEqual(1, session.advanced.number_of_requests)
 
         with self.store.open_session() as session:
-            new_user = User(first_name="Hibernating", last_name="Rhinos", last_login=datetime.utcnow())
-            new_date = datetime.utcnow() + timedelta(days=365)
+            new_user = User(
+                first_name="Hibernating", last_name="Rhinos", last_login=datetime.now(timezone.utc).replace(tzinfo=None)
+            )
+            new_date = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=365)
             session.advanced.add_or_patch(key, new_user, "last_login", new_date)
             session.save_changes()
 
@@ -69,7 +73,7 @@ class TestAddOrPatch(TestBase):
 
         with self.store.open_session() as session:
             user = User(first_name="Hibernating", last_name="Rhinos")
-            datetime_now = datetime.utcnow()
+            datetime_now = datetime.now(timezone.utc).replace(tzinfo=None)
             d2000 = datetime(
                 2000,
                 datetime_now.month,

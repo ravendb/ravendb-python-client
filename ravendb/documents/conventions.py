@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import os
+import sys
 import threading
 from abc import abstractmethod, ABC
 from datetime import timedelta, datetime
@@ -51,6 +53,10 @@ class DocumentConventions(object):
 
         # Flags
         self.disable_topology_updates = False
+        # On-disk topology cache (mirrors the .NET client): enabled by default. Topology is persisted to, and
+        # - when the initial urls are unreachable on startup - seeded from topology_cache_location.
+        self.disable_topology_cache = False
+        self.topology_cache_location: Optional[str] = DocumentConventions._default_topology_cache_location()
         self._optimistic_concurrency_mode = None
         # Track which setter the user touched so we can reject mixing them.
         self._use_optimistic_concurrency_was_set = False
@@ -106,6 +112,18 @@ class DocumentConventions(object):
 
     def is_frozen(self):
         return self._frozen
+
+    @staticmethod
+    def _default_topology_cache_location() -> str:
+        # Per-user, OS-appropriate cache directory: stable across restarts and never clutters the directory
+        # the application happens to run from (unlike cwd). Mirrors the intent of .NET's AppContext.BaseDirectory.
+        if sys.platform == "win32":
+            base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
+        elif sys.platform == "darwin":
+            base = os.path.join(os.path.expanduser("~"), "Library", "Caches")
+        else:
+            base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+        return os.path.join(base, "ravendb", "topology")
 
     def get_python_class_name(self, entity_type: type):
         return self._find_python_class_name(entity_type)

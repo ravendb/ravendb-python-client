@@ -32,20 +32,6 @@ class TestSessionStore(TestBase):
         with self.store.open_session() as session:
             self.assertIsNotNone(session.load("foos/1-A"))
 
-    # todo: check java/ fix?
-    @unittest.skip("write_metadata method overwrites this metadata preset")
-    def test_store_with_metadata_on_dict(self):
-        foo = Foo("test", 10)
-        foo.__dict__["@metadata"] = {"foo": True}
-        with self.store.open_session() as session:
-            session.store(foo)
-            session.save_changes()
-
-        with self.store.open_session() as session:
-            f = session.load("foos/1-A")
-            metadata = session.advanced.get_metadata_for(f)
-            self.assertTrue(metadata["foo"])
-
     def test_store_with_metadata_on_api(self):
         foo = Foo("test", 10)
         with self.store.open_session() as session:

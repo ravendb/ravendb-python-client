@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
@@ -17,7 +17,7 @@ class TestRavenDB15109(TestBase):
 
             for i in range(1, 11):
                 with bulk_insert.time_series_for(id_, str(i)) as time_series:
-                    time_series.append_single(datetime.utcnow(), i)
+                    time_series.append_single(datetime.now(timezone.utc).replace(tzinfo=None), i)
 
         with self.store.open_session() as session:
             for i in range(1, 11):
