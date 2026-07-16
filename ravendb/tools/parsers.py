@@ -13,7 +13,7 @@ import re
 # BUFSIZE isn't included in newer ijson versions so we define it ourselves:
 # See: https://github.com/isagalaev/ijson/blob/c594cdd3c94c8b4a018577966b3ad22bb44c2620/ijson/backends/python.py#L14
 BUFSIZE = 16 * 1024
-LEXEME_RE = re.compile(b"[a-z0-9eE\.\+-]+|\S")
+LEXEME_RE = re.compile(rb"[a-z0-9eE\.\+-]+|\S")
 BYTE_ARRAY_CHARACTERS = bytearray(b',}:{"')
 IS_WEBSOCKET = False
 

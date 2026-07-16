@@ -55,7 +55,9 @@ class TestBulkInserts(TestBase):
             )
 
     def test_can_modify_metadata_with_bulk_insert(self):
-        expiration_date = (datetime.datetime.utcnow() + datetime.timedelta(days=365)).isoformat() + "0Z"  # add one year
+        expiration_date = (
+            datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(days=365)
+        ).isoformat() + "0Z"  # add one year
 
         with self.store.bulk_insert() as bulk_insert:
             foobar = FooBar("Jon Snow")

@@ -357,7 +357,7 @@ class TestQuery(TestBase):
             self.assertSequenceContainsElements(names, "Beethoven", "Scooby Doo", "Benji")
 
     def test_query_with_duration(self):
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         index = OrderTime()
         self.store.maintenance.send(PutIndexesOperation(index))
         with self.store.open_session() as session:

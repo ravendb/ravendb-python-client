@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import List
 
 from ravendb.documents.session.time_series import TypedTimeSeriesEntry, TimeSeriesEntry
@@ -203,12 +203,12 @@ class TestTypedBulkInsert(TestBase):
                 stock_price = StockPrice()
                 stock_price.open = 7547.31
                 stock_price.close = 7123.5
-                ts.append_single(datetime.utcnow(), stock_price, "web")
+                ts.append_single(datetime.now(timezone.utc).replace(tzinfo=None), stock_price, "web")
 
         with self.store.bulk_insert() as bulk_insert:
             with bulk_insert.typed_time_series_for(HeartRateMeasure, document_id_1, "heartrate2") as ts:
                 heart_rate_measure = HeartRateMeasure(76)
-                ts.append_single(datetime.utcnow(), heart_rate_measure, "watches/apple")
+                ts.append_single(datetime.now(timezone.utc).replace(tzinfo=None), heart_rate_measure, "watches/apple")
 
         with self.store.bulk_insert() as bulk_insert:
             bulk_insert.store_as(User(), document_id_2)
@@ -216,11 +216,11 @@ class TestTypedBulkInsert(TestBase):
                 stock_price = StockPrice()
                 stock_price.open = 7547.31
                 stock_price.close = 7123.5
-                ts.append_single(datetime.utcnow(), stock_price, "web")
+                ts.append_single(datetime.now(timezone.utc).replace(tzinfo=None), stock_price, "web")
 
         with self.store.bulk_insert() as bulk_insert:
             with bulk_insert.typed_time_series_for(HeartRateMeasure, document_id_2, "heartrate") as ts:
-                ts.append_single(datetime.utcnow(), HeartRateMeasure(58), "fitbit")
+                ts.append_single(datetime.now(timezone.utc).replace(tzinfo=None), HeartRateMeasure(58), "fitbit")
 
         with self.store.open_session() as session:
             user = session.load(document_id_2, User)

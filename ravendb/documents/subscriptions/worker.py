@@ -744,11 +744,12 @@ class SubscriptionWorker(Generic[_T]):
 
     def _assert_last_connection_failure(self) -> None:
         if self._last_connection_failure is None:
-            self._last_connection_failure = datetime.datetime.utcnow()
+            self._last_connection_failure = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             return
 
         if (
-            datetime.datetime.utcnow().timestamp() - self._last_connection_failure.timestamp()
+            datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).timestamp()
+            - self._last_connection_failure.timestamp()
             > self._options.max_erroneous_period.total_seconds()
         ):
             raise SubscriptionInvalidStateException(

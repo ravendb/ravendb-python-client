@@ -661,7 +661,7 @@ class RequestExecutor:
                     return  # we either handled this already in the unsuccessful response or we are throwing
                 self._on_succeed_request_invoke(self._database_name, url, response, request, attempt_num)
                 response_dispose = command.process_response(self._cache, response, url)
-                self._last_returned_response = datetime.datetime.utcnow()
+                self._last_returned_response = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             finally:
                 if response_dispose == ResponseDisposeHandling.AUTOMATIC:
                     response.close()

@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ravendb import GetTermsOperation
 from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractJavaScriptIndexCreationTask
@@ -68,7 +68,7 @@ class TestBasicTimeSeriesIndexesJavaScript(TestBase):
         self.assertIn("true", terms)
 
     def test_basic_map_index_with_load(self):
-        now1 = datetime.utcnow()
+        now1 = datetime.now(timezone.utc).replace(tzinfo=None)
         now2 = now1 + timedelta(seconds=1)
 
         with self.store.open_session() as session:
@@ -172,7 +172,7 @@ class TestBasicTimeSeriesIndexesJavaScript(TestBase):
         self.assertIn("la", terms)
 
     def test_can_map_all_time_series_from_collection(self):
-        now1 = datetime.utcnow()
+        now1 = datetime.now(timezone.utc).replace(tzinfo=None)
         now2 = now1 + timedelta(seconds=1)
 
         with self.store.open_session() as session:

@@ -87,7 +87,12 @@ class DatabaseChanges:
     def _connect_websocket_secured(self, url: str) -> None:
         # Get server certificate via HTTPS and prepare SSL context
         server_certificate = base64.b64decode(self._get_server_certificate())
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        # PROTOCOL_TLS_CLIENT replaces the deprecated PROTOCOL_TLSv1_2 but defaults to CA verification and
+        # hostname checking, which the old PROTOCOL_TLSv1_2 context did not do by default. Clear both to keep
+        # the previous behavior; a trust store, when configured, re-enables CA verification below.
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
         ssl_context.load_cert_chain(self._request_executor.certificate_path)
         if self._request_executor.trust_store_path:
             ssl_context.verify_mode = ssl.CERT_REQUIRED
