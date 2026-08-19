@@ -70,6 +70,7 @@ class DatabaseRecord:
         self.sql_etls: List[SqlEtlConfiguration] = []
         self.olap_etls: List[OlapEtlConfiguration] = []
         self.embeddings_generations: List = []
+        self.cdc_sinks: List = []
         self.client: Optional[ClientConfiguration] = None
         self.studio: Optional[StudioConfiguration] = None
         self.truncated_cluster_transaction_commands_count: int = 0
@@ -119,6 +120,7 @@ class DatabaseRecord:
             "RavenEtls": self.raven_etls,
             "SqlEtls": self.sql_etls,
             "OlapEtls": self.olap_etls,
+            "CdcSinks": [cdc_sink.to_json() for cdc_sink in self.cdc_sinks],
             "Client": self.client,
             "Studio": self.studio,
             "TruncatedClusterTransactionCommand": self.truncated_cluster_transaction_commands_count,
@@ -178,6 +180,13 @@ class DatabaseRecord:
             ]
         else:
             record.embeddings_generations = []
+        cdc_sinks_data = json_dict.get("CdcSinks", [])
+        if cdc_sinks_data:
+            from ravendb.documents.operations.cdc_sink.cdc_sink_configuration import CdcSinkConfiguration
+
+            record.cdc_sinks = [CdcSinkConfiguration.from_json(c) for c in cdc_sinks_data]
+        else:
+            record.cdc_sinks = []
         record.client = json_dict.get("Client", None)
         record.studio = json_dict.get("Studio", None)
         record.truncated_cluster_transaction_commands_count = json_dict.get("TruncatedClusterTransactionCommand", None)

@@ -188,6 +188,24 @@ from ravendb.documents.operations.replication.pull_replication import (
 from ravendb.documents.operations.ongoing_tasks import (
     OngoingTaskPullReplicationAsSink,
     OngoingTaskPullReplicationAsHub,
+    OngoingTaskCdcSink,
+)
+from ravendb.documents.operations.cdc_sink import (
+    CdcSinkConfiguration,
+    CdcSinkTableConfig,
+    CdcSinkEmbeddedTableConfig,
+    CdcSinkLinkedTableConfig,
+    CdcSinkOnDeleteConfig,
+    CdcSinkPostgresSettings,
+    CdcColumnMapping,
+    CdcColumnType,
+    CdcSinkRelationType,
+    CdcSinkTaskState,
+    CdcSinkTableLoadState,
+    AddCdcSinkOperation,
+    AddCdcSinkOperationResult,
+    UpdateCdcSinkOperation,
+    UpdateCdcSinkOperationResult,
 )
 from ravendb.documents.operations.revisions import (
     RevisionsCollectionConfiguration,
