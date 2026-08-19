@@ -7,6 +7,9 @@ from ravendb.documents.operations.etl.queue.amazon_sqs_connection_settings impor
 from ravendb.documents.operations.etl.queue.azure_queue_storage_connection_settings import (
     AzureQueueStorageConnectionSettings,
 )
+from ravendb.documents.operations.etl.queue.azure_service_bus_connection_settings import (
+    AzureServiceBusConnectionSettings,
+)
 from ravendb.documents.operations.etl.queue.kafka_connection_settings import KafkaConnectionSettings
 from ravendb.documents.operations.etl.queue.rabbit_mq_connection_settings import RabbitMqConnectionSettings
 
@@ -17,6 +20,7 @@ class QueueBrokerType(Enum):
     RABBIT_MQ = "RabbitMq"
     AZURE_QUEUE_STORAGE = "AzureQueueStorage"
     AMAZON_SQS = "AmazonSqs"
+    AZURE_SERVICE_BUS = "AzureServiceBus"
 
 
 class QueueConnectionString(ConnectionString):
@@ -28,6 +32,7 @@ class QueueConnectionString(ConnectionString):
         rabbit_mq_settings: RabbitMqConnectionSettings = None,
         azure_queue_storage_settings: AzureQueueStorageConnectionSettings = None,
         amazon_sqs_settings: AmazonSqsConnectionSettings = None,
+        azure_service_bus_settings: AzureServiceBusConnectionSettings = None,
         used_by: Optional[List[ConnectionStringUsage]] = None,
     ):
         super().__init__(name, used_by)
@@ -36,6 +41,7 @@ class QueueConnectionString(ConnectionString):
         self.rabbit_mq_settings = rabbit_mq_settings
         self.azure_queue_storage_settings = azure_queue_storage_settings
         self.amazon_sqs_settings = amazon_sqs_settings
+        self.azure_service_bus_settings = azure_service_bus_settings
 
     @property
     def get_type(self):
@@ -51,6 +57,9 @@ class QueueConnectionString(ConnectionString):
                 self.azure_queue_storage_settings.to_json() if self.azure_queue_storage_settings else None
             ),
             "AmazonSqsConnectionSettings": self.amazon_sqs_settings.to_json() if self.amazon_sqs_settings else None,
+            "AzureServiceBusConnectionSettings": (
+                self.azure_service_bus_settings.to_json() if self.azure_service_bus_settings else None
+            ),
             "Type": ravendb.serverwide.server_operation_executor.ConnectionStringType.QUEUE,
         }
 
@@ -77,6 +86,11 @@ class QueueConnectionString(ConnectionString):
             amazon_sqs_settings=(
                 AmazonSqsConnectionSettings.from_json(json_dict["AmazonSqsConnectionSettings"])
                 if json_dict["AmazonSqsConnectionSettings"]
+                else None
+            ),
+            azure_service_bus_settings=(
+                AzureServiceBusConnectionSettings.from_json(json_dict["AzureServiceBusConnectionSettings"])
+                if json_dict.get("AzureServiceBusConnectionSettings")
                 else None
             ),
             used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
