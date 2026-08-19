@@ -4,7 +4,7 @@ import base64
 import enum
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import requests
 
@@ -39,6 +39,51 @@ class DatabaseAccess(enum.Enum):
         return self.value
 
 
+class CertificateUsage(enum.Enum):
+    RAVEN_SERVER = "RavenServer"
+    RAVEN_SERVER_FOR_COMMUNICATION = "RavenServerForCommunication"
+    CLIENT = "Client"
+    SSO_SERVER = "SsoServer"
+    SSO_CLIENT = "SsoClient"
+    WELL_KNOWN_ISSUER = "WellKnownIssuer"
+
+    def __str__(self):
+        return self.value
+
+
+class SsoProvider(enum.Enum):
+    GITHUB = "Github"
+    GOOGLE = "Google"
+    MICROSOFT = "Microsoft"
+    WINDOWS = "Windows"
+
+    def __str__(self):
+        return self.value
+
+
+class SsoIdentifier:
+    def __init__(self, provider: SsoProvider = None, domain: str = None, identifier: str = None):
+        self.provider = provider
+        self.domain = domain
+        self.identifier = identifier
+
+    def to_json(self) -> dict:
+        return {
+            "Provider": self.provider.value if self.provider else None,
+            "Domain": self.domain,
+            "Identifier": self.identifier,
+        }
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> SsoIdentifier:
+        provider_value = json_dict.get("Provider")
+        return cls(
+            provider=SsoProvider(provider_value) if provider_value else None,
+            domain=json_dict.get("Domain"),
+            identifier=json_dict.get("Identifier"),
+        )
+
+
 class CertificateRawData:
     def __init__(self, raw_data: bytes = None):
         self.raw_data = raw_data
@@ -57,6 +102,10 @@ class CertificateMetadata:
         public_key_pinning_hash: str = None,
         not_before: datetime = None,
         disabled: bool = False,
+        usage: CertificateUsage = None,
+        sso_server_public_key_pinning_hashes: List[str] = None,
+        allow_any_sso_server: bool = False,
+        sso_identifiers: List[SsoIdentifier] = None,
     ):
         self.name = name
         self.security_clearance = security_clearance
@@ -68,6 +117,12 @@ class CertificateMetadata:
         self.public_key_pinning_hash = public_key_pinning_hash
         self.not_before = not_before
         self.disabled = disabled
+        self.usage = usage
+        self.sso_server_public_key_pinning_hashes = (
+            sso_server_public_key_pinning_hashes if sso_server_public_key_pinning_hashes is not None else []
+        )
+        self.allow_any_sso_server = allow_any_sso_server
+        self.sso_identifiers = sso_identifiers if sso_identifiers is not None else []
 
     @classmethod
     def from_json(cls, json_dict: dict) -> CertificateMetadata:
@@ -82,6 +137,14 @@ class CertificateMetadata:
             json_dict.get("PublicKeyPinningHash", None),
             Utils.string_to_datetime(json_dict["NotBefore"]) if "NotBefore" in json_dict else None,
             json_dict.get("Disabled", False),
+            CertificateUsage(json_dict["Usage"]) if json_dict.get("Usage") else None,
+            json_dict.get("SsoServerPublicKeyPinningHashes") or [],
+            json_dict.get("AllowAnySsoServer", False),
+            (
+                [SsoIdentifier.from_json(sso) for sso in json_dict["SsoIdentifiers"]]
+                if json_dict.get("SsoIdentifiers")
+                else []
+            ),
         )
 
 
@@ -99,6 +162,10 @@ class CertificateDefinition(CertificateMetadata):
         collection_primary_key: str = None,
         public_key_pinning_hash: str = None,
         disabled: bool = False,
+        usage: CertificateUsage = None,
+        sso_server_public_key_pinning_hashes: List[str] = None,
+        allow_any_sso_server: bool = False,
+        sso_identifiers: List[SsoIdentifier] = None,
     ):
         super().__init__(
             name,
@@ -110,6 +177,10 @@ class CertificateDefinition(CertificateMetadata):
             collection_primary_key,
             public_key_pinning_hash,
             disabled=disabled,
+            usage=usage,
+            sso_server_public_key_pinning_hashes=sso_server_public_key_pinning_hashes,
+            allow_any_sso_server=allow_any_sso_server,
+            sso_identifiers=sso_identifiers,
         )
         self.certificate = certificate
         self.password = password
@@ -126,6 +197,10 @@ class CertificateDefinition(CertificateMetadata):
             "Certificate": self.certificate,
             "Password": self.password,
             "Disabled": self.disabled,
+            "Usage": self.usage.value if self.usage else None,
+            "SsoServerPublicKeyPinningHashes": self.sso_server_public_key_pinning_hashes,
+            "AllowAnySsoServer": self.allow_any_sso_server,
+            "SsoIdentifiers": [sso.to_json() for sso in self.sso_identifiers] if self.sso_identifiers else [],
         }
         if self.not_after:
             json_dict.update({"NotAfter": Utils.datetime_to_string(self.not_after)})
@@ -145,6 +220,14 @@ class CertificateDefinition(CertificateMetadata):
             json_dict["CollectionPrimaryKey"],
             json_dict["PublicKeyPinningHash"],
             disabled=json_dict.get("Disabled", False),
+            usage=CertificateUsage(json_dict["Usage"]) if json_dict.get("Usage") else None,
+            sso_server_public_key_pinning_hashes=json_dict.get("SsoServerPublicKeyPinningHashes") or [],
+            allow_any_sso_server=json_dict.get("AllowAnySsoServer", False),
+            sso_identifiers=(
+                [SsoIdentifier.from_json(sso) for sso in json_dict["SsoIdentifiers"]]
+                if json_dict.get("SsoIdentifiers")
+                else []
+            ),
         )
 
 
@@ -456,12 +539,18 @@ class EditClientCertificateOperation(VoidServerOperation):
             name: str,
             clearance: SecurityClearance,
             disabled: bool = False,
+            sso_server_public_key_pinning_hashes: Optional[List[str]] = None,
+            allow_any_sso_server: Optional[bool] = None,
+            sso_identifiers: Optional[List[SsoIdentifier]] = None,
         ):
             self.thumbprint = thumbprint
             self.permissions = permissions
             self.name = name
             self.clearance = clearance
             self.disabled = disabled
+            self.sso_server_public_key_pinning_hashes = sso_server_public_key_pinning_hashes
+            self.allow_any_sso_server = allow_any_sso_server
+            self.sso_identifiers = sso_identifiers
 
     def __init__(self, parameters: Parameters):
         if parameters is None:
@@ -481,10 +570,20 @@ class EditClientCertificateOperation(VoidServerOperation):
         self.__permissions = parameters.permissions
         self.__clearance = parameters.clearance
         self.__disabled = parameters.disabled
+        self.__sso_server_public_key_pinning_hashes = parameters.sso_server_public_key_pinning_hashes
+        self.__allow_any_sso_server = parameters.allow_any_sso_server
+        self.__sso_identifiers = parameters.sso_identifiers
 
     def get_command(self, conventions: "DocumentConventions") -> "VoidRavenCommand":
         return self.__EditCertificateClientCommand(
-            self.__thumbprint, self.__name, self.__permissions, self.__clearance, self.__disabled
+            self.__thumbprint,
+            self.__name,
+            self.__permissions,
+            self.__clearance,
+            self.__disabled,
+            self.__sso_server_public_key_pinning_hashes,
+            self.__allow_any_sso_server,
+            self.__sso_identifiers,
         )
 
     class __EditCertificateClientCommand(VoidRavenCommand, RaftCommand):
@@ -495,6 +594,9 @@ class EditClientCertificateOperation(VoidServerOperation):
             permissions: Dict[str, DatabaseAccess],
             clearance: SecurityClearance,
             disabled: bool,
+            sso_server_public_key_pinning_hashes: Optional[List[str]] = None,
+            allow_any_sso_server: Optional[bool] = None,
+            sso_identifiers: Optional[List[SsoIdentifier]] = None,
         ):
             super().__init__()
             self.__thumbprint = thumbprint
@@ -502,6 +604,9 @@ class EditClientCertificateOperation(VoidServerOperation):
             self.__permissions = permissions
             self.__clearance = clearance
             self.__disabled = disabled
+            self.__sso_server_public_key_pinning_hashes = sso_server_public_key_pinning_hashes
+            self.__allow_any_sso_server = allow_any_sso_server
+            self.__sso_identifiers = sso_identifiers
 
         def is_read_request(self) -> bool:
             return False
@@ -509,15 +614,35 @@ class EditClientCertificateOperation(VoidServerOperation):
         def create_request(self, node: ServerNode) -> requests.Request:
             url = f"{node.url}/admin/certificates/edit"
 
-            definition = CertificateDefinition()
-            definition.thumbprint = self.__thumbprint
-            definition.permissions = self.__permissions
-            definition.security_clearance = self.__clearance
-            definition.name = self.__name
-            definition.disabled = self.__disabled
+            # The body is written manually, never from CertificateDefinition.to_json: the SSO
+            # keys must be present only when the caller provided them, because the server's
+            # edit handler treats a present key as an explicit replacement (even an empty list
+            # clears the stored value) and an absent key as "leave untouched".
+            body = {
+                "Thumbprint": self.__thumbprint,
+                "Name": self.__name,
+                "SecurityClearance": self.__clearance.value if self.__clearance else None,
+                "Disabled": self.__disabled,
+                "Permissions": {key: str(value) for key, value in self.__permissions.items()},
+            }
+            if self.__sso_server_public_key_pinning_hashes is not None:
+                body["SsoServerPublicKeyPinningHashes"] = self.__sso_server_public_key_pinning_hashes
+            if self.__allow_any_sso_server is not None:
+                body["AllowAnySsoServer"] = self.__allow_any_sso_server
+            if self.__sso_identifiers is not None:
+                sso_ids = []
+                for sso_id in self.__sso_identifiers:
+                    entry = {
+                        "Provider": sso_id.provider.value if sso_id.provider else None,
+                        "Identifier": sso_id.identifier,
+                    }
+                    if sso_id.domain:
+                        entry["Domain"] = sso_id.domain
+                    sso_ids.append(entry)
+                body["SsoIdentifiers"] = sso_ids
 
             request = requests.Request("POST", url)
-            request.data = definition.to_json()
+            request.data = body
 
             return request
 
