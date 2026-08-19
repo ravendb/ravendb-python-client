@@ -660,6 +660,10 @@ class RequestExecutor:
                         self._throw_failed_to_contact_all_nodes(command, request)
                     return  # we either handled this already in the unsuccessful response or we are throwing
                 self._on_succeed_request_invoke(self._database_name, url, response, request, attempt_num)
+                if session_info is not None and constants.Headers.DATABASE_CLUSTER_TRANSACTION_ID in response.headers:
+                    session_info.cluster_transaction_id = response.headers[
+                        constants.Headers.DATABASE_CLUSTER_TRANSACTION_ID
+                    ]
                 response_dispose = command.process_response(self._cache, response, url)
                 self._last_returned_response = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             finally:

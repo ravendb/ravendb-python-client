@@ -2062,6 +2062,23 @@ class InMemoryDocumentSessionOperations:
                 self.__documents_by_entity_to_remove.append(entity)
 
             def update_entity_document_info(self, document_info: DocumentInfo, document: dict):
+                session_info = self.__session.session_info
+                cluster_id = session_info.cluster_transaction_id if session_info else None
+                if cluster_id is not None and document_info.change_vector is not None:
+                    from ravendb.util.client_change_vector_utils import ClientChangeVectorUtils
+
+                    cv = document_info.change_vector.split(ClientChangeVectorUtils.SEPARATOR)
+                    if len(cv) > 2:
+                        raise InvalidOperationException(
+                            f"The document '{document_info.key}' has invalid change vector "
+                            f"'{document_info.change_vector}'"
+                        )
+
+                    cluster_tx_index = ClientChangeVectorUtils.get_etag_by_id(cv[-1], cluster_id)
+                    if cluster_tx_index > 0:
+                        session_info.last_cluster_transaction_index = max(
+                            session_info.last_cluster_transaction_index or 0, cluster_tx_index
+                        )
                 self.__document_infos_to_update.append((document_info, document))
 
             def clear_session_state_after_successful_save_changes(self):

@@ -74,6 +74,7 @@ class SessionInfo:
         self.no_caching = options.no_caching
 
         self.last_cluster_transaction_index: Union[None, int] = None
+        self.cluster_transaction_id: Union[None, str] = None
 
     @property
     def can_use_load_balance_behavior(self) -> bool:
