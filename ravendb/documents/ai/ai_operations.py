@@ -78,6 +78,7 @@ class AiOperations:
         creation_options: "AiConversationCreationOptions" = None,
         change_vector: str = None,
         debug: Optional[bool] = None,
+        cancel_pending_action_tools: bool = False,
     ) -> AiConversation:
         """
         Creates a new conversation with the specified AI agent.
@@ -88,12 +89,22 @@ class AiOperations:
             creation_options: Optional creation options for the conversation
             change_vector: Optional change vector for concurrency control
             debug: Optional flag enabling server-side conversation debugging
+            cancel_pending_action_tools: When True, the server auto-answers any open action
+                tool calls instead of requiring a response
 
         Returns:
             Conversation operations interface for managing the conversation
         """
 
-        return AiConversation(self._store, agent_id, creation_options, conversation_id, change_vector, debug)
+        return AiConversation(
+            self._store,
+            agent_id,
+            creation_options,
+            conversation_id,
+            change_vector,
+            debug,
+            cancel_pending_action_tools,
+        )
 
     def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> AiConversation:
         """
@@ -115,3 +126,19 @@ class AiOperations:
         from ravendb.documents.ai.ai_conversation import AiConversation
 
         return AiConversation.with_conversation_id(self._store, conversation_id, change_vector)
+
+    def get_conversation_messages(self, conversation_id_or_options) -> "AiConversationMessagesResult":
+        """
+        Reads messages from an AI agent conversation.
+
+        Args:
+            conversation_id_or_options: The conversation document ID, or a
+                GetConversationMessagesOptions instance for paging/filtering control.
+
+        Returns:
+            The conversation messages result; None when the conversation does not exist.
+        """
+        from ravendb.documents.operations.ai.agents import GetConversationMessagesOperation
+
+        operation = GetConversationMessagesOperation(conversation_id_or_options)
+        return self._store.maintenance.send(operation)
