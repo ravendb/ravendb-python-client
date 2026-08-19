@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, Generic, TypeVar, List, Dict, Any
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 from ravendb.documents.operations.etl.etl_type import EtlType
 from ravendb.documents.operations.etl.transformation import Transformation
 import ravendb.serverwide.server_operation_executor
@@ -11,8 +11,14 @@ _T = TypeVar("_T", bound=ConnectionString)
 
 
 class RavenConnectionString(ConnectionString):
-    def __init__(self, name: str, database: Optional[str] = None, topology_discovery_urls: Optional[List[str]] = None):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        database: Optional[str] = None,
+        topology_discovery_urls: Optional[List[str]] = None,
+        used_by: Optional[List[ConnectionStringUsage]] = None,
+    ):
+        super().__init__(name, used_by)
         self.database = database
         self.topology_discovery_urls = topology_discovery_urls
 
@@ -34,6 +40,7 @@ class RavenConnectionString(ConnectionString):
             name=json_dict["Name"],
             database=json_dict["Database"],
             topology_discovery_urls=json_dict["TopologyDiscoveryUrls"],
+            used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
         )
 
 

@@ -1,6 +1,6 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
 
 
@@ -92,8 +92,14 @@ class Authentication:
 
 
 class ElasticSearchConnectionString(ConnectionString):
-    def __init__(self, name: str, nodes: List[str] = None, authentication: Authentication = None):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        nodes: List[str] = None,
+        authentication: Authentication = None,
+        used_by: Optional[List[ConnectionStringUsage]] = None,
+    ):
+        super().__init__(name, used_by)
         self.nodes = nodes
         self.authentication = authentication
 
@@ -117,4 +123,5 @@ class ElasticSearchConnectionString(ConnectionString):
             authentication=(
                 Authentication.from_json(json_dict["Authentication"]) if json_dict["Authentication"] else None
             ),
+            used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
         )

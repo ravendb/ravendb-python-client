@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from ravendb.documents.operations.backups.settings import (
     LocalSettings,
@@ -8,7 +8,7 @@ from ravendb.documents.operations.backups.settings import (
     GoogleCloudSettings,
     FtpSettings,
 )
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 import ravendb.serverwide.server_operation_executor
 from ravendb.documents.operations.etl.configuration import EtlConfiguration
 
@@ -23,8 +23,9 @@ class OlapConnectionString(ConnectionString):
         glacier_settings: Optional[GlacierSettings] = None,
         google_cloud_settings: Optional[GoogleCloudSettings] = None,
         ftp_settings: Optional[FtpSettings] = None,
+        used_by: Optional[List[ConnectionStringUsage]] = None,
     ):
-        super().__init__(name)
+        super().__init__(name, used_by)
         self.local_settings = local_settings
         self.s3_settings = s3_settings
         self.azure_settings = azure_settings
@@ -64,6 +65,7 @@ class OlapConnectionString(ConnectionString):
                 else None
             ),
             ftp_settings=FtpSettings.from_json(json_dict["FtpSettings"]) if json_dict["FtpSettings"] else None,
+            used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
         )
 
 

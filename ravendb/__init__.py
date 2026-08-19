@@ -75,7 +75,7 @@ from ravendb.documents.operations.configuration.operations import (
 )
 from ravendb.documents.operations.configuration.definitions import StudioConfiguration, StudioEnvironment
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 
 # AI Operations
 from ravendb.documents.ai import (

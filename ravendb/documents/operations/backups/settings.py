@@ -130,6 +130,7 @@ class S3Settings(AmazonSettings):
         bucket_name: str = None,
         custom_server_url: str = None,
         force_path_style: bool = None,
+        disable_checksum_validation: bool = False,
     ):
         super().__init__(
             disabled,
@@ -143,6 +144,7 @@ class S3Settings(AmazonSettings):
         self.bucket_name = bucket_name
         self.custom_server_url = custom_server_url
         self.force_path_style = force_path_style
+        self.disable_checksum_validation = disable_checksum_validation
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> S3Settings:
@@ -157,6 +159,7 @@ class S3Settings(AmazonSettings):
             json_dict["BucketName"],
             json_dict["CustomServerUrl"],
             json_dict["ForcePathStyle"],
+            json_dict.get("DisableChecksumValidation", False),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -171,7 +174,33 @@ class S3Settings(AmazonSettings):
             "BucketName": self.bucket_name,
             "CustomServerUrl": self.custom_server_url,
             "ForcePathStyle": self.force_path_style,
+            "DisableChecksumValidation": self.disable_checksum_validation,
         }
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, S3Settings):
+            return False
+
+        return (
+            self.aws_region_name == other.aws_region_name
+            and self.bucket_name == other.bucket_name
+            and self.remote_folder_name == other.remote_folder_name
+            and self.custom_server_url == other.custom_server_url
+            and self.force_path_style == other.force_path_style
+            and self.disable_checksum_validation == other.disable_checksum_validation
+        )
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.aws_region_name,
+                self.bucket_name,
+                self.remote_folder_name,
+                self.custom_server_url,
+                self.force_path_style,
+                self.disable_checksum_validation,
+            )
+        )
 
 
 class GlacierSettings(AmazonSettings):

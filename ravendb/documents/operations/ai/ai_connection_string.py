@@ -1,5 +1,5 @@
 ﻿import enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
 from ravendb.documents.operations.ai.azure_open_ai_settings import AzureOpenAiSettings
@@ -11,7 +11,7 @@ from ravendb.documents.operations.ai.ollama_settings import OllamaSettings
 from ravendb.documents.operations.ai.open_ai_settings import OpenAiSettings
 from ravendb.documents.operations.ai.vertex_settings import VertexSettings
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 
 
 class AiModelType(enum.Enum):
@@ -45,8 +45,9 @@ class AiConnectionString(ConnectionString):
         mistral_ai_settings: Optional[MistralAiSettings] = None,
         vertex_settings: Optional[VertexSettings] = None,
         model_type: AiModelType = None,
+        used_by: Optional[List[ConnectionStringUsage]] = None,
     ):
-        super().__init__(name)
+        super().__init__(name, used_by)
         self.identifier = identifier
         self.openai_settings = openai_settings
         self.azure_openai_settings = azure_openai_settings
@@ -195,4 +196,5 @@ class AiConnectionString(ConnectionString):
                 VertexSettings.from_json(json_dict["VertexSettings"]) if json_dict.get("VertexSettings") else None
             ),
             model_type=AiModelType(json_dict["ModelType"]) if json_dict.get("ModelType") else None,
+            used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
         )

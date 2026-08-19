@@ -404,6 +404,7 @@ class RemoteAttachmentsS3Settings:
         custom_server_url: str = None,
         force_path_style: bool = None,
         storage_class: Optional[S3StorageClass] = None,
+        disable_checksum_validation: bool = False,
     ):
         self.aws_access_key = aws_access_key
         self.aws_secret_key = aws_secret_key
@@ -414,6 +415,7 @@ class RemoteAttachmentsS3Settings:
         self.custom_server_url = custom_server_url
         self.force_path_style = force_path_style
         self.storage_class = storage_class
+        self.disable_checksum_validation = disable_checksum_validation
 
     @classmethod
     def from_json(cls, json_dict: dict) -> RemoteAttachmentsS3Settings:
@@ -428,6 +430,7 @@ class RemoteAttachmentsS3Settings:
             json_dict.get("CustomServerUrl"),
             json_dict.get("ForcePathStyle"),
             S3StorageClass(storage_class_raw) if storage_class_raw is not None else None,
+            json_dict.get("DisableChecksumValidation", False),
         )
 
     def to_json(self) -> dict:
@@ -440,10 +443,44 @@ class RemoteAttachmentsS3Settings:
             "BucketName": self.bucket_name,
             "CustomServerUrl": self.custom_server_url,
             "ForcePathStyle": self.force_path_style,
+            "DisableChecksumValidation": self.disable_checksum_validation,
         }
         if self.storage_class is not None:
             result["StorageClass"] = self.storage_class.value
         return result
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, RemoteAttachmentsS3Settings):
+            return False
+
+        return (
+            self.aws_region_name == other.aws_region_name
+            and self.bucket_name == other.bucket_name
+            and self.remote_folder_name == other.remote_folder_name
+            and self.custom_server_url == other.custom_server_url
+            and self.force_path_style == other.force_path_style
+            and self.disable_checksum_validation == other.disable_checksum_validation
+            and self.storage_class == other.storage_class
+            and self.aws_access_key == other.aws_access_key
+            and self.aws_secret_key == other.aws_secret_key
+            and self.aws_session_token == other.aws_session_token
+        )
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.aws_region_name,
+                self.bucket_name,
+                self.remote_folder_name,
+                self.custom_server_url,
+                self.force_path_style,
+                self.disable_checksum_validation,
+                self.storage_class,
+                self.aws_access_key,
+                self.aws_secret_key,
+                self.aws_session_token,
+            )
+        )
 
 
 class RemoteAttachmentsAzureSettings:

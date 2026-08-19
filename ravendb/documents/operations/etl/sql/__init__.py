@@ -1,13 +1,19 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 import ravendb.serverwide.server_operation_executor
 from ravendb.documents.operations.etl.configuration import EtlConfiguration
 
 
 class SqlConnectionString(ConnectionString):
-    def __init__(self, name: str, connection_string: Optional[str] = None, factory_name: Optional[str] = None):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        connection_string: Optional[str] = None,
+        factory_name: Optional[str] = None,
+        used_by: Optional[List[ConnectionStringUsage]] = None,
+    ):
+        super().__init__(name, used_by)
         self.connection_string = connection_string
         self.factory_name = factory_name
 
@@ -29,6 +35,7 @@ class SqlConnectionString(ConnectionString):
             name=json_dict["Name"],
             connection_string=json_dict["ConnectionString"],
             factory_name=json_dict["FactoryName"],
+            used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
         )
 
 

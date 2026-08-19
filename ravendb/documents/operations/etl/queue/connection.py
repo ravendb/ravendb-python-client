@@ -1,6 +1,7 @@
 from enum import Enum
+from typing import List, Optional
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 import ravendb.serverwide.server_operation_executor
 from ravendb.documents.operations.etl.queue.amazon_sqs_connection_settings import AmazonSqsConnectionSettings
 from ravendb.documents.operations.etl.queue.azure_queue_storage_connection_settings import (
@@ -27,8 +28,9 @@ class QueueConnectionString(ConnectionString):
         rabbit_mq_settings: RabbitMqConnectionSettings = None,
         azure_queue_storage_settings: AzureQueueStorageConnectionSettings = None,
         amazon_sqs_settings: AmazonSqsConnectionSettings = None,
+        used_by: Optional[List[ConnectionStringUsage]] = None,
     ):
-        super().__init__(name)
+        super().__init__(name, used_by)
         self.broker_type = broker_type
         self.kafka_settings = kafka_settings
         self.rabbit_mq_settings = rabbit_mq_settings
@@ -77,4 +79,5 @@ class QueueConnectionString(ConnectionString):
                 if json_dict["AmazonSqsConnectionSettings"]
                 else None
             ),
+            used_by=[ConnectionStringUsage.from_json(usage) for usage in (json_dict.get("UsedBy") or [])],
         )
