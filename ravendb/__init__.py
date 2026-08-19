@@ -384,6 +384,17 @@ from ravendb.serverwide.operations.common import (
     GetDatabaseRecordOperation,
 )
 
+from ravendb.serverwide.operations.connection_strings import (
+    ServerWideConnectionString,
+    ServerWideConnectionStringUsage,
+    PutServerWideConnectionStringOperation,
+    PutServerWideConnectionStringResult,
+    GetServerWideConnectionStringsOperation,
+    GetServerWideConnectionStringsResult,
+    RemoveServerWideConnectionStringOperation,
+    RemoveServerWideConnectionStringResult,
+)
+
 from ravendb.documents.identity.hilo import (
     HiLoIdGenerator,
     MultiTypeHiLoGenerator,
