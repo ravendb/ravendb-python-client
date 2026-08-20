@@ -3,12 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 from abc import ABC
 
-import _queue
 import concurrent
 import json
 from concurrent.futures import Future
-from queue import Queue
-from threading import Lock, Semaphore
+from queue import Empty, Full, Queue
+from threading import Lock
 from typing import Optional, TYPE_CHECKING, List, TypeVar, Type, Generic, Callable
 
 import requests
@@ -42,25 +41,31 @@ _T_TS_Bindable = TypeVar("_T_TS_Bindable", bound=ITimeSeriesValuesBindable)
 
 
 class BulkInsertOperation:
+    # bounding this is what makes the caller wait for a slow server instead of buffering for it
+    MAX_BUFFERS_TO_FLUSH = 8
+    _ENQUEUE_TIMEOUT_IN_SECONDS = 0.05
+
     class _BufferExposer:
-        def __init__(self):
+        def __init__(self, max_buffers_to_flush: int):
             self._ongoing_operation = Future()  # todo: is there any reason to use Futures? (look at error handling)
-            self._yield_buffer_semaphore = Semaphore(1)
-            self._buffers_to_flush_queue = Queue()
+            self._buffers_to_flush_queue = Queue(maxsize=max_buffers_to_flush)
             self.output_stream_mock = Future()
 
-        def enqueue_buffer_for_flush(self, buffer: bytearray):
-            # the buffer belongs to the queue from here on, so it is never copied
-            self._buffers_to_flush_queue.put(buffer)
+        def try_enqueue_buffer_for_flush(self, buffer: bytearray, timeout: float) -> bool:
+            """Hand a finished buffer over to be sent, uncopied. False means the queue is still full."""
+            try:
+                self._buffers_to_flush_queue.put(buffer, timeout=timeout)
+                return True
+            except Full:
+                return False
 
-        # todo: blocking semaphore acquired and released on enter and exit from bulk insert operation context manager
         def send_data(self):
             while True:
                 try:
                     buffer_to_flush = self._buffers_to_flush_queue.get(timeout=0.05)  # todo: adjust this pooling time
                     yield buffer_to_flush
                 except Exception as e:
-                    if not isinstance(e, _queue.Empty) or self.is_operation_finished():
+                    if not isinstance(e, Empty) or self.is_operation_finished():
                         break
                     continue  # expected Empty exception coming from queue, operation isn't finished yet
 
@@ -136,7 +141,7 @@ class BulkInsertOperation:
         self._current_data_buffer = bytearray()
 
         self._time_series_batch_size = self._conventions.time_series_batch_size
-        self._buffer_exposer = BulkInsertOperation._BufferExposer()
+        self._buffer_exposer = BulkInsertOperation._BufferExposer(self.MAX_BUFFERS_TO_FLUSH)
 
         self._generate_entity_id_on_the_client = GenerateEntityIdOnTheClient(
             self._request_executor.conventions,
@@ -161,7 +166,7 @@ class BulkInsertOperation:
         if self._current_data_buffer:
             try:
                 self._write_string_no_escape("]")
-                self._buffer_exposer.enqueue_buffer_for_flush(self._current_data_buffer)
+                self._enqueue_buffer_for_flush(self._current_data_buffer)
                 self._current_data_buffer = bytearray()
             except Exception as e:
                 flush_ex = e
@@ -288,7 +293,13 @@ class BulkInsertOperation:
 
         buffer = self._current_data_buffer
         self._current_data_buffer = bytearray()
-        self._buffer_exposer.enqueue_buffer_for_flush(buffer)
+        self._enqueue_buffer_for_flush(buffer)
+
+    def _enqueue_buffer_for_flush(self, buffer: bytearray) -> None:
+        """Hand the buffer to the thread sending the request, waiting for a free slot."""
+        while not self._buffer_exposer.try_enqueue_buffer_for_flush(buffer, self._ENQUEUE_TIMEOUT_IN_SECONDS):
+            self._throw_if_bulk_insert_execute_task_failed()
+            self._throw_if_request_already_finished()
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
@@ -321,11 +332,24 @@ class BulkInsertOperation:
             self._get_bulk_insert_operation_id()
             self._start_executing_bulk_insert_command()
 
-        if (
-            self._ongoing_bulk_insert_execute_task.done() and self._ongoing_bulk_insert_execute_task.exception()
-        ):  # todo: check if isCompletedExceptionally returns false if task isn't finished
+        self._throw_if_bulk_insert_execute_task_failed()
+
+    def _throw_if_request_already_finished(self) -> None:
+        """Waiting for a free slot only makes sense while the request carrying the data is still open."""
+        request = self._ongoing_bulk_insert_execute_task
+        if request is None or not request.done():
+            return
+
+        raise BulkInsertAbortedException("The request carrying the bulk insert data finished before all of it was sent")
+
+    def _throw_if_bulk_insert_execute_task_failed(self) -> None:
+        task = self._ongoing_bulk_insert_execute_task
+        if task is None:
+            return
+
+        if task.done() and task.exception():
             try:
-                self._ongoing_bulk_insert_execute_task.result()
+                task.result()
             except Exception as e:
                 self._throw_bulk_insert_aborted(e, None)
 
