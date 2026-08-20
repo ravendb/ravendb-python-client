@@ -5,6 +5,7 @@ from abc import ABC
 
 import concurrent
 import json
+import zlib
 from concurrent.futures import Future
 from queue import Empty, Full, Queue
 from threading import Lock
@@ -52,7 +53,10 @@ class BulkInsertOperation:
             self.output_stream_mock = Future()
 
         def try_enqueue_buffer_for_flush(self, buffer: bytearray, timeout: float) -> bool:
-            """Hand a finished buffer over to be sent, uncopied. False means the queue is still full."""
+            """Hand a finished buffer over to be sent. False means the queue is still full.
+
+            The buffer belongs to the queue once it is in, so it is never copied.
+            """
             try:
                 self._buffers_to_flush_queue.put(buffer, timeout=timeout)
                 return True
@@ -97,12 +101,32 @@ class BulkInsertOperation:
             self._skip_overwrite_if_unchanged = skip_overwrite_if_unchanged
 
         def create_request(self, node: ServerNode) -> requests.Request:
+            buffers = self._buffer_exposer.send_data()
+            headers = {}
+            if self.use_compression:
+                buffers = self._gzip(buffers)
+                headers[constants.Headers.CONTENT_ENCODING] = constants.Headers.Encodings.GZIP
+
             return requests.Request(
                 "POST",
                 f"{node.url}/databases/{node.database}/bulk_insert?id={self._key}"
                 f"&skipOverwriteIfUnchanged={'true' if self._skip_overwrite_if_unchanged else 'false'}",
-                data=self._buffer_exposer.send_data(),
+                data=buffers,
+                headers=headers,
             )
+
+        @staticmethod
+        def _gzip(buffers):
+            """Compress the outgoing buffers as one gzip stream, one flush per buffer."""
+            compressor = zlib.compressobj(level=zlib.Z_BEST_SPEED, wbits=zlib.MAX_WBITS | 16)
+            for buffer in buffers:
+                compressed = compressor.compress(buffer) + compressor.flush(zlib.Z_SYNC_FLUSH)
+                if compressed:
+                    yield compressed
+
+            tail = compressor.flush()
+            if tail:
+                yield tail
 
         def set_response(self, response: Optional[str], from_cache: bool) -> None:
             raise NotImplementedError("Not Implemented")
@@ -117,8 +141,6 @@ class BulkInsertOperation:
                 self._buffer_exposer.error_on_request_start(e)
 
     def __init__(self, database: str = None, store: "DocumentStore" = None, options: BulkInsertOptions = None):
-        self.use_compression = False
-
         self._ongoing_bulk_insert_execute_task: Optional[Future] = None
         self._first = True
         self._in_progress_command: Optional[CommandType] = None
@@ -132,8 +154,8 @@ class BulkInsertOperation:
         if not database or database.isspace():
             self._throw_no_database()
 
-        self._use_compression = options.use_compression if options else False
         self._options = options or BulkInsertOptions()
+        self.use_compression = bool(self._options.use_compression)
         self._request_executor = store.get_request_executor(database)
 
         self._max_size_in_buffer = 1024 * 1024
@@ -296,7 +318,11 @@ class BulkInsertOperation:
         self._enqueue_buffer_for_flush(buffer)
 
     def _enqueue_buffer_for_flush(self, buffer: bytearray) -> None:
-        """Hand the buffer to the thread sending the request, waiting for a free slot."""
+        """Hand the buffer over to the thread sending the request, waiting for a free slot.
+
+        Waiting here is the backpressure: a server that reads slower than this client writes slows
+        the client down rather than filling its memory.
+        """
         while not self._buffer_exposer.try_enqueue_buffer_for_flush(buffer, self._ENQUEUE_TIMEOUT_IN_SECONDS):
             self._throw_if_bulk_insert_execute_task_failed()
             self._throw_if_request_already_finished()
