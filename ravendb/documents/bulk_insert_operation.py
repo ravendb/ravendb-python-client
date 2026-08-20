@@ -7,7 +7,6 @@ import _queue
 import concurrent
 import json
 from concurrent.futures import Future
-from copy import deepcopy
 from queue import Queue
 from threading import Lock, Semaphore
 from typing import Optional, TYPE_CHECKING, List, TypeVar, Type, Generic, Callable
@@ -51,7 +50,8 @@ class BulkInsertOperation:
             self.output_stream_mock = Future()
 
         def enqueue_buffer_for_flush(self, buffer: bytearray):
-            self._buffers_to_flush_queue.put(bytes(buffer))
+            # the buffer belongs to the queue from here on, so it is never copied
+            self._buffers_to_flush_queue.put(buffer)
 
         # todo: blocking semaphore acquired and released on enter and exit from bulk insert operation context manager
         def send_data(self):
@@ -131,9 +131,6 @@ class BulkInsertOperation:
         self._options = options or BulkInsertOptions()
         self._request_executor = store.get_request_executor(database)
 
-        self._enqueue_current_buffer_async = Future()
-        self._enqueue_current_buffer_async.set_result(None)
-
         self._max_size_in_buffer = 1024 * 1024
 
         self._current_data_buffer = bytearray()
@@ -164,9 +161,8 @@ class BulkInsertOperation:
         if self._current_data_buffer:
             try:
                 self._write_string_no_escape("]")
-                self._enqueue_current_buffer_async.result()  # wait for enqueue
-                buffer = self._current_data_buffer
-                self._buffer_exposer.enqueue_buffer_for_flush(buffer)
+                self._buffer_exposer.enqueue_buffer_for_flush(self._current_data_buffer)
+                self._current_data_buffer = bytearray()
             except Exception as e:
                 flush_ex = e
 
@@ -290,15 +286,9 @@ class BulkInsertOperation:
         if len(self._current_data_buffer) <= self._max_size_in_buffer:
             return
 
-        self._enqueue_current_buffer_async.result()  # wait
-
-        buffer = deepcopy(self._current_data_buffer)
-        self._current_data_buffer.clear()
-
-        def __enqueue_buffer_for_flush(flushed_buffer: bytearray):
-            self._buffer_exposer.enqueue_buffer_for_flush(flushed_buffer)
-
-        self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush, buffer)
+        buffer = self._current_data_buffer
+        self._current_data_buffer = bytearray()
+        self._buffer_exposer.enqueue_buffer_for_flush(buffer)
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
