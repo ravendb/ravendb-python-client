@@ -287,18 +287,18 @@ class BulkInsertOperation:
         return __return_func
 
     def _flush_if_needed(self) -> None:
-        if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
-            self._enqueue_current_buffer_async.result()  # wait
+        if len(self._current_data_buffer) <= self._max_size_in_buffer:
+            return
 
-            buffer = deepcopy(self._current_data_buffer)
-            self._current_data_buffer.clear()
+        self._enqueue_current_buffer_async.result()  # wait
 
-            # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
+        buffer = deepcopy(self._current_data_buffer)
+        self._current_data_buffer.clear()
 
-            def __enqueue_buffer_for_flush(flushed_buffer: bytearray):
-                self._buffer_exposer.enqueue_buffer_for_flush(flushed_buffer)
+        def __enqueue_buffer_for_flush(flushed_buffer: bytearray):
+            self._buffer_exposer.enqueue_buffer_for_flush(flushed_buffer)
 
-            self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush, buffer)
+        self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush, buffer)
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
