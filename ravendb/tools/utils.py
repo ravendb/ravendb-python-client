@@ -942,7 +942,80 @@ class Utils(object):
 
     @staticmethod
     def entity_to_dict(entity, default_method) -> dict:
-        return json.loads(json.dumps(entity, default=default_method))
+        """Build the JSON-able form of an entity, matching json.loads(json.dumps(entity))."""
+        return Utils._to_json_value(entity, default_method, {})
+
+    @staticmethod
+    def _to_json_value(value, default_method, containers_in_progress: Dict[int, object]):
+        value_type = type(value)
+        if value is None or value_type is str or value_type is bool or value_type is int or value_type is float:
+            return value
+        if isinstance(value, dict):
+            return Utils._to_json_object(value, default_method, containers_in_progress)
+        if isinstance(value, (list, tuple)):
+            return Utils._to_json_array(value, default_method, containers_in_progress)
+        # json writes scalar subclasses by their built-in value, so a str or int enum never reaches default
+        if isinstance(value, str):
+            return str.__str__(value)
+        if isinstance(value, int):  # bool cannot be subclassed, so this is not a bool
+            return int(value)
+        if isinstance(value, float):
+            return float(value)
+        return Utils._to_json_value(default_method(value), default_method, containers_in_progress)
+
+    @staticmethod
+    def _to_json_object(value: dict, default_method, containers_in_progress: Dict[int, object]) -> dict:
+        marker = id(value)
+        if marker in containers_in_progress:
+            raise ValueError("Circular reference detected")
+        containers_in_progress[marker] = value
+        try:
+            return {
+                Utils._to_json_key(key): Utils._to_json_value(item, default_method, containers_in_progress)
+                for key, item in value.items()
+            }
+        finally:
+            del containers_in_progress[marker]
+
+    @staticmethod
+    def _to_json_array(value, default_method, containers_in_progress: Dict[int, object]) -> list:
+        marker = id(value)
+        if marker in containers_in_progress:
+            raise ValueError("Circular reference detected")
+        containers_in_progress[marker] = value
+        try:
+            return [Utils._to_json_value(item, default_method, containers_in_progress) for item in value]
+        finally:
+            del containers_in_progress[marker]
+
+    @staticmethod
+    def _to_json_key(key) -> str:
+        # mirrors the order in which json coerces object keys
+        if type(key) is str:
+            return key
+        if isinstance(key, str):
+            return str.__str__(key)
+        if isinstance(key, float):
+            return Utils._float_to_json(key)
+        if key is True:
+            return "true"
+        if key is False:
+            return "false"
+        if key is None:
+            return "null"
+        if isinstance(key, int):
+            return int.__repr__(key)
+        raise TypeError(f"keys must be str, int, float, bool or None, not {type(key).__name__}")
+
+    @staticmethod
+    def _float_to_json(value: float) -> str:
+        if value != value:
+            return "NaN"
+        if value == float("inf"):
+            return "Infinity"
+        if value == float("-inf"):
+            return "-Infinity"
+        return float.__repr__(value)
 
     @staticmethod
     def add_hours(date: datetime, hours: int):

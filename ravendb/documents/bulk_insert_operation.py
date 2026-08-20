@@ -3,13 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from abc import ABC
 
-import _queue
 import concurrent
 import json
+import zlib
 from concurrent.futures import Future
-from copy import deepcopy
-from queue import Queue
-from threading import Lock, Semaphore
+from queue import Empty, Full, Queue
+from threading import Lock
 from typing import Optional, TYPE_CHECKING, List, TypeVar, Type, Generic, Callable
 
 import requests
@@ -43,24 +42,34 @@ _T_TS_Bindable = TypeVar("_T_TS_Bindable", bound=ITimeSeriesValuesBindable)
 
 
 class BulkInsertOperation:
+    # bounding this is what makes the caller wait for a slow server instead of buffering for it
+    MAX_BUFFERS_TO_FLUSH = 8
+    _ENQUEUE_TIMEOUT_IN_SECONDS = 0.05
+
     class _BufferExposer:
-        def __init__(self):
+        def __init__(self, max_buffers_to_flush: int):
             self._ongoing_operation = Future()  # todo: is there any reason to use Futures? (look at error handling)
-            self._yield_buffer_semaphore = Semaphore(1)
-            self._buffers_to_flush_queue = Queue()
+            self._buffers_to_flush_queue = Queue(maxsize=max_buffers_to_flush)
             self.output_stream_mock = Future()
 
-        def enqueue_buffer_for_flush(self, buffer: bytearray):
-            self._buffers_to_flush_queue.put(bytes(buffer))
+        def try_enqueue_buffer_for_flush(self, buffer: bytearray, timeout: float) -> bool:
+            """Hand a finished buffer over to be sent. False means the queue is still full.
 
-        # todo: blocking semaphore acquired and released on enter and exit from bulk insert operation context manager
+            The buffer belongs to the queue once it is in, so it is never copied.
+            """
+            try:
+                self._buffers_to_flush_queue.put(buffer, timeout=timeout)
+                return True
+            except Full:
+                return False
+
         def send_data(self):
             while True:
                 try:
                     buffer_to_flush = self._buffers_to_flush_queue.get(timeout=0.05)  # todo: adjust this pooling time
                     yield buffer_to_flush
                 except Exception as e:
-                    if not isinstance(e, _queue.Empty) or self.is_operation_finished():
+                    if not isinstance(e, Empty) or self.is_operation_finished():
                         break
                     continue  # expected Empty exception coming from queue, operation isn't finished yet
 
@@ -92,12 +101,32 @@ class BulkInsertOperation:
             self._skip_overwrite_if_unchanged = skip_overwrite_if_unchanged
 
         def create_request(self, node: ServerNode) -> requests.Request:
+            buffers = self._buffer_exposer.send_data()
+            headers = {}
+            if self.use_compression:
+                buffers = self._gzip(buffers)
+                headers[constants.Headers.CONTENT_ENCODING] = constants.Headers.Encodings.GZIP
+
             return requests.Request(
                 "POST",
                 f"{node.url}/databases/{node.database}/bulk_insert?id={self._key}"
                 f"&skipOverwriteIfUnchanged={'true' if self._skip_overwrite_if_unchanged else 'false'}",
-                data=self._buffer_exposer.send_data(),
+                data=buffers,
+                headers=headers,
             )
+
+        @staticmethod
+        def _gzip(buffers):
+            """Compress the outgoing buffers as one gzip stream, one flush per buffer."""
+            compressor = zlib.compressobj(level=zlib.Z_BEST_SPEED, wbits=zlib.MAX_WBITS | 16)
+            for buffer in buffers:
+                compressed = compressor.compress(buffer) + compressor.flush(zlib.Z_SYNC_FLUSH)
+                if compressed:
+                    yield compressed
+
+            tail = compressor.flush()
+            if tail:
+                yield tail
 
         def set_response(self, response: Optional[str], from_cache: bool) -> None:
             raise NotImplementedError("Not Implemented")
@@ -112,8 +141,6 @@ class BulkInsertOperation:
                 self._buffer_exposer.error_on_request_start(e)
 
     def __init__(self, database: str = None, store: "DocumentStore" = None, options: BulkInsertOptions = None):
-        self.use_compression = False
-
         self._ongoing_bulk_insert_execute_task: Optional[Future] = None
         self._first = True
         self._in_progress_command: Optional[CommandType] = None
@@ -127,19 +154,16 @@ class BulkInsertOperation:
         if not database or database.isspace():
             self._throw_no_database()
 
-        self._use_compression = options.use_compression if options else False
         self._options = options or BulkInsertOptions()
+        self.use_compression = bool(self._options.use_compression)
         self._request_executor = store.get_request_executor(database)
-
-        self._enqueue_current_buffer_async = Future()
-        self._enqueue_current_buffer_async.set_result(None)
 
         self._max_size_in_buffer = 1024 * 1024
 
         self._current_data_buffer = bytearray()
 
         self._time_series_batch_size = self._conventions.time_series_batch_size
-        self._buffer_exposer = BulkInsertOperation._BufferExposer()
+        self._buffer_exposer = BulkInsertOperation._BufferExposer(self.MAX_BUFFERS_TO_FLUSH)
 
         self._generate_entity_id_on_the_client = GenerateEntityIdOnTheClient(
             self._request_executor.conventions,
@@ -164,9 +188,8 @@ class BulkInsertOperation:
         if self._current_data_buffer:
             try:
                 self._write_string_no_escape("]")
-                self._enqueue_current_buffer_async.result()  # wait for enqueue
-                buffer = self._current_data_buffer
-                self._buffer_exposer.enqueue_buffer_for_flush(buffer)
+                self._enqueue_buffer_for_flush(self._current_data_buffer)
+                self._current_data_buffer = bytearray()
             except Exception as e:
                 flush_ex = e
 
@@ -287,18 +310,22 @@ class BulkInsertOperation:
         return __return_func
 
     def _flush_if_needed(self) -> None:
-        if len(self._current_data_buffer) > self._max_size_in_buffer or self._enqueue_current_buffer_async.done():
-            self._enqueue_current_buffer_async.result()  # wait
+        if len(self._current_data_buffer) <= self._max_size_in_buffer:
+            return
 
-            buffer = deepcopy(self._current_data_buffer)
-            self._current_data_buffer.clear()
+        buffer = self._current_data_buffer
+        self._current_data_buffer = bytearray()
+        self._enqueue_buffer_for_flush(buffer)
 
-            # todo: check if it's better to create a new bytearray of max size instead of clearing it (possible dealloc)
+    def _enqueue_buffer_for_flush(self, buffer: bytearray) -> None:
+        """Hand the buffer over to the thread sending the request, waiting for a free slot.
 
-            def __enqueue_buffer_for_flush(flushed_buffer: bytearray):
-                self._buffer_exposer.enqueue_buffer_for_flush(flushed_buffer)
-
-            self._enqueue_current_buffer_async = self._thread_pool_executor.submit(__enqueue_buffer_for_flush, buffer)
+        Waiting here is the backpressure: a server that reads slower than this client writes slows
+        the client down rather than filling its memory.
+        """
+        while not self._buffer_exposer.try_enqueue_buffer_for_flush(buffer, self._ENQUEUE_TIMEOUT_IN_SECONDS):
+            self._throw_if_bulk_insert_execute_task_failed()
+            self._throw_if_request_already_finished()
 
     def _end_previous_command_if_needed(self) -> None:
         if self._in_progress_command == CommandType.COUNTERS:
@@ -331,11 +358,24 @@ class BulkInsertOperation:
             self._get_bulk_insert_operation_id()
             self._start_executing_bulk_insert_command()
 
-        if (
-            self._ongoing_bulk_insert_execute_task.done() and self._ongoing_bulk_insert_execute_task.exception()
-        ):  # todo: check if isCompletedExceptionally returns false if task isn't finished
+        self._throw_if_bulk_insert_execute_task_failed()
+
+    def _throw_if_request_already_finished(self) -> None:
+        """Waiting for a free slot only makes sense while the request carrying the data is still open."""
+        request = self._ongoing_bulk_insert_execute_task
+        if request is None or not request.done():
+            return
+
+        raise BulkInsertAbortedException("The request carrying the bulk insert data finished before all of it was sent")
+
+    def _throw_if_bulk_insert_execute_task_failed(self) -> None:
+        task = self._ongoing_bulk_insert_execute_task
+        if task is None:
+            return
+
+        if task.done() and task.exception():
             try:
-                self._ongoing_bulk_insert_execute_task.result()
+                task.result()
             except Exception as e:
                 self._throw_bulk_insert_aborted(e, None)
 
