@@ -12,6 +12,8 @@ if TYPE_CHECKING:
         AiAgentConfiguration,
         AiAgentConfigurationResult,
         GetAiAgentsResponse,
+        GetConversationMessagesOptions,
+        AiConversationMessagesResult,
     )
 
 
@@ -94,6 +96,29 @@ class AiOperations:
         """
 
         return AiConversation(self._store, agent_id, creation_options, conversation_id, change_vector, debug)
+
+    def get_conversation_messages(
+        self,
+        conversation_id_or_options: "str | GetConversationMessagesOptions",
+    ) -> "Optional[AiConversationMessagesResult]":
+        """
+        Reads messages from an AI conversation.
+
+        Args:
+            conversation_id_or_options: Either a conversation document ID string,
+                or a GetConversationMessagesOptions instance with full control
+                over paging and filtering.
+
+        Returns:
+            AiConversationMessagesResult containing the conversation messages.
+            Returns None if the conversation does not exist.
+        """
+        from ravendb.documents.operations.ai.agents.get_conversation_messages_operation import (
+            GetConversationMessagesOperation,
+        )
+
+        operation = GetConversationMessagesOperation(conversation_id_or_options)
+        return self._store.maintenance.send(operation)
 
     def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> AiConversation:
         """
