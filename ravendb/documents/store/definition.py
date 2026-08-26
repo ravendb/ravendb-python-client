@@ -502,6 +502,8 @@ class DocumentStore(DocumentStoreBase):
 
     def execute_indexes(self, tasks: "List[AbstractIndexCreationTask]", database: Optional[str] = None) -> None:
         self.assert_initialized()
+        if not tasks:
+            return
         indexes_to_add = IndexCreation.create_indexes_to_add(tasks, self.conventions)
 
         self.maintenance.for_database(self.get_effective_database(database)).send(PutIndexesOperation(*indexes_to_add))
