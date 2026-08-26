@@ -341,7 +341,6 @@ class DocumentStore(DocumentStoreBase):
         self.__aggressive_cache_changes: Dict[str, "DocumentStore._AggressiveCacheInvalidator"] = {}
         self.__maintenance_operation_executor: Optional[MaintenanceOperationExecutor] = None
         self.__operation_executor: Optional[OperationExecutor] = None
-        # todo: database smuggler
         self.__multi_db_hilo: Optional[MultiDatabaseHiLoGenerator] = None
         self.__identifier: Optional[str] = None
         self.__add_change_lock = threading.Lock()
@@ -350,6 +349,7 @@ class DocumentStore(DocumentStoreBase):
         self.__before_close: List[Callable[[], None]] = []
         self.__time_series_operation: Optional[TimeSeriesOperations] = None
         self.__ai_operations = None
+        self.__smuggler = None
 
     def __enter__(self):
         return self
@@ -713,6 +713,14 @@ class DocumentStore(DocumentStoreBase):
             self.__operation_executor = OperationExecutor(self)
 
         return self.__operation_executor
+
+    @property
+    def smuggler(self):
+        if self.__smuggler is None:
+            from ravendb.documents.smuggler import DatabaseSmuggler
+
+            self.__smuggler = DatabaseSmuggler(self, self._database)
+        return self.__smuggler
 
     @property
     def time_series(self) -> TimeSeriesOperations:
