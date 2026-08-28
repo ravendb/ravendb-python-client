@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from datetime import datetime
 from enum import Enum
 from typing import Optional, TYPE_CHECKING, Union
 
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.ai.gen_ai_configuration import GenAiConfiguration
     from ravendb.documents.operations.ai.embeddings_generation_configuration import EmbeddingsGenerationConfiguration
+    from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
 
 
 class OngoingTaskType(Enum):
@@ -33,6 +35,7 @@ class OngoingTaskType(Enum):
     PULL_REPLICATION_AS_HUB = "PullReplicationAsHub"
     PULL_REPLICATION_AS_SINK = "PullReplicationAsSink"
     QUEUE_SINK = "QueueSink"
+    CDC_SINK = "CdcSink"
     EMBEDDINGS_GENERATION = "EmbeddingsGeneration"
     GEN_AI = "GenAi"
 
@@ -468,6 +471,97 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         )
 
 
+class OngoingTaskCdcSink(OngoingTask):
+    def __init__(
+        self,
+        task_id: Optional[int] = None,
+        responsible_node: Optional[NodeId] = None,
+        task_state: Optional[OngoingTaskState] = None,
+        task_connection_status: Optional[OngoingTaskConnectionStatus] = None,
+        task_name: Optional[str] = None,
+        error: Optional[str] = None,
+        mentor_node: Optional[str] = None,
+        pin_to_mentor_node: Optional[bool] = None,
+        configuration: Optional["CdcSinkConfiguration"] = None,
+        connection_string_name: Optional[str] = None,
+        factory_name: Optional[str] = None,
+        last_batch_time: Optional[datetime] = None,
+        last_checkpoint: Optional[str] = None,
+        seconds_since_last_batch: Optional[float] = None,
+        last_activity_time: Optional[datetime] = None,
+        seconds_since_last_activity: Optional[float] = None,
+        health_issue: Optional[str] = None,
+    ):
+        super().__init__(
+            task_id=task_id,
+            task_type=OngoingTaskType.CDC_SINK,
+            responsible_node=responsible_node,
+            task_state=task_state,
+            task_connection_status=task_connection_status,
+            task_name=task_name,
+            error=error,
+            mentor_node=mentor_node,
+            pin_to_mentor_node=pin_to_mentor_node,
+        )
+        self.configuration = configuration
+        self.connection_string_name = connection_string_name
+        self.factory_name = factory_name
+        self.last_batch_time = last_batch_time
+        self.last_checkpoint = last_checkpoint
+        self.seconds_since_last_batch = seconds_since_last_batch
+        self.last_activity_time = last_activity_time
+        self.seconds_since_last_activity = seconds_since_last_activity
+        self.health_issue = health_issue
+
+    def to_json(self) -> dict:
+        result = super().to_json()
+        result["ConnectionStringName"] = self.connection_string_name
+        result["FactoryName"] = self.factory_name
+        result["Configuration"] = self.configuration.to_json() if self.configuration else None
+        result["LastBatchTime"] = (
+            Utils.datetime_to_string(self.last_batch_time) if self.last_batch_time is not None else None
+        )
+        result["LastCheckpoint"] = self.last_checkpoint
+        result["SecondsSinceLastBatch"] = self.seconds_since_last_batch
+        result["LastActivityTime"] = (
+            Utils.datetime_to_string(self.last_activity_time) if self.last_activity_time is not None else None
+        )
+        result["SecondsSinceLastActivity"] = self.seconds_since_last_activity
+        result["HealthIssue"] = self.health_issue
+        return result
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> Optional["OngoingTaskCdcSink"]:
+        from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
+
+        if json_dict is None:
+            return None
+        task_state_str = json_dict.get("TaskState")
+        task_connection_status_str = json_dict.get("TaskConnectionStatus")
+        config_dict = json_dict.get("Configuration")
+        return cls(
+            task_id=json_dict.get("TaskId"),
+            responsible_node=NodeId.from_json(json_dict.get("ResponsibleNode")),
+            task_state=OngoingTaskState(task_state_str) if task_state_str else None,
+            task_connection_status=(
+                OngoingTaskConnectionStatus(task_connection_status_str) if task_connection_status_str else None
+            ),
+            task_name=json_dict.get("TaskName"),
+            error=json_dict.get("Error"),
+            mentor_node=json_dict.get("MentorNode"),
+            pin_to_mentor_node=json_dict.get("PinToMentorNode"),
+            configuration=CdcSinkConfiguration.from_json(config_dict) if config_dict else None,
+            connection_string_name=json_dict.get("ConnectionStringName"),
+            factory_name=json_dict.get("FactoryName"),
+            last_batch_time=Utils.string_to_datetime(json_dict.get("LastBatchTime")),
+            last_checkpoint=json_dict.get("LastCheckpoint"),
+            seconds_since_last_batch=json_dict.get("SecondsSinceLastBatch"),
+            last_activity_time=Utils.string_to_datetime(json_dict.get("LastActivityTime")),
+            seconds_since_last_activity=json_dict.get("SecondsSinceLastActivity"),
+            health_issue=json_dict.get("HealthIssue"),
+        )
+
+
 class ToggleOngoingTaskStateOperation(MaintenanceOperation[ModifyOngoingTaskResult]):
     def __init__(
         self, task_name_or_id: Union[int, str], type_of_task: Optional[OngoingTaskType], disable: Optional[bool]
@@ -637,7 +731,7 @@ class GetOngoingTaskInfoOperation(
 
         def _deserialize_task(
             self, json_dict: dict
-        ) -> OngoingTask | OngoingTaskGenAi | OngoingTaskEmbeddingsGeneration:
+        ) -> OngoingTask | OngoingTaskGenAi | OngoingTaskEmbeddingsGeneration | OngoingTaskCdcSink:
             """Deserialize the task based on its type."""
             if self._task_type == OngoingTaskType.GEN_AI:
                 return OngoingTaskGenAi.from_json(json_dict)
@@ -645,6 +739,8 @@ class GetOngoingTaskInfoOperation(
                 return OngoingTaskEmbeddingsGeneration.from_json(json_dict)
             elif self._task_type == OngoingTaskType.PULL_REPLICATION_AS_SINK:
                 return OngoingTaskPullReplicationAsSink.from_json(json_dict)
+            elif self._task_type == OngoingTaskType.CDC_SINK:
+                return OngoingTaskCdcSink.from_json(json_dict)
             else:
                 # todo: handle more types of tasks
                 return OngoingTask.from_json(json_dict)
