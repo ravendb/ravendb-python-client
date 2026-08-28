@@ -363,6 +363,9 @@ from ravendb.serverwide.operations.certificates import (
     GetCertificatesResponse,
     PutClientCertificateOperation,
     SecurityClearance,
+    SsoProvider,
+    SsoIdentifier,
+    CertificateUsage,
 )
 from ravendb.serverwide.operations.common import (
     BuildNumber,
