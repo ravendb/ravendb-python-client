@@ -404,6 +404,7 @@ class RemoteAttachmentsS3Settings:
         custom_server_url: str = None,
         force_path_style: bool = None,
         storage_class: Optional[S3StorageClass] = None,
+        disable_checksum_validation: bool = None,
     ):
         self.aws_access_key = aws_access_key
         self.aws_secret_key = aws_secret_key
@@ -414,6 +415,7 @@ class RemoteAttachmentsS3Settings:
         self.custom_server_url = custom_server_url
         self.force_path_style = force_path_style
         self.storage_class = storage_class
+        self.disable_checksum_validation = disable_checksum_validation
 
     @classmethod
     def from_json(cls, json_dict: dict) -> RemoteAttachmentsS3Settings:
@@ -428,6 +430,7 @@ class RemoteAttachmentsS3Settings:
             json_dict.get("CustomServerUrl"),
             json_dict.get("ForcePathStyle"),
             S3StorageClass(storage_class_raw) if storage_class_raw is not None else None,
+            json_dict.get("DisableChecksumValidation"),
         )
 
     def to_json(self) -> dict:
@@ -440,6 +443,7 @@ class RemoteAttachmentsS3Settings:
             "BucketName": self.bucket_name,
             "CustomServerUrl": self.custom_server_url,
             "ForcePathStyle": self.force_path_style,
+            "DisableChecksumValidation": self.disable_checksum_validation,
         }
         if self.storage_class is not None:
             result["StorageClass"] = self.storage_class.value

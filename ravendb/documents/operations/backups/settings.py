@@ -130,6 +130,7 @@ class S3Settings(AmazonSettings):
         bucket_name: str = None,
         custom_server_url: str = None,
         force_path_style: bool = None,
+        disable_checksum_validation: bool = None,
     ):
         super().__init__(
             disabled,
@@ -143,26 +144,31 @@ class S3Settings(AmazonSettings):
         self.bucket_name = bucket_name
         self.custom_server_url = custom_server_url
         self.force_path_style = force_path_style
+        self.disable_checksum_validation = disable_checksum_validation
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> S3Settings:
+        script_dict = json_dict.get("GetBackupConfigurationScript")
         return cls(
-            json_dict["Disabled"],
-            GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"]),
-            json_dict["AwsAccessKey"],
-            json_dict["AwsSecretKey"],
-            json_dict["AwsSessionToken"],
-            json_dict["AwsRegionName"],
-            json_dict["RemoteFolderName"],
-            json_dict["BucketName"],
-            json_dict["CustomServerUrl"],
-            json_dict["ForcePathStyle"],
+            json_dict.get("Disabled"),
+            GetBackupConfigurationScript.from_json(script_dict) if script_dict else None,
+            json_dict.get("AwsAccessKey"),
+            json_dict.get("AwsSecretKey"),
+            json_dict.get("AwsSessionToken"),
+            json_dict.get("AwsRegionName"),
+            json_dict.get("RemoteFolderName"),
+            json_dict.get("BucketName"),
+            json_dict.get("CustomServerUrl"),
+            json_dict.get("ForcePathStyle"),
+            json_dict.get("DisableChecksumValidation"),
         )
 
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "GetBackupConfigurationScript": self.get_backup_configuration_script.to_json(),
+            "GetBackupConfigurationScript": (
+                self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
+            ),
             "AwsAccessKey": self.aws_access_key,
             "AwsSecretKey": self.aws_secret_key,
             "AwsSessionToken": self.aws_session_token,
@@ -171,6 +177,7 @@ class S3Settings(AmazonSettings):
             "BucketName": self.bucket_name,
             "CustomServerUrl": self.custom_server_url,
             "ForcePathStyle": self.force_path_style,
+            "DisableChecksumValidation": self.disable_checksum_validation,
         }
 
 
