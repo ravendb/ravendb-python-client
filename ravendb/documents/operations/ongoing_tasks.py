@@ -392,6 +392,8 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         access_name: Optional[str] = None,
         allowed_hub_to_sink_paths: Optional[list] = None,
         allowed_sink_to_hub_paths: Optional[list] = None,
+        hub_cursor: Optional[str] = None,
+        sink_cursor: Optional[str] = None,
     ):
         super().__init__(
             task_id=task_id,
@@ -414,6 +416,8 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         self.access_name = access_name
         self.allowed_hub_to_sink_paths = allowed_hub_to_sink_paths
         self.allowed_sink_to_hub_paths = allowed_sink_to_hub_paths
+        self.hub_cursor = hub_cursor
+        self.sink_cursor = sink_cursor
 
     def to_json(self) -> dict:
         result = super().to_json()
@@ -427,6 +431,8 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         result["AccessName"] = self.access_name
         result["AllowedHubToSinkPaths"] = self.allowed_hub_to_sink_paths
         result["AllowedSinkToHubPaths"] = self.allowed_sink_to_hub_paths
+        result["HubCursor"] = self.hub_cursor
+        result["SinkCursor"] = self.sink_cursor
         return result
 
     @classmethod
@@ -457,6 +463,8 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
             access_name=json_dict.get("AccessName"),
             allowed_hub_to_sink_paths=json_dict.get("AllowedHubToSinkPaths"),
             allowed_sink_to_hub_paths=json_dict.get("AllowedSinkToHubPaths"),
+            hub_cursor=json_dict.get("HubCursor"),
+            sink_cursor=json_dict.get("SinkCursor"),
         )
 
 

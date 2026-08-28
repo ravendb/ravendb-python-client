@@ -1,9 +1,13 @@
-"""S3 checksum toggle wire tests."""
+"""S3 checksum toggle and pull-replication cursor wire tests."""
 
 import unittest
 
 from ravendb.documents.operations.attachments import RemoteAttachmentsS3Settings
 from ravendb.documents.operations.backups.settings import S3Settings
+from ravendb.documents.operations.ongoing_tasks import (
+    OngoingTaskPullReplicationAsSink,
+    OngoingTaskType,
+)
 
 
 class TestS3ChecksumToggleWireShape(unittest.TestCase):
@@ -54,3 +58,34 @@ class TestS3ChecksumToggleWireShape(unittest.TestCase):
             }
         )
         self.assertTrue(parsed.disable_checksum_validation)
+
+
+class TestPullReplicationCursorFields(unittest.TestCase):
+    def test_sink_task_info_from_json_reads_cursors(self):
+        task = OngoingTaskPullReplicationAsSink.from_json(
+            {
+                "TaskId": 1,
+                "TaskName": "sink",
+                "TaskType": "PullReplicationAsSink",
+                "HubName": "hub",
+                "HubCursor": "hub-cursor-value",
+                "SinkCursor": "sink-cursor-value",
+            }
+        )
+        self.assertIsNotNone(task)
+        self.assertEqual("hub-cursor-value", task.hub_cursor)
+        self.assertEqual("sink-cursor-value", task.sink_cursor)
+        self.assertEqual(OngoingTaskType.PULL_REPLICATION_AS_SINK, task.task_type)
+
+    def test_sink_task_info_to_json_writes_cursors(self):
+        task = OngoingTaskPullReplicationAsSink(task_id=1, hub_name="hub")
+        task.hub_cursor = "hub-cursor-value"
+        task.sink_cursor = "sink-cursor-value"
+        payload = task.to_json()
+        self.assertEqual("hub-cursor-value", payload["HubCursor"])
+        self.assertEqual("sink-cursor-value", payload["SinkCursor"])
+
+    def test_sink_task_info_without_cursors(self):
+        task = OngoingTaskPullReplicationAsSink.from_json({"TaskId": 1, "TaskName": "sink"})
+        self.assertIsNone(task.hub_cursor)
+        self.assertIsNone(task.sink_cursor)
