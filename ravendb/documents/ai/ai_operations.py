@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, Any, Optional, Type
+from typing import TYPE_CHECKING, Dict, Any, Optional, Type, Union
 
 import warnings
 
@@ -11,7 +11,9 @@ if TYPE_CHECKING:
     from ravendb.documents.operations.ai.agents import (
         AiAgentConfiguration,
         AiAgentConfigurationResult,
+        AiConversationMessagesResult,
         GetAiAgentsResponse,
+        GetConversationMessagesOptions,
     )
 
 
@@ -115,3 +117,21 @@ class AiOperations:
         from ravendb.documents.ai.ai_conversation import AiConversation
 
         return AiConversation.with_conversation_id(self._store, conversation_id, change_vector)
+
+    def get_conversation_messages(
+        self, conversation_id_or_options: Union[str, "GetConversationMessagesOptions"]
+    ) -> Optional["AiConversationMessagesResult"]:
+        """
+        Reads messages from an AI conversation. Returns the most recent messages by default.
+
+        Args:
+            conversation_id_or_options: The conversation document ID, or a
+                GetConversationMessagesOptions for paging and filtering control.
+
+        Returns:
+            The conversation messages, or None when the conversation does not exist.
+        """
+        from ravendb.documents.operations.ai.agents import GetConversationMessagesOperation
+
+        operation = GetConversationMessagesOperation(conversation_id_or_options)
+        return self._store.maintenance.send(operation)

@@ -115,6 +115,13 @@ from ravendb.documents.operations.ai.agents import (
     GetAiAgentsResponse,
     AddOrUpdateAiAgentOperation,
     DeleteAiAgentOperation,
+    AiConversationDetailLevel,
+    AiConversationMessage,
+    AiConversationMessagesResult,
+    AiMessageRole,
+    AiToolCallResult,
+    GetConversationMessagesOperation,
+    GetConversationMessagesOptions,
 )
 from ravendb.documents.operations.ai import (
     ChunkingOptions,
