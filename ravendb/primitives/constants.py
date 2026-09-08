@@ -27,6 +27,7 @@ class QueryString:
 
 class Headers:
     REQUEST_TIME = "Request-Time"
+    X_FORWARDED_FOR = "X-Forwarded-For"
     SERVER_STARTUP_TIME = "Server-Startup-Time"
     REFRESH_TOPOLOGY = "Refresh-Topology"
     TOPOLOGY_ETAG = "Topology-Etag"
@@ -312,6 +313,9 @@ class Obsolete:
 class DatabaseRecord:
     class SupportedFeatures:
         THROW_REVISION_KEY_TOO_BIG_FIX = "ThrowRevisionKeyTooBigFix"
+        HASHED_REVISION_PK = "HashedRevisionPk"
+        PULL_REPLICATION_COMPOSITE_CHANGE_VECTORS = "PullReplicationCompositeChangeVectors"
+        THROW_CONTROL_CHARACTERS_IN_IDENTIFIER = "ThrowControlCharactersInIdentifier"
 
 
 class VectorSearch:
