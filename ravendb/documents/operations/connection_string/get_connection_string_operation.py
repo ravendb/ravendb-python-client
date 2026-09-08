@@ -1,10 +1,11 @@
 ﻿import json
-from typing import Dict, Optional
+from typing import Dict, Optional, Type, TypeVar
 
 import requests
 
 from ravendb import RavenCommand, ServerNode
 from ravendb.documents.operations.ai.ai_connection_string import AiConnectionString
+from ravendb.documents.operations.connection_strings import ConnectionString, ConnectionStringUsage
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.documents.operations.etl.configuration import RavenConnectionString
 from ravendb.documents.operations.etl.elastic_search.connection import ElasticSearchConnectionString
@@ -13,6 +14,8 @@ from ravendb.documents.operations.etl.queue.connection import QueueConnectionStr
 from ravendb.documents.operations.etl.snowflake.connection import SnowflakeConnectionString
 from ravendb.documents.operations.etl.sql import SqlConnectionString
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
+
+_T = TypeVar("_T", bound=ConnectionString)
 
 
 class GetConnectionStringsResult:
@@ -46,51 +49,31 @@ class GetConnectionStringsResult:
         }
 
     @classmethod
+    def _parse(cls, json_dict: Optional[Dict[str, Dict]], connection_string_type: Type[_T]) -> Optional[Dict[str, _T]]:
+        if not json_dict:
+            return None
+
+        result = {}
+        for key, value in json_dict.items():
+            connection_string = connection_string_type.from_json(value)
+            # UsedBy is computed server-side and only present on reads.
+            connection_string.used_by = ConnectionStringUsage.list_from_json(value.get("UsedBy"))
+            result[key] = connection_string
+        return result
+
+    @classmethod
     def from_json(cls, json_dict: Dict[str, Dict]) -> "GetConnectionStringsResult":
         return cls(
-            raven_connection_strings=(
-                {key: RavenConnectionString.from_json(rcs) for key, rcs in json_dict["RavenConnectionStrings"].items()}
-                if json_dict["RavenConnectionStrings"]
-                else None
+            raven_connection_strings=cls._parse(json_dict.get("RavenConnectionStrings"), RavenConnectionString),
+            sql_connection_strings=cls._parse(json_dict.get("SqlConnectionStrings"), SqlConnectionString),
+            olap_connection_strings=cls._parse(json_dict.get("OlapConnectionStrings"), OlapConnectionString),
+            ai_connection_strings=cls._parse(json_dict.get("AiConnectionStrings"), AiConnectionString),
+            elastic_search_connection_strings=cls._parse(
+                json_dict.get("ElasticSearchConnectionStrings"), ElasticSearchConnectionString
             ),
-            sql_connection_strings=(
-                {key: SqlConnectionString.from_json(sqlcs) for key, sqlcs in json_dict["SqlConnectionStrings"].items()}
-                if json_dict["SqlConnectionStrings"]
-                else None
-            ),
-            olap_connection_strings=(
-                {
-                    key: OlapConnectionString.from_json(olapcs)
-                    for key, olapcs in json_dict["OlapConnectionStrings"].items()
-                }
-                if json_dict["OlapConnectionStrings"]
-                else None
-            ),
-            ai_connection_strings=(
-                {key: AiConnectionString.from_json(aics) for key, aics in json_dict["AiConnectionStrings"].items()}
-                if json_dict["AiConnectionStrings"]
-                else None
-            ),
-            elastic_search_connection_strings=(
-                {
-                    key: ElasticSearchConnectionString.from_json(escs)
-                    for key, escs in json_dict["ElasticSearchConnectionStrings"].items()
-                }
-                if json_dict["ElasticSearchConnectionStrings"]
-                else None
-            ),
-            queue_connection_strings=(
-                {key: QueueConnectionString.from_json(qcs) for key, qcs in json_dict["QueueConnectionStrings"].items()}
-                if json_dict["QueueConnectionStrings"]
-                else None
-            ),
-            snowflake_connection_strings=(
-                {
-                    key: SnowflakeConnectionString.from_json(scs)
-                    for key, scs in json_dict["SnowflakeConnectionStrings"].items()
-                }
-                if json_dict["SnowflakeConnectionStrings"]
-                else None
+            queue_connection_strings=cls._parse(json_dict.get("QueueConnectionStrings"), QueueConnectionString),
+            snowflake_connection_strings=cls._parse(
+                json_dict.get("SnowflakeConnectionStrings"), SnowflakeConnectionString
             ),
         )
 
