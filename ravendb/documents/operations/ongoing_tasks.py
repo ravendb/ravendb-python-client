@@ -18,6 +18,8 @@ from ravendb.documents.operations.replication.definitions import PullReplication
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
+    from ravendb.documents.operations.etl.queue.connection import QueueBrokerType
+    from ravendb.documents.operations.queue_sink.configuration import QueueSinkConfiguration
     from ravendb.documents.operations.ai.gen_ai_configuration import GenAiConfiguration
     from ravendb.documents.operations.ai.embeddings_generation_configuration import EmbeddingsGenerationConfiguration
 
@@ -472,6 +474,79 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         )
 
 
+class OngoingTaskQueueSink(OngoingTask):
+    """Ongoing task information for a queue sink task."""
+
+    def __init__(
+        self,
+        task_id: Optional[int] = None,
+        responsible_node: Optional[NodeId] = None,
+        task_state: Optional[OngoingTaskState] = None,
+        task_connection_status: Optional[OngoingTaskConnectionStatus] = None,
+        task_name: Optional[str] = None,
+        error: Optional[str] = None,
+        mentor_node: Optional[str] = None,
+        pin_to_mentor_node: Optional[bool] = None,
+        configuration: Optional["QueueSinkConfiguration"] = None,
+        broker_type: Optional["QueueBrokerType"] = None,
+        connection_string_name: Optional[str] = None,
+        url: Optional[str] = None,
+    ):
+        super().__init__(
+            task_id=task_id,
+            task_type=OngoingTaskType.QUEUE_SINK,
+            responsible_node=responsible_node,
+            task_state=task_state,
+            task_connection_status=task_connection_status,
+            task_name=task_name,
+            error=error,
+            mentor_node=mentor_node,
+            pin_to_mentor_node=pin_to_mentor_node,
+        )
+        self.configuration = configuration
+        self.broker_type = broker_type
+        self.connection_string_name = connection_string_name
+        # The broker URL the server resolved from the connection string.
+        self.url = url
+
+    def to_json(self) -> dict:
+        result = super().to_json()
+        result["BrokerType"] = self.broker_type.value if self.broker_type else None
+        result["ConnectionStringName"] = self.connection_string_name
+        result["Url"] = self.url
+        result["Configuration"] = self.configuration.to_json() if self.configuration else None
+        return result
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> Optional["OngoingTaskQueueSink"]:
+        if json_dict is None:
+            return None
+
+        from ravendb.documents.operations.etl.queue.connection import QueueBrokerType
+        from ravendb.documents.operations.queue_sink.configuration import QueueSinkConfiguration
+
+        task_state_str = json_dict.get("TaskState")
+        task_connection_status_str = json_dict.get("TaskConnectionStatus")
+        broker_type_str = json_dict.get("BrokerType")
+        configuration = json_dict.get("Configuration")
+        return cls(
+            task_id=json_dict.get("TaskId"),
+            responsible_node=NodeId.from_json(json_dict.get("ResponsibleNode")),
+            task_state=OngoingTaskState(task_state_str) if task_state_str else None,
+            task_connection_status=(
+                OngoingTaskConnectionStatus(task_connection_status_str) if task_connection_status_str else None
+            ),
+            task_name=json_dict.get("TaskName"),
+            error=json_dict.get("Error"),
+            mentor_node=json_dict.get("MentorNode"),
+            pin_to_mentor_node=json_dict.get("PinToMentorNode"),
+            configuration=QueueSinkConfiguration.from_json(configuration) if configuration else None,
+            broker_type=QueueBrokerType(broker_type_str) if broker_type_str else None,
+            connection_string_name=json_dict.get("ConnectionStringName"),
+            url=json_dict.get("Url"),
+        )
+
+
 class OngoingTaskCdcSink(OngoingTask):
     """Ongoing task information for a CDC Sink task."""
 
@@ -748,6 +823,8 @@ class GetOngoingTaskInfoOperation(
                 return OngoingTaskPullReplicationAsSink.from_json(json_dict)
             elif self._task_type == OngoingTaskType.CDC_SINK:
                 return OngoingTaskCdcSink.from_json(json_dict)
+            elif self._task_type == OngoingTaskType.QUEUE_SINK:
+                return OngoingTaskQueueSink.from_json(json_dict)
             else:
                 # todo: handle more types of tasks
                 return OngoingTask.from_json(json_dict)
