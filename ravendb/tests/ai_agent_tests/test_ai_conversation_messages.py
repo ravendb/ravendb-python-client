@@ -3,7 +3,6 @@ Tests for GetConversationMessagesOperation, the 7.2.5 way to read an AI agent
 conversation back, and for the cancel-pending-action-tools flag on a run.
 """
 
-import json
 import unittest
 from datetime import datetime, timedelta, timezone
 
