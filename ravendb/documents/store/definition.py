@@ -44,6 +44,7 @@ T = TypeVar("T")
 
 if TYPE_CHECKING:
     from ravendb.documents.indexes.abstract_index_creation_tasks import AbstractIndexCreationTask
+    from ravendb.documents.smuggler.database_smuggler import DatabaseSmuggler
     from ravendb.http.misc import AggressiveCacheMode, AggressiveCacheOptions
 
 
@@ -341,7 +342,7 @@ class DocumentStore(DocumentStoreBase):
         self.__aggressive_cache_changes: Dict[str, "DocumentStore._AggressiveCacheInvalidator"] = {}
         self.__maintenance_operation_executor: Optional[MaintenanceOperationExecutor] = None
         self.__operation_executor: Optional[OperationExecutor] = None
-        # todo: database smuggler
+        self.__smuggler: Optional["DatabaseSmuggler"] = None
         self.__multi_db_hilo: Optional[MultiDatabaseHiLoGenerator] = None
         self.__identifier: Optional[str] = None
         self.__add_change_lock = threading.Lock()
@@ -713,6 +714,17 @@ class DocumentStore(DocumentStoreBase):
             self.__operation_executor = OperationExecutor(self)
 
         return self.__operation_executor
+
+    @property
+    def smuggler(self) -> "DatabaseSmuggler":
+        self.assert_initialized()
+
+        if self.__smuggler is None:
+            from ravendb.documents.smuggler.database_smuggler import DatabaseSmuggler
+
+            self.__smuggler = DatabaseSmuggler(self)
+
+        return self.__smuggler
 
     @property
     def time_series(self) -> TimeSeriesOperations:
