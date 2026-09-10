@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 class RequestExecutor:
     __INITIAL_TOPOLOGY_ETAG = -2
     __GLOBAL_APPLICATION_IDENTIFIER = uuid.uuid4()
-    CLIENT_VERSION = "7.2.5"
+    CLIENT_VERSION = "7.2.6"
     logger = logging.getLogger("request_executor")
 
     # todo: initializer should take also cryptography certificates

@@ -104,9 +104,9 @@ class CdcSinkPostgresSettings:
     """
 
     def __init__(self, publication_name: str = None, slot_name: str = None):
-        # Publication used for logical replication, auto-filled as rvn_cdc_p_{guid}.
+        # Publication used for logical replication, auto-filled as rvn_cdc_p_{taskId}.
         self.publication_name = publication_name
-        # Logical replication slot, auto-filled as rvn_cdc_s_{guid}.
+        # Logical replication slot, auto-filled as rvn_cdc_s_{taskId}.
         self.slot_name = slot_name
 
     def to_json(self) -> Dict[str, Any]:
