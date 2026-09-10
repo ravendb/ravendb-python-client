@@ -249,6 +249,7 @@ from ravendb.documents.smuggler.result import (
 )
 from ravendb.documents.smuggler.database_smuggler import SmugglerOperation
 from ravendb.exceptions.commercial import LicenseLimitException, LimitType
+from ravendb.documents.ai.ai_output_options import AiOutputOptions
 from ravendb.documents.operations.cdc_sink import (
     AddCdcSinkOperation,
     AddCdcSinkOperationResult,

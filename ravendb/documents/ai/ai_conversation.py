@@ -6,6 +6,7 @@ from typing import List, Dict, Any, IO, Optional, TypeVar, TYPE_CHECKING, Callab
 from datetime import timedelta
 
 from ravendb.documents.ai.ai_answer import AiAnswer, AiConversationStatus
+from ravendb.documents.ai.ai_output_options import AiOutputOptions
 from ravendb.documents.ai.content_part import ContentPart, TextPart
 from ravendb.documents.operations.ai.agents import (
     AiAgentActionRequest,
@@ -149,9 +150,48 @@ class AiConversation:
             if self._handle_server_reply(r):
                 return r
 
+    def run_with_schema(self, output_options: "AiOutputOptions") -> AiAnswer:
+        """
+        Runs one turn with the output format overridden for that turn only, leaving the
+        agent's own schema in place for later turns. Pass
+        ``AiOutputOptions(no_schema=True)`` to get free-form text back instead of JSON.
+        """
+        if output_options is None:
+            raise ValueError("output_options cannot be None")
+
+        self._dispatched_tool_ids.clear()
+
+        while True:
+            r = self._run_internal(output_options=output_options)
+            if self._handle_server_reply(r):
+                return r
+
     def stream(self, stream_property_path: str = None, on_chunk: Optional[Callable[[str], None]] = None) -> AiAnswer:
         while True:
             r = self._run_internal(stream_property_path=stream_property_path, streamed_chunks_callback=on_chunk)
+            if self._handle_server_reply(r):
+                return r
+
+    def stream_with_schema(
+        self,
+        stream_property_path: str = None,
+        on_chunk: Optional[Callable[[str], None]] = None,
+        output_options: "AiOutputOptions" = None,
+    ) -> AiAnswer:
+        """
+        Streams one turn with the output format overridden for that turn only.
+        ``stream_property_path`` is ignored when the options ask for no schema, since
+        free-form text has no property to stream from.
+        """
+        if output_options is None:
+            raise ValueError("output_options cannot be None")
+
+        while True:
+            r = self._run_internal(
+                stream_property_path=stream_property_path,
+                streamed_chunks_callback=on_chunk,
+                output_options=output_options,
+            )
             if self._handle_server_reply(r):
                 return r
 
@@ -159,6 +199,7 @@ class AiConversation:
         self,
         stream_property_path: Optional[str] = None,
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
+        output_options: Optional["AiOutputOptions"] = None,
     ) -> AiAnswer:
         from ravendb.documents.operations.ai.agents import RunConversationOperation
         import time
@@ -197,6 +238,7 @@ class AiConversation:
             stream_property_path=stream_property_path,
             streamed_chunks_callback=streamed_chunks_callback,
             attachments_commands=self._attachments_commands,
+            output_options=output_options,
             debug=self._debug,
             cancel_pending_action_tools=self._cancel_pending_action_tools,
         )
