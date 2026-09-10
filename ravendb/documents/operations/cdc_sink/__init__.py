@@ -21,6 +21,22 @@ from ravendb.documents.operations.cdc_sink.configuration import (
     CdcSinkTaskState,
     UpdateCdcSinkOperationResult,
 )
+from ravendb.documents.operations.cdc_sink.schema import (
+    CdcSinkSchemaRequest,
+    CdcSinkSourceColumn,
+    CdcSinkSourceForeignKey,
+    CdcSinkSourceSchema,
+    CdcSinkSourceTable,
+    GetCdcSinkSchemaOperation,
+)
+from ravendb.documents.operations.cdc_sink.testing import (
+    TestCdcSinkMappingOperation,
+    TestCdcSinkMappingRequest,
+    TestCdcSinkMappingResult,
+    TestCdcSinkOperation,
+    TestCdcSinkRowResult,
+    TestCdcSinkRowSelector,
+)
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
