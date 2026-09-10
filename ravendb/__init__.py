@@ -221,6 +221,34 @@ from ravendb.documents.smuggler.common import (
     ExportCompressionAlgorithm,
 )
 from ravendb.documents.smuggler.database_smuggler import DatabaseSmuggler
+from ravendb.documents.operations.cdc_sink.schema import (
+    CdcSinkSchemaRequest,
+    CdcSinkSourceColumn,
+    CdcSinkSourceForeignKey,
+    CdcSinkSourceSchema,
+    CdcSinkSourceTable,
+    GetCdcSinkSchemaOperation,
+)
+from ravendb.documents.operations.cdc_sink.testing import (
+    TestCdcSinkMappingOperation,
+    TestCdcSinkMappingRequest,
+    TestCdcSinkMappingResult,
+    TestCdcSinkOperation,
+    TestCdcSinkRowResult,
+    TestCdcSinkRowSelector,
+)
+from ravendb.documents.smuggler.result import (
+    Counts,
+    CountsWithLastEtag,
+    CountsWithLastEtagAndAttachments,
+    CountsWithSkippedCountAndLastEtag,
+    CountsWithSkippedCountAndLastEtagAndAttachments,
+    DatabaseRecordProgress,
+    SmugglerProgressBase,
+    SmugglerResult,
+)
+from ravendb.documents.smuggler.database_smuggler import SmugglerOperation
+from ravendb.exceptions.commercial import LicenseLimitException, LimitType
 from ravendb.documents.operations.cdc_sink import (
     AddCdcSinkOperation,
     AddCdcSinkOperationResult,
