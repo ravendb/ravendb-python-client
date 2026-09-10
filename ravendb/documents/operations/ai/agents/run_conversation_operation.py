@@ -10,6 +10,7 @@ from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
 import requests
 from ravendb.http.misc import ResponseDisposeHandling
+from ravendb.documents.ai.ai_output_options import AiOutputOptions
 from ravendb.documents.ai.content_part import ContentPart
 
 TSchema = TypeVar("TSchema")
@@ -256,15 +257,17 @@ class ConversationRequestBody:
         user_prompt: Optional[List[ContentPart]] = None,
         creation_options: Optional[AiConversationCreationOptions] = None,
         attachment_commands: Optional[List[Any]] = None,
+        output_options: Optional[AiOutputOptions] = None,
     ):
         self.action_responses: Optional[List[AiAgentActionResponse]] = action_responses
         self.artificial_actions: Optional[List[AiAgentArtificialActionResponse]] = artificial_actions
         self.user_prompt: Optional[List[ContentPart]] = user_prompt
         self.creation_options: Optional[AiConversationCreationOptions] = creation_options
         self.attachment_commands: Optional[List[Any]] = attachment_commands
+        self.output_options: Optional[AiOutputOptions] = output_options
 
     def to_json(self) -> Dict[str, Any]:
-        return {
+        body = {
             "ActionResponses": (
                 [resp.to_json() for resp in self.action_responses] if self.action_responses is not None else None
             ),
@@ -280,6 +283,12 @@ class ConversationRequestBody:
             ),
         }
 
+        # Only sent when the caller overrides the agent's own schema for this turn.
+        if self.output_options is not None:
+            body["OutputOptions"] = self.output_options.to_json()
+
+        return body
+
 
 class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]):
     def __init__(
@@ -294,7 +303,9 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         stream_property_path: Optional[str] = None,
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         attachments_commands: Optional[List[Any]] = None,
+        output_options: Optional[AiOutputOptions] = None,
         debug: Optional[bool] = None,
+        cancel_pending_action_tools: bool = False,
     ):
         if not agent_id or (isinstance(agent_id, str) and agent_id.isspace()):
             raise ValueError("agent_id cannot be None or empty")
@@ -313,7 +324,9 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         self._stream_property_path = stream_property_path
         self._streamed_chunks_callback = streamed_chunks_callback
         self._attachments_commands = attachments_commands or []
+        self._output_options = output_options
         self._debug = debug
+        self._cancel_pending_action_tools = cancel_pending_action_tools
 
     def get_command(self, conventions: DocumentConventions) -> RavenCommand[ConversationResult[TSchema]]:
         return RunConversationCommand(
@@ -328,7 +341,9 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
             streamed_chunks_callback=self._streamed_chunks_callback,
             conventions=conventions,
             attachments_commands=self._attachments_commands,
+            output_options=self._output_options,
             debug=self._debug,
+            cancel_pending_action_tools=self._cancel_pending_action_tools,
         )
 
 
@@ -346,7 +361,9 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         conventions: Optional[DocumentConventions] = None,
         attachments_commands: Optional[List[Any]] = None,
+        output_options: Optional[AiOutputOptions] = None,
         debug: Optional[bool] = None,
+        cancel_pending_action_tools: bool = False,
     ):
         from ravendb.util.util import RaftIdGenerator
         from ravendb.documents.commands.batches import PutAttachmentCommandData
@@ -362,7 +379,9 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         self._stream_property_path = stream_property_path
         self._streamed_chunks_callback = streamed_chunks_callback
         self._conventions = conventions
+        self._output_options = output_options
         self._debug = debug
+        self._cancel_pending_action_tools = cancel_pending_action_tools
         self._attachments_commands = attachments_commands or []
 
         # Raft id pinned at construction so retries keep the same id.
@@ -409,12 +428,17 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         if self._debug is not None:
             url += f"&debug={self._debug}"
 
+        # Always sent: the server distinguishes "cancel the tool calls still pending" from
+        # "answer them", and has no default of its own.
+        url += f"&cancelPendingActionTools={self._cancel_pending_action_tools}"
+
         request_body = ConversationRequestBody(
             action_responses=self._action_responses,
             artificial_actions=self._artificial_actions,
             user_prompt=self._prompt_parts,
             creation_options=self._options,
             attachment_commands=self._attachments_commands if self._attachments_commands else None,
+            output_options=self._output_options,
         )
         body = json.dumps(request_body.to_json())
         request = requests.Request("POST", url)

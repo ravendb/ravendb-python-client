@@ -5,6 +5,7 @@ CertificateMetadata and EditClientCertificateOperation.Parameters.
 
 import unittest
 
+from ravendb.http.server_node import ServerNode
 from ravendb.serverwide.operations.certificates import (
     CertificateDefinition,
     CertificateMetadata,
@@ -82,10 +83,10 @@ class TestCertificateDisabledFlag(unittest.TestCase):
             disabled=True,
         )
         op = EditClientCertificateOperation(params)
-        # The disabled flag flows through to the command and into the request body
-        # via the definition's to_json. Verify by reaching through the private
-        # field on the operation instance.
-        self.assertTrue(op._EditClientCertificateOperation__disabled)
+        request = op.get_command(None).create_request(ServerNode("http://localhost:8080", "db"))
+
+        # The disabled flag flows through the command into the request body.
+        self.assertTrue(request.data["Disabled"])
 
 
 if __name__ == "__main__":

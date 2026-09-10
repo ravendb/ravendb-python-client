@@ -1317,9 +1317,11 @@ class AbstractDocumentQuery(Generic[_T]):
             raise RuntimeError("Alias cannot be None or empty")
 
         tokens = self.__get_current_where_tokens()
-        for token in tokens:
+        for index, token in enumerate(tokens):
             if isinstance(token, WhereToken):
-                token.add_alias(from_alias)
+                # add_alias returns a new token rather than mutating this one, so the
+                # qualified field name only takes effect once it replaces the original.
+                tokens[index] = token.add_alias(from_alias)
 
     def add_alias_to_includes_tokens(self, from_alias: str) -> str:
         if self._includes_alias is None:

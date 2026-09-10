@@ -11,6 +11,8 @@ from ravendb.documents.indexes.definitions import (
     AutoIndexDefinition,
 )
 from ravendb.documents.operations.backups.settings import PeriodicBackupConfiguration
+from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
+from ravendb.documents.operations.queue_sink.configuration import QueueSinkConfiguration
 from ravendb.documents.operations.etl.configuration import RavenConnectionString, RavenEtlConfiguration
 from ravendb.documents.operations.etl.olap.connection import OlapConnectionString, OlapEtlConfiguration
 from ravendb.documents.operations.etl.sql import SqlConnectionString, SqlEtlConfiguration
@@ -69,6 +71,8 @@ class DatabaseRecord:
         self.raven_etls: List[RavenEtlConfiguration] = []
         self.sql_etls: List[SqlEtlConfiguration] = []
         self.olap_etls: List[OlapEtlConfiguration] = []
+        self.cdc_sinks: List[CdcSinkConfiguration] = []
+        self.queue_sinks: List[QueueSinkConfiguration] = []
         self.embeddings_generations: List = []
         self.client: Optional[ClientConfiguration] = None
         self.studio: Optional[StudioConfiguration] = None
@@ -99,7 +103,7 @@ class DatabaseRecord:
             "Indexes": self.indexes,
             "IndexesHistory": self.indexes_history_story,
             "AutoIndexes": (
-                {key: AutoIndexDefinition.to_json(auto_index) for key, auto_index in self.auto_indexes}
+                {key: auto_index.to_json() for key, auto_index in self.auto_indexes.items()}
                 if self.auto_indexes
                 else None
             ),
@@ -119,6 +123,8 @@ class DatabaseRecord:
             "RavenEtls": self.raven_etls,
             "SqlEtls": self.sql_etls,
             "OlapEtls": self.olap_etls,
+            "CdcSinks": [cdc_sink.to_json() for cdc_sink in self.cdc_sinks or []],
+            "QueueSinks": [queue_sink.to_json() for queue_sink in self.queue_sinks or []],
             "Client": self.client,
             "Studio": self.studio,
             "TruncatedClusterTransactionCommand": self.truncated_cluster_transaction_commands_count,
@@ -133,7 +139,12 @@ class DatabaseRecord:
         record.deletion_in_progress = json_dict.get("DeletionInProgress", None)
         record.rolling_indexes = json_dict.get("RollingIndexes", None)
         record.database_state = json_dict.get("DatabaseState", None)
-        record.lock_mode = DatabaseRecord.DatabaseLockMode(json_dict.get("LockMode", None))
+        lock_mode = json_dict.get("LockMode")
+        # A record without a lock mode is unlocked - the C# field has no initializer, so it
+        # lands on the enum's zero value.
+        record.lock_mode = (
+            DatabaseRecord.DatabaseLockMode(lock_mode) if lock_mode else DatabaseRecord.DatabaseLockMode.UNLOCK
+        )
         record.topology = json_dict.get("Topology", None)
         record.conflict_solver_config = json_dict.get("ConflictSolverConfig", None)
         record.documents_compression = (
@@ -145,9 +156,12 @@ class DatabaseRecord:
         record.analyzers = json_dict.get("Analyzers", None)
         record.indexes = json_dict.get("Indexes", None)
         record.indexes_history_story = json_dict.get("IndexesHistory", None)
-        record.auto_indexes = {
-            key: AutoIndexDefinition.from_json(auto_index) for key, auto_index in json_dict.get("AutoIndexes").items()
-        }
+        auto_indexes = json_dict.get("AutoIndexes")
+        record.auto_indexes = (
+            {key: AutoIndexDefinition.from_json(auto_index) for key, auto_index in auto_indexes.items()}
+            if auto_indexes
+            else None
+        )
         record.settings = json_dict.get("Settings", None)
         record.revisions = json_dict.get("Revisions", None)
         if json_dict.get("TimeSeries", None):
@@ -167,6 +181,10 @@ class DatabaseRecord:
         record.raven_etls = json_dict.get("RavenEtls", None)
         record.sql_etls = json_dict.get("SqlEtls", None)
         record.olap_etls = json_dict.get("OlapEtls", None)
+        record.cdc_sinks = [CdcSinkConfiguration.from_json(cdc_sink) for cdc_sink in json_dict.get("CdcSinks") or []]
+        record.queue_sinks = [
+            QueueSinkConfiguration.from_json(queue_sink) for queue_sink in json_dict.get("QueueSinks") or []
+        ]
         embeddings_generations_data = json_dict.get("EmbeddingsGenerations", [])
         if embeddings_generations_data:
             from ravendb.documents.operations.ai.embeddings_generation_configuration import (

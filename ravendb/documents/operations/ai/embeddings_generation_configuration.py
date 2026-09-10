@@ -37,6 +37,7 @@ class EmbeddingsGenerationConfiguration(AbstractAiIntegrationConfiguration):
         chunking_options_for_querying: ChunkingOptions = None,
         embeddings_cache_expiration: timedelta = None,
         embeddings_cache_for_querying_expiration: timedelta = None,
+        store_chunk_text: bool = False,
         disabled: bool = False,
         mentor_node: str = None,
         pin_to_mentor_node: bool = False,
@@ -59,6 +60,9 @@ class EmbeddingsGenerationConfiguration(AbstractAiIntegrationConfiguration):
         self.embeddings_transformation = embeddings_transformation
         self.quantization = quantization
         self.chunking_options_for_querying = chunking_options_for_querying
+        # Keeps each chunk's text next to its embedding, which helps when debugging or
+        # highlighting but costs storage. Off by default.
+        self.store_chunk_text = store_chunk_text
         self.embeddings_cache_expiration = (
             embeddings_cache_expiration
             if embeddings_cache_expiration is not None
@@ -220,6 +224,7 @@ class EmbeddingsGenerationConfiguration(AbstractAiIntegrationConfiguration):
                     if self.embeddings_cache_for_querying_expiration
                     else None
                 ),
+                "StoreChunkText": self.store_chunk_text,
             }
         )
         return result
@@ -255,4 +260,5 @@ class EmbeddingsGenerationConfiguration(AbstractAiIntegrationConfiguration):
             mentor_node=json_dict.get("MentorNode", None),
             pin_to_mentor_node=json_dict.get("PinToMentorNode", False),
             allow_etl_on_non_encrypted_channel=json_dict.get("AllowEtlOnNonEncryptedChannel", False),
+            store_chunk_text=json_dict.get("StoreChunkText", False),
         )

@@ -75,7 +75,11 @@ from ravendb.documents.operations.configuration.operations import (
 )
 from ravendb.documents.operations.configuration.definitions import StudioConfiguration, StudioEnvironment
 
-from ravendb.documents.operations.connection_strings import ConnectionString
+from ravendb.documents.operations.connection_strings import (
+    ConnectionString,
+    ConnectionStringUsage,
+    ConnectionStringUsageKind,
+)
 
 # AI Operations
 from ravendb.documents.ai import (
@@ -115,6 +119,13 @@ from ravendb.documents.operations.ai.agents import (
     GetAiAgentsResponse,
     AddOrUpdateAiAgentOperation,
     DeleteAiAgentOperation,
+    GetConversationMessagesOperation,
+    GetConversationMessagesOptions,
+    AiConversationDetailLevel,
+    AiConversationMessage,
+    AiConversationMessagesResult,
+    AiMessageRole,
+    AiToolCallResult,
 )
 from ravendb.documents.operations.ai import (
     ChunkingOptions,
@@ -188,6 +199,74 @@ from ravendb.documents.operations.replication.pull_replication import (
 from ravendb.documents.operations.ongoing_tasks import (
     OngoingTaskPullReplicationAsSink,
     OngoingTaskPullReplicationAsHub,
+    OngoingTaskCdcSink,
+    OngoingTaskQueueSink,
+)
+from ravendb.documents.operations.queue_sink import (
+    AddQueueSinkOperation,
+    AddQueueSinkOperationResult,
+    AzureServiceBusSinkSource,
+    QueueSinkConfiguration,
+    QueueSinkProcessState,
+    QueueSinkScript,
+    UpdateQueueSinkOperation,
+    UpdateQueueSinkOperationResult,
+)
+from ravendb.documents.smuggler.common import (
+    DatabaseItemType,
+    DatabaseRecordItemType,
+    DatabaseSmugglerExportOptions,
+    DatabaseSmugglerImportOptions,
+    DatabaseSmugglerOptions,
+    ExportCompressionAlgorithm,
+)
+from ravendb.documents.smuggler.database_smuggler import DatabaseSmuggler
+from ravendb.documents.operations.cdc_sink.schema import (
+    CdcSinkSchemaRequest,
+    CdcSinkSourceColumn,
+    CdcSinkSourceForeignKey,
+    CdcSinkSourceSchema,
+    CdcSinkSourceTable,
+    GetCdcSinkSchemaOperation,
+)
+from ravendb.documents.operations.cdc_sink.testing import (
+    TestCdcSinkMappingOperation,
+    TestCdcSinkMappingRequest,
+    TestCdcSinkMappingResult,
+    TestCdcSinkOperation,
+    TestCdcSinkRowResult,
+    TestCdcSinkRowSelector,
+)
+from ravendb.documents.smuggler.result import (
+    Counts,
+    CountsWithLastEtag,
+    CountsWithLastEtagAndAttachments,
+    CountsWithSkippedCountAndLastEtag,
+    CountsWithSkippedCountAndLastEtagAndAttachments,
+    DatabaseRecordProgress,
+    SmugglerProgressBase,
+    SmugglerResult,
+)
+from ravendb.documents.smuggler.database_smuggler import SmugglerOperation
+from ravendb.exceptions.commercial import LicenseLimitException, LimitType
+from ravendb.documents.ai.ai_output_options import AiOutputOptions
+from ravendb.documents.operations.cdc_sink import (
+    AddCdcSinkOperation,
+    AddCdcSinkOperationResult,
+    CdcColumnMapping,
+    CdcColumnType,
+    CdcSinkConfiguration,
+    CdcSinkEmbeddedTableConfig,
+    CdcSinkLinkedTableConfig,
+    CdcSinkOnDeleteConfig,
+    CdcSinkPostgresSettings,
+    CdcSinkProcessState,
+    CdcSinkRelationType,
+    CdcSinkTableConfig,
+    CdcSinkTableLoadState,
+    CdcSinkTaskState,
+    UpdateCdcSinkOperation,
+    UpdateCdcSinkOperationResult,
 )
 from ravendb.documents.operations.revisions import (
     RevisionsCollectionConfiguration,
@@ -356,6 +435,19 @@ from ravendb.serverwide.operations.certificates import (
     GetCertificatesResponse,
     PutClientCertificateOperation,
     SecurityClearance,
+    CertificateUsage,
+    SsoIdentifier,
+    SsoProvider,
+)
+from ravendb.serverwide.operations.connection_strings import (
+    GetServerWideConnectionStringsOperation,
+    GetServerWideConnectionStringsResult,
+    PutServerWideConnectionStringOperation,
+    PutServerWideConnectionStringResult,
+    RemoveServerWideConnectionStringOperation,
+    RemoveServerWideConnectionStringResult,
+    ServerWideConnectionString,
+    ServerWideConnectionStringUsage,
 )
 from ravendb.serverwide.operations.common import (
     BuildNumber,
@@ -689,15 +781,6 @@ from ravendb.documents.identity.hilo import (
 # IChangesConnectionState
 
 # todo: Smuggler
-# DatabaseItemType
-# DatabaseRecordItemType
-# DatabaseSmuggler
-# DatabaseSmugglerExportOptions
-# IDatabaseSmugglerExportOptions
-# DatabaseSmugglerImportOptions
-# IDatabaseSmugglerImportOptions
-# DatabaseSmugglerOptions
-# IDatabaseSmugglerOptions
 
 # todo: Certificates
 # AddDatabaseNodeOperation

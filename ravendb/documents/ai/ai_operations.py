@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, Any, Optional, Type
+from typing import TYPE_CHECKING, Dict, Any, Optional, Type, Union
 
 import warnings
 
@@ -11,7 +11,9 @@ if TYPE_CHECKING:
     from ravendb.documents.operations.ai.agents import (
         AiAgentConfiguration,
         AiAgentConfigurationResult,
+        AiConversationMessagesResult,
         GetAiAgentsResponse,
+        GetConversationMessagesOptions,
     )
 
 
@@ -71,6 +73,25 @@ class AiOperations:
         operation = GetAiAgentOperation(agent_id)
         return self._store.maintenance.send(operation)
 
+    def get_conversation_messages(
+        self, conversation_id_or_parameters: Union[str, "GetConversationMessagesOptions"]
+    ) -> "AiConversationMessagesResult":
+        """
+        Reads messages from an AI conversation. Returns the most recent messages by default.
+
+        Args:
+            conversation_id_or_parameters: The conversation document ID, or a
+                GetConversationMessagesOptions for full control over paging
+                (before/after timestamps), page size, and detail level
+
+        Returns:
+            The conversation's messages, cumulative usage, and paging state
+        """
+        from ravendb.documents.operations.ai.agents import GetConversationMessagesOperation
+
+        operation = GetConversationMessagesOperation(conversation_id_or_parameters)
+        return self._store.maintenance.send(operation)
+
     def conversation(
         self,
         agent_id: str,
@@ -78,6 +99,7 @@ class AiOperations:
         creation_options: "AiConversationCreationOptions" = None,
         change_vector: str = None,
         debug: Optional[bool] = None,
+        cancel_pending_action_tools: bool = False,
     ) -> AiConversation:
         """
         Creates a new conversation with the specified AI agent.
@@ -88,12 +110,22 @@ class AiOperations:
             creation_options: Optional creation options for the conversation
             change_vector: Optional change vector for concurrency control
             debug: Optional flag enabling server-side conversation debugging
+            cancel_pending_action_tools: Drop the tool calls the conversation is still waiting on
+                instead of answering them, on the next run. Cleared once that run succeeds.
 
         Returns:
             Conversation operations interface for managing the conversation
         """
 
-        return AiConversation(self._store, agent_id, creation_options, conversation_id, change_vector, debug)
+        return AiConversation(
+            self._store,
+            agent_id,
+            creation_options,
+            conversation_id,
+            change_vector,
+            debug,
+            cancel_pending_action_tools,
+        )
 
     def conversation_with_id(self, conversation_id: str, change_vector: str = None) -> AiConversation:
         """

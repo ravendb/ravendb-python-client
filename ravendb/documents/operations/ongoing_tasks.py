@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 from enum import Enum
+from datetime import datetime
 from typing import Optional, TYPE_CHECKING, Union
 
 import requests
@@ -16,6 +17,9 @@ from ravendb.documents.operations.replication.definitions import PullReplication
 
 if TYPE_CHECKING:
     from ravendb.documents.conventions import DocumentConventions
+    from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
+    from ravendb.documents.operations.etl.queue.connection import QueueBrokerType
+    from ravendb.documents.operations.queue_sink.configuration import QueueSinkConfiguration
     from ravendb.documents.operations.ai.gen_ai_configuration import GenAiConfiguration
     from ravendb.documents.operations.ai.embeddings_generation_configuration import EmbeddingsGenerationConfiguration
 
@@ -33,6 +37,7 @@ class OngoingTaskType(Enum):
     PULL_REPLICATION_AS_HUB = "PullReplicationAsHub"
     PULL_REPLICATION_AS_SINK = "PullReplicationAsSink"
     QUEUE_SINK = "QueueSink"
+    CDC_SINK = "CdcSink"
     EMBEDDINGS_GENERATION = "EmbeddingsGeneration"
     GEN_AI = "GenAi"
 
@@ -392,6 +397,8 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         access_name: Optional[str] = None,
         allowed_hub_to_sink_paths: Optional[list] = None,
         allowed_sink_to_hub_paths: Optional[list] = None,
+        hub_cursor: Optional[str] = None,
+        sink_cursor: Optional[str] = None,
     ):
         super().__init__(
             task_id=task_id,
@@ -414,6 +421,9 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         self.access_name = access_name
         self.allowed_hub_to_sink_paths = allowed_hub_to_sink_paths
         self.allowed_sink_to_hub_paths = allowed_sink_to_hub_paths
+        # Composite change vectors of the last item each side sent.
+        self.hub_cursor = hub_cursor
+        self.sink_cursor = sink_cursor
 
     def to_json(self) -> dict:
         result = super().to_json()
@@ -427,6 +437,8 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
         result["AccessName"] = self.access_name
         result["AllowedHubToSinkPaths"] = self.allowed_hub_to_sink_paths
         result["AllowedSinkToHubPaths"] = self.allowed_sink_to_hub_paths
+        result["HubCursor"] = self.hub_cursor
+        result["SinkCursor"] = self.sink_cursor
         return result
 
     @classmethod
@@ -457,6 +469,178 @@ class OngoingTaskPullReplicationAsSink(OngoingTask):
             access_name=json_dict.get("AccessName"),
             allowed_hub_to_sink_paths=json_dict.get("AllowedHubToSinkPaths"),
             allowed_sink_to_hub_paths=json_dict.get("AllowedSinkToHubPaths"),
+            hub_cursor=json_dict.get("HubCursor"),
+            sink_cursor=json_dict.get("SinkCursor"),
+        )
+
+
+class OngoingTaskQueueSink(OngoingTask):
+    """Ongoing task information for a queue sink task."""
+
+    def __init__(
+        self,
+        task_id: Optional[int] = None,
+        responsible_node: Optional[NodeId] = None,
+        task_state: Optional[OngoingTaskState] = None,
+        task_connection_status: Optional[OngoingTaskConnectionStatus] = None,
+        task_name: Optional[str] = None,
+        error: Optional[str] = None,
+        mentor_node: Optional[str] = None,
+        pin_to_mentor_node: Optional[bool] = None,
+        configuration: Optional["QueueSinkConfiguration"] = None,
+        broker_type: Optional["QueueBrokerType"] = None,
+        connection_string_name: Optional[str] = None,
+        url: Optional[str] = None,
+    ):
+        super().__init__(
+            task_id=task_id,
+            task_type=OngoingTaskType.QUEUE_SINK,
+            responsible_node=responsible_node,
+            task_state=task_state,
+            task_connection_status=task_connection_status,
+            task_name=task_name,
+            error=error,
+            mentor_node=mentor_node,
+            pin_to_mentor_node=pin_to_mentor_node,
+        )
+        self.configuration = configuration
+        self.broker_type = broker_type
+        self.connection_string_name = connection_string_name
+        # The broker URL the server resolved from the connection string.
+        self.url = url
+
+    def to_json(self) -> dict:
+        result = super().to_json()
+        result["BrokerType"] = self.broker_type.value if self.broker_type else None
+        result["ConnectionStringName"] = self.connection_string_name
+        result["Url"] = self.url
+        result["Configuration"] = self.configuration.to_json() if self.configuration else None
+        return result
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> Optional["OngoingTaskQueueSink"]:
+        if json_dict is None:
+            return None
+
+        from ravendb.documents.operations.etl.queue.connection import QueueBrokerType
+        from ravendb.documents.operations.queue_sink.configuration import QueueSinkConfiguration
+
+        task_state_str = json_dict.get("TaskState")
+        task_connection_status_str = json_dict.get("TaskConnectionStatus")
+        broker_type_str = json_dict.get("BrokerType")
+        configuration = json_dict.get("Configuration")
+        return cls(
+            task_id=json_dict.get("TaskId"),
+            responsible_node=NodeId.from_json(json_dict.get("ResponsibleNode")),
+            task_state=OngoingTaskState(task_state_str) if task_state_str else None,
+            task_connection_status=(
+                OngoingTaskConnectionStatus(task_connection_status_str) if task_connection_status_str else None
+            ),
+            task_name=json_dict.get("TaskName"),
+            error=json_dict.get("Error"),
+            mentor_node=json_dict.get("MentorNode"),
+            pin_to_mentor_node=json_dict.get("PinToMentorNode"),
+            configuration=QueueSinkConfiguration.from_json(configuration) if configuration else None,
+            broker_type=QueueBrokerType(broker_type_str) if broker_type_str else None,
+            connection_string_name=json_dict.get("ConnectionStringName"),
+            url=json_dict.get("Url"),
+        )
+
+
+class OngoingTaskCdcSink(OngoingTask):
+    """Ongoing task information for a CDC Sink task."""
+
+    def __init__(
+        self,
+        task_id: Optional[int] = None,
+        responsible_node: Optional[NodeId] = None,
+        task_state: Optional[OngoingTaskState] = None,
+        task_connection_status: Optional[OngoingTaskConnectionStatus] = None,
+        task_name: Optional[str] = None,
+        error: Optional[str] = None,
+        mentor_node: Optional[str] = None,
+        pin_to_mentor_node: Optional[bool] = None,
+        configuration: Optional["CdcSinkConfiguration"] = None,
+        connection_string_name: Optional[str] = None,
+        factory_name: Optional[str] = None,
+        last_batch_time: Optional[datetime] = None,
+        last_checkpoint: Optional[str] = None,
+        seconds_since_last_batch: Optional[float] = None,
+        last_activity_time: Optional[datetime] = None,
+        seconds_since_last_activity: Optional[float] = None,
+        health_issue: Optional[str] = None,
+    ):
+        super().__init__(
+            task_id=task_id,
+            task_type=OngoingTaskType.CDC_SINK,
+            responsible_node=responsible_node,
+            task_state=task_state,
+            task_connection_status=task_connection_status,
+            task_name=task_name,
+            error=error,
+            mentor_node=mentor_node,
+            pin_to_mentor_node=pin_to_mentor_node,
+        )
+        self.configuration = configuration
+        self.connection_string_name = connection_string_name
+        self.factory_name = factory_name
+        # UTC time of the last successfully completed batch, None before the first one.
+        self.last_batch_time = last_batch_time
+        # The last persisted checkpoint (LSN/GTID).
+        self.last_checkpoint = last_checkpoint
+        self.seconds_since_last_batch = seconds_since_last_batch
+        # UTC time of the last activity from the source: a poll iteration (SQL Server),
+        # replication message (PostgreSQL) or binlog event (MySQL). Recent activity with
+        # a stale last_batch_time means the connection is alive but idle; both stale
+        # suggests the connection is dead.
+        self.last_activity_time = last_activity_time
+        self.seconds_since_last_activity = seconds_since_last_activity
+        # None when healthy, otherwise a diagnostic from the process itself.
+        self.health_issue = health_issue
+
+    def to_json(self) -> dict:
+        result = super().to_json()
+        result["ConnectionStringName"] = self.connection_string_name
+        result["FactoryName"] = self.factory_name
+        result["Configuration"] = self.configuration.to_json() if self.configuration else None
+        result["LastBatchTime"] = Utils.datetime_to_string(self.last_batch_time)
+        result["LastCheckpoint"] = self.last_checkpoint
+        result["SecondsSinceLastBatch"] = self.seconds_since_last_batch
+        result["LastActivityTime"] = Utils.datetime_to_string(self.last_activity_time)
+        result["SecondsSinceLastActivity"] = self.seconds_since_last_activity
+        result["HealthIssue"] = self.health_issue
+        return result
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> Optional["OngoingTaskCdcSink"]:
+        if json_dict is None:
+            return None
+
+        from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
+
+        task_state_str = json_dict.get("TaskState")
+        task_connection_status_str = json_dict.get("TaskConnectionStatus")
+        configuration = json_dict.get("Configuration")
+        return cls(
+            task_id=json_dict.get("TaskId"),
+            responsible_node=NodeId.from_json(json_dict.get("ResponsibleNode")),
+            task_state=OngoingTaskState(task_state_str) if task_state_str else None,
+            task_connection_status=(
+                OngoingTaskConnectionStatus(task_connection_status_str) if task_connection_status_str else None
+            ),
+            task_name=json_dict.get("TaskName"),
+            error=json_dict.get("Error"),
+            mentor_node=json_dict.get("MentorNode"),
+            pin_to_mentor_node=json_dict.get("PinToMentorNode"),
+            configuration=CdcSinkConfiguration.from_json(configuration) if configuration else None,
+            connection_string_name=json_dict.get("ConnectionStringName"),
+            factory_name=json_dict.get("FactoryName"),
+            last_batch_time=Utils.string_to_datetime(json_dict.get("LastBatchTime")),
+            last_checkpoint=json_dict.get("LastCheckpoint"),
+            seconds_since_last_batch=json_dict.get("SecondsSinceLastBatch"),
+            last_activity_time=Utils.string_to_datetime(json_dict.get("LastActivityTime")),
+            seconds_since_last_activity=json_dict.get("SecondsSinceLastActivity"),
+            health_issue=json_dict.get("HealthIssue"),
         )
 
 
@@ -637,6 +821,10 @@ class GetOngoingTaskInfoOperation(
                 return OngoingTaskEmbeddingsGeneration.from_json(json_dict)
             elif self._task_type == OngoingTaskType.PULL_REPLICATION_AS_SINK:
                 return OngoingTaskPullReplicationAsSink.from_json(json_dict)
+            elif self._task_type == OngoingTaskType.CDC_SINK:
+                return OngoingTaskCdcSink.from_json(json_dict)
+            elif self._task_type == OngoingTaskType.QUEUE_SINK:
+                return OngoingTaskQueueSink.from_json(json_dict)
             else:
                 # todo: handle more types of tasks
                 return OngoingTask.from_json(json_dict)

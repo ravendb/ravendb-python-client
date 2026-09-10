@@ -40,13 +40,14 @@ class Operation:
     ) -> RavenCommand[dict]:
         return GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
 
-    def wait_for_completion(self) -> None:
+    def wait_for_completion(self) -> Optional[dict]:
+        """Blocks until the operation finishes, then hands back whatever result it carried."""
         while True:
             status = self.fetch_operations_status()
             operation_status = status.get("Status")
 
             if operation_status == "Completed":
-                return
+                return status.get("Result")
             elif operation_status == "Canceled":
                 raise OperationCancelledException()
             elif operation_status == "Faulted":
