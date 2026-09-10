@@ -1076,6 +1076,27 @@ class VectorSearchToken(WhereToken):
         self._task_name = task_name
         self._document_id = document_id
 
+    def add_alias(self, alias: str) -> WhereToken:
+        # The base implementation builds a plain WhereToken, which would drop every
+        # vector-search setting. Rebuild this token instead, with the field qualified.
+        if self.field_name == "id()":
+            return self
+
+        token = VectorSearchToken(
+            wrapped_field_name=f"{alias}.{self.field_name}",
+            parameter_name=self.parameter_name,
+            source_quantization_type=self._source_quantization_type,
+            target_quantization_type=self._target_quantization_type,
+            similarity_threshold=self._similarity_threshold,
+            number_of_candidates_for_querying=self._number_of_candidates_for_querying,
+            is_exact=self._is_exact,
+            task_name=self._task_name,
+            document_id=self._document_id,
+        )
+        token.options = self.options
+        token.where_operator = self.where_operator
+        return token
+
     def write_to(self, writer: List[str]) -> None:
         """
         Builds the vector search query string components and appends them to the writer list.
