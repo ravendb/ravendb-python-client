@@ -5,7 +5,7 @@ have no initializer and so are simply absent from a server payload.
 
 import unittest
 
-from ravendb.documents.indexes.definitions import AutoIndexDefinition
+from ravendb.documents.indexes.definitions import AutoIndexDefinition, IndexPriority, IndexType
 from ravendb.serverwide.database_record import DatabaseRecord
 
 AUTO_INDEX = {
@@ -68,3 +68,42 @@ class TestDatabaseRecordToJson(unittest.TestCase):
             record.auto_indexes["Auto/Orders/ByCompany"].collection,
             round_tripped.auto_indexes["Auto/Orders/ByCompany"].collection,
         )
+
+
+class TestAutoIndexDefinitionFromJson(unittest.TestCase):
+    """
+    The C# constructor starts MapFields and GroupByFields empty and leaves the rest
+    nullable, so a payload that omits any of them is well-formed.
+    """
+
+    def test_a_minimal_payload_parses(self):
+        definition = AutoIndexDefinition.from_json({"Name": "Auto/Orders", "Collection": "Orders"})
+
+        self.assertEqual("Auto/Orders", definition.name)
+        self.assertEqual("Orders", definition.collection)
+        self.assertEqual({}, definition.map_fields)
+        self.assertEqual({}, definition.group_by_fields)
+        self.assertIsNone(definition.index_type)
+        self.assertIsNone(definition.priority)
+
+    def test_an_empty_payload_parses(self):
+        self.assertIsNone(AutoIndexDefinition.from_json({}).name)
+
+    def test_a_full_payload_still_parses(self):
+        definition = AutoIndexDefinition.from_json(AUTO_INDEX)
+
+        self.assertEqual(IndexType.AUTO_MAP, definition.index_type)
+        self.assertEqual(IndexPriority.NORMAL, definition.priority)
+        self.assertEqual("Orders", definition.collection)
+
+    def test_to_json_survives_the_optional_fields_being_unset(self):
+        serialized = AutoIndexDefinition.from_json({"Name": "Auto/Orders"}).to_json()
+
+        self.assertIsNone(serialized["Type"])
+        self.assertIsNone(serialized["Priority"])
+        self.assertEqual({}, serialized["MapFields"])
+
+    def test_definition_round_trips(self):
+        definition = AutoIndexDefinition.from_json(AUTO_INDEX)
+
+        self.assertEqual(definition.to_json(), AutoIndexDefinition.from_json(definition.to_json()).to_json())
