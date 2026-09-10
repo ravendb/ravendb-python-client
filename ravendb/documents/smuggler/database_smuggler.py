@@ -15,6 +15,7 @@ from ravendb.documents.smuggler.common import (
     DatabaseSmugglerImportOptions,
     DatabaseSmugglerOptions,
 )
+from ravendb.documents.smuggler.result import SmugglerResult
 from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.http.raven_command import VoidRavenCommand
 from ravendb.http.server_node import ServerNode
@@ -48,6 +49,13 @@ _BACKUP_EXTENSIONS = (
     _LEGACY_INCREMENTAL_BACKUP_EXTENSION,
     _LEGACY_FULL_BACKUP_EXTENSION,
 )
+
+
+class SmugglerOperation(Operation):
+    """An export or import operation, whose result is a typed SmugglerResult."""
+
+    def wait_for_completion(self) -> SmugglerResult:
+        return SmugglerResult.from_json(super().wait_for_completion())
 
 
 def _is_backup_file(file_path: str) -> bool:
@@ -93,8 +101,8 @@ class DatabaseSmuggler:
         self._executor.execute_command(command)
         return command.result, command.node_tag
 
-    def _operation_for(self, operation_id: int, node_tag: str) -> Operation:
-        return Operation(
+    def _operation_for(self, operation_id: int, node_tag: str) -> SmugglerOperation:
+        return SmugglerOperation(
             self._executor,
             lambda: None,
             self._executor.conventions,
@@ -106,7 +114,7 @@ class DatabaseSmuggler:
         self,
         options: DatabaseSmugglerExportOptions,
         to_file_or_stream: Union[str, IO[bytes]],
-    ) -> Operation:
+    ) -> SmugglerOperation:
         """
         Exports the database. ``to_file_or_stream`` is either a path, in which case the
         file (and any missing parent directory) is created, or a writable binary stream,
@@ -132,7 +140,7 @@ class DatabaseSmuggler:
 
         return self._export_to_stream(options, to_file_or_stream)
 
-    def _export_to_stream(self, options: DatabaseSmugglerExportOptions, destination: IO[bytes]) -> Operation:
+    def _export_to_stream(self, options: DatabaseSmugglerExportOptions, destination: IO[bytes]) -> SmugglerOperation:
         operation_id, node_tag = self._next_operation_id()
         self._executor.execute_command(self._ExportCommand(options, destination, operation_id, node_tag))
         return self._operation_for(operation_id, node_tag)
@@ -141,7 +149,7 @@ class DatabaseSmuggler:
         self,
         options: DatabaseSmugglerExportOptions,
         to_smuggler: DatabaseSmuggler,
-    ) -> Operation:
+    ) -> SmugglerOperation:
         """
         Streams an export straight into another database. Returns the import operation on
         the receiving side, which is the one worth waiting on.
@@ -164,7 +172,7 @@ class DatabaseSmuggler:
         self,
         options: DatabaseSmugglerImportOptions,
         from_file_or_stream: Union[str, IO[bytes]],
-    ) -> Operation:
+    ) -> SmugglerOperation:
         """
         Imports a dump. ``from_file_or_stream`` is either a path, which is opened and
         closed here, or a readable binary stream, which is left open.
@@ -182,7 +190,7 @@ class DatabaseSmuggler:
 
         return self._import_from_stream(options, from_file_or_stream)
 
-    def _import_from_stream(self, options: DatabaseSmugglerImportOptions, source: IO[bytes]) -> Operation:
+    def _import_from_stream(self, options: DatabaseSmugglerImportOptions, source: IO[bytes]) -> SmugglerOperation:
         operation_id, node_tag = self._next_operation_id()
         self._executor.execute_command(self._ImportCommand(options, source, operation_id, node_tag))
         return self._operation_for(operation_id, node_tag)

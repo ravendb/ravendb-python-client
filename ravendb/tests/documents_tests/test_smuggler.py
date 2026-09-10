@@ -23,6 +23,7 @@ from ravendb.documents.smuggler.common import (
     flags_to_string,
 )
 from ravendb.documents.smuggler.database_smuggler import DatabaseSmuggler, _backup_sort_key, _is_backup_file
+from ravendb.documents.smuggler.result import SmugglerResult
 from ravendb.http.server_node import ServerNode
 from ravendb.tests.test_base import TestBase, User
 
@@ -265,7 +266,10 @@ class TestSmugglerAgainstServer(TestBase):
             self.assertGreater(os.path.getsize(dump), 0)
 
             with self.get_document_store() as target:
-                target.smuggler.import_data(DatabaseSmugglerImportOptions(), dump).wait_for_completion()
+                imported = target.smuggler.import_data(DatabaseSmugglerImportOptions(), dump).wait_for_completion()
+                self.assertIsInstance(imported, SmugglerResult)
+                self.assertEqual(5, imported.documents.read_count)
+                self.assertTrue(imported.messages)
 
                 with target.open_session() as session:
                     self.assertEqual("user-3", session.load("users/3", User).name)
@@ -275,9 +279,11 @@ class TestSmugglerAgainstServer(TestBase):
         self._store_users(self.store, 2)
 
         destination = io.BytesIO()
-        self.store.smuggler.export(DatabaseSmugglerExportOptions(), destination).wait_for_completion()
+        exported = self.store.smuggler.export(DatabaseSmugglerExportOptions(), destination).wait_for_completion()
 
         self.assertGreater(len(destination.getvalue()), 0)
+        self.assertEqual(2, exported.documents.read_count)
+        self.assertIsNotNone(exported.elapsed)
 
     def test_an_export_narrowed_to_one_collection_leaves_the_rest_behind(self):
         self._store_users(self.store, 3)
@@ -324,3 +330,95 @@ class TestSmugglerAgainstServer(TestBase):
 
             with target.open_session() as session:
                 self.assertEqual("user-1", session.load("users/1", User).name)
+
+
+class TestSmugglerResult(unittest.TestCase):
+    RESPONSE = {
+        "Documents": {
+            "ReadCount": 5,
+            "SkippedCount": 1,
+            "ErroredCount": 0,
+            "SizeInBytes": 120,
+            "LastEtag": 9,
+            "Attachments": {"ReadCount": 2, "SizeInBytes": 40},
+        },
+        "RevisionDocuments": {"ReadCount": 3},
+        "Indexes": {"ReadCount": 1},
+        "TimeSeriesDeletedRanges": {"ReadCount": 4},
+        "DatabaseRecord": {"ReadCount": 1, "QueueSinksUpdated": True, "CdcSinksUpdated": True},
+        "Messages": ["Processed 5 documents."],
+        "Elapsed": "00:00:01.2340000",
+    }
+
+    def test_counts_are_parsed_per_item_type(self):
+        result = SmugglerResult.from_json(self.RESPONSE)
+
+        self.assertEqual(5, result.documents.read_count)
+        self.assertEqual(1, result.documents.skipped_count)
+        self.assertEqual(9, result.documents.last_etag)
+        self.assertEqual(3, result.revision_documents.read_count)
+        self.assertEqual(1, result.indexes.read_count)
+        self.assertEqual(4, result.time_series_deleted_ranges.read_count)
+
+    def test_attachments_hang_off_the_documents_count(self):
+        result = SmugglerResult.from_json(self.RESPONSE)
+
+        self.assertEqual(2, result.documents.attachments.read_count)
+        self.assertEqual(40, result.documents.attachments.size_in_bytes)
+
+    def test_messages_and_elapsed_are_carried(self):
+        result = SmugglerResult.from_json(self.RESPONSE)
+
+        self.assertEqual(["Processed 5 documents."], result.messages)
+        self.assertEqual("00:00:01.2340000", result.elapsed)
+
+    def test_the_database_record_reports_only_what_was_written(self):
+        record = SmugglerResult.from_json(self.RESPONSE).database_record
+
+        self.assertTrue(record.queue_sinks_updated)
+        self.assertTrue(record.cdc_sinks_updated)
+        self.assertFalse(record.sorters_updated)
+        self.assertEqual(["cdc_sinks_updated", "queue_sinks_updated"], record.updated)
+
+    def test_the_database_record_writes_back_only_the_true_flags(self):
+        # This is how the server sends them, and how C# writes them out.
+        serialized = SmugglerResult.from_json(self.RESPONSE).database_record.to_json()
+
+        self.assertEqual(["QueueSinksUpdated", "CdcSinksUpdated"], [k for k in serialized if k.endswith("Updated")])
+
+    def test_a_missing_section_reads_as_zero_rather_than_raising(self):
+        result = SmugglerResult.from_json({})
+
+        self.assertEqual(0, result.documents.read_count)
+        self.assertEqual(0, result.identities.read_count)
+        self.assertEqual([], result.messages)
+        self.assertEqual([], result.database_record.updated)
+
+    def test_a_null_result_reads_as_an_empty_one(self):
+        self.assertEqual(0, SmugglerResult.from_json(None).documents.read_count)
+
+    def test_result_round_trips(self):
+        result = SmugglerResult.from_json(self.RESPONSE)
+
+        self.assertEqual(result.to_json(), SmugglerResult.from_json(result.to_json()).to_json())
+
+    def test_every_section_the_server_sends_has_a_home(self):
+        keys = set(SmugglerResult().to_json())
+
+        for name in (
+            "DatabaseRecord",
+            "Documents",
+            "RevisionDocuments",
+            "Tombstones",
+            "Conflicts",
+            "Identities",
+            "Indexes",
+            "CompareExchange",
+            "Subscriptions",
+            "Counters",
+            "CompareExchangeTombstones",
+            "TimeSeries",
+            "ReplicationHubCertificates",
+            "TimeSeriesDeletedRanges",
+        ):
+            self.assertIn(name, keys)
