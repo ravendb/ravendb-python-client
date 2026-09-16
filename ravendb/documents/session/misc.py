@@ -5,7 +5,7 @@ import json
 import threading
 from abc import ABC
 from enum import Enum
-from typing import Union, Optional, TYPE_CHECKING, List, Dict, Generic, TypeVar
+from typing import Union, Optional, TYPE_CHECKING, List, Dict, Generic, Tuple, TypeVar
 
 from ravendb.http.misc import LoadBalanceBehavior, ReadBalanceBehavior
 
@@ -282,6 +282,8 @@ class JavaScriptArray:
         self.__arg_counter = 0
         self.__script_lines = []
         self.__parameters: Dict[str, object] = {}
+        # What the caller asked for, kept structurally so a JsonPatch can be built from it.
+        self.recorded_operations: List[Tuple[str, object]] = []
 
     @property
     def script(self) -> str:
@@ -303,6 +305,7 @@ class JavaScriptArray:
 
         args = ",".join(list(map(__func, u)))
         self.__script_lines.append(f"this.{self.__path_to_array}.push({args});")
+        self.recorded_operations.extend(("add", value) for value in u)
         return self
 
     def remove_at(self, index: int) -> JavaScriptArray:
@@ -310,12 +313,14 @@ class JavaScriptArray:
 
         self.__script_lines.append(f"this.{self.__path_to_array}.splice(args.{argument_name}, 1);")
         self.__parameters[argument_name] = index
+        self.recorded_operations.append(("remove_at", index))
 
         return self
 
     def remove_all(self, predicate_js: str) -> "JavaScriptArray":
         path = self.__path_to_array
         self.__script_lines.append(f"this.{path} = this.{path}.filter(function(item){{ return !({predicate_js}); }});")
+        self.recorded_operations.append(("remove_all", predicate_js))
         return self
 
 
@@ -326,6 +331,8 @@ class JavaScriptMap(Generic[_T_Key, _T_Value]):
         self._arg_counter = 0
         self._script_lines = []
         self._parameters: Dict[str, object] = {}
+        # What the caller asked for, kept structurally so a JsonPatch can be built from it.
+        self.recorded_operations: List[Tuple[str, object, object]] = []
 
     @property
     def script(self) -> str:
@@ -353,11 +360,13 @@ class JavaScriptMap(Generic[_T_Key, _T_Value]):
         formatted_key = self._format_key_for_javascript(key)
         self._script_lines.append(f"this.{self._path_to_map}[{formatted_key}] = args.{argument_name};")
         self.parameters[argument_name] = value
+        self.recorded_operations.append(("put", key, value))
         return self
 
     def remove(self, key: _T_Key) -> JavaScriptMap[_T_Key, _T_Value]:
         formatted_key = self._format_key_for_javascript(key)
         self._script_lines.append(f"delete this.{self._path_to_map}[{formatted_key}];")
+        self.recorded_operations.append(("remove", key, None))
         return self
 
 

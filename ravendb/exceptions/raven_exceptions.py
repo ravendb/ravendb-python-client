@@ -82,6 +82,12 @@ class TooManyTokensException(TooManyRequestsException):
     pass
 
 
+class QueryToolFailedException(AiException):
+    """Raised when an agent's query tool could not run the query it was asked for."""
+
+    pass
+
+
 class MissingAiAgentParameterException(RavenException):
     pass
 

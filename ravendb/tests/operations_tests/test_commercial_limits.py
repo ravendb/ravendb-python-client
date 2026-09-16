@@ -1,13 +1,14 @@
 """
-Tests for the commercial limit surface: the LimitType enum the 7.2.5 patch extended, and
-LicenseLimitException coming back typed from a 402 instead of a bare RavenException.
+Tests for the typed exceptions the 7.2.5 and 7.2.6 patches added: the LimitType enum,
+LicenseLimitException coming back from a 402 instead of a bare RavenException, and
+QueryToolFailedException for a failed agent query tool.
 """
 
 import unittest
 
 from ravendb.exceptions.commercial import LicenseLimitException, LimitType
 from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
-from ravendb.exceptions.raven_exceptions import RavenException
+from ravendb.exceptions.raven_exceptions import AiException, QueryToolFailedException, RavenException
 
 
 class TestLimitType(unittest.TestCase):
@@ -59,3 +60,21 @@ class TestLicenseLimitException(unittest.TestCase):
         )
 
         self.assertNotIsInstance(ExceptionDispatcher.get(schema, 402), LicenseLimitException)
+
+
+class TestQueryToolFailedException(unittest.TestCase):
+    def test_it_is_an_ai_exception(self):
+        self.assertIsInstance(QueryToolFailedException("nope"), AiException)
+
+    def test_the_dispatcher_returns_it(self):
+        schema = ExceptionDispatcher.ExceptionSchema(
+            url="http://localhost:8080",
+            object_type="Raven.Client.Exceptions.QueryToolFailedException",
+            message="no",
+            error="The agent's query tool could not run the query.",
+        )
+
+        exception = ExceptionDispatcher.get(schema, 500)
+
+        self.assertIsInstance(exception, QueryToolFailedException)
+        self.assertIn("query tool", str(exception))

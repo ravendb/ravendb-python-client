@@ -2,6 +2,7 @@ from ravendb.documents.commands.batches import (
     BatchOptions,
     DeleteAttachmentCommandData,
     PatchCommandData,
+    JsonPatchCommandData,
     PutAttachmentCommandData,
     CommandData,
     CopyAttachmentCommandData,
@@ -166,6 +167,11 @@ from ravendb.documents.operations.indexes import (
 )
 from ravendb.documents.operations.lazy.definition import LazyOperation
 from ravendb.documents.operations.misc import DeleteByQueryOperation, GetOperationStateOperation, QueryOperationOptions
+from ravendb.documents.operations.json_patch import (
+    JsonPatchDocument,
+    JsonPatchOperation,
+    JsonPatchResult,
+)
 from ravendb.documents.operations.patch import (
     PatchOperation,
     PatchByQueryOperation,
@@ -249,6 +255,7 @@ from ravendb.documents.smuggler.result import (
 )
 from ravendb.documents.smuggler.database_smuggler import SmugglerOperation
 from ravendb.exceptions.commercial import LicenseLimitException, LimitType
+from ravendb.documents.ai.ai_output_options import AiOutputOptions
 from ravendb.documents.operations.cdc_sink import (
     AddCdcSinkOperation,
     AddCdcSinkOperationResult,

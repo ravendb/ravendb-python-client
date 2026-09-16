@@ -15,3 +15,4 @@ __all__ = [
     "AiMessagePromptFields",
     "AiMessagePromptTypes",
 ]
+from ravendb.documents.ai.ai_output_options import AiOutputOptions

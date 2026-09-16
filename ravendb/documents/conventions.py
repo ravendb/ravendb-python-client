@@ -33,6 +33,22 @@ if TYPE_CHECKING:
     )
 
 
+class SessionPatchBehavior(Enum):
+    """
+    Which command the session's patch methods emit.
+
+    JSON_PATCH generates RFC 6902 operations where it can, and still falls back to a
+    JavaScript patch for anything JsonPatch cannot express. JAVA_SCRIPT always emits the
+    JavaScript patch, which is what this client did before JsonPatch support existed.
+    """
+
+    JSON_PATCH = "JsonPatch"
+    JAVA_SCRIPT = "JavaScript"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 class DocumentConventions(object):
     @classmethod
     def default_conventions(cls):
@@ -64,6 +80,7 @@ class DocumentConventions(object):
         self.throw_if_query_page_size_is_not_set = False
         self._send_application_identifier = True
         self._save_enums_as_integers: Optional[bool] = None
+        self._session_patch_behavior = SessionPatchBehavior.JSON_PATCH
         self._disable_atomic_document_writes_in_cluster_wide_transaction: Optional[bool] = None
 
         # Configuration
@@ -188,6 +205,20 @@ class DocumentConventions(object):
     @save_enums_as_integers.setter
     def save_enums_as_integers(self, value: bool):
         self._save_enums_as_integers = value
+
+    @property
+    def session_patch_behavior(self) -> "SessionPatchBehavior":
+        """
+        Whether the session's patch methods emit RFC 6902 JsonPatch commands (the default)
+        or the JavaScript patch commands this client used before. Set it to
+        SessionPatchBehavior.JAVA_SCRIPT to stay on the old code path entirely.
+        """
+        return self._session_patch_behavior
+
+    @session_patch_behavior.setter
+    def session_patch_behavior(self, value: "SessionPatchBehavior") -> None:
+        self._assert_not_frozen()
+        self._session_patch_behavior = value
 
     @property
     def find_python_class_name(self) -> Callable[[type], str]:
@@ -437,6 +468,7 @@ class DocumentConventions(object):
         cloned._should_ignore_entity_changes = self._should_ignore_entity_changes
         cloned._original_configuration = self._original_configuration
         cloned._save_enums_as_integers = self._save_enums_as_integers
+        cloned._session_patch_behavior = self._session_patch_behavior
         cloned.identity_parts_separator = self.identity_parts_separator
         cloned.disable_topology_updates = self.disable_topology_updates
         cloned._find_identity_property_name = self._find_identity_property_name

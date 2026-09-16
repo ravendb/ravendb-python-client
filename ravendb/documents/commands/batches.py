@@ -22,6 +22,7 @@ from ravendb.tools.utils import CaseInsensitiveSet, Utils
 from ravendb.util.util import RaftIdGenerator
 
 if TYPE_CHECKING:
+    from ravendb.documents.operations.json_patch import JsonPatchDocument
     from ravendb.documents.conventions import DocumentConventions
     from ravendb.documents.operations.attachments import RemoteAttachmentParameters
     from ravendb.documents.operations.patch import PatchRequest
@@ -48,6 +49,7 @@ class CommandType(Enum):
     TIME_SERIES = "TimeSeries"
     TIME_SERIES_BULK_INSERT = "TIME_SERIES_BULK_INSERT"
     TIME_SERIES_COPY = "TIME_SERIES_COPY"
+    JSON_PATCH = "JsonPatch"
     BATCH_PATCH = "BatchPATCH"
     BATCH_TRACK_CHANGES = "BatchTrackChanges"
     CLIENT_ANY_COMMAND = "CLIENT_ANY_COMMAND"
@@ -80,6 +82,8 @@ class CommandType(Enum):
             return cls.COMPARE_EXCHANGE_DELETE
         elif value == "Counters":
             return cls.COUNTERS
+        elif value == "JsonPatch":
+            return cls.JSON_PATCH
         elif value == "BatchPATCH":
             return cls.BATCH_PATCH
         elif value == "BatchTrackChanges":
@@ -418,6 +422,45 @@ class BatchPatchCommandData(CommandData):
             "Patch": self.patch.serialize(),
             "Type": "BatchPATCH",
             "PatchIfMissing": self.patch_if_missing.serialize(),
+        }
+
+
+class JsonPatchCommandData(CommandData):
+    """
+    A batch command carrying RFC 6902 operations instead of a JavaScript script.
+    The server applies them structurally, without running a patch script.
+    """
+
+    def __init__(self, key: str, patch: "JsonPatchDocument"):
+        super().__init__(key, None, None, CommandType.JSON_PATCH)
+        if not key:
+            raise ValueError("Key cannot be None")
+        if patch is None:
+            raise ValueError("Patch cannot be None")
+
+        self.__patch = patch
+        self.return_document: Union[None, bool] = None
+
+        def __consumer(session: InMemoryDocumentSessionOperations) -> None:
+            self.return_document = session.advanced.is_loaded(key)
+
+        self.__on_before_save_changes = __consumer
+
+    @property
+    def json_patch(self) -> "JsonPatchDocument":
+        return self.__patch
+
+    @property
+    def on_before_save_changes(self):
+        return self.__on_before_save_changes
+
+    def serialize(self, conventions: DocumentConventions) -> dict:
+        return {
+            "Id": self.key,
+            "ChangeVector": None,
+            "JsonPatch": {"Operations": self.__patch.to_json()},
+            "ReturnDocument": bool(self.return_document),
+            "Type": CommandType.JSON_PATCH.value,
         }
 
 
