@@ -4,6 +4,7 @@ UsedBy metadata the server now returns with every connection string.
 """
 
 import json
+import os
 import unittest
 
 from ravendb.documents.operations.connection_string.get_connection_string_operation import (
@@ -23,6 +24,7 @@ from ravendb.serverwide.operations.connection_strings import (
     ServerWideConnectionStringUsage,
 )
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
+from ravendb.tests.test_base import TestBase
 
 
 class TestConnectionStringUsage(unittest.TestCase):
@@ -248,3 +250,63 @@ class TestServerWideConnectionStringOperations(unittest.TestCase):
         command.set_response(json.dumps({"RaftCommandIndex": 12}), False)
 
         self.assertEqual(12, command.result.raft_command_index)
+
+
+@unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
+class TestServerWideConnectionStringsAgainstServer(TestBase):
+    # Server-wide connection strings are licensed: writing one hits the license gate on an
+    # unlicensed server, so these only run when a license is configured.
+
+    def _connection_string(self, name: str) -> ServerWideConnectionString:
+        return ServerWideConnectionString(
+            RavenConnectionString(name, database="db1", topology_discovery_urls=[self.store.urls[0]])
+        )
+
+    def test_a_connection_string_is_stored_listed_and_removed(self):
+        put = self.store.maintenance.server.send(
+            PutServerWideConnectionStringOperation(self._connection_string("sw-raven"))
+        )
+        self.assertGreater(put.raft_command_index, 0)
+
+        listed = self.store.maintenance.server.send(GetServerWideConnectionStringsOperation())
+        self.assertIn("sw-raven", [result.name for result in listed.results])
+
+        removed = self.store.maintenance.server.send(
+            RemoveServerWideConnectionStringOperation(RavenConnectionString("sw-raven"))
+        )
+        self.assertGreater(removed.raft_command_index, 0)
+
+        listed = self.store.maintenance.server.send(GetServerWideConnectionStringsOperation())
+        self.assertNotIn("sw-raven", [result.name for result in listed.results])
+
+    def test_a_stored_connection_string_reads_back_with_its_type_and_urls(self):
+        self.store.maintenance.server.send(PutServerWideConnectionStringOperation(self._connection_string("sw-typed")))
+        try:
+            listed = self.store.maintenance.server.send(GetServerWideConnectionStringsOperation())
+            stored = next(result for result in listed.results if result.name == "sw-typed")
+
+            self.assertEqual(ConnectionStringType.RAVEN, stored.type)
+            self.assertIsInstance(stored.connection_string, RavenConnectionString)
+            self.assertEqual("db1", stored.connection_string.database)
+            self.assertEqual([self.store.urls[0]], stored.connection_string.topology_discovery_urls)
+            # Nothing references it yet.
+            self.assertEqual([], stored.used_by)
+        finally:
+            self.store.maintenance.server.send(
+                RemoveServerWideConnectionStringOperation(RavenConnectionString("sw-typed"))
+            )
+
+    def test_filtering_by_name_and_type_narrows_the_listing(self):
+        for name in ("sw-one", "sw-two"):
+            self.store.maintenance.server.send(PutServerWideConnectionStringOperation(self._connection_string(name)))
+        try:
+            listed = self.store.maintenance.server.send(
+                GetServerWideConnectionStringsOperation("sw-one", ConnectionStringType.RAVEN)
+            )
+
+            self.assertEqual(["sw-one"], [result.name for result in listed.results])
+        finally:
+            for name in ("sw-one", "sw-two"):
+                self.store.maintenance.server.send(
+                    RemoveServerWideConnectionStringOperation(RavenConnectionString(name))
+                )
