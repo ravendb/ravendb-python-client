@@ -43,6 +43,7 @@ class AiConversation:
         conversation_id: str = None,
         change_vector: str = None,
         debug: Optional[bool] = None,
+        cancel_pending_action_tools: bool = False,
     ):
         self._store = store
         self._agent_id = agent_id
@@ -50,6 +51,9 @@ class AiConversation:
         self._conversation_id = conversation_id
         self._change_vector = change_vector
         self._debug = debug
+        # One-shot: the server drops the tool calls still awaiting a response on the next
+        # run, and the flag clears itself once that run succeeds.
+        self._cancel_pending_action_tools = cancel_pending_action_tools
 
         self._prompt_parts: List[ContentPart] = []
         self._action_responses: Dict[str, AiAgentActionResponse] = {}
@@ -194,6 +198,7 @@ class AiConversation:
             streamed_chunks_callback=streamed_chunks_callback,
             attachments_commands=self._attachments_commands,
             debug=self._debug,
+            cancel_pending_action_tools=self._cancel_pending_action_tools,
         )
 
         try:
@@ -203,6 +208,7 @@ class AiConversation:
 
             self._change_vector = result.change_vector
             self._conversation_id = result.conversation_id
+            self._cancel_pending_action_tools = False
             self._action_requests = result.action_requests or []
 
             return AiAnswer(

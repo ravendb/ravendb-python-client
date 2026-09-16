@@ -11,6 +11,7 @@ from ravendb.documents.indexes.definitions import (
     AutoIndexDefinition,
 )
 from ravendb.documents.operations.backups.settings import PeriodicBackupConfiguration
+from ravendb.documents.operations.cdc_sink.configuration import CdcSinkConfiguration
 from ravendb.documents.operations.etl.configuration import RavenConnectionString, RavenEtlConfiguration
 from ravendb.documents.operations.etl.olap.connection import OlapConnectionString, OlapEtlConfiguration
 from ravendb.documents.operations.etl.sql import SqlConnectionString, SqlEtlConfiguration
@@ -69,6 +70,7 @@ class DatabaseRecord:
         self.raven_etls: List[RavenEtlConfiguration] = []
         self.sql_etls: List[SqlEtlConfiguration] = []
         self.olap_etls: List[OlapEtlConfiguration] = []
+        self.cdc_sinks: List[CdcSinkConfiguration] = []
         self.embeddings_generations: List = []
         self.client: Optional[ClientConfiguration] = None
         self.studio: Optional[StudioConfiguration] = None
@@ -119,6 +121,7 @@ class DatabaseRecord:
             "RavenEtls": self.raven_etls,
             "SqlEtls": self.sql_etls,
             "OlapEtls": self.olap_etls,
+            "CdcSinks": [cdc_sink.to_json() for cdc_sink in self.cdc_sinks or []],
             "Client": self.client,
             "Studio": self.studio,
             "TruncatedClusterTransactionCommand": self.truncated_cluster_transaction_commands_count,
@@ -167,6 +170,7 @@ class DatabaseRecord:
         record.raven_etls = json_dict.get("RavenEtls", None)
         record.sql_etls = json_dict.get("SqlEtls", None)
         record.olap_etls = json_dict.get("OlapEtls", None)
+        record.cdc_sinks = [CdcSinkConfiguration.from_json(cdc_sink) for cdc_sink in json_dict.get("CdcSinks") or []]
         embeddings_generations_data = json_dict.get("EmbeddingsGenerations", [])
         if embeddings_generations_data:
             from ravendb.documents.operations.ai.embeddings_generation_configuration import (
