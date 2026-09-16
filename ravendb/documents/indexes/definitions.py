@@ -117,6 +117,15 @@ class IndexSourceType(Enum):
         return self.value
 
 
+class ArchivedDataProcessingBehavior(Enum):
+    EXCLUDE_ARCHIVED = "ExcludeArchived"
+    INCLUDE_ARCHIVED = "IncludeArchived"
+    ARCHIVED_ONLY = "ArchivedOnly"
+
+    def __str__(self):
+        return self.value
+
+
 class IndexType(Enum):
     NONE = "None"
     AUTO_MAP = "AutoMap"

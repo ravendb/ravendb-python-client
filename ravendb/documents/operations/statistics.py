@@ -6,7 +6,14 @@ from typing import Optional, Dict, List, TYPE_CHECKING, Any
 
 import requests
 
-from ravendb.documents.indexes.definitions import IndexPriority, IndexLockMode, IndexType, IndexSourceType, IndexState
+from ravendb.documents.indexes.definitions import (
+    ArchivedDataProcessingBehavior,
+    IndexPriority,
+    IndexLockMode,
+    IndexType,
+    IndexSourceType,
+    IndexState,
+)
 from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.http.raven_command import RavenCommand
 from ravendb.http.server_node import ServerNode
@@ -94,6 +101,109 @@ class DatabaseStatistics:
             Size.from_json(json_dict.get("TempBuffersSizeOnDisk", None)),
             json_dict.get("NumberOfTransactionMergerQueueOperations", None),
         )
+
+
+class EssentialIndexInformation:
+    def __init__(
+        self,
+        name: str = None,
+        lock_mode: IndexLockMode = None,
+        priority: IndexPriority = None,
+        index_type: IndexType = None,
+        source_type: IndexSourceType = None,
+        archived_data_processing_behavior: Optional[ArchivedDataProcessingBehavior] = None,
+    ):
+        self.name = name
+        self.lock_mode = lock_mode
+        self.priority = priority
+        self.type = index_type
+        self.source_type = source_type
+        self.archived_data_processing_behavior = archived_data_processing_behavior
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> "EssentialIndexInformation":
+        return cls(
+            name=json_dict.get("Name"),
+            lock_mode=IndexLockMode(json_dict["LockMode"]) if json_dict.get("LockMode") else None,
+            priority=IndexPriority(json_dict["Priority"]) if json_dict.get("Priority") else None,
+            index_type=IndexType(json_dict["Type"]) if json_dict.get("Type") else None,
+            source_type=IndexSourceType(json_dict["SourceType"]) if json_dict.get("SourceType") else None,
+            archived_data_processing_behavior=(
+                ArchivedDataProcessingBehavior(json_dict["ArchivedDataProcessingBehavior"])
+                if json_dict.get("ArchivedDataProcessingBehavior")
+                else None
+            ),
+        )
+
+
+class EssentialDatabaseStatistics:
+    def __init__(
+        self,
+        count_of_indexes: int = None,
+        count_of_documents: int = None,
+        count_of_revision_documents: int = None,
+        count_of_documents_conflicts: int = None,
+        count_of_tombstones: int = None,
+        count_of_conflicts: int = None,
+        count_of_attachments: int = None,
+        count_of_counter_entries: int = None,
+        count_of_time_series_segments: int = None,
+        indexes: List["EssentialIndexInformation"] = None,
+    ):
+        self.count_of_indexes = count_of_indexes
+        self.count_of_documents = count_of_documents
+        self.count_of_revision_documents = count_of_revision_documents
+        self.count_of_documents_conflicts = count_of_documents_conflicts
+        self.count_of_tombstones = count_of_tombstones
+        self.count_of_conflicts = count_of_conflicts
+        self.count_of_attachments = count_of_attachments
+        self.count_of_counter_entries = count_of_counter_entries
+        self.count_of_time_series_segments = count_of_time_series_segments
+        self.indexes = indexes
+
+    @classmethod
+    def from_json(cls, json_dict: dict) -> "EssentialDatabaseStatistics":
+        return cls(
+            count_of_indexes=json_dict.get("CountOfIndexes"),
+            count_of_documents=json_dict.get("CountOfDocuments"),
+            count_of_revision_documents=json_dict.get("CountOfRevisionDocuments"),
+            count_of_documents_conflicts=json_dict.get("CountOfDocumentsConflicts"),
+            count_of_tombstones=json_dict.get("CountOfTombstones"),
+            count_of_conflicts=json_dict.get("CountOfConflicts"),
+            count_of_attachments=json_dict.get("CountOfAttachments"),
+            count_of_counter_entries=json_dict.get("CountOfCounterEntries"),
+            count_of_time_series_segments=json_dict.get("CountOfTimeSeriesSegments"),
+            indexes=(
+                [EssentialIndexInformation.from_json(x) for x in json_dict["Indexes"]]
+                if "Indexes" in json_dict
+                else None
+            ),
+        )
+
+
+class GetEssentialStatisticsOperation(MaintenanceOperation["EssentialDatabaseStatistics"]):
+    def __init__(self, debug_tag: str = None):
+        self._debug_tag = debug_tag
+
+    def get_command(self, conventions: "DocumentConventions") -> RavenCommand["EssentialDatabaseStatistics"]:
+        return self._GetEssentialStatisticsCommand(self._debug_tag)
+
+    class _GetEssentialStatisticsCommand(RavenCommand["EssentialDatabaseStatistics"]):
+        def __init__(self, debug_tag: Optional[str] = None):
+            super().__init__(EssentialDatabaseStatistics)
+            self._debug_tag = debug_tag
+
+        def create_request(self, node: ServerNode) -> requests.Request:
+            url = f"{node.url}/databases/{node.database}/stats/essential"
+            if self._debug_tag is not None:
+                url += f"?{self._debug_tag}"
+            return requests.Request("GET", url)
+
+        def set_response(self, response: str, from_cache: bool) -> None:
+            self.result = EssentialDatabaseStatistics.from_json(json.loads(response))
+
+        def is_read_request(self) -> bool:
+            return True
 
 
 class GetStatisticsOperation(MaintenanceOperation[DatabaseStatistics]):
