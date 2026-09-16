@@ -5,6 +5,7 @@ import os
 from datetime import timedelta
 
 from ravendb.exceptions.cluster import NodeIsPassiveException, NoLoaderException
+from ravendb.exceptions.commercial import LicenseLimitException
 from ravendb.exceptions.documents import DocumentConflictException, DocumentDoesNotExistException
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException, BulkInsertProtocolViolationException
 from ravendb.exceptions.documents.indexes import IndexDoesNotExistException
@@ -60,6 +61,8 @@ _EXCEPTION_MAP: dict = {
     # cluster
     "NodeIsPassiveException": NodeIsPassiveException,
     "NoLoaderException": NoLoaderException,
+    # commercial
+    "LicenseLimitException": LicenseLimitException,
 }
 
 
