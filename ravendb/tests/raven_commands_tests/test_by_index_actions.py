@@ -112,8 +112,10 @@ class TestByIndexActions(TestBase):
                 response.operation_id,
                 response.operation_node_tag,
             )
-            # wait_for_completion doesnt return anything (None) when operation state is 'Completed'
+            # wait_for_completion returns nothing; _wait_for_completion_result is what
+            # carries the server's report, and the smuggler is its only caller.
             self.assertIsNone(x.wait_for_completion())
+            self.assertEqual(45, x._wait_for_completion_result()["Total"])
 
 
 if __name__ == "__main__":

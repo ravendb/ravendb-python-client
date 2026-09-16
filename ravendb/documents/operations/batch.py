@@ -115,6 +115,8 @@ class BatchOperation:
                 self._handle_delete(batch_result)
             elif command_type == CommandType.PATCH:
                 self._handle_patch(batch_result)
+            elif command_type == CommandType.JSON_PATCH:
+                self._handle_json_patch(batch_result)
             elif command_type == CommandType.ATTACHMENT_PUT:
                 self._handle_attachment_put(batch_result)
             elif command_type == CommandType.ATTACHMENT_DELETE:
@@ -198,33 +200,49 @@ class BatchOperation:
 
         status = PatchStatus(patch_status)
         if status in (PatchStatus.CREATED, PatchStatus.PATCHED):
-            document = batch_result.get("ModifiedDocument")
-            if not document:
-                return
+            self._refresh_tracked_document(batch_result, CommandType.PATCH)
 
-            key = self._get_string_field(batch_result, CommandType.PUT, "Id")
-            session_document_info = self._session.documents_by_id.get(key)
-            if session_document_info is None:
-                return
+    def _refresh_tracked_document(self, batch_result: dict, command_type: CommandType) -> None:
+        """Brings a tracked entity back in step with the document the server returned."""
+        document = batch_result.get("ModifiedDocument")
+        if not document:
+            return
 
-            document_info = self._get_or_add_modifications(key, session_document_info, True)
+        key = self._get_string_field(batch_result, CommandType.PUT, "Id")
+        session_document_info = self._session.documents_by_id.get(key)
+        if session_document_info is None:
+            return
 
-            change_vector = self._get_string_field(batch_result, CommandType.PATCH, "ChangeVector")
-            last_modified = self._get_string_field(batch_result, CommandType.PATCH, "LastModified")
+        document_info = self._get_or_add_modifications(key, session_document_info, True)
 
-            document_info.change_vector = change_vector
-            document_info.metadata[constants.Documents.Metadata.KEY] = key
-            document_info.metadata[constants.Documents.Metadata.CHANGE_VECTOR] = change_vector
-            document_info.metadata[constants.Documents.Metadata.LAST_MODIFIED] = last_modified
+        change_vector = self._get_string_field(batch_result, command_type, "ChangeVector")
+        last_modified = self._get_string_field(batch_result, command_type, "LastModified")
 
-            document_info.document = document
-            self._apply_metadata_modifications(key, document_info)
+        document_info.change_vector = change_vector
+        document_info.metadata[constants.Documents.Metadata.KEY] = key
+        document_info.metadata[constants.Documents.Metadata.CHANGE_VECTOR] = change_vector
+        document_info.metadata[constants.Documents.Metadata.LAST_MODIFIED] = last_modified
 
-            if document_info.entity is not None:
-                self._session.entity_to_json.populate_entity(document_info.entity, key, document_info.document)
-                self._session.after_save_changes_invoke(
-                    AfterSaveChangesEventArgs(self._session, document_info.key, document_info.entity)
-                )
+        document_info.document = document
+        self._apply_metadata_modifications(key, document_info)
+
+        if document_info.entity is not None:
+            self._session.entity_to_json.populate_entity(document_info.entity, key, document_info.document)
+            self._session.after_save_changes_invoke(
+                AfterSaveChangesEventArgs(self._session, document_info.key, document_info.entity)
+            )
+
+    def _handle_json_patch(self, batch_result: dict) -> None:
+        # Same bookkeeping as a JavaScript patch, except the server only reports Patched
+        # for a JsonPatch: it never creates a missing document.
+        patch_status = batch_result.get("PatchStatus")
+        if not patch_status:
+            self._throw_missing_field(CommandType.JSON_PATCH, "PatchStatus")
+
+        if PatchStatus(patch_status) != PatchStatus.PATCHED:
+            return
+
+        self._refresh_tracked_document(batch_result, CommandType.JSON_PATCH)
 
     def _handle_delete(self, batch_result: dict) -> None:
         self._handle_delete_internal(batch_result, CommandType.DELETE)

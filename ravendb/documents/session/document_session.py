@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import abc
 import copy
-from datetime import datetime
+from datetime import datetime, timedelta
+from enum import Enum
 import http
 import json
 import os
@@ -79,6 +80,8 @@ from ravendb.documents.session.loaders.loaders import LoaderWithInclude, MultiLo
 from ravendb.documents.session.operations.lazy import LazyLoadOperation, LazySessionOperations
 from ravendb.documents.session.operations.operations import MultiGetOperation, LoadStartingWithOperation
 from ravendb.documents.session.operations.query import QueryOperation
+from ravendb.documents.conventions import SessionPatchBehavior
+from ravendb.documents.operations.json_patch import JsonPatchDocument, escape_json_pointer_segment
 from ravendb.documents.session.misc import (
     SessionOptions,
     ResponseTimeInformation,
@@ -94,6 +97,7 @@ from ravendb.documents.session.operations.load_operation import LoadOperation
 from ravendb.tools.time_series import TSRangeHelper
 from ravendb.tools.utils import Utils, Stopwatch, CaseInsensitiveDict
 from ravendb.documents.commands.batches import (
+    JsonPatchCommandData,
     PatchCommandData,
     CommandType,
     DeleteCommandData,
@@ -962,6 +966,76 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.defer(PatchCommandData(document_key, None, new_patch_request, None))
             return True
 
+        # --- JsonPatch support -------------------------------------------------
+
+        @staticmethod
+        def _to_json_pointer(path: str) -> Optional[str]:
+            """
+            Turns a client path such as "Address.City" or "Items[0]" into the RFC 6901
+            pointer "/Address/City" or "/Items/0". Returns None when the path is not
+            something JsonPatch can address, which sends the caller back to JavaScript.
+            """
+            if not path or path.isspace():
+                return None
+
+            segments: List[str] = []
+            for part in path.split("."):
+                if not part:
+                    return None
+
+                name, _, rest = part.partition("[")
+                if not name or name.isspace():
+                    return None
+                segments.append(name)
+
+                # trailing [0][1]... indexers
+                while rest:
+                    index, closed, rest = rest.partition("]")
+                    if not closed or not index.isdigit():
+                        return None
+                    segments.append(index)
+                    if rest.startswith("["):
+                        rest = rest[1:]
+                    elif rest:
+                        return None
+
+            return "/" + "/".join(escape_json_pointer_segment(segment) for segment in segments)
+
+        @staticmethod
+        def _can_json_patch_value(value: object) -> bool:
+            """
+            JsonPatch carries values the conventions render as a single JSON scalar, which
+            is exactly what the JavaScript path would have sent for them. Composites stay
+            on the JavaScript path, which already knows how to serialize them. C# draws the
+            same line by taking value types and strings and rejecting the rest.
+            """
+            return value is None or isinstance(value, (str, bool, int, float, Enum, datetime, timedelta))
+
+        @staticmethod
+        def _addresses_an_index(json_pointer: str) -> bool:
+            """A pointer ending in a number addresses an existing element, not a member."""
+            return json_pointer.rsplit("/", 1)[-1].isdigit()
+
+        def _has_javascript_patch(self, document_key: str) -> bool:
+            return IdTypeAndName.create(document_key, CommandType.PATCH, None) in self._session._deferred_commands_map
+
+        def _use_json_patch(self) -> bool:
+            conventions = self._session._request_executor.conventions
+            return conventions.session_patch_behavior == SessionPatchBehavior.JSON_PATCH
+
+        def _defer_json_patch(self, document_key: str, patch: JsonPatchDocument) -> None:
+            """Merges into a JsonPatch already deferred for this document, or defers a new one."""
+            command = self._session._deferred_commands_map.get(
+                IdTypeAndName.create(document_key, CommandType.JSON_PATCH, None)
+            )
+            if command is not None:
+                self._session._deferred_commands.remove(command)
+                merged = JsonPatchDocument(list(command.json_patch.operations) + list(patch.operations))
+                self.defer(JsonPatchCommandData(document_key, merged))
+                return
+
+            self.defer(JsonPatchCommandData(document_key, patch))
+
         def increment(self, key_or_entity: Union[object, str], path: str, value_to_add: object) -> None:
             if not isinstance(key_or_entity, str):
                 metadata = self.get_metadata_for(key_or_entity)
@@ -979,6 +1053,25 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             if not isinstance(key_or_entity, str):
                 metadata = self.get_metadata_for(key_or_entity)
                 key_or_entity = metadata[constants.Documents.Metadata.ID]
+
+            if (
+                self._use_json_patch()
+                and self._can_json_patch_value(value)
+                and not self._has_javascript_patch(key_or_entity)
+            ):
+                json_pointer = self._to_json_pointer(path)
+                if json_pointer is not None:
+                    patch = JsonPatchDocument()
+                    # "add" creates a member or replaces it, which is what assigning to a
+                    # named property did. An existing element is overwritten with "replace",
+                    # since "add" would insert before the index and shift the rest.
+                    if self._addresses_an_index(json_pointer):
+                        patch.replace(json_pointer, value)
+                    else:
+                        patch.add(json_pointer, value)
+
+                    self._defer_json_patch(key_or_entity, patch)
+                    return
 
             patch_request = PatchRequest()
             patch_request.script = f"this.{path} = args.val_{self.__values_count};"
@@ -1000,6 +1093,12 @@ class DocumentSession(InMemoryDocumentSessionOperations):
             self.__custom_count += 1
 
             array_adder(script_array)
+
+            if self._use_json_patch() and not self._has_javascript_patch(key_or_entity):
+                patch = self._array_json_patch(path_to_array, script_array)
+                if patch is not None:
+                    self._defer_json_patch(key_or_entity, patch)
+                    return
 
             patch_request = PatchRequest()
             patch_request.script = script_array.script
@@ -1023,12 +1122,62 @@ class DocumentSession(InMemoryDocumentSessionOperations):
 
             dictionary_adder(script_map)
 
+            if self._use_json_patch() and not self._has_javascript_patch(key_or_entity):
+                patch = self._map_json_patch(path_to_object, script_map)
+                if patch is not None:
+                    self._defer_json_patch(key_or_entity, patch)
+                    return
+
             patch_request = PatchRequest()
             patch_request.script = script_map.script
             patch_request.values = script_map.parameters
 
             if not self.__try_merge_patches(key_or_entity, patch_request):
                 self.defer(PatchCommandData(key_or_entity, None, patch_request, None))
+
+        def _array_json_patch(self, path_to_array: str, script_array: JavaScriptArray) -> Optional[JsonPatchDocument]:
+            json_pointer = self._to_json_pointer(path_to_array)
+            if json_pointer is None or not script_array.recorded_operations:
+                return None
+
+            patch = JsonPatchDocument()
+            for name, argument in script_array.recorded_operations:
+                if name == "add":
+                    if not self._can_json_patch_value(argument):
+                        return None
+                    # "/-" appends, which is what push did.
+                    patch.add(f"{json_pointer}/-", argument)
+                elif name == "remove_at":
+                    patch.remove(f"{json_pointer}/{argument}")
+                else:
+                    # remove_all filters with a predicate; JsonPatch has no equivalent.
+                    return None
+
+            return patch
+
+        def _map_json_patch(self, path_to_map: str, script_map: JavaScriptMap) -> Optional[JsonPatchDocument]:
+            json_pointer = self._to_json_pointer(path_to_map)
+            if json_pointer is None or not script_map.recorded_operations:
+                return None
+
+            patch = JsonPatchDocument()
+            for name, key, value in script_map.recorded_operations:
+                key_text = str(key)
+                # The server rejects a whitespace-only path segment.
+                if not key_text or key_text.isspace():
+                    return None
+
+                escaped = escape_json_pointer_segment(key_text)
+                if name == "put":
+                    if not self._can_json_patch_value(value):
+                        return None
+                    patch.add(f"{json_pointer}/{escaped}", value)
+                elif name == "remove":
+                    patch.remove(f"{json_pointer}/{escaped}")
+                else:
+                    return None
+
+            return patch
 
         def add_or_patch(self, key: str, entity: object, path_to_object: str, value: object) -> None:
             patch_request = PatchRequest()

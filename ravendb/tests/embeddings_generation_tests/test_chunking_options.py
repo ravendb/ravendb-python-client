@@ -1,6 +1,9 @@
 import unittest
 
 from ravendb.documents.operations.ai.chunking_options import ChunkingOptions, ChunkingMethod
+from ravendb.documents.operations.ai.embeddings_generation_configuration import (
+    EmbeddingsGenerationConfiguration,
+)
 
 
 class TestChunkingOptionsContextPrefix(unittest.TestCase):
@@ -78,3 +81,40 @@ class TestChunkingOptionsContextPrefix(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStoreChunkText(unittest.TestCase):
+    """StoreChunkText, added in 7.2.6, keeps each chunk's text next to its embedding."""
+
+    @staticmethod
+    def _configuration(**kwargs) -> EmbeddingsGenerationConfiguration:
+        return EmbeddingsGenerationConfiguration(
+            name="embeddings",
+            identifier="embeddings",
+            collection="Orders",
+            connection_string_name="ai",
+            chunking_options_for_querying=ChunkingOptions(
+                chunking_method=ChunkingMethod.PLAIN_TEXT_SPLIT, max_tokens_per_chunk=512
+            ),
+            **kwargs,
+        )
+
+    def test_it_is_off_unless_asked_for(self):
+        # It costs storage, so opting in has to be deliberate.
+        self.assertFalse(self._configuration().store_chunk_text)
+        self.assertFalse(self._configuration().to_json()["StoreChunkText"])
+
+    def test_it_reaches_the_wire_when_set(self):
+        self.assertTrue(self._configuration(store_chunk_text=True).to_json()["StoreChunkText"])
+
+    def test_it_round_trips(self):
+        serialized = self._configuration(store_chunk_text=True).to_json()
+
+        self.assertTrue(EmbeddingsGenerationConfiguration.from_json(serialized).store_chunk_text)
+        self.assertEqual(serialized, EmbeddingsGenerationConfiguration.from_json(serialized).to_json())
+
+    def test_a_configuration_from_an_older_server_reads_as_off(self):
+        serialized = self._configuration().to_json()
+        del serialized["StoreChunkText"]
+
+        self.assertFalse(EmbeddingsGenerationConfiguration.from_json(serialized).store_chunk_text)

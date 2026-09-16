@@ -62,7 +62,9 @@ class BackupSettings(ABC):
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "GetBackupConfigurationScript": self.get_backup_configuration_script.to_json(),
+            "GetBackupConfigurationScript": (
+                self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
+            ),
         }
 
 
@@ -130,6 +132,8 @@ class S3Settings(AmazonSettings):
         bucket_name: str = None,
         custom_server_url: str = None,
         force_path_style: bool = None,
+        disable_checksum_validation: bool = None,
+        storage_class: "S3StorageClass" = None,
     ):
         super().__init__(
             disabled,
@@ -143,26 +147,38 @@ class S3Settings(AmazonSettings):
         self.bucket_name = bucket_name
         self.custom_server_url = custom_server_url
         self.force_path_style = force_path_style
+        self.disable_checksum_validation = disable_checksum_validation
+        self.storage_class = storage_class
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> S3Settings:
         return cls(
-            json_dict["Disabled"],
-            GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"]),
-            json_dict["AwsAccessKey"],
-            json_dict["AwsSecretKey"],
-            json_dict["AwsSessionToken"],
-            json_dict["AwsRegionName"],
-            json_dict["RemoteFolderName"],
-            json_dict["BucketName"],
-            json_dict["CustomServerUrl"],
-            json_dict["ForcePathStyle"],
+            json_dict.get("Disabled"),
+            (
+                GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
+                if json_dict.get("GetBackupConfigurationScript")
+                else None
+            ),
+            # C# deserializes by reflection, so a key the server left out just keeps the
+            # field's default rather than failing.
+            json_dict.get("AwsAccessKey"),
+            json_dict.get("AwsSecretKey"),
+            json_dict.get("AwsSessionToken"),
+            json_dict.get("AwsRegionName"),
+            json_dict.get("RemoteFolderName"),
+            json_dict.get("BucketName"),
+            json_dict.get("CustomServerUrl"),
+            json_dict.get("ForcePathStyle"),
+            json_dict.get("DisableChecksumValidation"),
+            S3StorageClass(json_dict["StorageClass"]) if json_dict.get("StorageClass") else None,
         )
 
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "GetBackupConfigurationScript": self.get_backup_configuration_script.to_json(),
+            "GetBackupConfigurationScript": (
+                self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
+            ),
             "AwsAccessKey": self.aws_access_key,
             "AwsSecretKey": self.aws_secret_key,
             "AwsSessionToken": self.aws_session_token,
@@ -171,7 +187,28 @@ class S3Settings(AmazonSettings):
             "BucketName": self.bucket_name,
             "CustomServerUrl": self.custom_server_url,
             "ForcePathStyle": self.force_path_style,
+            "DisableChecksumValidation": self.disable_checksum_validation,
+            # The server treats an absent storage class as its own default, so only send one
+            # when the caller picked it.
+            **({"StorageClass": self.storage_class.value} if self.storage_class is not None else {}),
         }
+
+    def to_remote_attachments_s3_settings(self) -> "RemoteAttachmentsS3Settings":
+        """The same bucket as remote-attachment settings, dropping the backup-only fields."""
+        from ravendb.documents.operations.attachments import RemoteAttachmentsS3Settings
+
+        return RemoteAttachmentsS3Settings(
+            aws_access_key=self.aws_access_key,
+            aws_secret_key=self.aws_secret_key,
+            aws_session_token=self.aws_session_token,
+            aws_region_name=self.aws_region_name,
+            remote_folder_name=self.remote_folder_name,
+            bucket_name=self.bucket_name,
+            custom_server_url=self.custom_server_url,
+            force_path_style=self.force_path_style,
+            disable_checksum_validation=self.disable_checksum_validation,
+            storage_class=self.storage_class,
+        )
 
 
 class GlacierSettings(AmazonSettings):
@@ -201,7 +238,11 @@ class GlacierSettings(AmazonSettings):
     def from_json(cls, json_dict: Dict[str, Any]) -> GlacierSettings:
         return cls(
             json_dict["Disabled"],
-            GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"]),
+            (
+                GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
+                if json_dict.get("GetBackupConfigurationScript")
+                else None
+            ),
             json_dict["AwsAccessKey"],
             json_dict["AwsSecretKey"],
             json_dict["AwsSessionToken"],
@@ -213,7 +254,9 @@ class GlacierSettings(AmazonSettings):
     def to_json(self) -> Dict[str, Any]:
         return {
             "Disabled": self.disabled,
-            "GetBackupConfigurationScript": self.get_backup_configuration_script.to_json(),
+            "GetBackupConfigurationScript": (
+                self.get_backup_configuration_script.to_json() if self.get_backup_configuration_script else None
+            ),
             "AwsAccessKey": self.aws_access_key,
             "AwsSecretKey": self.aws_secret_key,
             "AwsSessionToken": self.aws_session_token,
@@ -244,17 +287,17 @@ class AzureSettings(BackupSettings):
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AzureSettings:
         return cls(
-            json_dict["Disabled"],
+            json_dict.get("Disabled"),
             (
                 GetBackupConfigurationScript.from_json(json_dict["GetBackupConfigurationScript"])
-                if json_dict["GetBackupConfigurationScript"]
+                if json_dict.get("GetBackupConfigurationScript")
                 else None
             ),
-            json_dict["StorageContainer"],
-            json_dict["RemoteFolderName"],
-            json_dict["AccountName"],
-            json_dict["AccountKey"],
-            json_dict["SasToken"],
+            json_dict.get("StorageContainer"),
+            json_dict.get("RemoteFolderName"),
+            json_dict.get("AccountName"),
+            json_dict.get("AccountKey"),
+            json_dict.get("SasToken"),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -269,6 +312,18 @@ class AzureSettings(BackupSettings):
             "AccountKey": self.account_key,
             "SasToken": self.sas_token,
         }
+
+    def to_remote_attachments_azure_settings(self) -> "RemoteAttachmentsAzureSettings":
+        """The same container as remote-attachment settings, dropping the backup-only fields."""
+        from ravendb.documents.operations.attachments import RemoteAttachmentsAzureSettings
+
+        return RemoteAttachmentsAzureSettings(
+            storage_container=self.storage_container,
+            remote_folder_name=self.remote_folder_name,
+            account_name=self.account_name,
+            account_key=self.account_key,
+            sas_token=self.sas_token,
+        )
 
 
 class FtpSettings(BackupSettings):

@@ -41,12 +41,20 @@ class Operation:
         return GetOperationStateOperation.GetOperationStateCommand(self.__key, node_tag)
 
     def wait_for_completion(self) -> None:
+        """Blocks until the operation finishes."""
+        self._wait_for_completion_result()
+
+    def _wait_for_completion_result(self) -> Optional[dict]:
+        """
+        The same wait, handing back the result the server reported. Kept separate so
+        wait_for_completion goes on returning nothing, which is what callers expect.
+        """
         while True:
             status = self.fetch_operations_status()
             operation_status = status.get("Status")
 
             if operation_status == "Completed":
-                return
+                return status.get("Result")
             elif operation_status == "Canceled":
                 raise OperationCancelledException()
             elif operation_status == "Faulted":

@@ -393,25 +393,38 @@ class AutoIndexDefinition(IndexDefinitionBase):
 
     @classmethod
     def from_json(cls, json_dict: Dict) -> AutoIndexDefinition:
+        index_type = json_dict.get("Type")
+        priority = json_dict.get("Priority")
+        state = json_dict.get("State")
+        # The C# constructor starts both field maps empty, and the rest are nullable, so a
+        # payload that leaves any of them out is well-formed.
         return cls(
-            IndexType(json_dict.get("Type")),
+            IndexType(index_type) if index_type else None,
             json_dict.get("Name"),
-            IndexPriority(json_dict.get("Priority")),
-            IndexState(json_dict.get("State")) if json_dict.get("State", None) else None,
+            IndexPriority(priority) if priority else None,
+            IndexState(state) if state else None,
             json_dict.get("Collection"),
-            {name: AutoIndexFieldOptions.from_json(value) for name, value in json_dict.get("MapFields").items()},
-            {name: AutoIndexFieldOptions.from_json(value) for name, value in json_dict.get("GroupByFields").items()},
+            {
+                name: AutoIndexFieldOptions.from_json(value)
+                for name, value in (json_dict.get("MapFields") or {}).items()
+            },
+            {
+                name: AutoIndexFieldOptions.from_json(value)
+                for name, value in (json_dict.get("GroupByFields") or {}).items()
+            },
         )
 
     def to_json(self) -> Dict:
         return {
-            "Type": self.index_type.value,
+            "Type": self.index_type.value if self.index_type is not None else None,
             "Name": self.name,
-            "Priority": self.priority.value,
+            "Priority": self.priority.value if self.priority is not None else None,
             "State": self.state.value if self.state is not None else None,
             "Collection": self.collection,
-            "MapFields": {key: map_field.to_json() for key, map_field in self.map_fields.items()},
-            "GroupByFields": {key: group_by_field.to_json() for key, group_by_field in self.group_by_fields.items()},
+            "MapFields": {key: map_field.to_json() for key, map_field in (self.map_fields or {}).items()},
+            "GroupByFields": {
+                key: group_by_field.to_json() for key, group_by_field in (self.group_by_fields or {}).items()
+            },
         }
 
 
