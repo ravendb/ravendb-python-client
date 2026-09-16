@@ -449,6 +449,30 @@ class RemoteAttachmentsS3Settings:
             result["StorageClass"] = self.storage_class.value
         return result
 
+    def to_s3_settings(self) -> Optional["S3Settings"]:
+        """
+        The same bucket as periodic-backup settings, enabled for direct upload.
+        Returns None when the bucket is not set, which is the minimum the server needs.
+        """
+        from ravendb.documents.operations.backups.settings import S3Settings
+
+        if not self.bucket_name or self.bucket_name.isspace():
+            return None
+
+        return S3Settings(
+            disabled=False,
+            aws_access_key=self.aws_access_key,
+            aws_secret_key=self.aws_secret_key,
+            aws_session_token=self.aws_session_token,
+            aws_region_name=self.aws_region_name,
+            remote_folder_name=self.remote_folder_name,
+            bucket_name=self.bucket_name,
+            custom_server_url=self.custom_server_url,
+            force_path_style=self.force_path_style,
+            disable_checksum_validation=self.disable_checksum_validation,
+            storage_class=self.storage_class,
+        )
+
 
 class RemoteAttachmentsAzureSettings:
     def __init__(
@@ -483,6 +507,25 @@ class RemoteAttachmentsAzureSettings:
             "AccountKey": self.account_key,
             "SasToken": self.sas_token,
         }
+
+    def to_azure_settings(self) -> Optional["AzureSettings"]:
+        """
+        The same container as periodic-backup settings, enabled for direct upload.
+        Returns None when the container is not set, which is the minimum the server needs.
+        """
+        from ravendb.documents.operations.backups.settings import AzureSettings
+
+        if not self.storage_container or self.storage_container.isspace():
+            return None
+
+        return AzureSettings(
+            disabled=False,
+            storage_container=self.storage_container,
+            remote_folder_name=self.remote_folder_name,
+            account_name=self.account_name,
+            account_key=self.account_key,
+            sas_token=self.sas_token,
+        )
 
 
 class RemoteAttachmentsDestinationConfiguration:
