@@ -4,6 +4,7 @@ the Azure Service Bus source encoding, and the QueueSink ongoing task.
 """
 
 import json
+import os
 import unittest
 
 from ravendb.documents.operations.etl.queue.connection import QueueBrokerType
@@ -223,6 +224,10 @@ class TestQueueSinkInDatabaseRecord(unittest.TestCase):
 
 
 class TestQueueSinkAgainstServer(TestBase):
+    # Creating a queue sink task is licensed: an unlicensed server accepts it on a fresh
+    # start but rejects it once the suite has built up databases and tasks, so the two
+    # tests that create one are gated the way the rest of this repo gates licensed tests.
+
     def setUp(self):
         super().setUp()
         self.store.maintenance.send(
@@ -235,6 +240,7 @@ class TestQueueSinkAgainstServer(TestBase):
             )
         )
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_the_server_stores_a_queue_sink_task_and_reads_it_back(self):
         result = self.store.maintenance.send(AddQueueSinkOperation(_configuration()))
         self.assertGreater(result.task_id, 0)
@@ -248,6 +254,7 @@ class TestQueueSinkAgainstServer(TestBase):
         self.assertEqual(["orders-topic"], task.configuration.scripts[0].queues)
         self.assertEqual("put('orders/', this);", task.configuration.scripts[0].script)
 
+    @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
     def test_the_task_can_be_updated(self):
         task_id = self.store.maintenance.send(AddQueueSinkOperation(_configuration())).task_id
 

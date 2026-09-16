@@ -200,7 +200,27 @@ from ravendb.documents.operations.ongoing_tasks import (
     OngoingTaskPullReplicationAsSink,
     OngoingTaskPullReplicationAsHub,
     OngoingTaskCdcSink,
+    OngoingTaskQueueSink,
 )
+from ravendb.documents.operations.queue_sink import (
+    AddQueueSinkOperation,
+    AddQueueSinkOperationResult,
+    AzureServiceBusSinkSource,
+    QueueSinkConfiguration,
+    QueueSinkProcessState,
+    QueueSinkScript,
+    UpdateQueueSinkOperation,
+    UpdateQueueSinkOperationResult,
+)
+from ravendb.documents.smuggler.common import (
+    DatabaseItemType,
+    DatabaseRecordItemType,
+    DatabaseSmugglerExportOptions,
+    DatabaseSmugglerImportOptions,
+    DatabaseSmugglerOptions,
+    ExportCompressionAlgorithm,
+)
+from ravendb.documents.smuggler.database_smuggler import DatabaseSmuggler
 from ravendb.documents.operations.cdc_sink import (
     AddCdcSinkOperation,
     AddCdcSinkOperationResult,
@@ -732,15 +752,6 @@ from ravendb.documents.identity.hilo import (
 # IChangesConnectionState
 
 # todo: Smuggler
-# DatabaseItemType
-# DatabaseRecordItemType
-# DatabaseSmuggler
-# DatabaseSmugglerExportOptions
-# IDatabaseSmugglerExportOptions
-# DatabaseSmugglerImportOptions
-# IDatabaseSmugglerImportOptions
-# DatabaseSmugglerOptions
-# IDatabaseSmugglerOptions
 
 # todo: Certificates
 # AddDatabaseNodeOperation
