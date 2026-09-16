@@ -4,6 +4,7 @@ AddCdcSinkOperation / UpdateCdcSinkOperation, and the CdcSink ongoing task.
 """
 
 import json
+import os
 import unittest
 
 from ravendb.documents.operations.cdc_sink import (
@@ -27,7 +28,23 @@ from ravendb.documents.operations.ongoing_tasks import (
     OngoingTaskCdcSink,
     OngoingTaskType,
 )
+from ravendb.documents.operations.cdc_sink.schema import (
+    CdcSinkSourceSchema,
+    GetCdcSinkSchemaOperation,
+)
+from ravendb.documents.operations.cdc_sink.testing import (
+    TestCdcSinkMappingOperation,
+    TestCdcSinkMappingRequest,
+    TestCdcSinkMappingResult,
+    TestCdcSinkOperation,
+    TestCdcSinkRowSelector,
+)
+from ravendb.documents.operations.connection_string.put_connection_string_operation import (
+    PutConnectionStringOperation,
+)
+from ravendb.documents.operations.etl.sql import SqlConnectionString
 from ravendb.http.server_node import ServerNode
+from ravendb.tests.test_base import TestBase
 from ravendb.http.topology import RaftCommand
 from ravendb.serverwide.database_record import DatabaseRecord
 
@@ -282,3 +299,254 @@ class TestCdcSinkInDatabaseRecord(unittest.TestCase):
         record = DatabaseRecord.from_json({"DatabaseName": "db", "LockMode": "Unlock", "AutoIndexes": {}})
 
         self.assertEqual([], record.cdc_sinks)
+
+
+class TestCdcSinkSchemaDiscovery(unittest.TestCase):
+    RESPONSE = {
+        "CatalogName": "northwind",
+        "HasPermissionToSetup": True,
+        "Warnings": ["SQL Server Agent is not running."],
+        "Errors": [],
+        "Tables": [
+            {
+                "SourceTableSchema": "public",
+                "SourceTableName": "orders",
+                "IsCdcEnabled": True,
+                "PrimaryKeyColumns": ["id"],
+                "Warnings": ["REPLICA IDENTITY will not carry row-identifying columns on DELETE."],
+                "Columns": [
+                    {
+                        "Name": "id",
+                        "NativeType": "bigint",
+                        "SuggestedType": "Default",
+                        "IsPrimaryKey": True,
+                        "IsCdcCapturable": True,
+                    },
+                    {"Name": "payload", "NativeType": "jsonb", "SuggestedType": "Json", "IsCdcCapturable": True},
+                    {"Name": "blob", "NativeType": "bytea", "SuggestedType": "Attachment", "IsCdcCapturable": True},
+                    {
+                        "Name": "weird",
+                        "NativeType": "cube",
+                        "IsCdcCapturable": False,
+                        "UnsupportedReason": "No CDC mapping for this type.",
+                    },
+                ],
+                "ForeignKeys": [
+                    {
+                        "Columns": ["customer_id"],
+                        "ReferencedSchema": "public",
+                        "ReferencedTable": "customers",
+                        "ReferencedColumns": ["id"],
+                    }
+                ],
+            }
+        ],
+    }
+
+    def test_schema_response_is_parsed(self):
+        schema = CdcSinkSourceSchema.from_json(self.RESPONSE)
+
+        self.assertEqual("northwind", schema.catalog_name)
+        self.assertTrue(schema.has_permission_to_setup)
+        self.assertEqual(1, len(schema.tables))
+        self.assertEqual(["SQL Server Agent is not running."], schema.warnings)
+
+    def test_success_follows_errors_not_warnings(self):
+        self.assertTrue(CdcSinkSourceSchema.from_json(self.RESPONSE).success)
+        self.assertFalse(CdcSinkSourceSchema.from_json({"Errors": ["boom"]}).success)
+        # A warning is advisory, so it must not flip success.
+        self.assertTrue(CdcSinkSourceSchema.from_json({"Warnings": ["heads up"]}).success)
+
+    def test_columns_carry_their_suggested_mapping(self):
+        columns = CdcSinkSourceSchema.from_json(self.RESPONSE).tables[0].columns
+
+        self.assertEqual(CdcColumnType.DEFAULT, columns[0].suggested_type)
+        self.assertTrue(columns[0].is_primary_key)
+        self.assertEqual(CdcColumnType.JSON, columns[1].suggested_type)
+        self.assertEqual(CdcColumnType.ATTACHMENT, columns[2].suggested_type)
+
+    def test_an_uncapturable_column_says_why(self):
+        column = CdcSinkSourceSchema.from_json(self.RESPONSE).tables[0].columns[3]
+
+        self.assertFalse(column.is_cdc_capturable)
+        self.assertEqual("No CDC mapping for this type.", column.unsupported_reason)
+
+    def test_foreign_keys_are_parsed(self):
+        foreign_key = CdcSinkSourceSchema.from_json(self.RESPONSE).tables[0].foreign_keys[0]
+
+        self.assertEqual(["customer_id"], foreign_key.columns)
+        self.assertEqual("customers", foreign_key.referenced_table)
+        self.assertEqual(["id"], foreign_key.referenced_columns)
+
+    def test_schema_round_trips(self):
+        schema = CdcSinkSourceSchema.from_json(self.RESPONSE)
+
+        self.assertEqual(schema.to_json(), CdcSinkSourceSchema.from_json(schema.to_json()).to_json())
+
+    def test_an_empty_response_parses(self):
+        schema = CdcSinkSourceSchema.from_json({})
+
+        self.assertEqual([], schema.tables)
+        self.assertTrue(schema.success)
+
+    def test_the_operation_takes_a_connection_or_a_name(self):
+        node = ServerNode("http://localhost:8080", "db")
+        connection = SqlConnectionString("pg", "Host=localhost", "Npgsql")
+
+        by_connection = GetCdcSinkSchemaOperation(connection, ["public"]).get_command(None)
+        request = by_connection.create_request(node)
+        self.assertEqual("POST", request.method)
+        self.assertEqual("http://localhost:8080/databases/db/admin/cdc-sink/schema", request.url)
+        self.assertEqual("pg", request.data["Connection"]["Name"])
+        self.assertEqual(["public"], request.data["Schemas"])
+        self.assertIsNone(request.data["ConnectionStringName"])
+
+        by_name = GetCdcSinkSchemaOperation("pg").get_command(None)
+        self.assertEqual("pg", by_name.create_request(node).data["ConnectionStringName"])
+
+    def test_the_operation_allows_fastest_node_failover(self):
+        # A POST, but nothing changes server-side.
+        self.assertTrue(GetCdcSinkSchemaOperation("pg").get_command(None).is_read_request())
+
+    def test_the_operation_needs_a_connection_or_a_name(self):
+        with self.assertRaises(ValueError):
+            GetCdcSinkSchemaOperation()
+        with self.assertRaises(ValueError):
+            GetCdcSinkSchemaOperation(42)
+
+
+class TestCdcSinkMappingPreview(unittest.TestCase):
+    def setUp(self):
+        self.node = ServerNode("http://localhost:8080", "db")
+        self.request = TestCdcSinkMappingRequest(
+            configuration=_configuration(),
+            connection=SqlConnectionString("pg", "Host=localhost", "Npgsql"),
+            source_table_schema="public",
+            source_table_name="orders",
+            max_rows=3,
+        )
+
+    def test_the_request_carries_the_configuration_and_the_row_choice(self):
+        body = self.request.to_json()
+
+        self.assertEqual("orders", body["SourceTableName"])
+        self.assertEqual("First", body["RowSelector"])
+        self.assertEqual("Upsert", body["Operation"])
+        self.assertEqual(3, body["MaxRows"])
+        self.assertEqual("orders-cdc", body["Configuration"]["Name"])
+
+    def test_a_by_primary_key_request_names_the_key_values(self):
+        request = TestCdcSinkMappingRequest(
+            configuration=_configuration(),
+            row_selector=TestCdcSinkRowSelector.BY_PRIMARY_KEY,
+            primary_key_values=["42"],
+            operation=TestCdcSinkOperation.DELETE,
+        )
+        body = request.to_json()
+
+        self.assertEqual("ByPrimaryKey", body["RowSelector"])
+        self.assertEqual(["42"], body["PrimaryKeyValues"])
+        self.assertEqual("Delete", body["Operation"])
+
+    def test_the_operation_posts_to_the_test_endpoint(self):
+        command = TestCdcSinkMappingOperation(self.request).get_command(None)
+        request = command.create_request(self.node)
+
+        self.assertEqual("POST", request.method)
+        self.assertEqual("http://localhost:8080/databases/db/admin/cdc-sink/test", request.url)
+        self.assertTrue(command.is_read_request())
+
+    def test_a_missing_request_is_rejected_client_side(self):
+        with self.assertRaises(ValueError):
+            TestCdcSinkMappingOperation(None)
+
+    def test_row_results_are_parsed(self):
+        command = TestCdcSinkMappingOperation(self.request).get_command(None)
+        command.set_response(
+            json.dumps(
+                {
+                    "Results": [
+                        {
+                            "DocumentId": "orders/42",
+                            "Document": '{"Id":42}',
+                            "SourceRow": '{"id":42}',
+                            "WouldDelete": False,
+                            "IgnoreDeletes": False,
+                            "DebugOutput": ["mapped"],
+                        },
+                        {"DocumentId": "orders/43", "Error": "the patch threw"},
+                    ],
+                    "Errors": [],
+                    "Warnings": ["Linked tables are not exercised in test mode."],
+                }
+            ),
+            False,
+        )
+        result = command.result
+
+        self.assertIsInstance(result, TestCdcSinkMappingResult)
+        self.assertEqual(2, len(result.results))
+        self.assertEqual("orders/42", result.results[0].document_id)
+        self.assertEqual(["mapped"], result.results[0].debug_output)
+        # A row that failed on its own carries the error; the request still succeeded.
+        self.assertEqual("the patch threw", result.results[1].error)
+        self.assertEqual([], result.errors)
+        self.assertEqual(1, len(result.warnings))
+
+    def test_a_whole_request_failure_leaves_no_rows(self):
+        result = TestCdcSinkMappingResult.from_json({"Errors": ["Cannot open connection"]})
+
+        self.assertEqual([], result.results)
+        self.assertEqual(["Cannot open connection"], result.errors)
+
+    def test_result_round_trips(self):
+        result = TestCdcSinkMappingResult.from_json(
+            {"Results": [{"DocumentId": "orders/1", "WouldDelete": True}], "Errors": [], "Warnings": []}
+        )
+
+        self.assertEqual(result.to_json(), TestCdcSinkMappingResult.from_json(result.to_json()).to_json())
+
+
+@unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
+class TestCdcSinkAgainstServer(TestBase):
+    # CDC Sink is licensed, and each of these needs the server to accept the payload
+    # before it ever reaches a source database.
+
+    def test_the_server_answers_schema_discovery_with_a_structured_result(self):
+        # There is no PostgreSQL to reach, so what matters is that the server parsed the
+        # request and answered in the shape the client expects instead of failing.
+        schema = self.store.maintenance.send(GetCdcSinkSchemaOperation("no-such-connection-string"))
+
+        self.assertIsInstance(schema, CdcSinkSourceSchema)
+        self.assertFalse(schema.success)
+        self.assertTrue(any("no-such-connection-string" in error for error in schema.errors))
+
+    def test_the_server_reads_a_full_configuration_out_of_a_mapping_preview(self):
+        request = TestCdcSinkMappingRequest(
+            configuration=_configuration(),
+            connection=SqlConnectionString("pg", "Host=localhost;Database=nope", "Npgsql"),
+            source_table_schema="public",
+            source_table_name="orders",
+        )
+
+        result = self.store.maintenance.send(TestCdcSinkMappingOperation(request))
+
+        self.assertIsInstance(result, TestCdcSinkMappingResult)
+        # It reached the driver, which means the whole configuration tree deserialized.
+        self.assertTrue(any("source database" in error for error in result.errors))
+
+    def test_a_cdc_sink_task_is_stored_and_read_back(self):
+        self.store.maintenance.send(
+            PutConnectionStringOperation(SqlConnectionString("pg", "Host=localhost;Database=nope", "Npgsql"))
+        )
+
+        result = self.store.maintenance.send(AddCdcSinkOperation(_configuration()))
+        self.assertGreater(result.task_id, 0)
+
+        task = self.store.maintenance.send(GetOngoingTaskInfoOperation("orders-cdc", OngoingTaskType.CDC_SINK))
+        self.assertIsInstance(task, OngoingTaskCdcSink)
+        self.assertEqual("pg", task.connection_string_name)
+        self.assertEqual("Orders", task.configuration.tables[0].collection_name)
+        self.assertEqual(
+            ["Lines"], [embedded.property_name for embedded in task.configuration.tables[0].embedded_tables]
+        )
