@@ -310,3 +310,24 @@ class TestServerWideConnectionStringsAgainstServer(TestBase):
                 self.store.maintenance.server.send(
                     RemoveServerWideConnectionStringOperation(RavenConnectionString(name))
                 )
+
+
+class TestConnectionStringUsageList(unittest.TestCase):
+    def test_a_list_of_usages_is_parsed(self):
+        usages = ConnectionStringUsage.list_from_json(
+            [
+                {"Kind": "RavenEtl", "Id": 1, "Name": "etl"},
+                {"Kind": "AiAgent", "Identifier": "agents/1", "Name": "agent"},
+            ]
+        )
+
+        self.assertEqual(2, len(usages))
+        self.assertEqual(ConnectionStringUsageKind.RAVEN_ETL, usages[0].kind)
+        self.assertEqual(1, usages[0].id_)
+        # An AI agent is identified by a string rather than a numeric task id.
+        self.assertEqual("agents/1", usages[1].identifier)
+        self.assertIsNone(usages[1].id_)
+
+    def test_nothing_parses_to_an_empty_list(self):
+        self.assertEqual([], ConnectionStringUsage.list_from_json(None))
+        self.assertEqual([], ConnectionStringUsage.list_from_json([]))

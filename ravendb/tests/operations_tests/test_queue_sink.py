@@ -21,6 +21,7 @@ from ravendb.documents.operations.queue_sink import (
     QueueSinkProcessState,
     QueueSinkScript,
     UpdateQueueSinkOperation,
+    UpdateQueueSinkOperationResult,
 )
 from ravendb.documents.operations.connection_string.put_connection_string_operation import (
     PutConnectionStringOperation,
@@ -159,6 +160,14 @@ class TestQueueSinkOperations(unittest.TestCase):
             AddQueueSinkOperation(None)
         with self.assertRaises(ValueError):
             UpdateQueueSinkOperation(1, None)
+
+    def test_update_reads_the_task_id_off_the_response(self):
+        command = UpdateQueueSinkOperation(4, _configuration()).get_command(None)
+        command.set_response(json.dumps({"RaftCommandIndex": 11, "TaskId": 4}), False)
+
+        self.assertIsInstance(command.result, UpdateQueueSinkOperationResult)
+        self.assertEqual(11, command.result.raft_command_index)
+        self.assertEqual(4, command.result.task_id)
 
     def test_add_reads_the_task_id_off_the_response(self):
         command = AddQueueSinkOperation(_configuration()).get_command(None)

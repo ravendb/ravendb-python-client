@@ -37,12 +37,12 @@ class EmbeddingsGenerationConfiguration(AbstractAiIntegrationConfiguration):
         chunking_options_for_querying: ChunkingOptions = None,
         embeddings_cache_expiration: timedelta = None,
         embeddings_cache_for_querying_expiration: timedelta = None,
-        store_chunk_text: bool = False,
         disabled: bool = False,
         mentor_node: str = None,
         pin_to_mentor_node: bool = False,
         task_id: int = 0,
         allow_etl_on_non_encrypted_channel: bool = False,
+        store_chunk_text: bool = False,
     ):
         super().__init__(
             name=name,

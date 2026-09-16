@@ -17,6 +17,7 @@ from ravendb.documents.operations.ai.agents import (
     GetConversationMessagesOptions,
     RunConversationOperation,
 )
+from ravendb.documents.ai.ai_operations import AiOperations
 from ravendb.http.server_node import ServerNode
 from ravendb.primitives import constants
 
@@ -215,3 +216,42 @@ class TestCancelPendingActionTools(unittest.TestCase):
 
     def test_the_flag_is_sent_when_it_is_set(self):
         self.assertIn("&cancelPendingActionTools=True", self._url(cancel_pending_action_tools=True))
+
+
+class TestGetConversationMessagesEntryPoint(unittest.TestCase):
+    """AiOperations.get_conversation_messages takes either an id or full options."""
+
+    class _RecordingMaintenance:
+        def __init__(self):
+            self.sent = None
+
+        def send(self, operation):
+            self.sent = operation
+            return "result"
+
+    class _Store:
+        def __init__(self, maintenance):
+            self.maintenance = maintenance
+
+    def _operations(self):
+        maintenance = self._RecordingMaintenance()
+        return AiOperations(self._Store(maintenance)), maintenance
+
+    def test_a_bare_id_becomes_an_operation(self):
+        operations, maintenance = self._operations()
+
+        self.assertEqual("result", operations.get_conversation_messages("chats/1"))
+        self.assertIsInstance(maintenance.sent, GetConversationMessagesOperation)
+
+    def test_options_are_passed_through(self):
+        operations, maintenance = self._operations()
+        options = GetConversationMessagesOptions(
+            conversation_id="chats/1", page_size=10, detail_level=AiConversationDetailLevel.FULL
+        )
+
+        operations.get_conversation_messages(options)
+        url = maintenance.sent.get_command(None).create_request(ServerNode("http://localhost:8080", "db")).url
+
+        self.assertIn("conversationId=chats%2F1", url)
+        self.assertIn("pageSize=10", url)
+        self.assertIn("detailLevel=Full", url)

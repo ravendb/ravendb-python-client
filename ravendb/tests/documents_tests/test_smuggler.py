@@ -422,3 +422,105 @@ class TestSmugglerResult(unittest.TestCase):
             "TimeSeriesDeletedRanges",
         ):
             self.assertIn(name, keys)
+
+
+class TestSmugglerIncrementalImport(TestBase):
+    """
+    import_incremental walks a backup directory in order. Indexes and subscriptions come
+    from the last file only, so an earlier incremental cannot resurrect what a later
+    backup dropped.
+    """
+
+    def _dump_of(self, store, options: DatabaseSmugglerExportOptions, path: str) -> None:
+        store.smuggler.export(options, path).wait_for_completion()
+
+    def test_it_imports_every_file_in_order(self):
+        with self.store.open_session() as session:
+            session.store(User(name="first"), "users/1")
+            session.save_changes()
+
+        with tempfile.TemporaryDirectory() as directory:
+            full = os.path.join(directory, "2026-06-16-10-00.ravendb-full-backup")
+            self._dump_of(self.store, DatabaseSmugglerExportOptions(), full)
+
+            with self.store.open_session() as session:
+                session.store(User(name="second"), "users/2")
+                session.save_changes()
+
+            incremental = os.path.join(directory, "2026-06-16-11-00.ravendb-incremental-backup")
+            self._dump_of(self.store, DatabaseSmugglerExportOptions(), incremental)
+
+            with self.get_document_store() as target:
+                target.smuggler.import_incremental(DatabaseSmugglerImportOptions(), directory)
+
+                with target.open_session() as session:
+                    self.assertEqual("first", session.load("users/1", User).name)
+                    self.assertEqual("second", session.load("users/2", User).name)
+
+    def test_an_empty_directory_is_a_no_op(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # Nothing that looks like a backup file, so there is nothing to import.
+            open(os.path.join(directory, "notes.txt"), "wb").close()
+
+            self.assertIsNone(self.store.smuggler.import_incremental(DatabaseSmugglerImportOptions(), directory))
+
+    def test_it_restores_the_selection_it_narrowed(self):
+        options = DatabaseSmugglerImportOptions()
+        before = set(options.operate_on_types)
+
+        with tempfile.TemporaryDirectory() as directory:
+            dump = os.path.join(directory, "2026-06-16-10-00.ravendb-full-backup")
+            self._dump_of(self.store, DatabaseSmugglerExportOptions(), dump)
+            self.store.smuggler.import_incremental(options, directory)
+
+        # Tombstones are added on the way in and kept; indexes and subscriptions come back.
+        self.assertIn(DatabaseItemType.INDEXES, options.operate_on_types)
+        self.assertIn(DatabaseItemType.SUBSCRIPTIONS, options.operate_on_types)
+        self.assertTrue(before.issubset(options.operate_on_types))
+
+    def test_missing_options_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(ValueError):
+                self.store.smuggler.import_incremental(None, directory)
+
+
+class TestSmugglerExportToDatabase(TestBase):
+    def test_it_moves_documents_into_another_database(self):
+        with self.store.open_session() as session:
+            for i in range(4):
+                session.store(User(name=f"user-{i}"), f"users/{i}")
+            session.save_changes()
+
+        with self.get_document_store() as target:
+            result = self.store.smuggler.export_to_database(
+                DatabaseSmugglerExportOptions(), target.smuggler
+            ).wait_for_completion()
+
+            # The import side is the one worth reporting, so that is what comes back.
+            self.assertIsInstance(result, SmugglerResult)
+            self.assertEqual(4, result.documents.read_count)
+
+            with target.open_session() as session:
+                self.assertEqual("user-2", session.load("users/2", User).name)
+
+    def test_it_carries_the_export_selection_over(self):
+        with self.store.open_session() as session:
+            session.store(User(name="a user"), "users/1")
+            session.store({"Name": "an order", "@metadata": {"@collection": "Orders"}}, "orders/1")
+            session.save_changes()
+
+        with self.get_document_store() as target:
+            self.store.smuggler.export_to_database(
+                DatabaseSmugglerExportOptions(operate_on_types={DatabaseItemType.DOCUMENTS}, collections=["Users"]),
+                target.smuggler,
+            ).wait_for_completion()
+
+            with target.open_session() as session:
+                self.assertIsNotNone(session.load("users/1", User))
+                self.assertIsNone(session.load("orders/1"))
+
+    def test_missing_arguments_are_rejected(self):
+        with self.assertRaises(ValueError):
+            self.store.smuggler.export_to_database(None, self.store.smuggler)
+        with self.assertRaises(ValueError):
+            self.store.smuggler.export_to_database(DatabaseSmugglerExportOptions(), None)

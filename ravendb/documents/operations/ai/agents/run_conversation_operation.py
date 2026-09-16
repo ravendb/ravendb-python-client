@@ -303,9 +303,9 @@ class RunConversationOperation(MaintenanceOperation[ConversationResult[TSchema]]
         stream_property_path: Optional[str] = None,
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         attachments_commands: Optional[List[Any]] = None,
-        output_options: Optional[AiOutputOptions] = None,
         debug: Optional[bool] = None,
         cancel_pending_action_tools: bool = False,
+        output_options: Optional[AiOutputOptions] = None,
     ):
         if not agent_id or (isinstance(agent_id, str) and agent_id.isspace()):
             raise ValueError("agent_id cannot be None or empty")
@@ -361,9 +361,9 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         streamed_chunks_callback: Optional[Callable[[str], None]] = None,
         conventions: Optional[DocumentConventions] = None,
         attachments_commands: Optional[List[Any]] = None,
-        output_options: Optional[AiOutputOptions] = None,
         debug: Optional[bool] = None,
         cancel_pending_action_tools: bool = False,
+        output_options: Optional[AiOutputOptions] = None,
     ):
         from ravendb.util.util import RaftIdGenerator
         from ravendb.documents.commands.batches import PutAttachmentCommandData

@@ -112,12 +112,10 @@ class TestByIndexActions(TestBase):
                 response.operation_id,
                 response.operation_node_tag,
             )
-            # wait_for_completion hands back the result the server reported for the operation.
-            # 45, not 50: the range is quoted, so the server compares DocNumber as a string
-            # and "5".."9" fall outside "0".."49" lexicographically.
-            result = x.wait_for_completion()
-            self.assertEqual(45, result["Total"])
-            self.assertEqual("Processed 45 items.", result["Message"])
+            # wait_for_completion returns nothing; _wait_for_completion_result is what
+            # carries the server's report, and the smuggler is its only caller.
+            self.assertIsNone(x.wait_for_completion())
+            self.assertEqual(45, x._wait_for_completion_result()["Total"])
 
 
 if __name__ == "__main__":

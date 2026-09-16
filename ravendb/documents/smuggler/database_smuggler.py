@@ -55,7 +55,7 @@ class SmugglerOperation(Operation):
     """An export or import operation, whose result is a typed SmugglerResult."""
 
     def wait_for_completion(self) -> SmugglerResult:
-        return SmugglerResult.from_json(super().wait_for_completion())
+        return SmugglerResult.from_json(self._wait_for_completion_result())
 
 
 def _is_backup_file(file_path: str) -> bool:

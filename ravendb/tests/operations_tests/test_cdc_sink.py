@@ -20,6 +20,7 @@ from ravendb.documents.operations.cdc_sink import (
     CdcSinkProcessState,
     CdcSinkRelationType,
     CdcSinkTableConfig,
+    CdcSinkTableLoadState,
     CdcSinkTaskState,
     UpdateCdcSinkOperation,
 )
@@ -550,3 +551,25 @@ class TestCdcSinkAgainstServer(TestBase):
         self.assertEqual(
             ["Lines"], [embedded.property_name for embedded in task.configuration.tables[0].embedded_tables]
         )
+
+
+class TestCdcSinkTableLoadState(unittest.TestCase):
+    """Per-table initial-load progress, so an interrupted load can pick up where it stopped."""
+
+    def test_it_round_trips(self):
+        payload = {"InitialLoadCompleted": True, "LastKeyValues": ["42"], "KeyColumns": ["id"]}
+
+        self.assertEqual(payload, CdcSinkTableLoadState.from_json(payload).to_json())
+
+    def test_it_carries_the_resume_position(self):
+        state = CdcSinkTableLoadState.from_json({"LastKeyValues": ["42", "b"], "KeyColumns": ["id", "code"]})
+
+        self.assertEqual(["42", "b"], state.last_key_values)
+        self.assertEqual(["id", "code"], state.key_columns)
+        self.assertFalse(state.initial_load_completed)
+
+    def test_an_empty_payload_reads_as_not_started(self):
+        state = CdcSinkTableLoadState.from_json({})
+
+        self.assertFalse(state.initial_load_completed)
+        self.assertIsNone(state.last_key_values)
