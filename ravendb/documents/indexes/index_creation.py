@@ -17,6 +17,8 @@ class IndexCreation:
         store: "DocumentStore",
         conventions: Optional["DocumentConventions"] = None,
     ) -> None:
+        if not indexes:
+            return
         if conventions is None:
             conventions = store.conventions
 
