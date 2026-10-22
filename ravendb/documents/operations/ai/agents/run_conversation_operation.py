@@ -8,6 +8,7 @@ from ravendb.documents.operations.definitions import MaintenanceOperation
 from ravendb.documents.conventions import DocumentConventions
 from ravendb.http.raven_command import RavenCommand, RavenCommandResponseType
 from ravendb.http.server_node import ServerNode
+from ravendb.exceptions.exception_dispatcher import ExceptionDispatcher
 import requests
 from ravendb.http.misc import ResponseDisposeHandling
 from ravendb.documents.ai.ai_output_options import AiOutputOptions
@@ -478,6 +479,17 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
                 continue
             if line.startswith("{"):
                 response_json = json.loads(line)
+                # An exception raised after streaming already started (HTTP 200) is written into the stream as the
+                # standard error payload. Surface it (e.g. a refusal) instead of parsing it as the result.
+                exception_type = response_json.get("Type") if isinstance(response_json, dict) else None
+                if exception_type:
+                    schema = ExceptionDispatcher.ExceptionSchema(
+                        url=response_json.get("Url") or url,
+                        object_type=exception_type,
+                        message=response_json.get("Message", ""),
+                        error=response_json.get("Error", ""),
+                    )
+                    raise ExceptionDispatcher.get(schema, response.status_code, json_body=response_json)
                 self.result = ConversationResult.from_json(response_json)
                 return ResponseDisposeHandling.AUTOMATIC
             # Non-final lines are JSON-encoded chunks (e.g. "\\\"chunk\\\"").
