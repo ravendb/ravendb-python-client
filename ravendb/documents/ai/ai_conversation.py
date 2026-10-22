@@ -150,14 +150,18 @@ class AiConversation:
             if self._handle_server_reply(r):
                 return r
 
-    def run_with_schema(self, output_options: "AiOutputOptions") -> AiAnswer:
+    def run_with_schema(self, output_options: Union["AiOutputOptions", str, Any]) -> AiAnswer:
         """
         Runs one turn with the output format overridden for that turn only, leaving the
-        agent's own schema in place for later turns. Pass
-        ``AiOutputOptions(no_schema=True)`` to get free-form text back instead of JSON.
+        agent's own schema in place for later turns.
+
+        ``output_options`` is one of:
+
+        - an ``AiOutputOptions`` instance; ``AiOutputOptions(no_schema=True)`` gets free-form text back
+        - a JSON schema string, sent as the explicit output schema
+        - a sample object (dict or entity), which the server converts to a JSON schema
         """
-        if output_options is None:
-            raise ValueError("output_options cannot be None")
+        output_options = self._to_output_options(output_options)
 
         self._dispatched_tool_ids.clear()
 
@@ -165,6 +169,12 @@ class AiConversation:
             r = self._run_internal(output_options=output_options)
             if self._handle_server_reply(r):
                 return r
+
+    def run_text(self) -> AiAnswer:
+        """
+        Runs one turn without structured output. The answer is the model's free-form text, as a string.
+        """
+        return self.run_with_schema(AiOutputOptions(no_schema=True))
 
     def stream(self, stream_property_path: str = None, on_chunk: Optional[Callable[[str], None]] = None) -> AiAnswer:
         while True:
@@ -176,15 +186,18 @@ class AiConversation:
         self,
         stream_property_path: str = None,
         on_chunk: Optional[Callable[[str], None]] = None,
-        output_options: "AiOutputOptions" = None,
+        output_options: Union["AiOutputOptions", str, Any] = None,
     ) -> AiAnswer:
         """
         Streams one turn with the output format overridden for that turn only.
+        ``output_options`` accepts the same values as in ``run_with_schema``.
         ``stream_property_path`` is ignored when the options ask for no schema, since
         free-form text has no property to stream from.
         """
-        if output_options is None:
-            raise ValueError("output_options cannot be None")
+        output_options = self._to_output_options(output_options)
+
+        if output_options.no_schema and stream_property_path is None:
+            stream_property_path = ""
 
         while True:
             r = self._run_internal(
@@ -194,6 +207,25 @@ class AiConversation:
             )
             if self._handle_server_reply(r):
                 return r
+
+    def stream_text(self, on_chunk: Callable[[str], None]) -> AiAnswer:
+        """
+        Streams one turn without structured output: ``on_chunk`` receives each text chunk as it
+        arrives, and the answer is the full free-form text, as a string.
+        """
+        if on_chunk is None:
+            raise ValueError("on_chunk cannot be None")
+        return self.stream_with_schema("", on_chunk, AiOutputOptions(no_schema=True))
+
+    @staticmethod
+    def _to_output_options(value: Union["AiOutputOptions", str, Any]) -> "AiOutputOptions":
+        if value is None:
+            raise ValueError("output_options cannot be None")
+        if isinstance(value, AiOutputOptions):
+            return value
+        if isinstance(value, str):
+            return AiOutputOptions(output_schema=value)
+        return AiOutputOptions(sample_object=value)
 
     def _run_internal(
         self,
@@ -340,6 +372,36 @@ class AiConversation:
         t = self.AiActionContext(self, lambda request, args: action(request, args), ai_handle_error)
         self._add_action(action_name, t.execute)
 
+    def handle_no_args(
+        self,
+        action_name: str,
+        action: Callable[[], Any],
+        ai_handle_error: AiHandleErrorStrategy = AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL,
+    ) -> None:
+        """
+        Registers a handler for an action tool that takes no parameters. The handler is called
+        without arguments and its return value is sent back to the model as the tool result,
+        the same way as with ``handle``.
+        """
+
+        def respond(request: AiAgentActionRequest) -> None:
+            self.add_action_response(request.tool_id, action())
+
+        self.receive_no_args(action_name, respond, ai_handle_error)
+
+    def receive_no_args(
+        self,
+        action_name: str,
+        action: Callable[[AiAgentActionRequest], None],
+        ai_handle_error: AiHandleErrorStrategy = AiHandleErrorStrategy.SEND_ERRORS_TO_MODEL,
+    ) -> None:
+        """
+        Registers a receiver for an action tool that takes no parameters. The receiver gets only the
+        action request and sends the tool result itself with ``add_action_response``.
+        """
+        t = self.AiActionContext(self, lambda request, _: action(request), ai_handle_error, parse_arguments=False)
+        self._add_action(action_name, t.execute)
+
     def _add_action(self, action_name: str, action: Callable[[AiAgentActionRequest], Any]):
         if action_name in self._invocations:
             raise ValueError(f"Action '{action_name}' already exists")
@@ -352,13 +414,16 @@ class AiConversation:
             conversation: AiConversation,
             action: Callable[[AiAgentActionRequest, dict], Any],
             ai_handle_error: AiHandleErrorStrategy,
+            parse_arguments: bool = True,
         ):
             self._conversation = conversation
             self._action = action
             self._ai_handle_error = ai_handle_error
+            self._parse_arguments = parse_arguments
 
         def execute(self, action_request: AiAgentActionRequest):
-            args = json.loads(action_request.arguments)
+            # No-args tools get the raw arguments text, which the model may leave empty.
+            args = json.loads(action_request.arguments) if self._parse_arguments else action_request.arguments
             self.invoke(action_request, args)
 
         def invoke(self, action_request: AiAgentActionRequest, args: dict):
