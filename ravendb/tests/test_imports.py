@@ -603,6 +603,7 @@ class TestImports(TestBase):
         from ravendb import AiAgentConfigurationResult
         from ravendb import AiAgentHistoryConfiguration
         from ravendb import AiAgentParameter
+        from ravendb import AiAgentParameterCollisionException
         from ravendb import AiAgentParameterPolicy
         from ravendb import AiAgentParameterValueType
         from ravendb import AiAgentPersistenceConfiguration
@@ -830,6 +831,7 @@ class TestImports(TestBase):
         from ravendb import TooManyTokensException
         from ravendb import TopologyChange
         from ravendb import UnsuccessfulAiRequestException
+        from ravendb import UnsupportedAiQueryParameterException
         from ravendb import UpdateCdcSinkOperation
         from ravendb import UpdateCdcSinkOperationResult
         from ravendb import UpdateEmbeddingsGenerationOperation
