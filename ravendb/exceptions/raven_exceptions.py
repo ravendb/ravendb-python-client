@@ -88,6 +88,18 @@ class QueryToolFailedException(AiException):
     pass
 
 
+class UnsupportedAiQueryParameterException(AiException):
+    """Raised when a query tool references a parameter whose value is not a scalar, so the query cannot bind it."""
+
+    pass
+
+
+class AiAgentParameterCollisionException(AiException):
+    """Raised when a name is both an agent parameter and an argument of a query tool."""
+
+    pass
+
+
 class MissingAiAgentParameterException(RavenException):
     pass
 

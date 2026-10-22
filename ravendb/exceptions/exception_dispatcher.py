@@ -10,6 +10,7 @@ from ravendb.exceptions.documents import DocumentConflictException, DocumentDoes
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException, BulkInsertProtocolViolationException
 from ravendb.exceptions.documents.indexes import IndexDoesNotExistException
 from ravendb.exceptions.raven_exceptions import (
+    AiAgentParameterCollisionException,
     AiException,
     BadResponseException,
     ClientVersionMismatchException,
@@ -27,6 +28,7 @@ from ravendb.exceptions.raven_exceptions import (
     TooManyRequestsException,
     TooManyTokensException,
     UnsuccessfulAiRequestException,
+    UnsupportedAiQueryParameterException,
 )
 
 # Maps the simple C# class name to the Python exception class.
@@ -50,6 +52,8 @@ _EXCEPTION_MAP: dict = {
     "TooManyTokensException": TooManyTokensException,
     "MissingAiAgentParameterException": MissingAiAgentParameterException,
     "QueryToolFailedException": QueryToolFailedException,
+    "UnsupportedAiQueryParameterException": UnsupportedAiQueryParameterException,
+    "AiAgentParameterCollisionException": AiAgentParameterCollisionException,
     # documents
     "DocumentConflictException": DocumentConflictException,
     "DocumentDoesNotExistException": DocumentDoesNotExistException,

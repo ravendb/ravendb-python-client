@@ -670,6 +670,7 @@ from ravendb.documents.operations.time_series import (
     TimeSeriesStatistics,
 )
 from ravendb.exceptions.raven_exceptions import (
+    AiAgentParameterCollisionException,
     AiException,
     BadResponseException,
     ClientVersionMismatchException,
@@ -687,6 +688,7 @@ from ravendb.exceptions.raven_exceptions import (
     TooManyRequestsException,
     TooManyTokensException,
     UnsuccessfulAiRequestException,
+    UnsupportedAiQueryParameterException,
 )
 from ravendb.http.misc import (
     AggressiveCacheMode,

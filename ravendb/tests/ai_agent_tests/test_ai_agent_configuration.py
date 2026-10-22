@@ -19,8 +19,13 @@ from ravendb import (
 )
 from ravendb.documents.ai.content_part import AiMessagePromptFields
 from ravendb.documents.operations.ai.azure_open_ai_settings import AzureOpenAiSettings
-from ravendb.exceptions.exception_dispatcher import _EXCEPTION_MAP
-from ravendb.exceptions.raven_exceptions import MissingAiAgentParameterException
+from ravendb.exceptions.exception_dispatcher import _EXCEPTION_MAP, ExceptionDispatcher
+from ravendb.exceptions.raven_exceptions import (
+    AiAgentParameterCollisionException,
+    AiException,
+    MissingAiAgentParameterException,
+    UnsupportedAiQueryParameterException,
+)
 
 
 class TestAiAgentParameterPolicyAndType(unittest.TestCase):
@@ -101,6 +106,29 @@ class TestMissingAiAgentParameterException(unittest.TestCase):
         from ravendb.exceptions.raven_exceptions import RavenException
 
         self.assertTrue(issubclass(MissingAiAgentParameterException, RavenException))
+
+
+class TestAiAgentParameterExceptions(unittest.TestCase):
+    def test_dispatcher_registers_short_names(self):
+        self.assertIs(UnsupportedAiQueryParameterException, _EXCEPTION_MAP["UnsupportedAiQueryParameterException"])
+        self.assertIs(AiAgentParameterCollisionException, _EXCEPTION_MAP["AiAgentParameterCollisionException"])
+
+    def test_are_ai_exceptions(self):
+        self.assertTrue(issubclass(UnsupportedAiQueryParameterException, AiException))
+        self.assertTrue(issubclass(AiAgentParameterCollisionException, AiException))
+
+    def test_server_error_is_raised_as_its_own_type(self):
+        schema = ExceptionDispatcher.ExceptionSchema(
+            "http://localhost:8080",
+            "Raven.Client.Exceptions.AiAgentParameterCollisionException",
+            "Parameter TelegramUsername is defined on both the agent level and the query level for MyTickets",
+            "Parameter TelegramUsername is defined on both the agent level and the query level for MyTickets",
+        )
+
+        exception = ExceptionDispatcher.get(schema, 500)
+
+        self.assertIsInstance(exception, AiAgentParameterCollisionException)
+        self.assertIn("TelegramUsername", exception.args[0])
 
 
 class TestAiMessagePromptFieldsImage(unittest.TestCase):
