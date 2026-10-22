@@ -21,6 +21,7 @@ from ravendb.documents.session.document_session_operations.in_memory_document_se
 from ravendb.documents.session.document_info import DocumentInfo
 from ravendb.documents.session.misc import SessionOptions, TransactionMode
 from ravendb.documents.subscriptions.revision import Revision
+from ravendb.documents.subscriptions.worker_status import SubscriptionWorkerState, SubscriptionWorkerStatus
 from ravendb.exceptions.cluster import NodeIsPassiveException
 from ravendb.exceptions.exceptions import (
     AuthorizationException,
@@ -186,6 +187,11 @@ class SubscriptionWorker(Generic[_T]):
         self._after_acknowledgment: List[Callable[[SubscriptionBatch[_T]], None]] = []
         self._on_subscription_connection_retry: List[Callable[[Exception], None]] = []
         self._on_unexpected_subscription_error: List[Callable[[Exception], None]] = []
+        self._on_established_subscription_connection: List[Callable[[], None]] = []
+        self._on_state_changed: List[Callable[[SubscriptionWorker[_T], SubscriptionWorkerStatus], None]] = []
+
+        self._failing_since_utc: Optional[datetime.datetime] = None
+        self._status = SubscriptionWorkerStatus(SubscriptionWorkerState.NOT_STARTED, None, self._utc_now(), None)
 
         self._redirect_node: Optional[ServerNode] = None
         self._subscription_local_request_executor: Optional[RequestExecutor] = None
@@ -233,6 +239,83 @@ class SubscriptionWorker(Generic[_T]):
         for event in self._on_unexpected_subscription_error:
             event(err)
 
+    def add_on_established_subscription_connection(self, handler: Callable[[], None]) -> None:
+        """
+        Registers a handler raised whenever the worker has successfully connected to the server, both for the
+        initial connection and for every reconnection. Pair it with on_subscription_connection_retry to track
+        whether the worker is currently connected, instead of waiting for the next batch to arrive.
+        """
+        self._on_established_subscription_connection.append(handler)
+
+    def remove_on_established_subscription_connection(self, handler: Callable[[], None]) -> None:
+        self._on_established_subscription_connection.remove(handler)
+
+    def invoke_on_established_subscription_connection(self) -> None:
+        for event in self._on_established_subscription_connection:
+            event()
+
+    @property
+    def status(self) -> SubscriptionWorkerStatus:
+        """
+        What the worker is doing right now: connecting, waiting for the server to send documents, processing a
+        batch, retrying after a failure, or stopped. The returned snapshot is immutable, so the state and the
+        exception that produced it always belong together.
+        """
+        return self._status
+
+    def add_on_state_changed(self, handler: Callable[[SubscriptionWorker[_T], SubscriptionWorkerStatus], None]) -> None:
+        """
+        Registers a handler raised on every change to status. The worker that changed state is passed along with
+        the snapshot that was just installed, so that a single handler can serve several workers. Exceptions
+        raised by a handler are logged and swallowed, so that watching the worker cannot break it.
+        """
+        self._on_state_changed.append(handler)
+
+    def remove_on_state_changed(
+        self, handler: Callable[[SubscriptionWorker[_T], SubscriptionWorkerStatus], None]
+    ) -> None:
+        self._on_state_changed.remove(handler)
+
+    @staticmethod
+    def _utc_now() -> datetime.datetime:
+        return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+    # Called only from the thread running the subscription (or from close() on a worker that was never run)
+    def _set_state(self, state: SubscriptionWorkerState, exception: Optional[Exception] = None) -> None:
+        now = self._utc_now()
+
+        if state in (SubscriptionWorkerState.WAITING_FOR_DOCUMENTS, SubscriptionWorkerState.PROCESSING):
+            # talking to the server, whatever went wrong before is over
+            self._failing_since_utc = None
+        elif state in (SubscriptionWorkerState.RETRYING, SubscriptionWorkerState.FAULTED):
+            # keep the first failure time, so that it shows how long the worker has been failing
+            if self._failing_since_utc is None:
+                self._failing_since_utc = now
+        # CONNECTING is a step of every retry as well as of a healthy start, so it carries the failure streak over
+
+        current = self._status
+        if (
+            current.state == state
+            and current.exception is exception
+            and current.failing_since_utc == self._failing_since_utc
+        ):
+            return  # same state, nothing to change
+
+        status = SubscriptionWorkerStatus(state, exception, now, self._failing_since_utc)
+        self._status = status
+
+        for handler in list(self._on_state_changed):
+            try:
+                handler(self, status)
+            except Exception as e:
+                # a failing handler must not take the subscription down with it, and must not replace the
+                # exception that is being reported
+                self._logger.info(
+                    f"Subscription '{self._options.subscription_name}'. "
+                    f"on_state_changed handler raised while reporting '{status}'.",
+                    exc_info=e,
+                )
+
     def close(self, wait_for_subscription_task: bool = True) -> None:
         if self._disposed:
             return
@@ -256,6 +339,11 @@ class SubscriptionWorker(Generic[_T]):
             self._logger.debug(f"Error during close of subscription: {ex.args[0]}", ex)
 
         finally:
+            if self._subscription_task is None:
+                # a worker that was never run has no task to report STOPPED for itself,
+                # and cannot be racing with one either
+                self._set_state(SubscriptionWorkerState.STOPPED)
+
             if self._on_closed is not None:
                 self._on_closed(self)
 
@@ -536,6 +624,11 @@ class SubscriptionWorker(Generic[_T]):
                 if self._processing_cts.get_token().is_cancellation_requested():
                     return
 
+                # set before raising the event, so that a handler reading status sees that the worker is connected
+                self._set_state(SubscriptionWorkerState.WAITING_FOR_DOCUMENTS)
+
+                self.invoke_on_established_subscription_connection()
+
                 notified_subscriber = concurrent.futures.Future()
                 notified_subscriber.set_result(None)
 
@@ -584,6 +677,12 @@ class SubscriptionWorker(Generic[_T]):
 
                         raise e
 
+                    # The read above was started before the subscriber finished, on purpose, so the state stays
+                    # PROCESSING while it is in flight. Now that the subscriber is done, the server is the only thing
+                    # left to wait for, unless its batch already arrived in the meantime.
+                    if not read_from_server.done():
+                        self._set_state(SubscriptionWorkerState.WAITING_FOR_DOCUMENTS)
+
                     incoming_batch = read_from_server.result(
                         self._options.time_to_wait_before_connection_retry.total_seconds()
                     )
@@ -591,6 +690,8 @@ class SubscriptionWorker(Generic[_T]):
                     self._processing_cts.get_token().throw_if_cancellation_requested()
 
                     last_received_change_vector = batch.initialize(incoming_batch)
+
+                    self._set_state(SubscriptionWorkerState.PROCESSING)
 
                     notified_subscriber = self._store.thread_pool_executor.submit(__run_async)
         except OperationCancelledException as e:
@@ -687,9 +788,24 @@ class SubscriptionWorker(Generic[_T]):
 
     def _run_subscription_async(self) -> Future[None]:
         def __run_async() -> None:
+            try:
+                __run_internal()
+            except Exception as e:
+                # the worker was asked to stop, the failure is not a problem
+                if not self._disposed:
+                    self._set_state(SubscriptionWorkerState.FAULTED, e)
+                raise
+            finally:
+                # reached on the paths that end the worker without surfacing an error (closing the worker),
+                # while a worker that gave up on a failure keeps reporting it
+                if self._status.state != SubscriptionWorkerState.FAULTED:
+                    self._set_state(SubscriptionWorkerState.STOPPED)
+
+        def __run_internal() -> None:
             while not self._processing_cts.get_token().is_cancellation_requested():
                 try:
                     self._close_tcp_client()
+                    self._set_state(SubscriptionWorkerState.CONNECTING)
                     self._logger.info(f"Subscription {self._options.subscription_name}. Connection to server...")
                     self._process_subscription()
 
@@ -706,6 +822,9 @@ class SubscriptionWorker(Generic[_T]):
                     )
 
                     if self._should_try_to_reconnect(ex):
+                        # set before waiting, so that the state is accurate for the whole of the retry delay
+                        self._set_state(SubscriptionWorkerState.RETRYING, ex)
+
                         time.sleep(self._options.time_to_wait_before_connection_retry.total_seconds())
 
                         if self._redirect_node is None:

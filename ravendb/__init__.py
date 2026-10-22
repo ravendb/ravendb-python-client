@@ -852,6 +852,10 @@ from ravendb.documents.subscriptions.worker import (
     SubscriptionBatch,
     SubscriptionWorker,
 )
+from ravendb.documents.subscriptions.worker_status import (
+    SubscriptionWorkerState,
+    SubscriptionWorkerStatus,
+)
 from ravendb.documents.time_series import TimeSeriesOperations
 
 # todo: Serverwide
