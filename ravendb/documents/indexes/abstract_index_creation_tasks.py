@@ -22,6 +22,7 @@ from ravendb.documents.indexes.spatial.configuration import SpatialOptionsFactor
 from ravendb.documents.indexes.vector.options import VectorOptions
 from ravendb.documents.operations.indexes import PutIndexesOperation
 from ravendb.documents.store.definition import DocumentStoreBase
+from ravendb.exceptions.documents.compilation import IndexCompilationException
 from ravendb.primitives import constants
 
 _T_IndexDefinition = TypeVar("_T_IndexDefinition", bound=IndexDefinition)
@@ -268,7 +269,7 @@ class AbstractIndexDefinitionBuilder(Generic[_T_IndexDefinition]):
             return index_definition
 
         except Exception as e:
-            raise RuntimeError(f"Failed to create index {self._index_name}", e)  # todo: IndexCompilationException
+            raise IndexCompilationException(f"Failed to create index {self._index_name}", e)
 
 
 class IndexDefinitionBuilder(AbstractIndexDefinitionBuilder[IndexDefinition]):

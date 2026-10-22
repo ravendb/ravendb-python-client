@@ -7,6 +7,8 @@ from datetime import timedelta
 from ravendb.exceptions.cluster import NodeIsPassiveException, NoLeaderException
 from ravendb.exceptions.commercial import LicenseLimitException
 from ravendb.exceptions.documents import DocumentConflictException, DocumentDoesNotExistException
+from ravendb.exceptions.compilation import CompilationException
+from ravendb.exceptions.documents.compilation import IndexCompilationException
 from ravendb.exceptions.documents.bulkinsert import BulkInsertAbortedException, BulkInsertProtocolViolationException
 from ravendb.exceptions.documents.indexes import IndexDoesNotExistException
 from ravendb.exceptions.raven_exceptions import (
@@ -56,6 +58,9 @@ _EXCEPTION_MAP: dict = {
     "IndexDoesNotExistException": IndexDoesNotExistException,
     "BulkInsertAbortedException": BulkInsertAbortedException,
     "BulkInsertProtocolViolationException": BulkInsertProtocolViolationException,
+    # compilation
+    "CompilationException": CompilationException,
+    "IndexCompilationException": IndexCompilationException,
     # schema validation
     "SchemaValidationException": SchemaValidationException,
     # replication
@@ -131,6 +136,9 @@ class ExceptionDispatcher:
                     exception.status_code = int(status_code)
                 except Exception:
                     pass
+        elif isinstance(exception, IndexCompilationException):
+            exception.index_definition_property = data.get("IndexDefinitionProperty")
+            exception.problematic_text = data.get("ProblematicText")
         elif isinstance(exception, RefusedToAnswerException):
             exception.refusal = data.get("Refusal")
             exception.finish_reason = data.get("FinishReason")

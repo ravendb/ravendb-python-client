@@ -669,6 +669,8 @@ from ravendb.documents.operations.time_series import (
     TimeSeriesRangeResult,
     TimeSeriesStatistics,
 )
+from ravendb.exceptions.compilation import CompilationException
+from ravendb.exceptions.documents.compilation import IndexCompilationException
 from ravendb.exceptions.raven_exceptions import (
     AiException,
     BadResponseException,
