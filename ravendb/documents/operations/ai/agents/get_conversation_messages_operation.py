@@ -149,6 +149,7 @@ class AiConversationMessagesResult:
         has_more_messages: bool = False,
         sub_conversation_ids: Optional[List[str]] = None,
         attachments: Optional[List[str]] = None,
+        created_at: Optional[datetime] = None,
     ):
         self.conversation_id = conversation_id
         self.agent = agent
@@ -158,6 +159,7 @@ class AiConversationMessagesResult:
         # Cumulative token usage across every turn of the conversation.
         self.total_usage = total_usage
         self.last_message_at = last_message_at
+        self.created_at = created_at
         # Chronological, oldest first.
         self.messages = messages
         # Older messages exist for backward/default paging, newer ones for `after` paging.
@@ -172,6 +174,7 @@ class AiConversationMessagesResult:
             "Parameters": self.parameters,
             "TotalUsage": self.total_usage.to_json() if self.total_usage else None,
             "LastMessageAt": Utils.datetime_to_string(self.last_message_at),
+            "CreatedAt": Utils.datetime_to_string(self.created_at),
             "HasMoreMessages": self.has_more_messages,
             "SubConversationIds": self.sub_conversation_ids,
             "Attachments": self.attachments,
@@ -188,6 +191,7 @@ class AiConversationMessagesResult:
             parameters=json_dict.get("Parameters"),
             total_usage=AiUsage.from_json(total_usage) if total_usage else None,
             last_message_at=Utils.string_to_datetime(json_dict.get("LastMessageAt")),
+            created_at=Utils.string_to_datetime(json_dict.get("CreatedAt")),
             messages=[AiConversationMessage.from_json(message) for message in messages] if messages else None,
             has_more_messages=json_dict.get("HasMoreMessages", False),
             sub_conversation_ids=json_dict.get("SubConversationIds"),

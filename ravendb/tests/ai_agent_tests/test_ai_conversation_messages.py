@@ -112,6 +112,7 @@ class TestAiConversationMessagesResult(unittest.TestCase):
         "Parameters": {"customer": "ALFKI", "tags": ["vip", "eu"], "retries": 2},
         "TotalUsage": {"PromptTokens": 10, "CompletionTokens": 5, "TotalTokens": 15, "ReasoningTokens": 3},
         "LastMessageAt": "2026-06-16T10:30:05.0000000",
+        "CreatedAt": "2026-06-16T10:29:58.0000000",
         "HasMoreMessages": True,
         "SubConversationIds": ["chats/1-A/sub/1"],
         "Attachments": ["invoice.pdf"],
@@ -144,6 +145,20 @@ class TestAiConversationMessagesResult(unittest.TestCase):
         self.assertEqual(["chats/1-A/sub/1"], result.sub_conversation_ids)
         self.assertEqual(["invoice.pdf"], result.attachments)
         self.assertEqual(datetime(2026, 6, 16, 10, 30, 5), result.last_message_at)
+
+    def test_result_carries_the_conversation_creation_time(self):
+        result = AiConversationMessagesResult.from_json(self.RESPONSE)
+
+        self.assertEqual(datetime(2026, 6, 16, 10, 29, 58), result.created_at)
+        self.assertEqual("2026-06-16T10:29:58.0000000", result.to_json()["CreatedAt"])
+
+    def test_created_at_is_unset_when_the_server_does_not_send_it(self):
+        response = {key: value for key, value in self.RESPONSE.items() if key != "CreatedAt"}
+
+        result = AiConversationMessagesResult.from_json(response)
+
+        self.assertIsNone(result.created_at)
+        self.assertIsNone(result.to_json()["CreatedAt"])
 
     def test_heterogeneous_parameters_come_back_as_they_are(self):
         # Parameter values mix primitives and arrays, so they are handed over untouched.
