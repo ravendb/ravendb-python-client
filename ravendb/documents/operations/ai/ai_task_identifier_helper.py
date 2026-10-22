@@ -1,5 +1,7 @@
 import unicodedata
-from typing import List, Tuple
+from typing import List, Optional, Tuple
+
+from ravendb.exceptions.exceptions import InvalidOperationException
 
 
 class AiTaskIdentifierHelper:
@@ -55,7 +57,7 @@ class AiTaskIdentifierHelper:
         return len(errors) == 0, errors
 
     @staticmethod
-    def generate_identifier(input_str: str) -> str:
+    def generate_identifier(input_str: str) -> Optional[str]:
         """
         Generates a valid identifier from an input string.
 
@@ -63,7 +65,33 @@ class AiTaskIdentifierHelper:
             input_str: The input string to convert to an identifier.
 
         Returns:
-            A valid identifier string, or a default identifier if input is empty.
+            A valid identifier string, or None if input is empty.
+
+        Raises:
+            InvalidOperationException: If the input contains no ASCII letters or digits.
+        """
+        if not input_str or input_str.isspace():
+            return None
+
+        identifier = AiTaskIdentifierHelper.try_generate_identifier(input_str)
+        if identifier is None:
+            raise InvalidOperationException(
+                f"Can't generate an identifier from name '{input_str}' because it contains no ASCII letters "
+                f"or digits. Set the identifier explicitly."
+            )
+
+        return identifier
+
+    @staticmethod
+    def try_generate_identifier(input_str: str) -> Optional[str]:
+        """
+        Generates a valid identifier from an input string.
+
+        Args:
+            input_str: The input string to convert to an identifier.
+
+        Returns:
+            A valid identifier string, or None if input is empty or contains no ASCII letters or digits.
         """
         if not input_str or input_str.isspace():
             return None
@@ -90,5 +118,4 @@ class AiTaskIdentifierHelper:
         # Trim any trailing hyphens
         final_result = "".join(result).rstrip("-")
 
-        # Ensure we have at least one character
-        return final_result if final_result else "AiConnectionStringIdentifier"
+        return final_result if final_result else None
