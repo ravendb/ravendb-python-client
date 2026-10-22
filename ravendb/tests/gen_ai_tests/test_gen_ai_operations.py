@@ -453,6 +453,33 @@ class TestAiTaskIdentifierHelper(unittest.TestCase):
         result = AiTaskIdentifierHelper.generate_identifier("   ")
         self.assertIsNone(result)
 
+    def test_generate_identifier_without_ascii_letters_or_digits(self):
+        """Tests that a name with no ASCII letters or digits cannot produce an identifier."""
+        from ravendb.documents.operations.ai.ai_task_identifier_helper import AiTaskIdentifierHelper
+        from ravendb.exceptions.exceptions import InvalidOperationException
+
+        for name in ["日本語", "!!!", "???"]:
+            with self.assertRaises(InvalidOperationException) as context:
+                AiTaskIdentifierHelper.generate_identifier(name)
+            self.assertIn(
+                f"Can't generate an identifier from name '{name}' because it contains no ASCII letters or digits",
+                str(context.exception),
+            )
+
+        with self.assertRaises(InvalidOperationException):
+            GenAiConfiguration(name="日本語").generate_identifier()
+
+    def test_try_generate_identifier(self):
+        """Tests that try_generate_identifier returns None instead of raising."""
+        from ravendb.documents.operations.ai.ai_task_identifier_helper import AiTaskIdentifierHelper
+
+        self.assertEqual("test-gen-ai", AiTaskIdentifierHelper.try_generate_identifier("Test Gen Ai"))
+        self.assertEqual("cafe", AiTaskIdentifierHelper.try_generate_identifier("Café"))
+        self.assertIsNone(AiTaskIdentifierHelper.try_generate_identifier("日本語"))
+        self.assertIsNone(AiTaskIdentifierHelper.try_generate_identifier("!!!"))
+        self.assertIsNone(AiTaskIdentifierHelper.try_generate_identifier(""))
+        self.assertIsNone(AiTaskIdentifierHelper.try_generate_identifier(None))
+
 
 @unittest.skipIf(os.environ.get("RAVENDB_LICENSE") is None, "Insufficient license permissions. Skipping on CI/CD.")
 class TestGenAiCrudOperations(TestBase):
