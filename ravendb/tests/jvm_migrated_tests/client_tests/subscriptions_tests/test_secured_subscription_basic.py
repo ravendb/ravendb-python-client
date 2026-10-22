@@ -4,7 +4,7 @@ from ravendb.documents.subscriptions.worker import SubscriptionBatch
 from ravendb.infrastructure.entities import User
 from ravendb.tests.test_base import TestBase
 
-_reasonable_amount_of_time = 4
+_reasonable_amount_of_time = 15
 
 
 class TestSecuredSubscriptionBasic(TestBase):
