@@ -25,7 +25,7 @@ except Exception:
 
 import uuid as uuid
 from copy import deepcopy, Error
-from typing import Union, Callable, List, Dict, Set, Type, TypeVar, Tuple, Any
+from typing import Union, Callable, List, Dict, Set, Type, TypeVar, Tuple, Any, Optional
 
 from ravendb.primitives import constants
 from ravendb.documents.commands.crud import GetDocumentsResult
@@ -1025,6 +1025,8 @@ class InMemoryDocumentSessionOperations:
                     )
             elif command_data.command_type in (CommandType.COMPARE_EXCHANGE_DELETE, CommandType.COMPARE_EXCHANGE_PUT):
                 pass
+            elif command_data.command_type == CommandType.BATCH_TRACK_CHANGES:
+                raise ValueError("register_for_concurrency_check is not supported when using a cluster transaction.")
             else:
                 raise ValueError(f"The command '{command_data.command_type}' is not supported in a cluster session.")
 
@@ -2082,6 +2084,7 @@ class InMemoryDocumentSessionOperations:
 
                 self.__session._deferred_commands.clear()
                 self.__session._deferred_commands_map.clear()
+                self.__session._tracked_entities.clear_forced_registrations()
 
             def clear_deleted_entities(self) -> None:
                 self.__clear_deleted_entities = True
@@ -2092,6 +2095,10 @@ class TrackedEntitiesHolder:
     def __init__(self, should_track: bool):
         self._should_track = should_track
         self._tracked: Dict[str, str] = {}
+        # Explicit registrations from register_for_concurrency_check, keyed by lowercased id to (id, change vector).
+        # Kept apart from _tracked so loads, refreshes and evictions neither override nor remove them, and so they
+        # are honored in every OptimisticConcurrencyMode. A None change vector disables the check for that id.
+        self._forced: Optional[Dict[str, Tuple[str, Optional[str]]]] = None
 
     def any(self) -> bool:
         return self._should_track and bool(self._tracked)
@@ -2117,19 +2124,54 @@ class TrackedEntitiesHolder:
     def __getitem__(self, entity_id: str) -> str:
         return self._tracked[entity_id]
 
+    def force_register(self, entity_id: str, change_vector: Optional[str]) -> None:
+        # The registration overrides any tracked value for the id. None disables the check for the id,
+        # an empty string asserts the document does not exist, any other value is verified by the server.
+        if self._forced is None:
+            self._forced = {}
+        self._forced[entity_id.lower()] = (entity_id, change_vector)
+
+    def clear_forced_registrations(self) -> None:
+        # Registrations are one shot: after a successful save_changes this session has already validated
+        # and possibly replaced the registered change vectors.
+        self._forced = None
+
     def clear(self) -> None:
-        if self._should_track:
-            self._tracked.clear()
+        self._tracked.clear()
+        self._forced = None
 
     def prepare_for_entities_track(self, save_changes_data) -> None:
-        if not self.any():
+        entities_to_check = self._build_entities_to_check()
+        if not entities_to_check:
             return
         from ravendb.documents.commands.batches import BatchTrackChangesCommandData
 
         save_changes_data.track_changes_command_data = BatchTrackChangesCommandData(
-            dict(self._tracked), set(save_changes_data.ids_already_checked_for_concurrency)
+            entities_to_check, self._get_ids_to_skip(save_changes_data.ids_already_checked_for_concurrency)
         )
         save_changes_data.session_commands.insert(0, save_changes_data.track_changes_command_data)
+
+    def _build_entities_to_check(self) -> Dict[str, str]:
+        tracked = self._tracked if self._should_track else {}
+        if self._forced is None:
+            return dict(tracked)
+
+        entities_to_check = {
+            entity_id: change_vector
+            for entity_id, change_vector in tracked.items()
+            if entity_id.lower() not in self._forced
+        }
+        for entity_id, change_vector in self._forced.values():
+            if change_vector is not None:
+                entities_to_check[entity_id] = change_vector
+        return entities_to_check
+
+    def _get_ids_to_skip(self, ids_already_checked_for_concurrency: Set[str]) -> Set[str]:
+        # A write that carries its own change vector check makes the tracked read check redundant,
+        # but it must not swallow a check that was registered explicitly.
+        if self._forced is None:
+            return set(ids_already_checked_for_concurrency)
+        return {entity_id for entity_id in ids_already_checked_for_concurrency if entity_id.lower() not in self._forced}
 
 
 class KnownMissingIdsHolder:

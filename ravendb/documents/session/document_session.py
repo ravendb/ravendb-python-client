@@ -743,6 +743,28 @@ class DocumentSession(InMemoryDocumentSessionOperations):
                 raise ValueError("Entity cannot be None")
             return self._session._get_document_info(entity).metadata.get(constants.Documents.Metadata.CHANGE_VECTOR)
 
+        def register_for_concurrency_check(self, key: str, change_vector: Optional[str]) -> None:
+            """
+            Registers an optimistic concurrency check for a document without loading it and without a remote call.
+            The next save_changes verifies the document on the server and raises ConcurrencyException
+            when it no longer matches, whatever the session's optimistic_concurrency_mode is.
+
+            A non-empty change vector requires the document to still have it, an empty string asserts that
+            the document does not exist, and None disables the check for this id. The registration overrides
+            what the session tracks for the id, and registering the same id again keeps the last value.
+
+            The registration is one shot: a successful save_changes consumes it, a failed one keeps it.
+            Call this method with None, or advanced.clear(), to cancel it earlier.
+            Not supported with TransactionMode.CLUSTER_WIDE or in a no_tracking session.
+
+            :param key: The id of the document to verify during the next save_changes.
+            :param change_vector: The expected change vector, an empty string to assert absence,
+                or None to disable the check for this id.
+            """
+            if not key:
+                raise ValueError("Key cannot be None or empty")
+            self._session._tracked_entities.force_register(key, change_vector)
+
         def get_last_modified_for(self, entity: object) -> datetime:
             if entity is None:
                 raise ValueError("Entity cannot be None")

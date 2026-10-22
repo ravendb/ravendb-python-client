@@ -45,6 +45,9 @@ class AiOutputOptions:
             sample = self.sample_object
             if callable(getattr(sample, "to_json", None)):
                 sample = sample.to_json()
+            elif not isinstance(sample, (dict, list, str)) and hasattr(sample, "__dict__"):
+                # A plain entity: its attributes describe the expected answer.
+                sample = sample.__dict__
             # The server reads this as a JSON string, not as a nested object.
             json_dict["SampleObject"] = json.dumps(sample)
 
