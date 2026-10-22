@@ -421,7 +421,8 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         )
         if self._change_vector:
             url += f"&changeVector={quote(self._change_vector)}"
-        if self._stream_property_path:
+        # An empty path still streams: raw text output has no property to point at.
+        if self._stream_property_path is not None:
             url += f"&streaming=true&streamPropertyPath={quote(self._stream_property_path)}"
 
         # Add debug flag if requested
@@ -469,7 +470,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
 
     # todo: rewrite via custom set_response_raw + RAW response type
     def process_response(self, cache, response: requests.Response, url) -> ResponseDisposeHandling:
-        if not self._stream_property_path:
+        if self._stream_property_path is None:
             return super().process_response(cache, response, url)
 
         for line in response.iter_lines(decode_unicode=True):
@@ -490,7 +491,7 @@ class RunConversationCommand(RavenCommand[ConversationResult[TSchema]]):
         return ResponseDisposeHandling.AUTOMATIC
 
     def send(self, session: requests.Session, request: requests.Request) -> requests.Response:
-        if self._stream_property_path:
+        if self._stream_property_path is not None:
             from ravendb.util.request_utils import RequestUtils
 
             prepared_request = session.prepare_request(request)

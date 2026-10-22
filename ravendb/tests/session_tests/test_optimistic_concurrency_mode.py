@@ -107,5 +107,68 @@ class TestBatchTrackChangesCommand(unittest.TestCase):
         self.assertEqual(CommandType.BATCH_TRACK_CHANGES, CommandType.from_csharp_value_str("BatchTrackChanges"))
 
 
+class TestTrackedEntitiesHolderForcedRegistrations(unittest.TestCase):
+    @staticmethod
+    def _prepare(holder, ids_already_checked=()):
+        from types import SimpleNamespace
+
+        data = SimpleNamespace(
+            ids_already_checked_for_concurrency=set(ids_already_checked),
+            session_commands=[],
+            track_changes_command_data=None,
+        )
+        holder.prepare_for_entities_track(data)
+        if data.track_changes_command_data is None:
+            return None
+        return data.track_changes_command_data.serialize(None)["TrackedEntities"]
+
+    @staticmethod
+    def _holder(should_track: bool):
+        from ravendb.documents.session.document_session_operations.in_memory_document_session_operations import (
+            TrackedEntitiesHolder,
+        )
+
+        return TrackedEntitiesHolder(should_track)
+
+    def test_forced_registration_is_sent_when_tracking_is_off(self):
+        holder = self._holder(False)
+        holder.force_register("docs/1", "cv-1")
+        self.assertEqual({"docs/1": "cv-1"}, self._prepare(holder))
+
+    def test_forced_registration_overrides_tracked_value_case_insensitively(self):
+        holder = self._holder(True)
+        holder["Docs/1"] = "tracked"
+        holder.force_register("docs/1", "forced")
+        self.assertEqual({"docs/1": "forced"}, self._prepare(holder))
+
+    def test_none_removes_tracked_value(self):
+        holder = self._holder(True)
+        holder["docs/1"] = "tracked"
+        holder["docs/2"] = "tracked-2"
+        holder.force_register("DOCS/1", None)
+        self.assertEqual({"docs/2": "tracked-2"}, self._prepare(holder))
+
+    def test_only_disabled_registrations_add_no_command(self):
+        holder = self._holder(False)
+        holder.force_register("docs/1", None)
+        self.assertIsNone(self._prepare(holder))
+
+    def test_forced_id_is_not_skipped_by_a_write_check(self):
+        holder = self._holder(True)
+        holder["docs/2"] = "tracked-2"
+        holder.force_register("docs/1", "forced")
+        self.assertEqual({"docs/1": "forced"}, self._prepare(holder, ids_already_checked={"docs/1", "docs/2"}))
+
+    def test_clear_and_clear_forced_registrations(self):
+        holder = self._holder(False)
+        holder.force_register("docs/1", "cv-1")
+        holder.clear_forced_registrations()
+        self.assertIsNone(self._prepare(holder))
+
+        holder.force_register("docs/1", "cv-1")
+        holder.clear()
+        self.assertIsNone(self._prepare(holder))
+
+
 if __name__ == "__main__":
     unittest.main()

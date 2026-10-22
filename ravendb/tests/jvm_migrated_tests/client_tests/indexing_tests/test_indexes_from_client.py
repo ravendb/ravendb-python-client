@@ -110,10 +110,11 @@ class TestIndexesFromClient(TestBase):
 
             self.assertEqual("doduck", results[0].title)
             self.assertEqual("prototype your idea", results[0].desc)
-            self.assertEqual("doduck", results[1].title)
-            self.assertEqual("love programming", results[1].desc)
-            self.assertEqual("We do", results[2].title)
-            self.assertEqual("prototype", results[2].desc)
+            # posts/3 and posts/4 each share one term with posts/1, so their order is not fixed
+            self.assertEqual(
+                {("doduck", "love programming"), ("We do", "prototype")},
+                {(post.title, post.desc) for post in results[1:]},
+            )
 
     def test_can_execute_many_indexes(self):
         self.store.execute_indexes([UsersIndex()])
