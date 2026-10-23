@@ -121,13 +121,15 @@ class DocumentSubscriptions:
                 if number_of_includes_added == 0:
                     query_builder.append(os.linesep)
                     query_builder.append("include ")
+                else:
+                    query_builder.append(",")
 
                 token = CounterIncludesToken.all("")
                 token.write_to(query_builder)
                 number_of_includes_added += 1
 
             elif builder.counters_to_include:
-                if number_of_includes_added:
+                if number_of_includes_added == 0:
                     query_builder.append(os.linesep)
                     query_builder.append("include ")
 
@@ -151,6 +153,8 @@ class DocumentSubscriptions:
 
                     token = TimeSeriesIncludesToken.create("", time_series_range)
                     token.write_to(query_builder)
+
+                    number_of_includes_added += 1
 
         criteria.query = "".join(query_builder)
         return criteria
