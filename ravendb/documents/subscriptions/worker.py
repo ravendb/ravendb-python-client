@@ -155,6 +155,9 @@ class SubscriptionConnectionClientMessage:
 
 
 class SubscriptionWorker(Generic[_T]):
+    # how often a worker that waits for the next batch checks whether it was closed
+    _CLOSE_CHECK_INTERVAL_IN_SECONDS = 1
+
     def __init__(
         self,
         object_type: Type[_T],
@@ -422,6 +425,12 @@ class SubscriptionWorker(Generic[_T]):
         self._tcp_client = result.socket
         self._supported_features = result.supported_features
 
+        # the server sends heartbeats while it has nothing else to send, so a connection that stays silent for longer
+        # than this is gone, and reading from it fails instead of waiting forever
+        self._tcp_client.settimeout(self._options.connection_stream_timeout.total_seconds())
+        # a new connection starts a new stream, whatever was left of a message on the previous one is of no use
+        self._buffer = ""
+
         if self._supported_features.protocol_version <= 0:
             raise RuntimeError(
                 f"{self._options.subscription_name} : TCP negotiation resulted with an invalid protocol version: "
@@ -683,9 +692,7 @@ class SubscriptionWorker(Generic[_T]):
                     if not read_from_server.done():
                         self._set_state(SubscriptionWorkerState.WAITING_FOR_DOCUMENTS)
 
-                    incoming_batch = read_from_server.result(
-                        self._options.time_to_wait_before_connection_retry.total_seconds()
-                    )
+                    incoming_batch = self._wait_for_batch_from_server(read_from_server)
 
                     self._processing_cts.get_token().throw_if_cancellation_requested()
 
@@ -700,6 +707,15 @@ class SubscriptionWorker(Generic[_T]):
 
             # otherwise this is thrown when shutting down,
             # it isn't an error, so we don't need to treat it as such
+
+    def _wait_for_batch_from_server(self, read_from_server: Future[BatchFromServer]) -> BatchFromServer:
+        # An idle subscription has no batch to send, which is not a failure: wait for as long as it takes, the read
+        # fails by itself when the connection is lost. Wake up now and then only to notice that the worker was closed.
+        while not read_from_server.done():
+            concurrent.futures.wait([read_from_server], timeout=self._CLOSE_CHECK_INTERVAL_IN_SECONDS)
+            self._processing_cts.get_token().throw_if_cancellation_requested()
+
+        return read_from_server.result()
 
     def _read_single_subscription_batch_from_server(
         self, sock: socket, batch: SubscriptionBatch[_T]
@@ -765,7 +781,13 @@ class SubscriptionWorker(Generic[_T]):
             return None
 
         def _receive_more_data():
-            return sock.recv(self._options.receive_buffer_size).decode("utf-8").strip("\r\n")
+            data = sock.recv(self._options.receive_buffer_size)
+            if not data:
+                # even a heartbeat carries a line break, no data at all means the server closed the connection
+                raise ConnectionError(
+                    f"Subscription '{self._options.subscription_name}'. The server closed the connection."
+                )
+            return data.decode("utf-8").strip("\r\n")
 
         while True:
             if self._buffer and not self._buffer.isspace():

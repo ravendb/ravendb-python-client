@@ -49,6 +49,7 @@ class SubscriptionWorkerOptions:
         send_buffer_size: int = 32 * 1024,
         ignore_subscriber_errors: Optional[bool] = None,
         close_when_no_docs_left: Optional[bool] = None,
+        connection_stream_timeout: timedelta = timedelta(seconds=30),
     ):
         if not subscription_name or subscription_name.isspace():
             raise ValueError("Subscription name cannot be None or empty")
@@ -61,6 +62,22 @@ class SubscriptionWorkerOptions:
         self.send_buffer_size = send_buffer_size
         self.ignore_subscriber_errors = ignore_subscriber_errors
         self.close_when_no_docs_left = close_when_no_docs_left
+        self.connection_stream_timeout = connection_stream_timeout
+
+    @property
+    def connection_stream_timeout(self) -> timedelta:
+        """
+        Timeout for reading from or writing to the connection to the server. Default: 30 seconds, minimum: 15 seconds.
+        The server sends a heartbeat every few seconds while it has nothing else to send, so a connection that stays
+        silent for longer than this is considered lost, and the worker reconnects.
+        """
+        return self._connection_stream_timeout
+
+    @connection_stream_timeout.setter
+    def connection_stream_timeout(self, value: timedelta) -> None:
+        if value < timedelta(seconds=15):
+            raise ValueError("Value can't be smaller than 15 seconds.")
+        self._connection_stream_timeout = value
 
     def to_json(self) -> Dict:
         return {
