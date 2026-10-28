@@ -2,6 +2,7 @@
 from typing import Optional, Dict, Any
 
 from ravendb.serverwide.server_operation_executor import ConnectionStringType
+from ravendb.documents.operations.ai.anthropic_settings import AnthropicSettings
 from ravendb.documents.operations.ai.azure_open_ai_settings import AzureOpenAiSettings
 from ravendb.documents.operations.ai.embedded_settings import EmbeddedSettings
 from ravendb.documents.operations.ai.google_settings import GoogleSettings
@@ -29,6 +30,7 @@ class AiConnectorType(enum.Enum):
     HUGGING_FACE = "HuggingFace"
     MISTRAL_AI = "MistralAi"
     VERTEX = "Vertex"
+    ANTHROPIC = "Anthropic"
 
 
 class AiConnectionString(ConnectionString):
@@ -45,6 +47,7 @@ class AiConnectionString(ConnectionString):
         mistral_ai_settings: Optional[MistralAiSettings] = None,
         vertex_settings: Optional[VertexSettings] = None,
         model_type: AiModelType = None,
+        anthropic_settings: Optional[AnthropicSettings] = None,
     ):
         super().__init__(name)
         self.identifier = identifier
@@ -56,6 +59,7 @@ class AiConnectionString(ConnectionString):
         self.huggingface_settings = huggingface_settings
         self.mistral_ai_settings = mistral_ai_settings
         self.vertex_settings = vertex_settings
+        self.anthropic_settings = anthropic_settings
         self.model_type = model_type
 
         if not any(
@@ -68,10 +72,11 @@ class AiConnectionString(ConnectionString):
                 huggingface_settings,
                 mistral_ai_settings,
                 vertex_settings,
+                anthropic_settings,
             ]
         ):
             raise ValueError(
-                "Please provide at least one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings, vertex_settings"
+                "Please provide at least one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings, vertex_settings, anthropic_settings"
             )
 
         if model_type is None:
@@ -87,13 +92,19 @@ class AiConnectionString(ConnectionString):
             huggingface_settings,
             mistral_ai_settings,
             vertex_settings,
+            anthropic_settings,
         ]:
             if setting:
                 settings_set_count += 1 if setting else 0
             if settings_set_count > 1:
                 raise ValueError(
-                    "Please provide only one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings, vertex_settings"
+                    "Please provide only one of the following settings: openai_settings, azure_openai_settings, ollama_settings, embedded_settings, google_settings, huggingface_settings, mistral_ai_settings, vertex_settings, anthropic_settings"
                 )
+
+        if anthropic_settings and model_type == AiModelType.TEXT_EMBEDDINGS:
+            raise ValueError(
+                "'Anthropic' does not support the 'TextEmbeddings' model type; it can only be used for 'Chat'."
+            )
 
     @property
     def get_type(self):
@@ -117,10 +128,17 @@ class AiConnectionString(ConnectionString):
             return AiConnectorType.MISTRAL_AI
         if self.vertex_settings:
             return AiConnectorType.VERTEX
+        if self.anthropic_settings:
+            return AiConnectorType.ANTHROPIC
         return AiConnectorType.NONE
 
     def using_encrypted_communication_channel(self) -> bool:
         """Returns True if the connection uses HTTPS (encrypted communication)."""
+        if self.anthropic_settings:
+            # Endpoint is optional for Anthropic, the server uses the default endpoint if not provided, which is HTTPS
+            endpoint = self.anthropic_settings.endpoint
+            return not endpoint or not endpoint.strip() or endpoint.lower().startswith("https://")
+
         active_settings = None
         if self.openai_settings:
             active_settings = self.openai_settings
@@ -155,6 +173,7 @@ class AiConnectionString(ConnectionString):
             "HuggingFaceSettings": self.huggingface_settings.to_json() if self.huggingface_settings else None,
             "MistralAiSettings": self.mistral_ai_settings.to_json() if self.mistral_ai_settings else None,
             "VertexSettings": self.vertex_settings.to_json() if self.vertex_settings else None,
+            "AnthropicSettings": self.anthropic_settings.to_json() if self.anthropic_settings else None,
             "ModelType": self.model_type.value if self.model_type else None,
             "Type": self.get_type,
         }
@@ -195,4 +214,9 @@ class AiConnectionString(ConnectionString):
                 VertexSettings.from_json(json_dict["VertexSettings"]) if json_dict.get("VertexSettings") else None
             ),
             model_type=AiModelType(json_dict["ModelType"]) if json_dict.get("ModelType") else None,
+            anthropic_settings=(
+                AnthropicSettings.from_json(json_dict["AnthropicSettings"])
+                if json_dict.get("AnthropicSettings")
+                else None
+            ),
         )
