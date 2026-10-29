@@ -15,8 +15,11 @@ class OpenAiSettings(OpenAiBaseSettings):
         temperature: float = None,
         embeddings_max_concurrent_batches: int = None,
         reasoning_effort: str = None,
+        enable_prompt_cache: bool = None,
     ):
-        super().__init__(api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches)
+        super().__init__(
+            api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches, enable_prompt_cache
+        )
         self.organization_id = organization_id
         self.project_id = project_id
         # The reasoning_effort sent to the provider, controlling the reasoning depth of supported models
@@ -42,6 +45,7 @@ class OpenAiSettings(OpenAiBaseSettings):
             reasoning_effort=(
                 json_dict["ReasoningEffort"] if isinstance(json_dict.get("ReasoningEffort"), str) else None
             ),
+            enable_prompt_cache=json_dict.get("EnablePromptCache"),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -57,4 +61,6 @@ class OpenAiSettings(OpenAiBaseSettings):
         }
         if self.reasoning_effort is not None and self.reasoning_effort.strip():
             json_dict["ReasoningEffort"] = self.reasoning_effort
+        if self.enable_prompt_cache is not None:
+            json_dict["EnablePromptCache"] = self.enable_prompt_cache
         return json_dict

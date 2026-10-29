@@ -12,6 +12,7 @@ class OpenAiBaseSettings(AbstractAiSettings, ABC):
         dimensions: int = None,
         temperature: float = None,
         embeddings_max_concurrent_batches: int = None,
+        enable_prompt_cache: bool = None,
     ):
         super().__init__(embeddings_max_concurrent_batches)
         self.api_key = api_key
@@ -19,3 +20,6 @@ class OpenAiBaseSettings(AbstractAiSettings, ABC):
         self.model = model
         self.dimensions = dimensions
         self.temperature = temperature
+        # Sends a prompt_cache_key in chat completion requests, so providers that support it can reuse prompt prefixes.
+        # When not set, the key is sent for AI agents and for GenAI tasks with query tools.
+        self.enable_prompt_cache = enable_prompt_cache

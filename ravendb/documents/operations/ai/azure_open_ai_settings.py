@@ -13,8 +13,11 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
         dimensions: int = None,
         temperature: float = None,
         embeddings_max_concurrent_batches: int = None,
+        enable_prompt_cache: bool = None,
     ):
-        super().__init__(api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches)
+        super().__init__(
+            api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches, enable_prompt_cache
+        )
         if deployment_name is None:
             raise ValueError("deployment_name cannot be None")
         if endpoint is None or (isinstance(endpoint, str) and endpoint.strip() == ""):
@@ -33,10 +36,11 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
             embeddings_max_concurrent_batches=(
                 json_dict["EmbeddingsMaxConcurrentBatches"] if "EmbeddingsMaxConcurrentBatches" in json_dict else None
             ),
+            enable_prompt_cache=json_dict.get("EnablePromptCache"),
         )
 
     def to_json(self) -> Dict[str, Any]:
-        return {
+        json_dict = {
             "ApiKey": self.api_key,
             "Endpoint": self.endpoint,
             "Model": self.model,
@@ -45,3 +49,6 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
             "DeploymentName": self.deployment_name,
             "EmbeddingsMaxConcurrentBatches": self.embeddings_max_concurrent_batches,
         }
+        if self.enable_prompt_cache is not None:
+            json_dict["EnablePromptCache"] = self.enable_prompt_cache
+        return json_dict
