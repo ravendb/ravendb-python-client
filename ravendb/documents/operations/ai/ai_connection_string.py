@@ -121,27 +121,27 @@ class AiConnectionString(ConnectionString):
 
     def using_encrypted_communication_channel(self) -> bool:
         """Returns True if the connection uses HTTPS (encrypted communication)."""
-        active_settings = None
-        if self.openai_settings:
-            active_settings = self.openai_settings
-        elif self.azure_openai_settings:
-            active_settings = self.azure_openai_settings
-        elif self.ollama_settings:
-            active_settings = self.ollama_settings
-        elif self.google_settings:
-            active_settings = self.google_settings
-        elif self.huggingface_settings:
-            active_settings = self.huggingface_settings
-        elif self.mistral_ai_settings:
-            active_settings = self.mistral_ai_settings
-        elif self.vertex_settings:
-            active_settings = self.vertex_settings
-
-        if active_settings and hasattr(active_settings, "endpoint") and active_settings.endpoint:
-            return active_settings.endpoint.lower().startswith("https://")
-
-        # Embedded settings don't have an endpoint
+        provider = self.get_active_provider()
+        if provider == AiConnectorType.OLLAMA:
+            return self._is_https(self.ollama_settings.uri)
+        if provider == AiConnectorType.OPEN_AI:
+            return self._is_https(self.openai_settings.endpoint)
+        if provider == AiConnectorType.AZURE_OPEN_AI:
+            return self._is_https(self.azure_openai_settings.endpoint)
+        if provider == AiConnectorType.MISTRAL_AI:
+            return self._is_https(self.mistral_ai_settings.endpoint)
+        if provider == AiConnectorType.HUGGING_FACE:
+            # Endpoint is optional for HuggingFace, the server uses the default endpoint if not provided, which is HTTPS
+            endpoint = self.huggingface_settings.endpoint
+            return not endpoint or not endpoint.strip() or self._is_https(endpoint)
+        if provider in (AiConnectorType.EMBEDDED, AiConnectorType.GOOGLE, AiConnectorType.VERTEX):
+            # Embedded runs inside the server, Google and Vertex always connect over HTTPS
+            return True
         return False
+
+    @staticmethod
+    def _is_https(endpoint: Optional[str]) -> bool:
+        return bool(endpoint) and endpoint.lower().startswith("https://")
 
     def to_json(self) -> Dict[str, Any]:
         return {
