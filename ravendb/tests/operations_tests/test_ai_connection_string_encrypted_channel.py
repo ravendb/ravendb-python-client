@@ -1,6 +1,7 @@
 import unittest
 
 from ravendb.documents.operations.ai.ai_connection_string import AiConnectionString, AiModelType
+from ravendb.documents.operations.ai.anthropic_settings import AnthropicSettings
 from ravendb.documents.operations.ai.azure_open_ai_settings import AzureOpenAiSettings
 from ravendb.documents.operations.ai.embedded_settings import EmbeddedSettings
 from ravendb.documents.operations.ai.embeddings_generation_configuration import EmbeddingsGenerationConfiguration
@@ -52,6 +53,21 @@ class TestAiConnectionStringEncryptedChannel(unittest.TestCase):
             with self.subTest(endpoint=endpoint):
                 connection_string = _connection_string(
                     huggingface_settings=HuggingFaceSettings("api-key", "sentence-transformers/model", endpoint)
+                )
+                self.assertIs(expected, connection_string.using_encrypted_communication_channel())
+
+    def test_anthropic_without_endpoint_uses_the_https_default(self):
+        for endpoint, expected in [
+            (None, True),
+            ("", True),
+            ("   ", True),
+            ("https://anthropic.example.com/v1/", True),
+            ("http://localhost:8080/", False),
+        ]:
+            with self.subTest(endpoint=endpoint):
+                connection_string = _connection_string(
+                    model_type=AiModelType.CHAT,
+                    anthropic_settings=AnthropicSettings("api-key", "claude-model", endpoint),
                 )
                 self.assertIs(expected, connection_string.using_encrypted_communication_channel())
 
