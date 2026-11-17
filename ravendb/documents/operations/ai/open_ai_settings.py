@@ -32,9 +32,9 @@ class OpenAiSettings(OpenAiBaseSettings):
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "OpenAiSettings":
         return cls(
-            api_key=json_dict["ApiKey"],
-            endpoint=json_dict["Endpoint"],
-            model=json_dict["Model"],
+            api_key=json_dict.get("ApiKey"),
+            endpoint=json_dict.get("Endpoint"),
+            model=json_dict.get("Model"),
             dimensions=json_dict["Dimensions"] if "Dimensions" in json_dict else None,
             temperature=json_dict["Temperature"] if "Temperature" in json_dict else None,
             organization_id=json_dict["OrganizationId"] if "OrganizationId" in json_dict else None,
