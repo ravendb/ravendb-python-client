@@ -35,7 +35,7 @@ class CounterOperation:
         if not counter_operation_type:
             raise ValueError(f"Missing counter_operation_type property in counter {counter_name}")
         if delta is None and counter_operation_type == CounterOperationType.INCREMENT:
-            raise ValueError(f"Missing delta property in counter {counter_name} of type {counter_operation_type}")
+            delta = 1
         self.counter_name = counter_name
         self.delta = delta
         self.counter_operation_type = counter_operation_type
