@@ -17,11 +17,14 @@ from ravendb.documents.operations.indexes import (
     GetIndexErrorsOperation,
     GetIndexesOperation,
     GetIndexOperation,
+    ResetIndexOperation,
     SetIndexesLockOperation,
     SetIndexesPriorityOperation,
     GetTermsOperation,
     IndexHasChangedOperation,
 )
+
+from ravendb.documents.operations.statistics import GetStatisticsOperation
 
 from ravendb.tests.test_base import TestBase, UserWithId
 
@@ -177,3 +180,70 @@ class TestIndexOperation(TestBase):
         self.assertFalse(self.store.maintenance.send(IndexHasChangedOperation(index)))
         index.maps = ("from users",)
         self.assertTrue(self.store.maintenance.send(IndexHasChangedOperation(index)))
+
+    def test_has_index_changed_additional_sources(self):
+        index = UsersIndex()
+        self.store.maintenance.send(PutIndexesOperation(index))
+        self.assertFalse(self.store.maintenance.send(IndexHasChangedOperation(index)))
+        index.additional_sources = {"Helper.cs": "public static string Format(string s) => s;"}
+        self.assertTrue(self.store.maintenance.send(IndexHasChangedOperation(index)))
+
+    def test_can_reset_index(self):
+        index = UsersIndex()
+        self.store.maintenance.send(PutIndexesOperation(index))
+        with self.store.open_session() as session:
+            session.store(UserWithId("John"))
+            session.save_changes()
+        self.wait_for_indexing(self.store, self.store.database)
+
+        stats = self.store.maintenance.send(GetStatisticsOperation())
+        self.assertEqual(0, len(stats.stale_indexes))
+
+        # Stop the indexer so the index stays stale after reset, allowing a deterministic
+        # stale-indexes assertion without racing against the re-indexing cycle.
+        self.store.maintenance.send(StopIndexingOperation())
+        self.store.maintenance.send(ResetIndexOperation(index.name))
+
+        stats = self.store.maintenance.send(GetStatisticsOperation())
+        self.assertEqual(1, len(stats.stale_indexes))
+        self.assertEqual(index.name, stats.stale_indexes[0].name)
+
+    def test_get_definition_for_non_existent_index_returns_none(self):
+        index = UsersIndex()
+        self.store.maintenance.send(PutIndexesOperation(index))
+
+        result = self.store.maintenance.send(GetIndexOperation("does-not-exist"))
+        self.assertIsNone(result)
+
+        result = self.store.maintenance.send(GetIndexOperation(index.name))
+        self.assertIsNotNone(result)
+        self.assertEqual(index.name, result.name)
+        self.assertEqual(index.maps, result.maps)
+
+    def test_set_lock_mode_on_auto_index_raises(self):
+        with self.store.open_session() as session:
+            session.store(UserWithId("Jane"))
+            session.save_changes()
+        with self.store.open_session() as session:
+            list(session.query(object_type=UserWithId).where_equals("name", "Jane"))
+        self.wait_for_indexing(self.store, self.store.database)
+        auto_index_names = [
+            name
+            for name in self.store.maintenance.send(GetIndexNamesOperation(0, 25))
+            if name.lower().startswith("auto/")
+        ]
+        self.assertGreater(len(auto_index_names), 0)
+        auto_index_name = auto_index_names[0]
+
+        stats = self.store.maintenance.send(GetIndexStatisticsOperation(auto_index_name))
+        self.assertEqual(IndexLockMode.UNLOCK, stats.lock_mode)
+        self.assertEqual(IndexPriority.NORMAL, stats.priority)
+
+        with self.assertRaises(ValueError):
+            self.store.maintenance.send(SetIndexesLockOperation(IndexLockMode.LOCKED_IGNORE, auto_index_name))
+
+        # priority can still be set on auto-indexes even though lock mode cannot
+        self.store.maintenance.send(SetIndexesPriorityOperation(IndexPriority.LOW, auto_index_name))
+        stats = self.store.maintenance.send(GetIndexStatisticsOperation(auto_index_name))
+        self.assertEqual(IndexLockMode.UNLOCK, stats.lock_mode)
+        self.assertEqual(IndexPriority.LOW, stats.priority)

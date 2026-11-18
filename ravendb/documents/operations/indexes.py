@@ -28,8 +28,7 @@ if TYPE_CHECKING:
 class PutIndexesOperation(MaintenanceOperation):
     def __init__(self, *indexes_to_add: IndexDefinition):
         if len(indexes_to_add) == 0:
-            raise ValueError("Invalid indexes_to_add")
-
+            raise ValueError("indexes_to_add cannot be empty")
         super(PutIndexesOperation, self).__init__()
         self._indexes_to_add = indexes_to_add
         self.__all_java_script_indexes = True  # todo: set it in the command
@@ -67,9 +66,12 @@ class PutIndexesOperation(MaintenanceOperation):
             return request
 
         def set_response(self, response: str, from_cache: bool) -> None:
-            self.result = json.loads(response)  # todo: PutIndexResult instead of dict
-            if "Error" in response:
-                raise ErrorResponseException(response["Error"])
+            if response is None:
+                self._throw_invalid_response()
+            result = json.loads(response)  # todo: PutIndexResult instead of dict
+            if "Error" in result:
+                raise ErrorResponseException(result["Error"])
+            self.result = result
 
 
 class GetIndexNamesOperation(MaintenanceOperation):
@@ -176,7 +178,7 @@ class EnableIndexOperation(VoidMaintenanceOperation):
     def get_command(self, conventions) -> VoidRavenCommand:
         return self.__EnableIndexCommand(self.__index_name, self.__cluster_wide)
 
-    class __EnableIndexCommand(VoidRavenCommand):
+    class __EnableIndexCommand(VoidRavenCommand, RaftCommand):
         def __init__(self, index_name: str, cluster_wide: bool):
             if index_name is None:
                 raise ValueError("index_name cannot be None")
@@ -192,7 +194,7 @@ class EnableIndexOperation(VoidMaintenanceOperation):
                 f"&clusterWide={self.__cluster_wide}",
             )
 
-        def raft_unique_request_id(self) -> str:
+        def get_raft_unique_request_id(self) -> str:
             return RaftIdGenerator.new_id()
 
 
@@ -440,7 +442,7 @@ class GetIndexesOperation(MaintenanceOperation[List[IndexDefinition]]):
             return requests.Request(
                 "GET",
                 f"{server_node.url}/databases/{server_node.database}"
-                f"/indexes?start={self.__start}&pageSize{self.__page_size} ",
+                f"/indexes?start={self.__start}&pageSize={self.__page_size}",
             )
 
         def set_response(self, response: str, from_cache: bool) -> None:
@@ -501,7 +503,7 @@ class SetIndexesLockOperation(VoidMaintenanceOperation):
 
     def __filter_auto_indexes(self):
         for name in self.__index_names:
-            if name.startswith("auto/"):
+            if name.lower().startswith("auto/"):
                 raise ValueError("Index list contains Auto-Indexes. Lock Mode is not set for Auto-Indexes")
 
     class __SetIndexesLockCommand(VoidRavenCommand, RaftCommand):
@@ -614,18 +616,7 @@ class IndexHasChangedOperation(MaintenanceOperation[bool]):
         def create_request(self, server_node: ServerNode) -> requests.Request:
             request = requests.Request("POST")
             request.url = f"{server_node.url}/databases/{server_node.database}/indexes/has-changed"
-            request.data = {
-                "Configuration": self.__index.configuration,
-                "Fields": self.__index.fields,
-                "LockMode": self.__index.lock_mode,
-                "Maps": self.__index.maps,
-                "Name": self.__index.name,
-                "OutputReduceToCollection": self.__index.output_reduce_to_collection,
-                "Priority": self.__index.priority,
-                "Reduce": self.__index.reduce,
-                "SourceType": self.__index.source_type,
-                "Type": self.__index.type,
-            }
+            request.data = self.__index.to_json()
             return request
 
         def set_response(self, response: str, from_cache: bool) -> None:
