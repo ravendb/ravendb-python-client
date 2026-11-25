@@ -82,6 +82,7 @@ class AiAgentToolQuery:
         parameters_sample_object: str = None,
         parameters_schema: str = None,
         options: AiAgentToolQueryOptions = None,
+        strict: bool = False,
     ):
         self.name = name
         self.description = description
@@ -89,6 +90,9 @@ class AiAgentToolQuery:
         self.parameters_sample_object: Optional[str] = parameters_sample_object
         self.parameters_schema: Optional[str] = parameters_schema
         self.options = options
+        # Sends parameters_schema in strict mode; it must follow the provider's strict rules.
+        # A schema built from parameters_sample_object is always strict.
+        self.strict = strict
 
     def to_json(self) -> Dict[str, Any]:
         json_dict = {
@@ -98,6 +102,8 @@ class AiAgentToolQuery:
             "ParametersSampleObject": self.parameters_sample_object,
             "ParametersSchema": self.parameters_schema,
         }
+        if self.strict:
+            json_dict["Strict"] = True
         if self.options:
             json_dict["Options"] = self.options.to_json()
 
@@ -113,6 +119,7 @@ class AiAgentToolQuery:
             "ParametersSampleObject"
         )
         instance.parameters_schema = json_dict.get("parametersSchema") or json_dict.get("ParametersSchema")
+        instance.strict = json_dict.get("strict") or json_dict.get("Strict") or False
         if options := json_dict.get("Options"):
             instance.options = AiAgentToolQueryOptions.from_json(options)
         return instance
@@ -127,19 +134,26 @@ class AiAgentToolAction:
         description: str = None,
         parameters_sample_object: str = None,
         parameters_schema: str = None,
+        strict: bool = False,
     ):
         self.name = name
         self.description = description
         self.parameters_sample_object: Optional[str] = parameters_sample_object
         self.parameters_schema: Optional[str] = parameters_schema
+        # Sends parameters_schema in strict mode; it must follow the provider's strict rules.
+        # A schema built from parameters_sample_object is always strict.
+        self.strict = strict
 
     def to_json(self) -> Dict[str, Any]:
-        return {
+        json_dict = {
             "Name": self.name,
             "Description": self.description,
             "ParametersSampleObject": self.parameters_sample_object,
             "ParametersSchema": self.parameters_schema,
         }
+        if self.strict:
+            json_dict["Strict"] = True
+        return json_dict
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> AiAgentToolAction:
@@ -150,6 +164,7 @@ class AiAgentToolAction:
             "ParametersSampleObject"
         )
         instance.parameters_schema = json_dict.get("parametersSchema") or json_dict.get("ParametersSchema")
+        instance.strict = json_dict.get("strict") or json_dict.get("Strict") or False
         return instance
 
 
