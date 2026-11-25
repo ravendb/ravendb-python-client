@@ -1,9 +1,9 @@
 ﻿from typing import Dict, Any
 
-from ravendb.documents.operations.ai.open_ai_base_settings import OpenAiBaseSettings
+from ravendb.documents.operations.ai.open_ai_chat_api_settings import OpenAiChatApiSettings, OpenAiChatApiType
 
 
-class AzureOpenAiSettings(OpenAiBaseSettings):
+class AzureOpenAiSettings(OpenAiChatApiSettings):
     def __init__(
         self,
         api_key: str = None,
@@ -14,9 +14,19 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
         temperature: float = None,
         embeddings_max_concurrent_batches: int = None,
         enable_prompt_cache: bool = None,
+        reasoning_effort: str = None,
+        chat_api: OpenAiChatApiType = None,
     ):
         super().__init__(
-            api_key, endpoint, model, dimensions, temperature, embeddings_max_concurrent_batches, enable_prompt_cache
+            api_key,
+            endpoint,
+            model,
+            dimensions,
+            temperature,
+            embeddings_max_concurrent_batches,
+            enable_prompt_cache,
+            reasoning_effort,
+            chat_api,
         )
         if deployment_name is None:
             raise ValueError("deployment_name cannot be None")
@@ -37,6 +47,8 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
                 json_dict["EmbeddingsMaxConcurrentBatches"] if "EmbeddingsMaxConcurrentBatches" in json_dict else None
             ),
             enable_prompt_cache=json_dict.get("EnablePromptCache"),
+            reasoning_effort=cls._reasoning_effort_from_json(json_dict),
+            chat_api=cls._chat_api_from_json(json_dict),
         )
 
     def to_json(self) -> Dict[str, Any]:
@@ -51,4 +63,4 @@ class AzureOpenAiSettings(OpenAiBaseSettings):
         }
         if self.enable_prompt_cache is not None:
             json_dict["EnablePromptCache"] = self.enable_prompt_cache
-        return json_dict
+        return self._add_chat_api_fields(json_dict)
